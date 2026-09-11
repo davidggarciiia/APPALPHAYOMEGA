@@ -32,7 +32,7 @@ a nadie.
 | Pieza         | Elección                                | Por qué                                                                                        |
 | ------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Runtime       | Node LTS                                |                                                                                                |
-| Framework     | NestJS                                  | Módulos, inyección de dependencias y decoradores. Calcado de Spring, familiar viniendo de Java |
+| Framework     | NestJS 12 (solo ESM, ver ADR 0002)      | Módulos, inyección de dependencias y decoradores. Calcado de Spring, familiar viniendo de Java |
 | ORM           | Prisma                                  | Migraciones versionadas y tipos generados desde el esquema                                     |
 | Base de datos | PostgreSQL                              | El dominio es relacional de arriba abajo: cliente, sesión, ejercicio, serie                    |
 | Validación    | Zod                                     | Compartido con la app vía `packages/shared`                                                    |

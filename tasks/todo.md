@@ -28,9 +28,8 @@
   con su enumerado de rol.
 
   > Prisma 7 dejó de admitir la URL de conexión dentro de `schema.prisma`. Vive
-  > ahora en `prisma.config.ts`, en la raíz, que también carga el `.env` con la
-  > función nativa de Node. Por eso los comandos `db:*` se ejecutan desde la raíz
-  > y no desde `apps/api`.
+  > ahora en `prisma.config.ts`, en la raíz. Por eso los comandos `db:*` se
+  > ejecutan desde la raíz y no desde `apps/api`.
 
   **Aceptación**
   - `docker compose up -d` levanta Postgres y persiste entre reinicios
@@ -46,7 +45,7 @@
 
   **Dependencias:** 1 · **Alcance:** S
 
-- [ ] **Tarea 3: Esqueleto de la API**
+- [x] **Tarea 3: Esqueleto de la API** — hecha 2026-09-12
 
   Aplicación NestJS con módulo de Prisma y un endpoint de salud. Es la tarea donde
   se aprende la estructura del framework sin lógica que distraiga.

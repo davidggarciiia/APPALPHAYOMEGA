@@ -1,12 +1,18 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "Node",
-    "rootDir": "src",
+    // NestJS 12 es solo ESM, asi que la API tambien lo es. NodeNext obliga a
+    // escribir la extension .js en los imports relativos, aunque el fichero de
+    // origen sea .ts: la extension describe lo que habra despues de compilar.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    // Exigido por ts-jest al compilar con NodeNext: cada fichero se transpila
+    // por separado, sin ver el resto del programa.
+    "isolatedModules": true,
     "outDir": "dist",
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "types": ["node", "jest"]
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "test/**/*"]
 }
