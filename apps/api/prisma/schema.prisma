@@ -1,0 +1,49 @@
+// Esquema de datos. Ninguna tabla se toca a mano: todo cambio pasa por una
+// migracion versionada con `npx prisma migrate dev --name <nombre>`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// La URL de conexion vive en prisma.config.ts, en la raiz del monorepo.
+// Desde Prisma 7 el esquema no la admite.
+datasource db {
+  provider = "postgresql"
+}
+
+/// Los cuatro perfiles de SPEC-identity.md. Enumerado, no texto libre: anadir un
+/// quinto rol exige una migracion, que es exactamente lo que queremos.
+enum Rol {
+  cliente
+  entrenador
+  nutricionista
+  empleado
+}
+
+/// Existir y poder entrar son dos cosas distintas (requisito 2).
+/// - pendiente: el entrenador lo creo. Existe, recibe entrenos, no inicia sesion.
+/// - activo: completo la activacion y entra con normalidad.
+/// - desactivado: no entra, y su historico se conserva intacto.
+enum EstadoUsuario {
+  pendiente
+  activo
+  desactivado
+}
+
+model Usuario {
+  id String @id @default(uuid())
+
+  email String @unique
+
+  /// Opcional a proposito: un usuario pendiente todavia no tiene contrasena.
+  /// Se guarda con Argon2id y no sale del servidor en ninguna respuesta.
+  passwordHash String?
+
+  rol    Rol
+  estado EstadoUsuario @default(pendiente)
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@map("usuarios")
+}

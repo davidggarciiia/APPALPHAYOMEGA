@@ -6,6 +6,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@alpha-omega/shared": "*"
+    "@alpha-omega/shared": "*",
+    "@prisma/client": "^7.10.0"
   }
 }

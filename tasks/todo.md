@@ -22,14 +22,15 @@
 
   **Dependencias:** ninguna · **Alcance:** S
 
-- [ ] **Tarea 2: Postgres local y primera migración**
+- [x] **Tarea 2: Postgres local y primera migración** — hecha 2026-09-12
 
   Levantar Postgres con Docker Compose y crear el esquema inicial de `Usuario`
   con su enumerado de rol.
 
-  > **Bloqueada.** Docker no está instalado en esta máquina (comprobado el
-  > 2026-09-12). Hay que instalar Docker Desktop o decidir una alternativa antes
-  > de empezar esta tarea.
+  > Prisma 7 dejó de admitir la URL de conexión dentro de `schema.prisma`. Vive
+  > ahora en `prisma.config.ts`, en la raíz, que también carga el `.env` con la
+  > función nativa de Node. Por eso los comandos `db:*` se ejecutan desde la raíz
+  > y no desde `apps/api`.
 
   **Aceptación**
   - `docker compose up -d` levanta Postgres y persiste entre reinicios

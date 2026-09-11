@@ -12,12 +12,19 @@
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",
+    "prisma": "^7.10.0",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0"
   },
