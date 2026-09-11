@@ -1,0 +1,11 @@
+{
+  "name": "@alpha-omega/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@alpha-omega/shared": "*"
+  }
+}

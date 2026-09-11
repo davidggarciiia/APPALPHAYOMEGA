@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+coverage/
+
+# Secretos. Nunca, bajo ningun concepto, en el repositorio.
+.env
+.env.*
+!.env.example
+
+# Expo
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log
