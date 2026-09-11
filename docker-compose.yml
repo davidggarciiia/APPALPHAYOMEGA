@@ -8,7 +8,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      # Atado a la interfaz local a proposito. Sin el 127.0.0.1 delante, Docker
+      # publica el puerto en todas las interfaces y cualquiera en la misma red
+      # wifi puede intentar conectarse a la base de datos de desarrollo.
+      - "127.0.0.1:5432:5432"
     volumes:
       # Volumen con nombre: la base de datos sobrevive a borrar el contenedor.
       - postgres_data:/var/lib/postgresql/data

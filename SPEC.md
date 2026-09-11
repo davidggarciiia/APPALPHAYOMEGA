@@ -63,8 +63,30 @@ npx eas build -p ios     --profile preview
 npm run dev      --workspace apps/api
 npm run test     --workspace apps/api
 npm run test:e2e --workspace apps/api
-npx prisma migrate dev --name <nombre>
-npx prisma studio
+```
+
+Base de datos, siempre desde la raíz, porque `prisma.config.ts` vive ahí:
+
+```bash
+npm run db:up                # levanta Postgres en un contenedor
+npm run db:migrate           # crea y aplica una migración
+npm run db:studio            # inspector visual de la base
+npm run db:reset             # borra y reconstruye desde las migraciones
+npm run db:down              # para el contenedor
+```
+
+### La trampa del paquete compartido
+
+`packages/shared` compila a `dist`. Si cambias un tipo ahí y no reconstruyes, la
+app y la API siguen viendo el tipo viejo y **el compilador no se queja**, porque
+para ellos el paquete es lo que hay en `dist`, no lo que hay en `src`.
+
+Por eso `npm run typecheck` reconstruye el paquete antes de comprobar nada, y el
+script de test hará lo mismo. Mientras trabajes sobre el paquete compartido, deja
+esto corriendo en una terminal aparte:
+
+```bash
+npm run dev --workspace packages/shared
 ```
 
 ## Project Structure

@@ -54,10 +54,17 @@
   **Aceptación**
   - `GET /salud` devuelve estado y comprueba que la base de datos responde
   - `PrismaService` se inyecta por el contenedor, sin instanciarlo a mano
+  - El cliente de Prisma se construye con un adaptador de driver explícito.
+    Prisma 7 ya no conecta solo, así que entran `@prisma/adapter-pg` y `pg`
   - Hay un test e2e que arranca la app y golpea el endpoint
+  - **Se borra `scripts/sin-tests.mjs`** y el script `test` de la raíz vuelve a
+    ser real: `npm run build:shared && npm run test --workspaces --if-present`.
+    El marcador existe solo para que `npm test` no dé un verde falso mientras no
+    hay tests, y deja de tener sentido en cuanto esta tarea aterriza
 
   **Verificación**
   - `npm run test:e2e --workspace apps/api` pasa
+  - `npm run test` desde la raíz ejecuta tests de verdad y sale en verde
   - `npm run dev --workspace apps/api` arranca sin avisos
 
   **Dependencias:** 2 · **Alcance:** S

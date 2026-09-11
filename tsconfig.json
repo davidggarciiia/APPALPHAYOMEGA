@@ -1,0 +1,12 @@
+{
+  // Cubre los ficheros de configuracion de la raiz, que no pertenecen a ningun
+  // workspace y por tanto ningun otro tsconfig comprobaba.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["prisma.config.ts"]
+}
