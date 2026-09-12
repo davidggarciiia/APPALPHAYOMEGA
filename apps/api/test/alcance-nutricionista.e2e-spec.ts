@@ -36,7 +36,13 @@ describe("Alcance por asignacion del nutricionista", () => {
   async function crear(nombre: string, rol: Rol): Promise<void> {
     const email = `${nombre}${SUFIJO}`
     const creado = await prisma.usuario.create({
-      data: { email, passwordHash: await cifrarContrasena(CONTRASENA), rol, estado: "activo" },
+      data: {
+        email,
+        nombre,
+        passwordHash: await cifrarContrasena(CONTRASENA),
+        rol,
+        estado: "activo",
+      },
     })
     ids.set(nombre, creado.id)
 

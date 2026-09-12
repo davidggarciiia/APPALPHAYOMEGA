@@ -1,7 +1,9 @@
 import { Body, Controller, HttpCode, HttpStatus, Ip, Post } from "@nestjs/common"
 import {
+  ActivacionSchema,
   CredencialesSchema,
   PeticionRefrescoSchema,
+  type Activacion,
   type Credenciales,
   type PeticionRefresco,
   type Sesion,
@@ -9,12 +11,16 @@ import {
 
 import { ZodPipe } from "../comun/zod.pipe.js"
 
+import { ActivacionService } from "./activacion.service.js"
 import { AuthService } from "./auth.service.js"
 import { Publico } from "./publico.decorator.js"
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly activacion: ActivacionService,
+  ) {}
 
   /**
    * Un login correcto no crea nada, asi que responde 200 y no 201.
@@ -27,6 +33,17 @@ export class AuthController {
     @Ip() origen: string,
   ): Promise<Sesion> {
     return this.auth.iniciarSesion(credenciales, origen)
+  }
+
+  /**
+   * Publico por definicion: quien activa su cuenta todavia no tiene sesion.
+   * La autorizacion la da el propio enlace, que llego a su correo.
+   */
+  @Publico()
+  @Post("activar")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async activar(@Body(new ZodPipe(ActivacionSchema)) datos: Activacion): Promise<void> {
+    await this.activacion.activar(datos.token, datos.contrasena)
   }
 
   /**

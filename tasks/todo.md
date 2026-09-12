@@ -238,7 +238,7 @@
 
   **Dependencias:** 3, y la decisión de la pregunta abierta 1 · **Alcance:** S
 
-- [ ] **Tarea 12: Alta directa y activación con contraseña**
+- [x] **Tarea 12: Alta directa y activación con contraseña** — hecha 2026-09-12
 
   El entrenador crea el perfil con nombre, correo y rol. Nace pendiente y ya se le
   pueden asignar entrenos. Se le envía un enlace de activación con el que fija su

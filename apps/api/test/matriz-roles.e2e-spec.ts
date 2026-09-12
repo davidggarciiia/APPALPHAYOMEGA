@@ -131,7 +131,9 @@ describe("Matriz de roles", () => {
     const passwordHash = await cifrarContrasena(CONTRASENA)
     for (const rol of ROLES) {
       const email = `${rol}${SUFIJO}`
-      await prisma.usuario.create({ data: { email, passwordHash, rol, estado: "activo" } })
+      await prisma.usuario.create({
+        data: { email, nombre: rol, passwordHash, rol, estado: "activo" },
+      })
 
       const login = await request(app.getHttpServer())
         .post("/auth/login")

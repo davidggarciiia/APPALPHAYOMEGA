@@ -12,6 +12,8 @@ import { cifrarContrasena } from "./contrasenas.js"
 type UsuarioEnBase = {
   id: string
   email: string
+  nombre: string
+  apellidos: string | null
   passwordHash: string | null
   rol: Rol
   estado: EstadoUsuario
@@ -49,6 +51,8 @@ async function usuarioActivo(cambios: Partial<UsuarioEnBase> = {}): Promise<Usua
   return {
     id: "u-1",
     email: "entrenador@ejemplo.com",
+    nombre: "Entrenador",
+    apellidos: null,
     passwordHash: await cifrarContrasena(CONTRASENA),
     rol: "entrenador",
     estado: "activo",
@@ -72,7 +76,10 @@ describe("AuthService.iniciarSesion", () => {
     expect(sesion.usuario).toEqual({
       id: "u-1",
       email: "entrenador@ejemplo.com",
+      nombre: "Entrenador",
+      apellidos: null,
       rol: "entrenador",
+      estado: "activo",
     })
   })
 

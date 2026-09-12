@@ -16,8 +16,26 @@ import { ServicioDeCorreo, type Correo } from "./correo.service.js"
 @Injectable()
 export class CorreoEnMemoria extends ServicioDeCorreo {
   readonly enviados: Correo[] = []
+  private fallaElProximo = false
+
+  /**
+   * Hace que el siguiente envio falle, una sola vez.
+   *
+   * Existe para poder probar que pasa cuando el proveedor se cae, que es un caso
+   * real y con consecuencias: la cuenta ya esta creada y nadie ha recibido el
+   * enlace. El doble controla su propio comportamiento en lugar de que el test
+   * le cambie los metodos por detras.
+   */
+  hacerFallarElProximoEnvio(): void {
+    this.fallaElProximo = true
+  }
 
   enviar(correo: Correo): Promise<void> {
+    if (this.fallaElProximo) {
+      this.fallaElProximo = false
+      return Promise.reject(new Error("el proveedor de correo esta caido"))
+    }
+
     this.enviados.push(correo)
     return Promise.resolve()
   }

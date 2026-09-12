@@ -7,6 +7,7 @@ import { PrismaService } from "../prisma/prisma.service.js"
 import { verificarContrasena } from "./contrasenas.js"
 import { LimitadorDeIntentos } from "./limitador-intentos.service.js"
 import type { ContenidoDelToken } from "./peticion.js"
+import { aPublico } from "./usuarios.service.js"
 import { TokensRefrescoService, type SesionEmitida } from "./tokens-refresco.service.js"
 
 /**
@@ -59,10 +60,7 @@ export class AuthService {
 
     this.limitador.registrarExito(clave)
 
-    return this.componerSesion(
-      { id: usuario.id, email: usuario.email, rol: usuario.rol },
-      await this.refrescos.emitir(usuario.id),
-    )
+    return this.componerSesion(usuario, await this.refrescos.emitir(usuario.id))
   }
 
   /**
@@ -85,7 +83,7 @@ export class AuthService {
       throw new UnauthorizedException("Sesion no valida")
     }
 
-    return this.componerSesion({ id: usuario.id, email: usuario.email, rol: usuario.rol }, nuevo)
+    return this.componerSesion(usuario, nuevo)
   }
 
   /** Cierra la sesion en el servidor. Borrar el token del movil no basta. */
@@ -94,7 +92,7 @@ export class AuthService {
   }
 
   private async componerSesion(
-    usuario: { id: string; email: string; rol: ContenidoDelToken["rol"] },
+    usuario: Parameters<typeof aPublico>[0],
     refresco: SesionEmitida,
   ): Promise<Sesion> {
     // El token de acceso lleva el id de la sesion. Sin el, el guard no tendria
@@ -108,7 +106,7 @@ export class AuthService {
     return {
       tokenAcceso: await this.jwt.signAsync(contenido),
       tokenRefresco: refresco.token,
-      usuario: { id: usuario.id, email: usuario.email, rol: usuario.rol },
+      usuario: aPublico(usuario),
     }
   }
 }

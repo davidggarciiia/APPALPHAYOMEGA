@@ -69,6 +69,7 @@ describe("Revocacion efectiva del token de acceso", () => {
     await prisma.usuario.create({
       data: {
         email: EMAIL,
+        nombre: "Prueba",
         passwordHash: await cifrarContrasena(CONTRASENA),
         rol: "entrenador",
         estado: "activo",

@@ -61,6 +61,7 @@ describe("Cierre por defecto", () => {
     const creado = await prisma.usuario.create({
       data: {
         email: EMAIL,
+        nombre: "Prueba",
         passwordHash: await cifrarContrasena(CONTRASENA),
         rol: "cliente",
         estado: "activo",

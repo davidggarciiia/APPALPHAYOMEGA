@@ -39,13 +39,17 @@ model Usuario {
   /// Se guarda con Argon2id y no sale del servidor en ninguna respuesta.
   passwordHash String?
 
+  nombre    String
+  apellidos String?
+
   rol    Rol
   estado EstadoUsuario @default(pendiente)
 
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
-  tokensRefresco TokenRefresco[]
+  tokensRefresco     TokenRefresco[]
+  tokensActivacion   TokenActivacion[]
 
   /// Clientes que este usuario ve como nutricionista.
   clientesAsignados AsignacionNutricionista[] @relation("ComoNutricionista")
@@ -112,4 +116,27 @@ model AsignacionNutricionista {
   @@unique([nutricionistaId, clienteId])
   @@index([clienteId])
   @@map("asignaciones_nutricionista")
+}
+
+
+/// Enlace de un solo uso con el que un perfil pendiente fija su contrasena.
+///
+/// Mismo patron que el token de refresco: en la base solo vive el hash del
+/// secreto, y lo que se envia por correo es "<id>.<secreto>". Un correo se queda
+/// en servidores ajenos y en la papelera durante anos, asi que el enlace caduca
+/// pronto y solo sirve una vez.
+model TokenActivacion {
+  id String @id @default(uuid())
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  hash String
+
+  expiraEn DateTime
+  usadoEn  DateTime?
+  creadoEn DateTime  @default(now())
+
+  @@index([usuarioId])
+  @@map("tokens_activacion")
 }

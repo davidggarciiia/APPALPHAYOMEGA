@@ -44,6 +44,7 @@ describe("Carrera en el canje del token de refresco", () => {
     await prisma.usuario.create({
       data: {
         email: EMAIL,
+        nombre: "Prueba",
         passwordHash: await cifrarContrasena(CONTRASENA),
         rol: "cliente",
         estado: "activo",

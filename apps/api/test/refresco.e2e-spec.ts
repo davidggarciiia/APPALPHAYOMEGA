@@ -33,6 +33,7 @@ describe("Ciclo de sesion: login, refresh y logout", () => {
     await prisma.usuario.create({
       data: {
         email: EMAIL,
+        nombre: "Prueba",
         passwordHash: await cifrarContrasena(CONTRASENA),
         rol: "entrenador",
         estado: "activo",

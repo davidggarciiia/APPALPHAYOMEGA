@@ -31,8 +31,20 @@ describe("POST /auth/login", () => {
     const passwordHash = await cifrarContrasena(CONTRASENA)
     await prisma.usuario.createMany({
       data: [
-        { email: EMAIL_ACTIVO, passwordHash, rol: "entrenador", estado: "activo" },
-        { email: EMAIL_PENDIENTE, passwordHash, rol: "cliente", estado: "pendiente" },
+        {
+          email: EMAIL_ACTIVO,
+          nombre: "Activo",
+          passwordHash,
+          rol: "entrenador",
+          estado: "activo",
+        },
+        {
+          email: EMAIL_PENDIENTE,
+          nombre: "Pendiente",
+          passwordHash,
+          rol: "cliente",
+          estado: "pendiente",
+        },
       ],
     })
   })

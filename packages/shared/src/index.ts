@@ -68,7 +68,10 @@ export type Credenciales = z.infer<typeof CredencialesSchema>
 export const UsuarioPublicoSchema = z.object({
   id: z.string(),
   email: z.string(),
+  nombre: z.string(),
+  apellidos: z.string().nullable(),
   rol: RolSchema,
+  estado: EstadoUsuarioSchema,
 })
 
 export type UsuarioPublico = z.infer<typeof UsuarioPublicoSchema>
@@ -94,3 +97,51 @@ export const PeticionRefrescoSchema = z.object({
 })
 
 export type PeticionRefresco = z.infer<typeof PeticionRefrescoSchema>
+
+/**
+ * Contrasena que el usuario elige al activar su cuenta o al recuperarla.
+ *
+ * El minimo es de longitud y no de "una mayuscula, un numero y un simbolo". Esas
+ * reglas empujan a la gente hacia contrasenas cortas y retorcidas que acaban
+ * apuntadas en un papel, mientras que una frase larga es mas facil de recordar y
+ * mucho mas dificil de adivinar.
+ *
+ * El maximo no es cosmetico: sin el, alguien manda megabytes y obliga al
+ * servidor a calcular su hash, que es una operacion cara a proposito.
+ */
+export const ContrasenaNuevaSchema = z
+  .string()
+  .min(10, "Usa al menos 10 caracteres. Una frase que recuerdes sirve.")
+  .max(200)
+
+/** Lo que el entrenador envia para dar de alta a alguien. */
+export const CrearUsuarioSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  nombre: z.string().trim().min(1).max(80),
+  apellidos: z.string().trim().max(120).optional(),
+  rol: RolSchema,
+})
+
+export type CrearUsuario = z.infer<typeof CrearUsuarioSchema>
+
+/**
+ * Lo que devuelve el alta.
+ *
+ * Lleva `correoEnviado` porque las dos cosas pueden ir por separado: la cuenta
+ * se crea y el correo puede no salir. Perder la cuenta por un fallo del proveedor
+ * de correo seria peor, y decir que se envio cuando no se envio es lo que deja a
+ * un cliente esperando un enlace que nunca llega.
+ */
+export const UsuarioCreadoSchema = UsuarioPublicoSchema.extend({
+  correoEnviado: z.boolean(),
+})
+
+export type UsuarioCreado = z.infer<typeof UsuarioCreadoSchema>
+
+/** Lo que el titular envia al abrir el enlace de activacion. */
+export const ActivacionSchema = z.object({
+  token: z.string().min(1).max(500),
+  contrasena: ContrasenaNuevaSchema,
+})
+
+export type Activacion = z.infer<typeof ActivacionSchema>

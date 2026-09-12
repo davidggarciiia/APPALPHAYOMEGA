@@ -29,6 +29,7 @@ async function sembrar(): Promise<void> {
     await prisma.usuario.create({
       data: {
         email,
+        nombre: "Entrenador",
         passwordHash: await cifrarContrasena(leerVariable("SEED_ENTRENADOR_PASSWORD")),
         rol: "entrenador",
         estado: "activo",

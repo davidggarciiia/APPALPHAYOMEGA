@@ -4,6 +4,7 @@ import { JwtModule } from "@nestjs/jwt"
 
 import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
 
+import { ActivacionService } from "./activacion.service.js"
 import { AlcanceClienteGuard } from "./alcance-cliente.guard.js"
 import { AlcanceClienteService } from "./alcance-cliente.service.js"
 import { AuthController } from "./auth.controller.js"
@@ -11,6 +12,8 @@ import { AuthService } from "./auth.service.js"
 import { AutenticacionGuard } from "./autenticacion.guard.js"
 import { LimitadorDeIntentos } from "./limitador-intentos.service.js"
 import { RolesGuard } from "./roles.guard.js"
+import { UsuariosController } from "./usuarios.controller.js"
+import { UsuariosService } from "./usuarios.service.js"
 import { TokensRefrescoService } from "./tokens-refresco.service.js"
 
 const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
@@ -43,10 +46,12 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, UsuariosController],
   providers: [
     AuthService,
     TokensRefrescoService,
+    ActivacionService,
+    UsuariosService,
     LimitadorDeIntentos,
     AlcanceClienteService,
     // No es global. Se pone a mano en las rutas que tratan datos de un cliente
