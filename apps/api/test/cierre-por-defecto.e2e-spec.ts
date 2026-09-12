@@ -5,6 +5,7 @@ import request from "supertest"
 
 import { AppModule } from "../src/app.module.js"
 import { cifrarContrasena } from "../src/identity/contrasenas.js"
+import { Roles } from "../src/identity/roles.decorator.js"
 import type { PeticionAutenticada } from "../src/identity/peticion.js"
 import { PrismaService } from "../src/prisma/prisma.service.js"
 
@@ -13,20 +14,24 @@ const EMAIL = `cliente${SUFIJO}`
 const CONTRASENA = "contrasena-de-prueba-cierre"
 
 /**
- * Controlador escrito a proposito como lo escribiria alguien con prisa: sin
- * ningun decorador de seguridad, sin pensar en permisos.
+ * Controlador de prueba para la primera capa de permisos: la autenticacion.
  *
- * Es el sujeto del test mas importante de este modulo. Si algun dia responde sin
- * sesion, el cierre por defecto se ha roto y todo lo que venga detras nace
- * abierto sin que nadie se entere.
+ * Declara roles porque la segunda capa, la de autorizacion, deniega toda ruta
+ * que no lo haga. El caso de la ruta sin declarar se comprueba en
+ * matriz-roles.e2e-spec.ts.
+ *
+ * Si algun dia estas rutas respondieran sin sesion, el cierre por defecto se
+ * habria roto y todo lo que venga detras naceria abierto sin que nadie se entere.
  */
 @Controller("ruta-que-nadie-protegio")
 class ControladorDescuidado {
+  @Roles("cliente", "entrenador", "nutricionista", "empleado")
   @Get()
   responder(): { visible: boolean } {
     return { visible: true }
   }
 
+  @Roles("cliente", "entrenador", "nutricionista", "empleado")
   @Get("quien-soy")
   quienSoy(@Req() peticion: PeticionAutenticada): { sub?: string; rol?: string } {
     return { sub: peticion.usuario?.sub, rol: peticion.usuario?.rol }
@@ -76,7 +81,7 @@ describe("Cierre por defecto", () => {
     await app.close()
   })
 
-  it("un endpoint nuevo sin ningun decorador deniega sin sesion", async () => {
+  it("un endpoint nuevo deniega sin sesion", async () => {
     await request(app.getHttpServer()).get("/ruta-que-nadie-protegio").expect(401)
   })
 

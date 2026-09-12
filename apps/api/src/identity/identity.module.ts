@@ -7,6 +7,7 @@ import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
 import { AuthController } from "./auth.controller.js"
 import { AuthService } from "./auth.service.js"
 import { AutenticacionGuard } from "./autenticacion.guard.js"
+import { RolesGuard } from "./roles.guard.js"
 import { TokensRefrescoService } from "./tokens-refresco.service.js"
 
 const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
@@ -43,10 +44,15 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
   providers: [
     AuthService,
     TokensRefrescoService,
-    // Registrado asi, el guard se aplica a TODA ruta de la aplicacion, incluidas
-    // las de modulos que todavia no existen. Es la pieza que hace que cerrar sea
-    // el comportamiento por defecto y abrir requiera escribirlo.
+    // Registrados asi, los dos guards cubren TODA ruta de la aplicacion,
+    // incluidas las de modulos que todavia no existen. Son la pieza que hace que
+    // cerrar sea el comportamiento por defecto y abrir requiera escribirlo.
+    //
+    // El orden importa y es el de esta lista: primero quien eres, despues que
+    // puedes. El segundo cuenta con que el primero ya dejo el usuario verificado
+    // en la peticion.
     { provide: APP_GUARD, useClass: AutenticacionGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
   exports: [AuthService, TokensRefrescoService, JwtModule],
 })

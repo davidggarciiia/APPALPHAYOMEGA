@@ -175,7 +175,7 @@
 
 ## Fase 2 · Permisos
 
-- [ ] **Tarea 9: Matriz de roles con tests de denegación**
+- [x] **Tarea 9: Matriz de roles con tests de denegación** — hecha 2026-09-12
 
   Convertir la tabla de la especificación en un guard de roles, con un test por
   cada celda que dice "no".
