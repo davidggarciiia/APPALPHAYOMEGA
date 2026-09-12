@@ -23,7 +23,11 @@
     "db:seed": "npm run seed --workspace apps/api"
   },
   "overrides": {
-    "multer": "^2.3.0"
+    "multer": "^2.3.0",
+    "react-native": "0.86.3",
+    "@react-native/virtualized-lists": "0.86.3",
+    "@react-native/community-cli-plugin": "0.86.3",
+    "@react-native/metro-config": "0.86.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

@@ -4,6 +4,8 @@ import { JwtModule } from "@nestjs/jwt"
 
 import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
 
+import { AlcanceClienteGuard } from "./alcance-cliente.guard.js"
+import { AlcanceClienteService } from "./alcance-cliente.service.js"
 import { AuthController } from "./auth.controller.js"
 import { AuthService } from "./auth.service.js"
 import { AutenticacionGuard } from "./autenticacion.guard.js"
@@ -44,6 +46,11 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
   providers: [
     AuthService,
     TokensRefrescoService,
+    AlcanceClienteService,
+    // No es global. Se pone a mano en las rutas que tratan datos de un cliente
+    // concreto: ponerlo global obligaria a excluir rutas una a una, que es otra
+    // vez la regla al reves.
+    AlcanceClienteGuard,
     // Registrados asi, los dos guards cubren TODA ruta de la aplicacion,
     // incluidas las de modulos que todavia no existen. Son la pieza que hace que
     // cerrar sea el comportamiento por defecto y abrir requiera escribirlo.
@@ -54,6 +61,12 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
     { provide: APP_GUARD, useClass: AutenticacionGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
-  exports: [AuthService, TokensRefrescoService, JwtModule],
+  exports: [
+    AuthService,
+    TokensRefrescoService,
+    AlcanceClienteService,
+    AlcanceClienteGuard,
+    JwtModule,
+  ],
 })
 export class IdentityModule {}

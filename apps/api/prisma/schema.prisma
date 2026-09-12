@@ -47,6 +47,12 @@ model Usuario {
 
   tokensRefresco TokenRefresco[]
 
+  /// Clientes que este usuario ve como nutricionista.
+  clientesAsignados AsignacionNutricionista[] @relation("ComoNutricionista")
+
+  /// Nutricionistas que ven a este usuario como cliente.
+  nutricionistasAsignados AsignacionNutricionista[] @relation("ComoCliente")
+
   @@map("usuarios")
 }
 
@@ -72,4 +78,28 @@ model TokenRefresco {
 
   @@index([usuarioId])
   @@map("tokens_refresco")
+}
+
+
+/// Que clientes puede ver cada nutricionista.
+///
+/// El nutricionista es un profesional EXTERNO subcontratado. Sin una fila aqui
+/// no ve absolutamente nada de un cliente: ni su dieta, ni su peso, ni sus
+/// medidas. El rol por si solo no basta, y esa es justo la frontera entre un
+/// producto y un incidente de proteccion de datos.
+model AsignacionNutricionista {
+  id String @id @default(uuid())
+
+  nutricionistaId String
+  nutricionista   Usuario @relation("ComoNutricionista", fields: [nutricionistaId], references: [id], onDelete: Cascade)
+
+  clienteId String
+  cliente   Usuario @relation("ComoCliente", fields: [clienteId], references: [id], onDelete: Cascade)
+
+  desde DateTime @default(now())
+
+  /// Una asignacion por pareja. Asignar dos veces no crea dos filas.
+  @@unique([nutricionistaId, clienteId])
+  @@index([clienteId])
+  @@map("asignaciones_nutricionista")
 }

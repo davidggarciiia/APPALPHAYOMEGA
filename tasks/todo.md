@@ -191,7 +191,7 @@
 
   **Dependencias:** 6 · **Alcance:** M
 
-- [ ] **Tarea 10: Alcance por asignación del nutricionista**
+- [x] **Tarea 10: Alcance por asignación del nutricionista** — hecha 2026-09-12
 
   El rol no basta. El nutricionista solo ve los clientes que tiene asignados, así
   que hace falta una comprobación de pertenencia además de la de rol.
