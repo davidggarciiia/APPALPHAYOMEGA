@@ -1,5 +1,11 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common"
-import { CredencialesSchema, type Credenciales, type Sesion } from "@alpha-omega/shared"
+import {
+  CredencialesSchema,
+  PeticionRefrescoSchema,
+  type Credenciales,
+  type PeticionRefresco,
+  type Sesion,
+} from "@alpha-omega/shared"
 
 import { ZodPipe } from "../comun/zod.pipe.js"
 
@@ -20,5 +26,32 @@ export class AuthController {
     @Body(new ZodPipe(CredencialesSchema)) credenciales: Credenciales,
   ): Promise<Sesion> {
     return this.auth.iniciarSesion(credenciales)
+  }
+
+  /**
+   * Publico porque quien lo llama tiene, por definicion, el token de acceso
+   * caducado. La autorizacion aqui la da el propio token de refresco.
+   */
+  @Publico()
+  @Post("refresh")
+  @HttpCode(HttpStatus.OK)
+  async refrescar(
+    @Body(new ZodPipe(PeticionRefrescoSchema)) cuerpo: PeticionRefresco,
+  ): Promise<Sesion> {
+    return this.auth.refrescar(cuerpo.tokenRefresco)
+  }
+
+  /**
+   * Tambien publico, y por el mismo motivo: cerrar sesion tiene que funcionar
+   * aunque el token de acceso ya haya caducado. Lo que se presenta es el token
+   * de refresco, y solo revoca ese.
+   */
+  @Publico()
+  @Post("logout")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async cerrarSesion(
+    @Body(new ZodPipe(PeticionRefrescoSchema)) cuerpo: PeticionRefresco,
+  ): Promise<void> {
+    await this.auth.cerrarSesion(cuerpo.tokenRefresco)
   }
 }

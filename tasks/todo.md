@@ -132,7 +132,7 @@
 
   **Dependencias:** 5 · **Alcance:** M
 
-- [ ] **Tarea 7: Tokens de refresco**
+- [x] **Tarea 7: Tokens de refresco** — hecha 2026-09-12
 
   Emitir, renovar y revocar. El token de acceso dura poco, el de refresco dura
   mucho y vive en la base de datos para poder matarlo.

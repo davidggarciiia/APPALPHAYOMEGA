@@ -73,10 +73,24 @@ export const UsuarioPublicoSchema = z.object({
 
 export type UsuarioPublico = z.infer<typeof UsuarioPublicoSchema>
 
-/** Lo que devuelve POST /auth/login. */
+/**
+ * Lo que devuelve POST /auth/login.
+ *
+ * Dos tokens con papeles distintos. El de acceso dura minutos y viaja en cada
+ * peticion. El de refresco dura semanas, vive en el almacen seguro del
+ * dispositivo y solo se usa para pedir un token de acceso nuevo.
+ */
 export const SesionSchema = z.object({
   tokenAcceso: z.string().min(1),
+  tokenRefresco: z.string().min(1),
   usuario: UsuarioPublicoSchema,
 })
 
 export type Sesion = z.infer<typeof SesionSchema>
+
+/** Cuerpo de POST /auth/refresh y POST /auth/logout. */
+export const PeticionRefrescoSchema = z.object({
+  tokenRefresco: z.string().min(1).max(500),
+})
+
+export type PeticionRefresco = z.infer<typeof PeticionRefrescoSchema>

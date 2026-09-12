@@ -45,5 +45,31 @@ model Usuario {
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
+  tokensRefresco TokenRefresco[]
+
   @@map("usuarios")
+}
+
+/// Token de refresco: la pieza que permite que el cliente no vuelva a escribir
+/// su contrasena cada quince minutos.
+///
+/// Se guarda el hash, nunca el token. Quien robe una copia de la base de datos
+/// no obtiene sesiones utilizables. Basta SHA-256 y no hace falta Argon2 porque
+/// el secreto lo genera el servidor con 32 bytes aleatorios: no hay diccionario
+/// que probar, y Argon2 solo serviria para hacer lento cada refresco legitimo.
+model TokenRefresco {
+  id String @id @default(uuid())
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  /// SHA-256 del secreto. El token que ve el cliente es "<id>.<secreto>".
+  hash String
+
+  expiraEn   DateTime
+  revocadoEn DateTime?
+  creadoEn   DateTime  @default(now())
+
+  @@index([usuarioId])
+  @@map("tokens_refresco")
 }

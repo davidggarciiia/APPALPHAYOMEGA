@@ -7,6 +7,7 @@ import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
 import { AuthController } from "./auth.controller.js"
 import { AuthService } from "./auth.service.js"
 import { AutenticacionGuard } from "./autenticacion.guard.js"
+import { TokensRefrescoService } from "./tokens-refresco.service.js"
 
 const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
 
@@ -41,11 +42,12 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
   controllers: [AuthController],
   providers: [
     AuthService,
+    TokensRefrescoService,
     // Registrado asi, el guard se aplica a TODA ruta de la aplicacion, incluidas
     // las de modulos que todavia no existen. Es la pieza que hace que cerrar sea
     // el comportamiento por defecto y abrir requiera escribirlo.
     { provide: APP_GUARD, useClass: AutenticacionGuard },
   ],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, TokensRefrescoService, JwtModule],
 })
 export class IdentityModule {}
