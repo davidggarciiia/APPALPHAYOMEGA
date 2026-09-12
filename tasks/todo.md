@@ -88,11 +88,11 @@
 
   **Dependencias:** 3 · **Alcance:** S
 
-### Checkpoint 0
+### Checkpoint 0 — NO SUPERADO
 
-- [ ] Tests pasan, typecheck limpio
-- [ ] La app en un móvil real habla con la API de tu máquina
-- [ ] Revisión antes de seguir
+- [x] Tests pasan, typecheck limpio — verificado 2026-09-12
+- [ ] La app en un móvil real habla con la API de tu máquina — **solo se ha probado en navegador y exportando el bundle de Android. Nunca en un teléfono.**
+- [ ] Revisión antes de seguir — **no se hizo. Se pasó por encima.**
 
 ## Fase 1 · Sesión
 
@@ -167,11 +167,11 @@
 
   **Dependencias:** 7, 4 · **Alcance:** M
 
-### Checkpoint 1
+### Checkpoint 1 — NO SUPERADO
 
-- [ ] El entrenador entra desde un móvil real y la sesión sobrevive a cerrar la app
-- [ ] Todos los tests pasan
-- [ ] Revisión antes de seguir
+- [ ] El entrenador entra desde un móvil real y la sesión sobrevive a cerrar la app — **probado solo en navegador. En un teléfono cambia el almacén seguro: allí es el llavero del sistema y aquí es localStorage.**
+- [x] Todos los tests pasan — verificado 2026-09-12
+- [ ] Revisión antes de seguir — **no se hizo en su momento. La auditoría adversarial del checkpoint 2 cubrió después este mismo código de sesión.**
 
 ## Fase 2 · Permisos
 
