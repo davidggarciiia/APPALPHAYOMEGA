@@ -217,11 +217,14 @@
 
 ## Fase 3 · Invitaciones
 
-- [ ] **Tarea 11: Envío de correo**
+- [x] **Tarea 11: Envío de correo** — hecha 2026-09-12, pendiente un envío real
 
-  Integrar Resend. Antes de empezarla hay que verificar el dominio
-  `alphayomegatraining.com` en su panel añadiendo los registros DNS, porque la
-  propagación tarda y no depende de ti.
+  Integrar Resend.
+
+  > Funcionando en **modo de pruebas**: el remitente es el dominio de Resend, que
+  > solo permite enviar a la dirección con la que se registró la cuenta. Basta
+  > para desarrollar. **Antes de invitar a un cliente real hay que verificar el
+  > dominio.** Ver [docs/PENDIENTE-PARA-PRODUCCION.md](../docs/PENDIENTE-PARA-PRODUCCION.md), punto 1.
 
   **Aceptación**
   - Un servicio de correo inyectable con una implementación real y otra falsa
