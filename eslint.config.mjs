@@ -8,15 +8,25 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // Los ficheros de script sueltos corren en Node. En los .ts esto no hace
-    // falta porque typescript-eslint ya desactiva no-undef y deja el trabajo al
-    // compilador, pero en JavaScript plano si.
-    files: ["**/*.mjs", "**/*.js"],
+    // Los ficheros de configuracion y los scripts sueltos corren en Node, fuera
+    // del codigo de la aplicacion. En los .ts esto no hace falta porque
+    // typescript-eslint desactiva no-undef y deja el trabajo al compilador, pero
+    // en JavaScript plano si.
+    files: ["**/*.mjs", "**/*.js", "**/*.cjs"],
     languageOptions: {
       globals: {
         console: "readonly",
         process: "readonly",
+        module: "writable",
+        require: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+        exports: "writable",
       },
+    },
+    rules: {
+      // Estos ficheros los carga Node como CommonJS, no la aplicacion.
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
   {

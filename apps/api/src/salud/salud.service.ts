@@ -1,11 +1,7 @@
 import { Injectable } from "@nestjs/common"
+import type { EstadoSalud } from "@alpha-omega/shared"
 
 import { PrismaService } from "../prisma/prisma.service.js"
-
-export type EstadoSalud = {
-  estado: "ok" | "degradado"
-  baseDeDatos: "ok" | "sin respuesta"
-}
 
 @Injectable()
 export class SaludService {

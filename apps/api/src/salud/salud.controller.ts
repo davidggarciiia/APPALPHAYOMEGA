@@ -1,6 +1,7 @@
 import { Controller, Get, ServiceUnavailableException } from "@nestjs/common"
+import type { EstadoSalud } from "@alpha-omega/shared"
 
-import { SaludService, type EstadoSalud } from "./salud.service.js"
+import { SaludService } from "./salud.service.js"
 
 @Controller("salud")
 export class SaludController {

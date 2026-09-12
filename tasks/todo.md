@@ -68,9 +68,14 @@
 
   **Dependencias:** 2 · **Alcance:** S
 
-- [ ] **Tarea 4: Esqueleto de la app**
+- [x] **Tarea 4: Esqueleto de la app** — hecha 2026-09-12, pendiente la prueba en dispositivo
 
   App Expo con Expo Router y un cliente HTTP que apunta a la API local.
+
+  > Verificado sin dispositivo exportando el bundle de Android completo, lo que
+  > demuestra que todo el grafo de modulos resuelve, incluido el paquete
+  > compartido a traves del monorepo. **Queda pendiente que David la abra en un
+  > movil real y confirme que la pantalla muestra el estado de la API.**
 
   **Aceptación**
   - La app arranca en un dispositivo real o emulador

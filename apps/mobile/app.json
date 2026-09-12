@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Alpha & Omega",
+    "slug": "alpha-omega",
+    "version": "0.0.0",
+    "scheme": "alphaomega",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"],
+    "ios": {
+      "bundleIdentifier": "com.alphaomegatraining.app",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.alphaomegatraining.app",
+      "edgeToEdgeEnabled": true
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
