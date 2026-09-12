@@ -113,7 +113,7 @@
 
   **Dependencias:** 3 · **Alcance:** M
 
-- [ ] **Tarea 6: Autenticación global y denegar por defecto**
+- [x] **Tarea 6: Autenticación global y denegar por defecto** — hecha 2026-09-12
 
   Guard global que exige token válido en toda ruta, más un decorador para marcar
   las públicas de forma explícita. Es la tarea que protege todo el resto del
