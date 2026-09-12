@@ -19,7 +19,8 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "db:seed": "npm run seed --workspace apps/api"
   },
   "overrides": {
     "multer": "^2.3.0"

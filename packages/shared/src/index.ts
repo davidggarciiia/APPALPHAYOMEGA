@@ -49,3 +49,34 @@ export const EstadoSaludSchema = z.object({
 })
 
 export type EstadoSalud = z.infer<typeof EstadoSaludSchema>
+
+/**
+ * Lo que la app envia a POST /auth/login.
+ *
+ * El limite de longitud no es cosmetico: sin el, alguien puede mandar una
+ * contrasena de megabytes y obligar al servidor a calcular su hash, que es una
+ * operacion cara a proposito. Eso es una denegacion de servicio gratuita.
+ */
+export const CredencialesSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  contrasena: z.string().min(1).max(200),
+})
+
+export type Credenciales = z.infer<typeof CredencialesSchema>
+
+/** Datos del usuario que la app puede ver. Nunca incluye el hash de contrasena. */
+export const UsuarioPublicoSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  rol: RolSchema,
+})
+
+export type UsuarioPublico = z.infer<typeof UsuarioPublicoSchema>
+
+/** Lo que devuelve POST /auth/login. */
+export const SesionSchema = z.object({
+  tokenAcceso: z.string().min(1),
+  usuario: UsuarioPublicoSchema,
+})
+
+export type Sesion = z.infer<typeof SesionSchema>

@@ -96,7 +96,7 @@
 
 ## Fase 1 · Sesión
 
-- [ ] **Tarea 5: Login con contraseña en la API**
+- [x] **Tarea 5: Login con contraseña en la API** — hecha 2026-09-12
 
   Endpoint de login que verifica con Argon2id y devuelve un token de acceso.
   Incluye un seed que crea la cuenta del entrenador.

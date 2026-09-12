@@ -1,0 +1,11 @@
+{
+  // Configuracion para compilar de verdad. La de al lado, tsconfig.json, cubre
+  // tambien los tests y solo comprueba tipos; esta es la que produce dist/.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "noEmit": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["**/*.spec.ts", "node_modules", "dist"]
+}

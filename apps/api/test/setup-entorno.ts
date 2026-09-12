@@ -1,6 +1,6 @@
 import "reflect-metadata"
 
-import { cargarEntornoLocal } from "../src/config/postgres.js"
+import { cargarEntornoLocal } from "../src/config/entorno.js"
 
 /**
  * Preparacion comun a todos los tests.

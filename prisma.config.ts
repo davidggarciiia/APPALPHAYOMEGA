@@ -1,6 +1,7 @@
 import { defineConfig } from "@prisma/config"
 
-import { cargarEntornoLocal, urlDeConexion } from "./apps/api/src/config/postgres"
+import { cargarEntornoLocal } from "./apps/api/src/config/entorno"
+import { urlDeConexion } from "./apps/api/src/config/postgres"
 
 /**
  * Configuracion de Prisma para todo el monorepo.
@@ -20,6 +21,10 @@ export default defineConfig({
   schema: "apps/api/prisma/schema.prisma",
   migrations: {
     path: "apps/api/prisma/migrations",
+    // El seed se compila antes de ejecutarse. El modo de Node que quita tipos
+    // sobre la marcha no sirve aqui: no resuelve un import terminado en .js
+    // contra un fichero .ts, que es como NodeNext obliga a escribirlos.
+    seed: "npm run seed --workspace apps/api",
   },
   datasource: {
     url: urlDeConexion(),
