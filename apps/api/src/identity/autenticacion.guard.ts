@@ -7,8 +7,11 @@ import {
 import { Reflector } from "@nestjs/core"
 import { JwtService } from "@nestjs/jwt"
 
+import { PrismaService } from "../prisma/prisma.service.js"
+
 import { ContenidoDelTokenSchema, type PeticionAutenticada } from "./peticion.js"
 import { CLAVE_PUBLICO } from "./publico.decorator.js"
+import { TokensRefrescoService } from "./tokens-refresco.service.js"
 
 /**
  * Guard global: ninguna ruta responde sin una sesion valida, salvo las marcadas
@@ -17,12 +20,21 @@ import { CLAVE_PUBLICO } from "./publico.decorator.js"
  * Se registra como APP_GUARD, asi que cubre tambien los controladores que aun no
  * existen. Ese es el punto: un endpoint escrito con prisa dentro de seis meses
  * nace cerrado sin que nadie se acuerde de protegerlo.
+ *
+ * Comprobar la firma del token NO basta, y esa fue la version anterior de este
+ * fichero. Un token firmado es un papel que nadie puede retirar: seguia
+ * abriendo puertas despues de cerrar sesion, despues de desactivar la cuenta y
+ * despues de borrarla, hasta que caducaba solo. En una app con los datos de
+ * salud de personas reales y un profesional externo entre los usuarios, eso no
+ * se sostiene. Por eso aqui se contrasta contra la base en cada peticion.
  */
 @Injectable()
 export class AutenticacionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly refrescos: TokensRefrescoService,
   ) {}
 
   async canActivate(contexto: ExecutionContext): Promise<boolean> {
@@ -56,7 +68,28 @@ export class AutenticacionGuard implements CanActivate {
       throw new UnauthorizedException("Sesion no valida")
     }
 
-    peticion.usuario = contenido.data
+    // La sesion pudo cerrarse o revocarse despues de firmar este token.
+    if (!(await this.refrescos.sesionSigueViva(contenido.data.sid))) {
+      throw new UnauthorizedException("Sesion no valida")
+    }
+
+    // Y la cuenta pudo desactivarse, borrarse o cambiar de rol. El rol que vale
+    // es el de la base, no el que el token lleve congelado desde hace rato.
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: contenido.data.sub },
+      select: { rol: true, estado: true },
+    })
+
+    if (usuario === null || usuario.estado !== "activo") {
+      throw new UnauthorizedException("Sesion no valida")
+    }
+
+    peticion.usuario = {
+      sub: contenido.data.sub,
+      rol: usuario.rol,
+      sid: contenido.data.sid,
+    }
+
     return true
   }
 }

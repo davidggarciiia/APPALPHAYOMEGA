@@ -107,6 +107,17 @@ Las filas que mandan son la cuarta y la quinta. Todo lo demás se deriva de ella
 18. **Borrado a petición.** Anonimiza los datos personales y elimina los de salud.
 19. **Denegar por defecto.** Un endpoint sin regla de permiso declarada deniega. No
     se permite que olvidar un decorador abra una puerta.
+20. **El token de acceso se contrasta con la base en cada peticion.** Lleva el
+    identificador de su sesion y el servidor comprueba que sigue viva, que la
+    cuenta existe, que esta activa y que el rol es el que dice. Un token firmado
+    no basta: sin esto sobrevive al cierre de sesion y a la desactivacion hasta
+    que caduca solo. Ver [ADR 0004](docs/adr/0004-el-token-de-acceso-se-contrasta-con-la-base.md).
+21. **La rotacion es atomica.** Dos canjes simultaneos del mismo token no pueden
+    producir dos sesiones. Gana uno y el resto se rechaza.
+22. **Un token ya rotado que reaparece corta la cadena entera.** Es la firma de
+    una copia, y no se sabe quien tiene el bueno.
+23. **La cadena de refresco tiene vida maxima.** Rotar no la alarga
+    indefinidamente. Al llegar al tope se vuelve a pedir la contrasena.
 
 ## Modelo de datos
 

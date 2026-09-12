@@ -1,7 +1,7 @@
 import type { PrismaService } from "../prisma/prisma.service.js"
 
 import { AlcanceClienteService } from "./alcance-cliente.service.js"
-import type { ContenidoDelToken } from "./peticion.js"
+import type { Rol } from "@alpha-omega/shared"
 
 function prismaConAsignacion(existe: boolean): PrismaService {
   return {
@@ -14,7 +14,7 @@ function prismaConAsignacion(existe: boolean): PrismaService {
 const ANA = "cliente-ana"
 const LUIS = "cliente-luis"
 
-function como(rol: ContenidoDelToken["rol"], sub: string): ContenidoDelToken {
+function como(rol: Rol, sub: string): { sub: string; rol: Rol } {
   return { sub, rol }
 }
 

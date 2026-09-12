@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common"
 
 import { PrismaService } from "../prisma/prisma.service.js"
 
-import type { ContenidoDelToken } from "./peticion.js"
+import type { Rol } from "@alpha-omega/shared"
 
 /**
  * Segunda mitad del sistema de permisos: el rol dice QUE clase de cosas puedes
@@ -27,7 +27,7 @@ export class AlcanceClienteService {
    * apareciera un quinto rol, el compilador obliga a decidir aqui que puede ver,
    * en lugar de dejarlo caer en un valor por defecto permisivo.
    */
-  async puedeAcceder(usuario: ContenidoDelToken, clienteId: string): Promise<boolean> {
+  async puedeAcceder(usuario: { sub: string; rol: Rol }, clienteId: string): Promise<boolean> {
     switch (usuario.rol) {
       case "entrenador":
         // Es su negocio y sus clientes.

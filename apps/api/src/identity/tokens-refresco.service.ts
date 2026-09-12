@@ -1,12 +1,20 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 
-import { Injectable, UnauthorizedException } from "@nestjs/common"
+import { Injectable, Logger, UnauthorizedException } from "@nestjs/common"
 
 import { leerVariableOpcional } from "../config/entorno.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 
 const DIAS_POR_DEFECTO = 30
+const VIDA_MAXIMA_DIAS_POR_DEFECTO = 90
 const BYTES_DE_SECRETO = 32
+
+export type SesionEmitida = {
+  /** Lo que se entrega al cliente: `<id>.<secreto>`. */
+  token: string
+  /** Id de la fila. Va dentro del token de acceso para poder revocarlo. */
+  id: string
+}
 
 /**
  * Emision, canje y revocacion de tokens de refresco.
@@ -15,57 +23,70 @@ const BYTES_DE_SECRETO = 32
  * localizar la fila sin recorrer la tabla; el secreto es lo que se comprueba.
  * En la base solo vive el hash del secreto, asi que una copia robada de la base
  * de datos no contiene ninguna sesion utilizable.
+ *
+ * Cada login abre una FAMILIA. Las rotaciones sucesivas crean filas nuevas que
+ * conservan la familia, y eso permite dos cosas que un token suelto no permite:
+ * cortar de golpe todas las sesiones derivadas de un login, y ponerle una vida
+ * maxima a la cadena para que rotar no la alargue para siempre.
  */
 @Injectable()
 export class TokensRefrescoService {
+  private readonly registro = new Logger(TokensRefrescoService.name)
+
   constructor(private readonly prisma: PrismaService) {}
 
-  async emitir(usuarioId: string): Promise<string> {
-    const secreto = randomBytes(BYTES_DE_SECRETO).toString("base64url")
-
-    const fila = await this.prisma.tokenRefresco.create({
-      data: {
-        usuarioId,
-        hash: hashDe(secreto),
-        expiraEn: new Date(Date.now() + this.duracionEnMilisegundos()),
-      },
-    })
-
-    return `${fila.id}.${secreto}`
+  /** Abre una familia nueva. Se usa al iniciar sesion con credenciales. */
+  async emitir(usuarioId: string): Promise<SesionEmitida> {
+    return this.crearFila(usuarioId, randomUUID(), new Date())
   }
 
   /**
-   * Canjea un token por otro y devuelve a quien pertenece.
+   * Canjea un token por otro dentro de la misma familia.
    *
-   * El token usado se revoca en el mismo paso. Esa rotacion es lo que convierte
-   * un robo en algo detectable: si alguien copia un token y lo usa, el duenno
-   * legitimo se encuentra el suyo invalidado la proxima vez.
+   * La revocacion del token usado es una escritura condicional: el predicado
+   * exige que siga sin revocar. Si dos peticiones llegan a la vez, la base
+   * arbitra y solo una toca una fila. La que pierde no obtiene una sesion
+   * paralela, obtiene un rechazo.
+   *
+   * Y si el token que llega YA estaba revocado, eso no es un error del usuario:
+   * es la firma de un robo. Alguien esta usando una copia de un token que ya se
+   * gasto. En ese caso se corta la familia entera, porque no se sabe si quien
+   * tiene el token legitimo es el duenno o el ladron.
    */
-  async canjear(token: string): Promise<{ usuarioId: string; nuevoToken: string }> {
-    const fila = await this.buscarValido(token)
+  async canjear(token: string): Promise<{ usuarioId: string; nuevo: SesionEmitida }> {
+    const fila = await this.buscarFila(token)
 
-    await this.prisma.tokenRefresco.update({
-      where: { id: fila.id },
+    const { count } = await this.prisma.tokenRefresco.updateMany({
+      where: { id: fila.id, revocadoEn: null },
       data: { revocadoEn: new Date() },
     })
+
+    if (count !== 1) {
+      await this.revocarFamilia(fila.familiaId)
+      this.registro.warn(
+        `Token de refresco reutilizado. Familia ${fila.familiaId} revocada por completo.`,
+      )
+      throw new UnauthorizedException("Sesion no valida")
+    }
 
     return {
       usuarioId: fila.usuarioId,
-      nuevoToken: await this.emitir(fila.usuarioId),
+      nuevo: await this.crearFila(fila.usuarioId, fila.familiaId, fila.familiaCreadaEn),
     }
   }
 
-  /** Cierra la sesion revocando el token. Borrarlo del movil no basta. */
+  /** Cierra la sesion revocando la familia entera. Borrarlo del movil no basta. */
   async revocar(token: string): Promise<void> {
-    const fila = await this.buscarValido(token)
-
-    await this.prisma.tokenRefresco.update({
-      where: { id: fila.id },
-      data: { revocadoEn: new Date() },
-    })
+    const fila = await this.buscarFila(token)
+    await this.revocarFamilia(fila.familiaId)
   }
 
-  /** Revoca todas las sesiones de un usuario. Se usa al cambiar la contrasena. */
+  /**
+   * Revoca todas las sesiones de un usuario.
+   *
+   * Es el boton de expulsion: se llama al desactivar una cuenta, al borrarla, al
+   * cambiar la contrasena y al cambiar el rol.
+   */
   async revocarTodosDe(usuarioId: string): Promise<void> {
     await this.prisma.tokenRefresco.updateMany({
       where: { usuarioId, revocadoEn: null },
@@ -73,7 +94,50 @@ export class TokensRefrescoService {
     })
   }
 
-  private async buscarValido(token: string): Promise<{ id: string; usuarioId: string }> {
+  /**
+   * Comprueba que la sesion a la que pertenece un token de acceso sigue viva.
+   *
+   * La usa el guard de autenticacion en cada peticion. Sin esto, un token de
+   * acceso firmado sobrevive al cierre de sesion y a la desactivacion de la
+   * cuenta hasta que caduca solo.
+   */
+  async sesionSigueViva(id: string): Promise<boolean> {
+    const fila = await this.prisma.tokenRefresco.findUnique({
+      where: { id },
+      select: { revocadoEn: true, familiaCreadaEn: true },
+    })
+
+    return (
+      fila !== null && fila.revocadoEn === null && !this.superaLaVidaMaxima(fila.familiaCreadaEn)
+    )
+  }
+
+  private async crearFila(
+    usuarioId: string,
+    familiaId: string,
+    familiaCreadaEn: Date,
+  ): Promise<SesionEmitida> {
+    const secreto = randomBytes(BYTES_DE_SECRETO).toString("base64url")
+
+    const fila = await this.prisma.tokenRefresco.create({
+      data: {
+        usuarioId,
+        hash: hashDe(secreto),
+        familiaId,
+        familiaCreadaEn,
+        expiraEn: new Date(Date.now() + this.duracionEnMilisegundos()),
+      },
+    })
+
+    return { token: `${fila.id}.${secreto}`, id: fila.id }
+  }
+
+  private async buscarFila(token: string): Promise<{
+    id: string
+    usuarioId: string
+    familiaId: string
+    familiaCreadaEn: Date
+  }> {
     const separador = token.indexOf(".")
     if (separador === -1) {
       throw new UnauthorizedException("Sesion no valida")
@@ -84,24 +148,58 @@ export class TokensRefrescoService {
 
     const fila = await this.prisma.tokenRefresco.findUnique({ where: { id } })
 
-    // Un token inexistente, uno ya revocado, uno caducado y uno con el secreto
-    // equivocado dan el mismo error. Distinguirlos diria a un atacante si un
-    // identificador existe.
+    // Un token inexistente, uno caducado, uno con el secreto equivocado y uno
+    // cuya cadena supero la vida maxima dan el mismo error. Distinguirlos diria
+    // a un atacante si un identificador existe.
+    //
+    // Ojo: aqui NO se rechaza por `revocadoEn`. Un token ya revocado tiene que
+    // llegar hasta `canjear` para que detecte la reutilizacion y corte la
+    // familia. Cortar antes perderia esa senal.
     if (
       fila === null ||
-      fila.revocadoEn !== null ||
       fila.expiraEn.getTime() <= Date.now() ||
+      this.superaLaVidaMaxima(fila.familiaCreadaEn) ||
       !coincideElHash(fila.hash, secreto)
     ) {
       throw new UnauthorizedException("Sesion no valida")
     }
 
-    return { id: fila.id, usuarioId: fila.usuarioId }
+    return {
+      id: fila.id,
+      usuarioId: fila.usuarioId,
+      familiaId: fila.familiaId,
+      familiaCreadaEn: fila.familiaCreadaEn,
+    }
+  }
+
+  private async revocarFamilia(familiaId: string): Promise<void> {
+    await this.prisma.tokenRefresco.updateMany({
+      where: { familiaId, revocadoEn: null },
+      data: { revocadoEn: new Date() },
+    })
+  }
+
+  /**
+   * Una cadena de rotaciones no puede durar para siempre.
+   *
+   * Sin este tope, cada canje reiniciaba los treinta dias, asi que una sesion
+   * robada que se fuera refrescando duraba indefinidamente. Al alcanzarlo se
+   * vuelve a pedir la contrasena.
+   */
+  private superaLaVidaMaxima(familiaCreadaEn: Date): boolean {
+    const dias = Number(
+      leerVariableOpcional("REFRESCO_VIDA_MAXIMA_DIAS", String(VIDA_MAXIMA_DIAS_POR_DEFECTO)),
+    )
+    const tope = Number.isFinite(dias) && dias > 0 ? dias : VIDA_MAXIMA_DIAS_POR_DEFECTO
+
+    return Date.now() - familiaCreadaEn.getTime() > tope * 24 * 60 * 60 * 1000
   }
 
   private duracionEnMilisegundos(): number {
     const dias = Number(leerVariableOpcional("REFRESCO_DIAS", String(DIAS_POR_DEFECTO)))
-    return dias * 24 * 60 * 60 * 1000
+    const valido = Number.isFinite(dias) && dias > 0 ? dias : DIAS_POR_DEFECTO
+
+    return valido * 24 * 60 * 60 * 1000
   }
 }
 

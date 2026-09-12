@@ -19,4 +19,17 @@ config.resolver.nodeModulesPaths = [
 ]
 config.resolver.disableHierarchicalLookup = true
 
+/**
+ * Hace que Metro respete el campo `exports` de los paquetes en lugar de guiarse
+ * solo por `main` y `module`.
+ *
+ * Sin esto, `react-hook-form` no se resuelve: su campo `module` apunta a un
+ * fichero `.mjs` que Metro no sigue por esa via, aunque el fichero exista. Con
+ * `exports` activado elige la entrada correcta y el paquete carga.
+ *
+ * Es ademas la direccion a la que va el ecosistema: cada vez mas paquetes
+ * describen sus entradas solo con `exports`.
+ */
+config.resolver.unstable_enablePackageExports = true
+
 module.exports = config

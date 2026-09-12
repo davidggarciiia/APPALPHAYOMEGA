@@ -148,7 +148,7 @@
 
   **Dependencias:** 6 · **Alcance:** M
 
-- [ ] **Tarea 8: Pantalla de login y sesión persistente**
+- [x] **Tarea 8: Pantalla de login y sesión persistente** — hecha 2026-09-12
 
   La primera pantalla de verdad. Formulario con React Hook Form y Zod, token de
   refresco en el almacén seguro del dispositivo, y renovación automática cuando
@@ -211,9 +211,9 @@
 
 ### Checkpoint 2
 
-- [ ] Los cuatro roles están separados y demostrado por tests
-- [ ] Un endpoint nuevo sin regla deniega
-- [ ] Revisión antes de seguir
+- [x] Los cuatro roles están separados y demostrado por tests
+- [x] Un endpoint nuevo sin regla deniega
+- [x] Revisión antes de seguir — auditoría adversarial de seis ángulos. Ocho hallazgos confirmados, los ocho arreglados. Ver ADR 0004
 
 ## Fase 3 · Invitaciones
 

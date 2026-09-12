@@ -72,11 +72,21 @@ model TokenRefresco {
   /// SHA-256 del secreto. El token que ve el cliente es "<id>.<secreto>".
   hash String
 
+  /// Identifica la cadena entera de tokens nacida de un mismo login.
+  ///
+  /// Cada rotacion crea una fila nueva pero conserva esta familia. Sirve para
+  /// dos cosas: cortar todas las sesiones derivadas de un login cuando se
+  /// detecta que un token ya usado vuelve a aparecer, y aplicar una vida maxima
+  /// a la cadena para que rotar no la alargue indefinidamente.
+  familiaId       String
+  familiaCreadaEn DateTime
+
   expiraEn   DateTime
   revocadoEn DateTime?
   creadoEn   DateTime  @default(now())
 
   @@index([usuarioId])
+  @@index([familiaId])
   @@map("tokens_refresco")
 }
 

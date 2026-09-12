@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common"
+import { Body, Controller, HttpCode, HttpStatus, Ip, Post } from "@nestjs/common"
 import {
   CredencialesSchema,
   PeticionRefrescoSchema,
@@ -24,8 +24,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async iniciarSesion(
     @Body(new ZodPipe(CredencialesSchema)) credenciales: Credenciales,
+    @Ip() origen: string,
   ): Promise<Sesion> {
-    return this.auth.iniciarSesion(credenciales)
+    return this.auth.iniciarSesion(credenciales, origen)
   }
 
   /**

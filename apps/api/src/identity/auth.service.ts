@@ -5,8 +5,9 @@ import type { Credenciales, Sesion } from "@alpha-omega/shared"
 import { PrismaService } from "../prisma/prisma.service.js"
 
 import { verificarContrasena } from "./contrasenas.js"
+import { LimitadorDeIntentos } from "./limitador-intentos.service.js"
 import type { ContenidoDelToken } from "./peticion.js"
-import { TokensRefrescoService } from "./tokens-refresco.service.js"
+import { TokensRefrescoService, type SesionEmitida } from "./tokens-refresco.service.js"
 
 /**
  * Hash de descarte con el formato correcto de Argon2id.
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly refrescos: TokensRefrescoService,
+    private readonly limitador: LimitadorDeIntentos,
   ) {}
 
   /**
@@ -35,7 +37,10 @@ export class AuthService {
    * seria comodo para quien se equivoca y regalaria a un atacante la lista de
    * clientes del entrenador.
    */
-  async iniciarSesion(credenciales: Credenciales): Promise<Sesion> {
+  async iniciarSesion(credenciales: Credenciales, origen: string): Promise<Sesion> {
+    const clave = `${credenciales.email}|${origen}`
+    this.limitador.comprobar(clave)
+
     const usuario = await this.prisma.usuario.findUnique({
       where: { email: credenciales.email },
     })
@@ -48,18 +53,16 @@ export class AuthService {
     // Un usuario en estado pendiente existe y todavia no tiene contrasena
     // (requisito 2). Uno desactivado conserva la suya y aun asi no entra.
     if (usuario === null || !coincide || usuario.estado !== "activo") {
+      this.limitador.registrarFallo(clave)
       throw new UnauthorizedException("Credenciales incorrectas")
     }
 
-    return {
-      tokenAcceso: await this.firmarAcceso({ sub: usuario.id, rol: usuario.rol }),
-      tokenRefresco: await this.refrescos.emitir(usuario.id),
-      usuario: {
-        id: usuario.id,
-        email: usuario.email,
-        rol: usuario.rol,
-      },
-    }
+    this.limitador.registrarExito(clave)
+
+    return this.componerSesion(
+      { id: usuario.id, email: usuario.email, rol: usuario.rol },
+      await this.refrescos.emitir(usuario.id),
+    )
   }
 
   /**
@@ -71,23 +74,18 @@ export class AuthService {
    * ayer no debe seguir renovando su sesion hoy.
    */
   async refrescar(tokenRefresco: string): Promise<Sesion> {
-    const { usuarioId, nuevoToken } = await this.refrescos.canjear(tokenRefresco)
+    const { usuarioId, nuevo } = await this.refrescos.canjear(tokenRefresco)
 
     const usuario = await this.prisma.usuario.findUnique({ where: { id: usuarioId } })
 
     if (usuario === null || usuario.estado !== "activo") {
+      // La cuenta ya no vale: se corta la cadena entera para que el token recien
+      // creado en el canje no quede vivo y huerfano.
+      await this.refrescos.revocarTodosDe(usuarioId)
       throw new UnauthorizedException("Sesion no valida")
     }
 
-    return {
-      tokenAcceso: await this.firmarAcceso({ sub: usuario.id, rol: usuario.rol }),
-      tokenRefresco: nuevoToken,
-      usuario: {
-        id: usuario.id,
-        email: usuario.email,
-        rol: usuario.rol,
-      },
-    }
+    return this.componerSesion({ id: usuario.id, email: usuario.email, rol: usuario.rol }, nuevo)
   }
 
   /** Cierra la sesion en el servidor. Borrar el token del movil no basta. */
@@ -95,7 +93,22 @@ export class AuthService {
     await this.refrescos.revocar(tokenRefresco)
   }
 
-  private async firmarAcceso(contenido: ContenidoDelToken): Promise<string> {
-    return this.jwt.signAsync(contenido)
+  private async componerSesion(
+    usuario: { id: string; email: string; rol: ContenidoDelToken["rol"] },
+    refresco: SesionEmitida,
+  ): Promise<Sesion> {
+    // El token de acceso lleva el id de la sesion. Sin el, el guard no tendria
+    // forma de saber si esta sesion se cerro o se revoco desde que se firmo.
+    const contenido: ContenidoDelToken = {
+      sub: usuario.id,
+      rol: usuario.rol,
+      sid: refresco.id,
+    }
+
+    return {
+      tokenAcceso: await this.jwt.signAsync(contenido),
+      tokenRefresco: refresco.token,
+      usuario: { id: usuario.id, email: usuario.email, rol: usuario.rol },
+    }
   }
 }

@@ -1,47 +1,21 @@
-import { useEffect, useState } from "react"
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
+import { Pressable, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import type { EstadoSalud } from "@alpha-omega/shared"
 
-import { consultarSalud } from "../src/lib/api"
+import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
-type Consulta =
-  { fase: "cargando" } | { fase: "ok"; salud: EstadoSalud } | { fase: "error"; motivo: string }
-
 /**
- * Pantalla de diagnostico de la tarea 4. Su unico trabajo es demostrar que la
- * app instalada en un telefono alcanza la API que corre en el ordenador, que es
- * el paso donde mas gente se atasca al montar un entorno movil.
+ * Pantalla provisional de sesion iniciada.
  *
- * La sustituye la pantalla de login en la tarea 8.
+ * Demuestra que la sesion existe y sobrevive a cerrar la app. La sustituye el
+ * inicio real del cliente cuando llegue el modulo `agenda`.
  */
-export default function Diagnostico(): React.JSX.Element {
-  const [consulta, setConsulta] = useState<Consulta>({ fase: "cargando" })
+export default function Inicio(): React.JSX.Element {
+  const { estado, salir } = useSesion()
 
-  useEffect(() => {
-    let vigente = true
-
-    consultarSalud()
-      .then((salud) => {
-        if (vigente) {
-          setConsulta({ fase: "ok", salud })
-        }
-      })
-      .catch((error: unknown) => {
-        if (vigente) {
-          setConsulta({
-            fase: "error",
-            motivo: error instanceof Error ? error.message : "Error desconocido",
-          })
-        }
-      })
-
-    // Evita actualizar el estado si la pantalla ya no esta montada.
-    return () => {
-      vigente = false
-    }
-  }, [])
+  if (estado.fase !== "dentro") {
+    return <SafeAreaView style={estilos.pantalla} />
+  }
 
   return (
     <SafeAreaView style={estilos.pantalla}>
@@ -50,48 +24,28 @@ export default function Diagnostico(): React.JSX.Element {
         <Text style={estilos.lema}>TRAINING</Text>
 
         <View style={estilos.tarjeta}>
-          <Text style={estilos.titulo}>CONEXIÓN CON LA API</Text>
-
-          {consulta.fase === "cargando" && <ActivityIndicator color={tema.oro} />}
-
-          {consulta.fase === "ok" && (
-            <>
-              <Text style={estilos.valor}>Servidor: {consulta.salud.estado}</Text>
-              <Text style={estilos.valor}>Base de datos: {consulta.salud.baseDeDatos}</Text>
-            </>
-          )}
-
-          {consulta.fase === "error" && <Text style={estilos.error}>{consulta.motivo}</Text>}
+          <Text style={estilos.titulo}>SESIÓN INICIADA</Text>
+          <Text style={estilos.valor}>{estado.usuario.email}</Text>
+          <Text style={estilos.perfil}>{estado.usuario.rol.toUpperCase()}</Text>
         </View>
+
+        <Pressable
+          style={({ pressed }) => [estilos.boton, pressed && estilos.botonPulsado]}
+          onPress={() => void salir()}
+          accessibilityRole="button"
+        >
+          <Text style={estilos.textoBoton}>CERRAR SESIÓN</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   )
 }
 
 const estilos = StyleSheet.create({
-  pantalla: {
-    flex: 1,
-    backgroundColor: tema.fondo,
-  },
-  contenido: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  marca: {
-    color: tema.oro,
-    fontSize: 24,
-    letterSpacing: 4,
-    fontWeight: "700",
-  },
-  lema: {
-    color: tema.textoTenue,
-    fontSize: 12,
-    letterSpacing: 8,
-    marginTop: 4,
-    marginBottom: 40,
-  },
+  pantalla: { flex: 1, backgroundColor: tema.fondo },
+  contenido: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  marca: { color: tema.oro, fontSize: 24, letterSpacing: 4, fontWeight: "700" },
+  lema: { color: tema.textoTenue, fontSize: 12, letterSpacing: 8, marginTop: 4, marginBottom: 40 },
   tarjeta: {
     alignSelf: "stretch",
     backgroundColor: tema.superficie,
@@ -99,21 +53,20 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: 20,
-    gap: 8,
+    gap: 6,
   },
-  titulo: {
-    color: tema.oroSuave,
-    fontSize: 11,
-    letterSpacing: 2,
-    marginBottom: 8,
+  titulo: { color: tema.oroSuave, fontSize: 11, letterSpacing: 2, marginBottom: 8 },
+  valor: { color: tema.texto, fontSize: 16 },
+  perfil: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
+  boton: {
+    alignSelf: "stretch",
+    borderColor: tema.borde,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginTop: 24,
+    paddingVertical: 14,
+    alignItems: "center",
   },
-  valor: {
-    color: tema.texto,
-    fontSize: 15,
-  },
-  error: {
-    color: tema.error,
-    fontSize: 13,
-    lineHeight: 20,
-  },
+  botonPulsado: { opacity: 0.6 },
+  textoBoton: { color: tema.textoTenue, fontSize: 13, fontWeight: "600", letterSpacing: 2 },
 })
