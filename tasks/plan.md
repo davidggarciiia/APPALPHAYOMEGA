@@ -22,9 +22,12 @@ Nada de esto se ve bonito en pantalla. Es el módulo que sostiene los otros siet
 - **Denegar por defecto desde la tarea 6, no al final.** El guard global se instala
   antes de que exista el segundo endpoint. Retrofitear permisos sobre rutas que ya
   funcionan es como se abren los agujeros.
-- **La prueba de humo de Google va antes de que haga falta.** La configuración
+- **La prueba de humo de Google iba antes de que hiciera falta.** La configuración
   nativa de OAuth es la pieza con más superficie de fallo y ninguna relación con
-  el resto. Se prueba aislada en la tarea 13 para que reviente pronto y barato.
+  el resto, así que la tarea 13 la aislaba para que reventara pronto y barato.
+  **Esa intención sigue en pie pero la tarea se aplazó** (2026-09-16): necesita un
+  proyecto en Google Cloud que solo puede crear David. Se ejecuta después de la
+  18, y sigue siendo una tarea aislada que puede reventar sola.
 - **El correo se envía con Resend** (decidido el 2026-09-12). Invitación,
   aceptación y recuperación dependen de él. Requiere verificar el dominio
   `alphayomegatraining.com` añadiendo registros DNS, cosa que puedes hacer porque
@@ -70,6 +73,10 @@ real: sin esquema no hay API, sin API no hay pantalla.
 Lo único que se puede adelantar en cualquier momento: la tarea 13, la prueba de
 humo de Google, y las decisiones de las preguntas abiertas, que no son código.
 
+La 13 resultó ser lo contrario de adelantable, no por dependencias de código sino
+porque hace falta un trámite externo. Es la clase de bloqueo que un plan no ve
+hasta que se topa con él.
+
 ## Open Questions
 
 1. **Dónde se despliega y quién paga el servidor.** No bloquea nada hasta que
@@ -81,6 +88,7 @@ humo de Google, y las decisiones de las preguntas abiertas, que no son código.
 
 ## Decisiones tomadas
 
-| Fecha      | Decisión                                                            |
-| ---------- | ------------------------------------------------------------------- |
-| 2026-09-12 | Correo con Resend, verificando el dominio `alphayomegatraining.com` |
+| Fecha      | Decisión                                                                           |
+| ---------- | ---------------------------------------------------------------------------------- |
+| 2026-09-12 | Correo con Resend, verificando el dominio `alphayomegatraining.com`                |
+| 2026-09-16 | Las tareas 13 y 14, entrar con Google, se aplazan detrás de la 18. Bloqueo externo |
