@@ -330,7 +330,7 @@
   > **La foto sale de esta tarea** (decidido el 2026-09-16 con David). El problema
   > real no es la foto de perfil sino las de evolución corporal, que son datos de
   > salud, pesan mucho más y exigen enlaces firmados. Entra con el módulo
-  > . Montar el almacenamiento dos veces es trabajo tirado.
+  > `seguimiento-corporal`. Montar el almacenamiento dos veces es trabajo tirado.
   > Ver [ADR 0005](../docs/adr/0005-almacenamiento-de-fotos.md).
 
   **Aceptación**
