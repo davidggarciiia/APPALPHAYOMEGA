@@ -1,5 +1,12 @@
 import { ConflictException, Injectable, Logger } from "@nestjs/common"
-import type { CrearUsuario, UsuarioCreado, UsuarioPublico } from "@alpha-omega/shared"
+import type {
+  CrearUsuario,
+  FiltrosDeListado,
+  ListadoUsuarios,
+  UsuarioCreado,
+  UsuarioPublico,
+} from "@alpha-omega/shared"
+import type { Prisma } from "@prisma/client"
 
 import { PrismaService } from "../prisma/prisma.service.js"
 
@@ -63,6 +70,59 @@ export class UsuariosService {
     }
 
     return { ...aPublico(creado), correoEnviado }
+  }
+
+  /**
+   * El listado que ve el entrenador.
+   *
+   * Excluye a quien pregunta: el entrenador no se administra a si mismo desde la
+   * lista de su cartera, y verse ahi solo invita a desactivarse por error.
+   *
+   * Devuelve el total ademas de las filas. Una lista cortada en silencio es de
+   * los fallos que mas tardan en descubrirse: todo parece bien hasta que alguien
+   * pregunta por un cliente que no aparece.
+   */
+  async listar(quienPregunta: string, filtros: FiltrosDeListado): Promise<ListadoUsuarios> {
+    const donde: Prisma.UsuarioWhereInput = {
+      id: { not: quienPregunta },
+      ...(filtros.rol !== undefined && { rol: filtros.rol }),
+      ...(filtros.estado !== undefined && { estado: filtros.estado }),
+      ...(filtros.buscar !== undefined &&
+        filtros.buscar !== "" && {
+          // Se busca tambien por correo porque es lo que el entrenador tiene a
+          // mano cuando alguien le escribe.
+          //
+          // La comparacion ignora mayusculas pero NO ignora tildes: buscar
+          // "Garcia" no encuentra a "García". Con una cartera de decenas de
+          // personas se resuelve mirando la lista entera, asi que no compensa
+          // todavia una columna normalizada ni una extension de Postgres.
+          OR: [
+            { nombre: { contains: filtros.buscar, mode: "insensitive" } },
+            { apellidos: { contains: filtros.buscar, mode: "insensitive" } },
+            { email: { contains: filtros.buscar, mode: "insensitive" } },
+          ],
+        }),
+    }
+
+    const [usuarios, total] = await Promise.all([
+      this.prisma.usuario.findMany({
+        where: donde,
+        orderBy: [{ nombre: "asc" }, { apellidos: "asc" }],
+        skip: filtros.desde,
+        take: filtros.limite,
+        select: {
+          id: true,
+          nombre: true,
+          apellidos: true,
+          email: true,
+          rol: true,
+          estado: true,
+        },
+      }),
+      this.prisma.usuario.count({ where: donde }),
+    ])
+
+    return { usuarios, total }
   }
 }
 

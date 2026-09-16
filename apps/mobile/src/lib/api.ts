@@ -1,10 +1,13 @@
 import {
   EstadoSaludSchema,
+  ListadoUsuariosSchema,
   PerfilPropioSchema,
   SesionSchema,
   type CambiosDePerfil,
   type Credenciales,
   type EstadoSalud,
+  type FiltrosDeListado,
+  type ListadoUsuarios,
   type PerfilPropio,
   type Sesion,
 } from "@alpha-omega/shared"
@@ -22,8 +25,18 @@ import { direccionDeLaApi } from "./direccion-api"
  */
 const LIMITE_MS = 10_000
 
-/** El servidor rechazo la sesion o las credenciales. */
+/** El servidor rechazo la sesion o las credenciales (401). */
 export class ErrorDeSesion extends Error {}
+
+/**
+ * La sesion es valida, pero ese rol no puede hacer eso (403).
+ *
+ * Se separa de `ErrorDeSesion` porque las consecuencias son opuestas: ante un
+ * 401 hay que descartar la credencial guardada, y ante un 403 **no**, porque la
+ * sesion sigue siendo buena. Confundirlos acaba echando de la app a alguien que
+ * solo se ha asomado a una pantalla que no le tocaba.
+ */
+export class ErrorDePermiso extends Error {}
 
 /**
  * No se pudo hablar con el servidor: sin cobertura, direccion inalcanzable o
@@ -59,8 +72,12 @@ async function pedir(ruta: string, opciones: RequestInit = {}): Promise<unknown>
     throw new ErrorDeRed(error instanceof Error ? error.message : "Sin conexion")
   }
 
-  if (respuesta.status === 401 || respuesta.status === 403) {
-    throw new ErrorDeSesion(String(respuesta.status))
+  if (respuesta.status === 401) {
+    throw new ErrorDeSesion("401")
+  }
+
+  if (respuesta.status === 403) {
+    throw new ErrorDePermiso("403")
   }
 
   if (!respuesta.ok) {
@@ -119,6 +136,31 @@ export async function guardarPerfil(
       method: "PATCH",
       headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify(cambios),
+    }),
+  )
+}
+
+/**
+ * La cartera que ve el entrenador.
+ *
+ * Los filtros vacios no se envian. Mandar `buscar=` o `rol=` sin valor haria que
+ * el servidor rechazara la peticion entera por no tener la forma esperada.
+ */
+export async function listarUsuarios(
+  tokenAcceso: string,
+  filtros: FiltrosDeListado,
+): Promise<ListadoUsuarios> {
+  const consulta = new URLSearchParams()
+
+  if (filtros.buscar !== undefined && filtros.buscar !== "") consulta.set("buscar", filtros.buscar)
+  if (filtros.rol !== undefined) consulta.set("rol", filtros.rol)
+  if (filtros.estado !== undefined) consulta.set("estado", filtros.estado)
+  consulta.set("limite", String(filtros.limite))
+  consulta.set("desde", String(filtros.desde))
+
+  return ListadoUsuariosSchema.parse(
+    await pedir(`/usuarios?${consulta.toString()}`, {
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
   )
 }

@@ -35,14 +35,28 @@ export default function Inicio(): React.JSX.Element {
           <Text style={estilos.perfil}>{usuario.rol.toUpperCase()}</Text>
         </View>
 
+        {/* Esconder el boton es comodidad, no seguridad: quien entre a la ruta a
+            mano se encuentra con el 403 del servidor, que es quien decide. */}
+        {usuario.rol === "entrenador" && (
+          <Pressable
+            style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+            onPress={() => {
+              router.push("/cartera")
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={estilos.textoPrincipal}>MI CARTERA</Text>
+          </Pressable>
+        )}
+
         <Pressable
-          style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+          style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
           onPress={() => {
             router.push("/perfil")
           }}
           accessibilityRole="button"
         >
-          <Text style={estilos.textoPrincipal}>MI PERFIL</Text>
+          <Text style={estilos.textoBoton}>MI PERFIL</Text>
         </Pressable>
 
         <Pressable

@@ -73,16 +73,16 @@ dibujadas por nadie y no son opcionales.
 
 | Módulo     | Spec     | Plan     | Implementación                            |
 | ---------- | -------- | -------- | ----------------------------------------- |
-| `identity` | aprobada | aprobado | 10 de 21 tareas. Fases 0, 1 y 2 completas |
+| `identity` | aprobada | aprobado | 14 de 21 tareas. Fases 0, 1 y 2 completas |
 | resto      | —        | —        | —                                         |
 
 ### Detalle de `identity`
 
-| Fase            | Tareas  | Estado                                                       |
-| --------------- | ------- | ------------------------------------------------------------ |
-| 0. Andamiaje    | 1 a 4   | Hecha. Falta abrir la app en un móvil real                   |
-| 1. Sesión       | 5 a 8   | Hecha                                                        |
-| 2. Permisos     | 9 y 10  | Hecha. Checkpoint 2 superado tras arreglar 8 hallazgos       |
-| 3. Invitaciones | 11 a 14 | Pendiente. Necesita cuenta de Resend y proyecto Google Cloud |
-| 4. Gestión      | 15 a 18 | Pendiente                                                    |
-| 5. Cumplimiento | 19 a 21 | Pendiente                                                    |
+| Fase            | Tareas  | Estado                                                         |
+| --------------- | ------- | -------------------------------------------------------------- |
+| 0. Andamiaje    | 1 a 4   | Hecha. Falta abrir la app en un móvil real                     |
+| 1. Sesión       | 5 a 8   | Hecha                                                          |
+| 2. Permisos     | 9 y 10  | Hecha. Checkpoint 2 superado tras arreglar 8 hallazgos         |
+| 3. Invitaciones | 11 a 14 | 11 y 12 hechas. 13 y 14 aplazadas: falta el proyecto de Google |
+| 4. Gestión      | 15 a 18 | 15 y 16 hechas. Quedan 17 y 18                                 |
+| 5. Cumplimiento | 19 a 21 | Pendiente                                                      |

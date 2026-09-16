@@ -126,6 +126,49 @@ export const CambiosDePerfilSchema = z.object({
 export type CambiosDePerfil = z.infer<typeof CambiosDePerfilSchema>
 
 /**
+ * Una fila del listado que ve el entrenador.
+ *
+ * Deliberadamente estrecho: lo justo para pintar una lista y decidir a quién
+ * abrir. Los datos de contacto no viajan aquí, solo en la ficha de cada uno.
+ */
+export const ResumenUsuarioSchema = z.object({
+  id: z.string(),
+  nombre: z.string(),
+  apellidos: z.string().nullable(),
+  email: z.string(),
+  rol: RolSchema,
+  estado: EstadoUsuarioSchema,
+})
+
+export type ResumenUsuario = z.infer<typeof ResumenUsuarioSchema>
+
+/**
+ * Resultado de un listado.
+ *
+ * Lleva `total` además de las filas para que la app pueda decir "mostrando 50 de
+ * 120" en lugar de cortar en silencio. Una lista truncada sin avisar es de los
+ * errores que más tardan en descubrirse: todo parece correcto hasta que alguien
+ * pregunta por un cliente que no aparece.
+ */
+export const ListadoUsuariosSchema = z.object({
+  usuarios: z.array(ResumenUsuarioSchema),
+  total: z.number().int().nonnegative(),
+})
+
+export type ListadoUsuarios = z.infer<typeof ListadoUsuariosSchema>
+
+/** Filtros del listado. Llegan por query, así que todo es texto. */
+export const FiltrosDeListadoSchema = z.object({
+  buscar: z.string().trim().max(80).optional(),
+  rol: RolSchema.optional(),
+  estado: EstadoUsuarioSchema.optional(),
+  limite: z.coerce.number().int().min(1).max(200).default(100),
+  desde: z.coerce.number().int().nonnegative().default(0),
+})
+
+export type FiltrosDeListado = z.infer<typeof FiltrosDeListadoSchema>
+
+/**
  * Lo que devuelve POST /auth/login.
  *
  * Dos tokens con papeles distintos. El de acceso dura minutos y viaja en cada

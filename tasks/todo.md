@@ -342,9 +342,25 @@
 
   **Dependencias:** 9 · **Alcance:** M
 
-- [ ] **Tarea 16: Listado de clientes**
+- [x] **Tarea 16: Listado de clientes** — hecha 2026-09-16
 
   Pantalla del entrenador con la lista de sus clientes y búsqueda por nombre.
+
+  > Solo lista clientes. El nutricionista y el empleado se administran desde sus
+  > propias pantallas (tareas 17 y 18): mezclarlos convertiría la lista de trabajo
+  > diario en un listín de todo el mundo.
+  >
+  > La respuesta lleva `total` además de las filas, y la pantalla dice "mostrando
+  > 5 de 12" cuando no caben todos. Una lista cortada en silencio es de los fallos
+  > que más tardan en descubrirse.
+  >
+  > La búsqueda ignora mayúsculas pero **no ignora tildes**: buscar "Garcia" no
+  > encuentra a "García". Con una cartera de decenas de personas se resuelve
+  > mirando la lista, así que no compensa todavía una columna normalizada.
+  >
+  > De paso se separó el 403 del 401 en el cliente de la app (`ErrorDePermiso`
+  > frente a `ErrorDeSesion`). Tenían consecuencias opuestas y estaban mezclados:
+  > ante un 401 hay que descartar la credencial guardada y ante un 403 no.
 
   **Aceptación**
   - Solo el entrenador accede
@@ -356,6 +372,15 @@
   **Verificación**
   - Test de denegación para los otros tres roles
   - Prueba manual con al menos diez clientes de prueba
+
+  > Catorce casos en `apps/api/test/listado-usuarios.e2e-spec.ts`: denegación a los
+  > otros tres roles y sin sesión, los tres estados, búsqueda por nombre, apellidos
+  > y correo, filtros de rol y estado, límite con total honesto, filtros mal
+  > formados y búsqueda sin resultados.
+  >
+  > Prueba manual hecha con doce clientes en la base local: lista completa,
+  > búsqueda, filtro de pendientes, aviso de lista recortada, y un cliente que
+  > fuerza la ruta y recibe "esta pantalla es solo para el entrenador".
 
   **Dependencias:** 12 · **Alcance:** M
 
