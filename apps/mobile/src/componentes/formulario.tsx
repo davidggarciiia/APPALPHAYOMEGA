@@ -97,6 +97,60 @@ export function BotonPrincipal({
   )
 }
 
+/**
+ * Acción secundaria: cancelar, volver, reenviar.
+ *
+ * Existe porque hasta ahora solo había un botón, el de oro. Cuando todos los
+ * botones de una pantalla se ven igual, el que da de baja a alguien se pulsa por
+ * error tarde o temprano.
+ */
+export function BotonSecundario({
+  texto,
+  onPress,
+  ocupado = false,
+}: {
+  texto: string
+  onPress: () => void
+  ocupado?: boolean
+}): React.JSX.Element {
+  return (
+    <Pressable
+      style={({ pressed }) => [estilos.secundario, (pressed || ocupado) && estilos.botonPulsado]}
+      onPress={onPress}
+      disabled={ocupado}
+      accessibilityRole="button"
+      accessibilityLabel={texto}
+      accessibilityState={{ disabled: ocupado, busy: ocupado }}
+    >
+      <Text style={estilos.textoSecundario}>{ocupado ? "..." : texto}</Text>
+    </Pressable>
+  )
+}
+
+/** Acción con consecuencias. Va en rojo y nunca al lado de guardar. */
+export function BotonDestructivo({
+  texto,
+  onPress,
+  ocupado = false,
+}: {
+  texto: string
+  onPress: () => void
+  ocupado?: boolean
+}): React.JSX.Element {
+  return (
+    <Pressable
+      style={({ pressed }) => [estilos.destructivo, (pressed || ocupado) && estilos.botonPulsado]}
+      onPress={onPress}
+      disabled={ocupado}
+      accessibilityRole="button"
+      accessibilityLabel={texto}
+      accessibilityState={{ disabled: ocupado, busy: ocupado }}
+    >
+      <Text style={estilos.textoDestructivo}>{ocupado ? "..." : texto}</Text>
+    </Pressable>
+  )
+}
+
 export function AvisoDeError({ mensaje }: { mensaje: string }): React.JSX.Element {
   return (
     <Text
@@ -165,4 +219,22 @@ const estilos = StyleSheet.create({
   },
   botonPulsado: { opacity: 0.75 },
   textoBoton: { color: tema.fondo, fontSize: 14, fontWeight: "700", letterSpacing: 2 },
+  secundario: {
+    borderColor: tema.borde,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  textoSecundario: { color: tema.texto, fontSize: 13, fontWeight: "600", letterSpacing: 2 },
+  destructivo: {
+    borderColor: tema.error,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  textoDestructivo: { color: tema.error, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
 })

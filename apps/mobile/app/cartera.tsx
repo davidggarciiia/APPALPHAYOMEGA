@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router"
-import { useEffect, useState } from "react"
+import { useFocusEffect, useRouter } from "expo-router"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -13,7 +13,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { EstadoUsuario, ResumenUsuario } from "@alpha-omega/shared"
 
-import { ErrorDePermiso, ErrorDeRed, listarUsuarios } from "../src/lib/api"
+import { ETIQUETA_DE_ESTADO, InsigniaDeEstado } from "../src/componentes/insignia-estado"
+import { listarUsuarios } from "../src/lib/api"
+import { faltaDe, type Falta } from "../src/lib/errores"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
@@ -36,40 +38,7 @@ const FILTROS: ReadonlyArray<{ etiqueta: string; estado: EstadoUsuario | null }>
   { etiqueta: "BAJAS", estado: "desactivado" },
 ]
 
-/**
- * El estado no se distingue solo por color.
- *
- * Un punto de color no dice nada a quien no distingue esos dos tonos, ni a quien
- * usa un lector de pantalla. La palabra va siempre escrita.
- */
-const ETIQUETA_DE_ESTADO: Record<EstadoUsuario, string> = {
-  pendiente: "PENDIENTE",
-  activo: "ACTIVO",
-  desactivado: "BAJA",
-}
-
 type Fase = "cargando" | "listo" | "error"
-
-type Fallo = { texto: string; reintentable: boolean }
-
-/**
- * Que se le dice al usuario segun lo que haya fallado.
- *
- * El 403 tiene mensaje propio y **no** ofrece reintentar. Quien llega aqui sin
- * ser entrenador no ha tenido un problema tecnico: ha entrado donde no le toca,
- * y un boton de reintentar solo le haria insistir contra una puerta cerrada.
- */
-function faltaDe(error: unknown): Fallo {
-  if (error instanceof ErrorDeRed) {
-    return { texto: "No hemos podido conectar. Revisa tu conexión.", reintentable: true }
-  }
-
-  if (error instanceof ErrorDePermiso) {
-    return { texto: "Esta pantalla es solo para el entrenador.", reintentable: false }
-  }
-
-  return { texto: "No hemos podido cargar tu cartera.", reintentable: true }
-}
 
 /**
  * La cartera del entrenador.
@@ -92,7 +61,11 @@ export default function Cartera(): React.JSX.Element {
   const [refrescando, setRefrescando] = useState(false)
   const [clientes, setClientes] = useState<ResumenUsuario[]>([])
   const [total, setTotal] = useState(0)
-  const [fallo, setFallo] = useState<Fallo>({ texto: "", reintentable: true })
+  const [fallo, setFallo] = useState<Falta>({
+    texto: "",
+    reintentable: true,
+    sesionCaducada: false,
+  })
 
   const tokenAcceso = sesion.fase === "dentro" ? sesion.tokenAcceso : null
 
@@ -138,7 +111,7 @@ export default function Cartera(): React.JSX.Element {
       .catch((error: unknown) => {
         if (!vigente) return
 
-        setFallo(faltaDe(error))
+        setFallo(faltaDe(error, "No hemos podido cargar tu cartera."))
         setFase("error")
         setActualizando(false)
         setRefrescando(false)
@@ -149,6 +122,22 @@ export default function Cartera(): React.JSX.Element {
     }
   }, [tokenAcceso, busqueda, filtro, intento])
 
+  // Al volver de una ficha, la lista se vuelve a pedir. Sin esto, dar de baja a
+  // alguien y pulsar VOLVER lo dejaria pintado como ACTIVO, y en una pantalla de
+  // permisos eso no es un detalle visual: es una mentira sobre quien tiene acceso.
+  const primerFoco = useRef(true)
+  useFocusEffect(
+    useCallback(() => {
+      if (primerFoco.current) {
+        // El efecto de arriba ya ha pedido la lista al montar la pantalla.
+        primerFoco.current = false
+        return
+      }
+
+      setIntento((n) => n + 1)
+    }, []),
+  )
+
   const hayFiltroPuesto = busqueda !== "" || filtro !== null
   const recortada = clientes.length < total
 
@@ -156,15 +145,27 @@ export default function Cartera(): React.JSX.Element {
     <SafeAreaView style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>TU CARTERA</Text>
-        <Pressable
-          onPress={() => {
-            router.back()
-          }}
-          accessibilityRole="button"
-          hitSlop={12}
-        >
-          <Text style={estilos.volver}>VOLVER</Text>
-        </Pressable>
+        <View style={estilos.accionesCabecera}>
+          <Pressable
+            onPress={() => {
+              router.push("/cliente/nuevo")
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Dar de alta a un cliente nuevo"
+            hitSlop={12}
+          >
+            <Text style={estilos.nuevo}>+ NUEVO</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              router.back()
+            }}
+            accessibilityRole="button"
+            hitSlop={12}
+          >
+            <Text style={estilos.volver}>VOLVER</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={estilos.buscador}>
@@ -245,7 +246,14 @@ export default function Cartera(): React.JSX.Element {
               colors={[tema.oro]}
             />
           }
-          renderItem={({ item }) => <Fila cliente={item} />}
+          renderItem={({ item }) => (
+            <Fila
+              cliente={item}
+              onAbrir={() => {
+                router.push({ pathname: "/cliente/[id]", params: { id: item.id } })
+              }}
+            />
+          )}
           ListEmptyComponent={
             <Text style={estilos.vacio}>
               {hayFiltroPuesto
@@ -266,17 +274,30 @@ export default function Cartera(): React.JSX.Element {
   )
 }
 
-function Fila({ cliente }: { cliente: ResumenUsuario }): React.JSX.Element {
+function Fila({
+  cliente,
+  onAbrir,
+}: {
+  cliente: ResumenUsuario
+  onAbrir: () => void
+}): React.JSX.Element {
   const nombreCompleto = [cliente.nombre, cliente.apellidos].filter(Boolean).join(" ")
   const deBaja = cliente.estado === "desactivado"
 
   return (
-    <View
-      style={[estilos.fila, deBaja && estilos.filaApagada]}
+    <Pressable
+      style={({ pressed }) => [
+        estilos.fila,
+        deBaja && estilos.filaApagada,
+        pressed && estilos.filaPulsada,
+      ]}
+      onPress={onAbrir}
       // Un lector de pantalla lee la fila entera de una vez en lugar de tres
       // trozos sueltos, que es como se pierde el estado.
       accessible
+      accessibilityRole="button"
       accessibilityLabel={`${nombreCompleto}. ${ETIQUETA_DE_ESTADO[cliente.estado]}. ${cliente.email}`}
+      accessibilityHint="Abre su ficha"
     >
       <View style={estilos.datos}>
         <Text style={estilos.nombre} numberOfLines={1}>
@@ -287,12 +308,8 @@ function Fila({ cliente }: { cliente: ResumenUsuario }): React.JSX.Element {
         </Text>
       </View>
 
-      <View style={[estilos.insignia, estilos[cliente.estado]]}>
-        <Text style={[estilos.textoInsignia, estilos[`texto_${cliente.estado}`]]}>
-          {ETIQUETA_DE_ESTADO[cliente.estado]}
-        </Text>
-      </View>
-    </View>
+      <InsigniaDeEstado estado={cliente.estado} />
+    </Pressable>
   )
 }
 
@@ -307,6 +324,8 @@ const estilos = StyleSheet.create({
     paddingBottom: 8,
   },
   titulo: { color: tema.oro, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
+  accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
+  nuevo: { color: tema.oro, fontSize: 12, letterSpacing: 2, fontWeight: "700" },
   volver: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
   buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, gap: 10 },
   campo: {
@@ -351,17 +370,10 @@ const estilos = StyleSheet.create({
     gap: 12,
   },
   filaApagada: { opacity: 0.55 },
+  filaPulsada: { borderColor: tema.oro },
   datos: { flex: 1, gap: 3 },
   nombre: { color: tema.texto, fontSize: 16 },
   correo: { color: tema.textoTenue, fontSize: 12 },
-  insignia: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
-  textoInsignia: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
-  pendiente: { backgroundColor: "#2A2413", borderColor: tema.oro },
-  activo: { backgroundColor: "transparent", borderColor: tema.borde },
-  desactivado: { backgroundColor: "transparent", borderColor: tema.borde },
-  texto_pendiente: { color: tema.oroSuave },
-  texto_activo: { color: tema.texto },
-  texto_desactivado: { color: tema.textoTenue },
   centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   aviso: { color: tema.texto, fontSize: 15, textAlign: "center" },
   vacio: {

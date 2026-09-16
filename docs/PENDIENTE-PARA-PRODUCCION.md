@@ -125,10 +125,38 @@ hay que moverlo a la base de datos o a Redis. Ver
 
 ### 9. Revocar sesiones al desactivar, borrar o cambiar contraseña
 
-Tareas 17 y 20. Hoy el acceso ya se corta al comprobar el estado en cada
-petición, pero las filas de tokens de refresco sobreviven hasta treinta días.
-Efecto desagradable: reactivar a un usuario más tarde le resucita todas sus
-sesiones viejas.
+**Hecho para la baja el 2026-09-16 (tarea 17).** Dar de baja revoca ahora todas
+las sesiones vivas y quema los enlaces de activación pendientes, las tres cosas
+en la misma transacción. Reactivar ya no resucita nada.
+
+Queda la mitad de la tarea 20: cambiar la contraseña también tiene que revocar
+las sesiones abiertas, o quien te la robó sigue dentro después de que la cambies.
+
+### 9c. El token de acceso no se renueva solo mientras la app está abierta
+
+El token de acceso dura quince minutos y solo se renueva al arrancar la
+aplicación. Una pantalla abierta más rato deja de funcionar y hoy la única salida
+es volver a entrar.
+
+Las pantallas lo dicen con honestidad desde la tarea 17 en vez de ofrecer un
+"reintentar" que no arreglaría nada, pero el arreglo de verdad vive en
+`sesion.tsx` y afecta a todas las pantallas. Tarea propia antes de tener clientes
+de verdad usando la app a diario.
+
+### 9d. El nutricionista sigue viendo a un cliente dado de baja
+
+`AlcanceClienteService.tieneAsignado` mira si existe la fila de asignación, no el
+estado del cliente. La fila no se borra a propósito, porque perderla borraría el
+rastro de quién tuvo acceso a qué. Filtrar por estado es trabajo de la tarea 18.
+
+Es la fuga de datos de salud más plausible del módulo: un nutricionista
+subcontratado conservando acceso a alguien que ya no es cliente.
+
+### 9e. No hay registro de auditoría de las acciones del entrenador
+
+Las bajas y reactivaciones dejan una línea en el log del servidor con quién,
+a quién y cuándo, y nada más. Cuando llegue el borrado a petición (tarea 21)
+habrá que poder demostrar qué se hizo y cuándo, y eso pide una tabla.
 
 ### 9b. La app móvil no tiene ni un solo test
 

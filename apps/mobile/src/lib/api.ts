@@ -1,15 +1,23 @@
 import {
   EstadoSaludSchema,
+  FichaDeUsuarioSchema,
   ListadoUsuariosSchema,
   PerfilPropioSchema,
+  ResultadoDeEnvioSchema,
   SesionSchema,
+  UsuarioCreadoSchema,
   type CambiosDePerfil,
+  type CambiosDeUsuario,
+  type CrearUsuario,
   type Credenciales,
   type EstadoSalud,
+  type FichaDeUsuario,
   type FiltrosDeListado,
   type ListadoUsuarios,
   type PerfilPropio,
+  type ResultadoDeEnvio,
   type Sesion,
+  type UsuarioCreado,
 } from "@alpha-omega/shared"
 
 import { direccionDeLaApi } from "./direccion-api"
@@ -160,6 +168,90 @@ export async function listarUsuarios(
 
   return ListadoUsuariosSchema.parse(
     await pedir(`/usuarios?${consulta.toString()}`, {
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
+    }),
+  )
+}
+
+/** Da de alta a alguien. Es la unica via por la que nace una cuenta. */
+export async function crearUsuario(
+  tokenAcceso: string,
+  datos: CrearUsuario,
+): Promise<UsuarioCreado> {
+  return UsuarioCreadoSchema.parse(
+    await pedir("/usuarios", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
+      body: JSON.stringify(datos),
+    }),
+  )
+}
+
+/** La ficha completa de una persona de la cartera. */
+export async function leerUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
+  return FichaDeUsuarioSchema.parse(
+    await pedir(`/usuarios/${id}`, { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
+  )
+}
+
+/** Corrige los datos de contacto. El rol, el estado y el correo no viajan aqui. */
+export async function guardarUsuario(
+  tokenAcceso: string,
+  id: string,
+  cambios: CambiosDeUsuario,
+): Promise<FichaDeUsuario> {
+  return FichaDeUsuarioSchema.parse(
+    await pedir(`/usuarios/${id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
+      body: JSON.stringify(cambios),
+    }),
+  )
+}
+
+/** Corrige un correo mal tecleado. Solo mientras esa persona siga pendiente. */
+export async function corregirCorreo(
+  tokenAcceso: string,
+  id: string,
+  email: string,
+): Promise<FichaDeUsuario> {
+  return FichaDeUsuarioSchema.parse(
+    await pedir(`/usuarios/${id}/correo`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
+      body: JSON.stringify({ email }),
+    }),
+  )
+}
+
+/** Vuelve a mandar el enlace de activacion. El anterior deja de valer. */
+export async function reenviarActivacion(
+  tokenAcceso: string,
+  id: string,
+): Promise<ResultadoDeEnvio> {
+  return ResultadoDeEnvioSchema.parse(
+    await pedir(`/usuarios/${id}/reenviar-activacion`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
+    }),
+  )
+}
+
+/** Da de baja. No borra: el historico se conserva entero. */
+export async function desactivarUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
+  return FichaDeUsuarioSchema.parse(
+    await pedir(`/usuarios/${id}/desactivar`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
+    }),
+  )
+}
+
+/** Deshace una baja. Quien nunca activo vuelve a pendiente, no a activo. */
+export async function reactivarUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
+  return FichaDeUsuarioSchema.parse(
+    await pedir(`/usuarios/${id}/reactivar`, {
+      method: "POST",
       headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
   )

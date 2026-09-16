@@ -157,6 +157,104 @@ export const ListadoUsuariosSchema = z.object({
 
 export type ListadoUsuarios = z.infer<typeof ListadoUsuariosSchema>
 
+/**
+ * Identificador de usuario que viaja en una ruta.
+ *
+ * Se valida igual que un cuerpo. Una ruta es entrada de fuera, y sin esto un
+ * identificador con cualquier forma llega hasta Prisma y sale como un error 500
+ * en lugar de un 400 honesto.
+ */
+export const IdUsuarioSchema = z.uuid()
+
+/**
+ * La ficha que el entrenador ve de otra persona.
+ *
+ * No extiende `PerfilPropioSchema` porque aquella arrastra `fotoUrl`, que salió
+ * de la tarea 15 hacia `seguimiento-corporal`. Y no se ensancha
+ * `UsuarioPublicoSchema`, que viaja dentro de cada respuesta de login y de
+ * refresco: añadirle el teléfono lo metería en todas ellas.
+ */
+export const FichaDeUsuarioSchema = UsuarioPublicoSchema.extend({
+  telefono: z.string().nullable(),
+  /** En formato AAAA-MM-DD, igual que en el perfil propio. */
+  fechaNacimiento: z.string().nullable(),
+  /** Fecha de alta, en ISO. El entrenador quiere saber desde cuándo está. */
+  creadoEn: z.string(),
+  /**
+   * Si tiene contraseña. Derivado, nunca el hash.
+   *
+   * Es lo que permite a la pantalla decir de antemano a dónde volverá alguien al
+   * reactivarlo: quien nunca activó vuelve a pendiente, quien ya tenía
+   * contraseña vuelve a activo.
+   */
+  tieneContrasena: z.boolean(),
+})
+
+export type FichaDeUsuario = z.infer<typeof FichaDeUsuarioSchema>
+
+/**
+ * Lo que el entrenador puede cambiar de la ficha de otra persona.
+ *
+ * Es gemelo de `CambiosDePerfilSchema` y aun así se escribe aparte a propósito.
+ * Son dos permisos distintos sobre dos sujetos distintos: aquel lo usan los
+ * cuatro roles sobre sí mismos, y un campo que se añada allí no puede aparecer
+ * aquí por herencia, ni al revés.
+ *
+ * Estricto: un cuerpo que traiga `rol` o `estado` es un 400 ruidoso y no un
+ * campo que se descarta en silencio. Este es el punto obvio por el que alguien
+ * intentaría ascenderse, y el contrato tiene que decir que no.
+ */
+export const CambiosDeUsuarioSchema = z.strictObject({
+  nombre: z.string().trim().min(1).max(80).optional(),
+  apellidos: z.string().trim().max(120).nullable().optional(),
+  telefono: z
+    .string()
+    .trim()
+    .max(30)
+    .regex(
+      /^[+()\d\s.-]*$/,
+      "El teléfono solo puede llevar números, espacios y los signos + ( ) - .",
+    )
+    .nullable()
+    .optional(),
+  fechaNacimiento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha va en formato AAAA-MM-DD")
+    .nullable()
+    .optional(),
+})
+
+export type CambiosDeUsuario = z.infer<typeof CambiosDeUsuarioSchema>
+
+/**
+ * Corregir el correo de quien todavía no ha activado.
+ *
+ * Existe porque un correo mal tecleado en el gimnasio deja una cuenta que nunca
+ * recibirá nada y que no se puede borrar (requisito 14). Solo vale mientras el
+ * perfil está pendiente: en cuanto alguien entra con esa dirección, cambiarla es
+ * cambiar de identidad y exigiría verificar la nueva antes de aceptarla.
+ */
+export const CorreoDeUsuarioSchema = z.strictObject({
+  email: z.string().trim().toLowerCase().email().max(254),
+})
+
+export type CorreoDeUsuario = z.infer<typeof CorreoDeUsuarioSchema>
+
+/**
+ * Lo que devuelve reenviar el enlace de activación.
+ *
+ * Lleva `correoEnviado` por el mismo motivo que el alta, y aquí importa más: al
+ * reenviar, el enlace anterior **ya está quemado**. Contestar con un error
+ * genérico le diría al entrenador que no ha pasado nada, cuando en realidad su
+ * cliente se ha quedado sin ningún enlace válido.
+ */
+export const ResultadoDeEnvioSchema = z.object({
+  usuario: FichaDeUsuarioSchema,
+  correoEnviado: z.boolean(),
+})
+
+export type ResultadoDeEnvio = z.infer<typeof ResultadoDeEnvioSchema>
+
 /** Filtros del listado. Llegan por query, así que todo es texto. */
 export const FiltrosDeListadoSchema = z.object({
   buscar: z.string().trim().max(80).optional(),

@@ -10,6 +10,13 @@ const VIDA_MAXIMA_DIAS_POR_DEFECTO = 90
 const BYTES_DE_SECRETO = 32
 const GRACIA_SEGUNDOS = 30
 
+/**
+ * Lo minimo que necesita este servicio para escribir: o el cliente de siempre, o
+ * el de una transaccion en curso. Se declara asi, por lo que usa, para no
+ * depender de tipos internos de Prisma que cambian entre versiones.
+ */
+type ClientePrisma = Pick<PrismaService, "tokenRefresco">
+
 export type SesionEmitida = {
   /** Lo que se entrega al cliente: `<id>.<secreto>`. */
   token: string
@@ -135,9 +142,14 @@ export class TokensRefrescoService {
    *
    * Es el boton de expulsion: se llama al desactivar una cuenta, al borrarla, al
    * cambiar la contrasena y al cambiar el rol.
+   *
+   * Acepta un cliente de transaccion para que quien da de baja pueda hacerlo en
+   * la misma escritura que el cambio de estado. Es preferible a que el servicio
+   * de usuarios escriba el `updateMany` por su cuenta: como se revoca un token
+   * de refresco debe seguir sabiendolo un solo fichero.
    */
-  async revocarTodosDe(usuarioId: string): Promise<void> {
-    await this.prisma.tokenRefresco.updateMany({
+  async revocarTodosDe(usuarioId: string, cliente: ClientePrisma = this.prisma): Promise<void> {
+    await cliente.tokenRefresco.updateMany({
       where: { usuarioId, revocadoEn: null },
       data: { revocadoEn: new Date(), motivoRevocacion: "cierre" },
     })

@@ -94,10 +94,19 @@ export class ActivacionService {
         throw new BadRequestException("Este enlace ya no es valido")
       }
 
-      await tx.usuario.update({
-        where: { id: fila.usuarioId },
+      // Activar solo activa a quien esta pendiente, y se comprueba aqui aunque
+      // `enviarEnlace` ya lo exigiera al emitir. Entre la emision y el canje
+      // pueden pasar siete dias, y en medio el entrenador puede haber dado de
+      // baja a esa persona: sin esta condicion, el correo antiguo resucitaria la
+      // cuenta y anularia su decision.
+      const activado = await tx.usuario.updateMany({
+        where: { id: fila.usuarioId, estado: "pendiente" },
         data: { passwordHash, estado: "activo" },
       })
+
+      if (activado.count !== 1) {
+        throw new BadRequestException("Este enlace ya no es valido")
+      }
     })
 
     this.registro.log(`Cuenta activada: usuario ${fila.usuarioId}`)

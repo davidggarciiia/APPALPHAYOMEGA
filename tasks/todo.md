@@ -384,7 +384,31 @@
 
   **Dependencias:** 12 · **Alcance:** M
 
-- [ ] **Tarea 17: Alta, edición y desactivación de cliente**
+- [x] **Tarea 17: Alta, edición y desactivación de cliente** — hecha 2026-09-16
+
+  > **Agujero encontrado y cerrado.** `activar` escribía estado `activo` sin mirar
+  > el estado anterior, así que dar de baja a alguien que seguía pendiente no
+  > servía de nada: le bastaba abrir el correo que ya tenía. Ahora la baja quema
+  > los enlaces vivos y, además, activar solo activa a quien está pendiente. Dos
+  > defensas, cada una con su test.
+  >
+  > **La baja son tres escrituras en una transacción**: estado, revocar las
+  > sesiones vivas y quemar los enlaces. Sin las dos últimas el código parece
+  > correcto porque el guard ya corta el acceso al leer el estado, y el fallo no
+  > aparece hasta que alguien reactiva la cuenta y le resucitan las sesiones.
+  >
+  > **Reactivar entra en el alcance** (decidido con David el 2026-09-16). El
+  > estado se deriva de si hay contraseña: quien nunca activó vuelve a pendiente,
+  > no a activo. Ponerlo activo sin contraseña dejaría a esa persona encerrada
+  > fuera, sin poder entrar ni recibir un enlace nuevo.
+  >
+  > **Corregir el correo entra también** (misma conversación), acotado a quien
+  > sigue pendiente. Un correo mal tecleado en el gimnasio deja una cuenta que no
+  > recibe nada y que no se puede borrar. En cuanto alguien entra con esa
+  > dirección, cambiarla sería cambiarle la identidad.
+  >
+  > El diseño salió de una revisión con siete agentes sobre la spec y el código:
+  > tres leyendo, tres proponiendo con lentes distintas y uno sintetizando.
 
   **Aceptación**
   - El alta reutiliza el endpoint de la tarea 12, no abre una vía paralela
@@ -396,6 +420,24 @@
   - Test de que un cliente desactivado no puede iniciar sesión
   - Test de que sus datos siguen existiendo después de desactivarlo
   - Test de que el reenvío invalida el enlace anterior
+
+  > Treinta y dos casos en `apps/api/test/gestion-clientes.e2e-spec.ts` y siete
+  > unitarios en `usuarios.service.spec.ts`. Las tres verificaciones exigidas
+  > están, y además: la baja mirada en la base y no solo por el 401, el enlace
+  > quemado, un token de refresco anterior a la baja que sigue muerto tras
+  > reactivar, los quince casos de denegación por rol, el actor que no se
+  > administra a sí mismo, y que el login de un desactivado responde exactamente
+  > lo mismo que un correo inexistente.
+  >
+  > Los dos tests que más importan se comprobaron rompiendo el código a
+  > propósito: quitar la revocación de sesiones y quitar el quemado de enlaces
+  > ponen cada uno su test en rojo. Un test que no falla cuando el código está mal
+  > no es una verificación, es decoración.
+  >
+  > Prueba manual completa en el móvil: alta, corrección de correo mal tecleado,
+  > edición, baja con confirmación, reactivación, y la lista actualizándose al
+  > volver. El reenvío se probó contra Resend en modo de pruebas: rechazó la
+  > dirección falsa y la pantalla dijo la verdad en lugar de fingir que salió.
 
   **Dependencias:** 16 · **Alcance:** M
 
