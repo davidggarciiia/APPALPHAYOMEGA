@@ -319,7 +319,7 @@
 
 ## Fase 4 · Gestión
 
-- [ ] **Tarea 15: Perfil propio** — datos de texto hechos 2026-09-16, falta la foto
+- [x] **Tarea 15: Perfil propio** — hecha 2026-09-16. La foto se traslada a seguimiento-corporal
 
   Ver y editar nombre, apellidos, teléfono, fecha de nacimiento y foto. Vale para
   los cuatro roles.
@@ -327,20 +327,18 @@
   > Partida en dos rebanadas. **La primera está hecha**: los datos de texto, de
   > punta a punta, con pantalla en la app y once casos de prueba.
   >
-  > **Queda la foto**, y no es solo trabajo: arrastra una decisión de
-  > infraestructura que hay que tomar antes. Hoy no existe almacenamiento de
-  > ficheros de ningún tipo. O se guarda en el disco del servidor, que es gratis
-  > y se pierde en cada despliegue, o entra almacenamiento de objetos, que tiene
-  > coste mensual y proveedor. Pendiente de decidir con David.
+  > **La foto sale de esta tarea** (decidido el 2026-09-16 con David). El problema
+  > real no es la foto de perfil sino las de evolución corporal, que son datos de
+  > salud, pesan mucho más y exigen enlaces firmados. Entra con el módulo
+  > . Montar el almacenamiento dos veces es trabajo tirado.
+  > Ver [ADR 0005](../docs/adr/0005-almacenamiento-de-fotos.md).
 
   **Aceptación**
   - Cada usuario ve y edita solo su perfil
   - Un intento de editar el perfil de otro deniega, incluso siendo entrenador
-  - La foto se sube y se sirve desde el almacenamiento de archivos
 
   **Verificación**
   - Tests de acceso propio y ajeno
-  - Prueba manual de subir foto desde el móvil
 
   **Dependencias:** 9 · **Alcance:** M
 
