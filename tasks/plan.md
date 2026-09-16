@@ -35,14 +35,15 @@ Nada de esto se ve bonito en pantalla. Es el módulo que sostiene los otros siet
 
 ## Fases y checkpoints
 
-| Fase            | Tareas  | Qué queda funcionando al final                                        |
-| --------------- | ------- | --------------------------------------------------------------------- |
-| 0. Andamiaje    | 1 a 4   | El proyecto arranca, compila y pasa un test                           |
-| 1. Sesión       | 5 a 8   | El entrenador entra y su sesión sobrevive a cerrar la app             |
-| 2. Permisos     | 9 a 10  | Los cuatro roles están separados y hay tests que lo demuestran        |
-| 3. Invitaciones | 11 a 14 | El entrenador invita y el invitado entra, con contraseña o con Google |
-| 4. Gestión      | 15 a 18 | El entrenador administra clientes y los asigna al nutricionista       |
-| 5. Cumplimiento | 19 a 21 | Consentimiento, recuperación de contraseña y borrado                  |
+| Fase            | Tareas  | Qué queda funcionando al final                                         |
+| --------------- | ------- | ---------------------------------------------------------------------- |
+| 0. Andamiaje    | 1 a 4   | El proyecto arranca, compila y pasa un test                            |
+| 1. Sesión       | 5 a 8   | El entrenador entra y su sesión sobrevive a cerrar la app              |
+| 2. Permisos     | 9 a 10  | Los cuatro roles están separados y hay tests que lo demuestran         |
+| 3. Invitaciones | 11 y 12 | El entrenador da de alta y el invitado activa su cuenta con contraseña |
+| 4. Gestión      | 15 a 18 | El entrenador administra clientes y los asigna al nutricionista        |
+| 3b. Google      | 13 y 14 | Entrar con Google. Aplazada: necesita un proyecto en Google Cloud      |
+| 5. Cumplimiento | 19 a 21 | Consentimiento, recuperación de contraseña y borrado                   |
 
 Hay un checkpoint al final de cada fase. En cada uno: los tests pasan, el proyecto
 compila, el flujo de la fase funciona a mano en un móvil, y se revisa antes de

@@ -260,7 +260,23 @@
 
   **Dependencias:** 11, 9 · **Alcance:** M
 
-- [ ] **Tarea 13: Prueba de humo de Google**
+- [ ] **Tarea 13: Prueba de humo de Google** — APLAZADA hasta después de la 18
+
+  > **Cambio de orden, decidido el 2026-09-16.** Esta tarea y la 14 se ejecutan
+  > después de la 18, no antes.
+  >
+  > **Motivo:** necesitan un proyecto en Google Cloud con credenciales de OAuth,
+  > y eso solo puede crearlo David. Es un bloqueo externo, no una preferencia.
+  >
+  > **Por qué se puede mover sin romper nada:** su única dependencia es la tarea
+  > 4, que está hecha. Ninguna tarea posterior depende de ella salvo la 14, que
+  > viaja con ella. El propio plan la describía como aislada y adelantable.
+  >
+  > **Consecuencia:** hasta que se hagan, la única forma de entrar en la app es
+  > con contraseña. El requisito 7 de SPEC-identity.md queda sin implementar, y
+  > con él el riesgo de la directriz 4.8 de Apple sigue abierto.
+  >
+  > Orden de ejecución real: 12 → 15 → 16 → 17 → 18 → 13 → 14 → 19 → 20 → 21.
 
   Aislada y adelantable. Solo demostrar que el flujo nativo de OAuth devuelve un
   token de identidad válido en Android y en iOS.
@@ -276,7 +292,7 @@
 
   **Dependencias:** 4 · **Alcance:** M
 
-- [ ] **Tarea 14: Aceptar invitación con Google**
+- [ ] **Tarea 14: Aceptar invitación con Google** — APLAZADA, viaja con la 13
 
   Vincular la identidad de Google a la cuenta en el momento de aceptar la
   invitación, no en el primer login.
