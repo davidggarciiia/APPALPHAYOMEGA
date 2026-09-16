@@ -7,6 +7,8 @@ import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
 import { ActivacionService } from "./activacion.service.js"
 import { AlcanceClienteGuard } from "./alcance-cliente.guard.js"
 import { AlcanceClienteService } from "./alcance-cliente.service.js"
+import { AsignacionesController } from "./asignaciones.controller.js"
+import { AsignacionesService } from "./asignaciones.service.js"
 import { AuthController } from "./auth.controller.js"
 import { AuthService } from "./auth.service.js"
 import { AutenticacionGuard } from "./autenticacion.guard.js"
@@ -48,13 +50,14 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
       }),
     }),
   ],
-  controllers: [AuthController, UsuariosController, PerfilController],
+  controllers: [AuthController, UsuariosController, PerfilController, AsignacionesController],
   providers: [
     AuthService,
     TokensRefrescoService,
     ActivacionService,
     UsuariosService,
     PerfilService,
+    AsignacionesService,
     LimitadorDeIntentos,
     AlcanceClienteService,
     // No es global. Se pone a mano en las rutas que tratan datos de un cliente

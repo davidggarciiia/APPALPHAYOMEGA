@@ -241,6 +241,20 @@ export const CorreoDeUsuarioSchema = z.strictObject({
 export type CorreoDeUsuario = z.infer<typeof CorreoDeUsuarioSchema>
 
 /**
+ * A quién ve un nutricionista.
+ *
+ * Solo identificadores. La pantalla del entrenador ya tiene los nombres de su
+ * cartera, y repetirlos aquí sería mandar dos veces los mismos datos de
+ * personas por la red para pintar una lista de interruptores.
+ */
+export const AsignacionesDeNutricionistaSchema = z.object({
+  nutricionistaId: z.string(),
+  clienteIds: z.array(z.string()),
+})
+
+export type AsignacionesDeNutricionista = z.infer<typeof AsignacionesDeNutricionistaSchema>
+
+/**
  * Lo que devuelve reenviar el enlace de activación.
  *
  * Lleva `correoEnviado` por el mismo motivo que el alta, y aquí importa más: al

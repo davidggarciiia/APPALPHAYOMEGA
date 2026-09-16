@@ -1,4 +1,5 @@
 import {
+  AsignacionesDeNutricionistaSchema,
   EstadoSaludSchema,
   FichaDeUsuarioSchema,
   ListadoUsuariosSchema,
@@ -6,6 +7,7 @@ import {
   ResultadoDeEnvioSchema,
   SesionSchema,
   UsuarioCreadoSchema,
+  type AsignacionesDeNutricionista,
   type CambiosDePerfil,
   type CambiosDeUsuario,
   type CrearUsuario,
@@ -254,5 +256,48 @@ export async function reactivarUsuario(tokenAcceso: string, id: string): Promise
       method: "POST",
       headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
+  )
+}
+
+/** A quien ve un nutricionista. Solo identificadores. */
+export async function leerAsignaciones(
+  tokenAcceso: string,
+  nutricionistaId: string,
+): Promise<AsignacionesDeNutricionista> {
+  return AsignacionesDeNutricionistaSchema.parse(
+    await pedir(`/nutricionistas/${nutricionistaId}/clientes`, {
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
+    }),
+  )
+}
+
+/** Da acceso a un cliente. Asignar dos veces no crea dos filas. */
+export async function asignarCliente(
+  tokenAcceso: string,
+  nutricionistaId: string,
+  clienteId: string,
+): Promise<void> {
+  await pedir(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${tokenAcceso}` },
+  })
+}
+
+/** Retira el acceso. Surte efecto en la peticion siguiente. */
+export async function retirarCliente(
+  tokenAcceso: string,
+  nutricionistaId: string,
+  clienteId: string,
+): Promise<void> {
+  await pedir(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${tokenAcceso}` },
+  })
+}
+
+/** La lista del propio nutricionista. Sale del token, no de la ruta. */
+export async function listarMisClientes(tokenAcceso: string): Promise<ListadoUsuarios> {
+  return ListadoUsuariosSchema.parse(
+    await pedir("/mis-clientes", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
   )
 }

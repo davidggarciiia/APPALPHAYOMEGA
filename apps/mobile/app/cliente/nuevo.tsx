@@ -1,9 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useRouter } from "expo-router"
+import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { Pressable, StyleSheet, Text } from "react-native"
-import { CrearUsuarioSchema, type CrearUsuario } from "@alpha-omega/shared"
+import { CrearUsuarioSchema, type CrearUsuario, type Rol } from "@alpha-omega/shared"
 
 import {
   AvisoDeError,
@@ -17,19 +17,45 @@ import { useSesion } from "../../src/sesion"
 import { tema } from "../../src/tema"
 
 /**
+ * Que perfil se esta creando.
+ *
+ * Por defecto un cliente, que es el alta de todos los dias. El nutricionista
+ * llega aqui desde la pantalla de reparto, y solo cuando todavia no existe:
+ * crearlo es el paso previo a poder asignarle a nadie.
+ *
+ * No hay selector libre de rol. Un desplegable con "entrenador" dentro seria una
+ * via comoda para crear un segundo administrador sin querer.
+ */
+const PERFILES: Partial<Record<Rol, { titulo: string; explicacion: string }>> = {
+  cliente: {
+    titulo: "Nuevo cliente",
+    explicacion:
+      "Se crea al momento y le llega un correo para que elija su contraseña. Puedes asignarle entrenos antes de que lo abra.",
+  },
+  nutricionista: {
+    titulo: "Nuevo nutricionista",
+    explicacion:
+      "Podrá editar las dietas de los clientes que tú le asignes, y no verá absolutamente nada del resto.",
+  },
+}
+
+/**
  * El alta, con la persona delante en el gimnasio.
  *
  * Tres campos y nada mas. El perfil nace pendiente y sin contrasena, asi que el
  * entrenador puede seguir trabajando sin esperar a que nadie abra su correo.
- *
- * El rol va fijado a cliente y no hay selector: la matriz de permisos concede
- * "crear, editar y desactivar clientes", y el nutricionista y el empleado se
- * administran en la tarea 18.
  */
 export default function NuevoCliente(): React.JSX.Element {
   const { estado } = useSesion()
   const router = useRouter()
+  const parametros = useLocalSearchParams<{ rol?: string | string[] }>()
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
+
+  // El parametro llega de fuera: solo se acepta si es uno de los dos perfiles
+  // que esta pantalla sabe crear. Cualquier otra cosa da de alta a un cliente.
+  const pedido = Array.isArray(parametros.rol) ? parametros.rol[0] : parametros.rol
+  const rol: Rol = pedido === "nutricionista" ? "nutricionista" : "cliente"
+  const perfil = PERFILES[rol] ?? PERFILES.cliente
 
   const {
     control,
@@ -37,7 +63,7 @@ export default function NuevoCliente(): React.JSX.Element {
     formState: { errors, isSubmitting },
   } = useForm<CrearUsuario>({
     resolver: zodResolver(CrearUsuarioSchema),
-    defaultValues: { nombre: "", apellidos: "", email: "", rol: "cliente" },
+    defaultValues: { nombre: "", apellidos: "", email: "", rol },
   })
 
   const tokenAcceso = estado.fase === "dentro" ? estado.tokenAcceso : null
@@ -48,7 +74,7 @@ export default function NuevoCliente(): React.JSX.Element {
     setErrorGeneral(null)
 
     try {
-      const creado = await crearUsuario(tokenAcceso, { ...datos, rol: "cliente" })
+      const creado = await crearUsuario(tokenAcceso, { ...datos, rol })
 
       // Se va a la ficha y no a la lista. Lo siguiente en la vida real es
       // "¿te ha llegado?", y el boton de reenviar esta ahi.
@@ -65,11 +91,8 @@ export default function NuevoCliente(): React.JSX.Element {
 
   return (
     <PantallaDeFormulario>
-      <Text style={estilos.titulo}>Nuevo cliente</Text>
-      <Text style={estilos.detalle}>
-        Se crea al momento y le llega un correo para que elija su contraseña. Puedes asignarle
-        entrenos antes de que lo abra.
-      </Text>
+      <Text style={estilos.titulo}>{perfil?.titulo}</Text>
+      <Text style={estilos.detalle}>{perfil?.explicacion}</Text>
 
       <Controller
         control={control}

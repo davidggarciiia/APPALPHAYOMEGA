@@ -38,14 +38,38 @@ export default function Inicio(): React.JSX.Element {
         {/* Esconder el boton es comodidad, no seguridad: quien entre a la ruta a
             mano se encuentra con el 403 del servidor, que es quien decide. */}
         {usuario.rol === "entrenador" && (
+          <>
+            <Pressable
+              style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+              onPress={() => {
+                router.push("/cartera")
+              }}
+              accessibilityRole="button"
+            >
+              <Text style={estilos.textoPrincipal}>MI CARTERA</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+              onPress={() => {
+                router.push("/nutricionista")
+              }}
+              accessibilityRole="button"
+            >
+              <Text style={estilos.textoBoton}>NUTRICIONISTA</Text>
+            </Pressable>
+          </>
+        )}
+
+        {usuario.rol === "nutricionista" && (
           <Pressable
             style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
             onPress={() => {
-              router.push("/cartera")
+              router.push("/mis-clientes")
             }}
             accessibilityRole="button"
           >
-            <Text style={estilos.textoPrincipal}>MI CARTERA</Text>
+            <Text style={estilos.textoPrincipal}>MIS CLIENTES</Text>
           </Pressable>
         )}
 

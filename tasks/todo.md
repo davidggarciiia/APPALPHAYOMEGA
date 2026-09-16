@@ -441,9 +441,34 @@
 
   **Dependencias:** 16 · **Alcance:** M
 
-- [ ] **Tarea 18: Asignación al nutricionista**
+- [x] **Tarea 18: Asignación al nutricionista** — hecha 2026-09-16
 
   Pantalla donde el entrenador marca qué clientes ve el nutricionista.
+
+  > **Un interruptor por cliente.** El nutricionista está subcontratado: no ve
+  > nada por defecto y el entrenador le va dando acceso persona a persona. La
+  > pantalla dice en voz alta a cuántos ve de cuántos.
+  >
+  > **Retirar corta en la petición siguiente**, sin cerrar sesión ni esperar a
+  > que caduque nada, porque el alcance se consulta contra la tabla en cada
+  > petición. Hay un test que lo demuestra con el mismo token antes y después.
+  >
+  > **El alta del nutricionista entra aquí**, que es donde se dijo en la tarea 16
+  > al dejar el alta acotada a clientes. La pantalla de reparto lo ofrece cuando
+  > todavía no existe, porque sin su perfil no hay a quién asignar nada. No hay
+  > selector libre de rol: un desplegable con "entrenador" dentro sería una vía
+  > cómoda para crear un segundo administrador sin querer.
+  >
+  > **Dar de baja a un cliente NO borra su asignación.** Borrarla perdería el
+  > rastro de quién tuvo acceso a los datos de salud de quién. La consecuencia es
+  > que el nutricionista sigue viendo a un cliente dado de baja: queda anotado en
+  > `docs/PENDIENTE-PARA-PRODUCCION.md` (9d) como la fuga más plausible del
+  > módulo, y filtrarlo exige decidir antes si un histórico de bajas se consulta
+  > o no.
+  >
+  > **Sin migración.** Retirar borra la fila en lugar de cerrarla con una fecha,
+  > porque añadir `hasta` al modelo es cambio de esquema y eso se pregunta antes.
+  > Queda la traza en el log con quién, a quién y cuándo, solo identificadores.
 
   **Aceptación**
   - Solo el entrenador asigna
@@ -453,6 +478,18 @@
   **Verificación**
   - Test de que retirar la asignación deniega en la siguiente petición
   - Prueba manual con dos cuentas abiertas a la vez
+
+  > Diecisiete casos en `apps/api/test/asignaciones.e2e-spec.ts`: denegación a
+  > los otros tres roles en las tres rutas, un nutricionista que no puede mirar
+  > la lista de otro, asignar e idempotencia, y el caso que manda, que retirar
+  > deniega en la petición siguiente con el mismo token.
+  >
+  > Comprobado rompiendo el código: si retirar no borra la fila, ese test y el de
+  > "retirar a uno no toca al otro" se ponen en rojo.
+  >
+  > Prueba manual con las dos cuentas a la vez: con el nutricionista dentro de la
+  > app, el entrenador le retiró un cliente y la siguiente pantalla del
+  > nutricionista ya no lo incluía.
 
   **Dependencias:** 10, 16 · **Alcance:** M
 
