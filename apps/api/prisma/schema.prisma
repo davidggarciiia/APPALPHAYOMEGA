@@ -42,6 +42,12 @@ model Usuario {
   nombre    String
   apellidos String?
 
+  /// Datos de contacto del perfil. Todos opcionales: un perfil recien creado por
+  /// el entrenador solo tiene nombre y correo, y su titular los completa despues.
+  telefono         String?
+  fechaNacimiento  DateTime?
+  fotoUrl          String?
+
   rol    Rol
   estado EstadoUsuario @default(pendiente)
 
@@ -160,4 +166,9 @@ enum MotivoRevocacion {
 
   /// Se detecto que un token ya gastado volvia a aparecer fuera de plazo.
   reuso
+
+  /// Ya se uso su ventana de gracia. Marcarlo impide que varias peticiones
+  /// simultaneas la usen todas y acaben bifurcando la sesion en varias cadenas,
+  /// que es exactamente lo que la rotacion existe para impedir.
+  reintento
 }

@@ -77,6 +77,55 @@ export const UsuarioPublicoSchema = z.object({
 export type UsuarioPublico = z.infer<typeof UsuarioPublicoSchema>
 
 /**
+ * El perfil completo de quien ha iniciado sesion, para su propia pantalla.
+ *
+ * Es mas ancho que `UsuarioPublico` a proposito: aqui caben datos de contacto que
+ * no tienen por que viajar en cada respuesta de la API.
+ */
+export const PerfilPropioSchema = UsuarioPublicoSchema.extend({
+  telefono: z.string().nullable(),
+  /** En formato AAAA-MM-DD. Una fecha sin hora no necesita zona horaria. */
+  fechaNacimiento: z.string().nullable(),
+  fotoUrl: z.string().nullable(),
+})
+
+export type PerfilPropio = z.infer<typeof PerfilPropioSchema>
+
+/**
+ * Lo que se puede cambiar del perfil propio.
+ *
+ * El correo NO esta: cambiarlo es cambiar de identidad y exigiria verificar la
+ * direccion nueva antes de aceptarla, o cualquiera se apropiaria de la cuenta de
+ * otro. El rol y el estado tampoco, por motivos obvios.
+ */
+export const CambiosDePerfilSchema = z.object({
+  nombre: z.string().trim().min(1).max(80).optional(),
+  apellidos: z.string().trim().max(120).nullable().optional(),
+  /**
+   * Se acepta con espacios, signos y prefijo internacional. Validar telefonos con
+   * una expresion estricta rechaza numeros legitimos de otros paises, y aqui el
+   * dato solo sirve para que el entrenador llame a su cliente.
+   */
+  telefono: z
+    .string()
+    .trim()
+    .max(30)
+    .regex(
+      /^[+()\d\s.-]*$/,
+      "El teléfono solo puede llevar números, espacios y los signos + ( ) - .",
+    )
+    .nullable()
+    .optional(),
+  fechaNacimiento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha va en formato AAAA-MM-DD")
+    .nullable()
+    .optional(),
+})
+
+export type CambiosDePerfil = z.infer<typeof CambiosDePerfilSchema>
+
+/**
  * Lo que devuelve POST /auth/login.
  *
  * Dos tokens con papeles distintos. El de acceso dura minutos y viaja en cada

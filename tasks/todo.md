@@ -319,10 +319,19 @@
 
 ## Fase 4 · Gestión
 
-- [ ] **Tarea 15: Perfil propio**
+- [ ] **Tarea 15: Perfil propio** — datos de texto hechos 2026-09-16, falta la foto
 
   Ver y editar nombre, apellidos, teléfono, fecha de nacimiento y foto. Vale para
   los cuatro roles.
+
+  > Partida en dos rebanadas. **La primera está hecha**: los datos de texto, de
+  > punta a punta, con pantalla en la app y once casos de prueba.
+  >
+  > **Queda la foto**, y no es solo trabajo: arrastra una decisión de
+  > infraestructura que hay que tomar antes. Hoy no existe almacenamiento de
+  > ficheros de ningún tipo. O se guarda en el disco del servidor, que es gratis
+  > y se pierde en cada despliegue, o entra almacenamiento de objetos, que tiene
+  > coste mensual y proveedor. Pendiente de decidir con David.
 
   **Aceptación**
   - Cada usuario ve y edita solo su perfil

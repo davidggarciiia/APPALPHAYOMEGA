@@ -1,8 +1,11 @@
 import {
   EstadoSaludSchema,
+  PerfilPropioSchema,
   SesionSchema,
+  type CambiosDePerfil,
   type Credenciales,
   type EstadoSalud,
+  type PerfilPropio,
   type Sesion,
 } from "@alpha-omega/shared"
 
@@ -99,4 +102,23 @@ export async function cerrarSesionEnServidor(tokenRefresco: string): Promise<voi
 
 export async function activarCuenta(token: string, contrasena: string): Promise<void> {
   await pedir("/auth/activar", { method: "POST", body: JSON.stringify({ token, contrasena }) })
+}
+
+export async function leerPerfil(tokenAcceso: string): Promise<PerfilPropio> {
+  return PerfilPropioSchema.parse(
+    await pedir("/perfil", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
+  )
+}
+
+export async function guardarPerfil(
+  tokenAcceso: string,
+  cambios: CambiosDePerfil,
+): Promise<PerfilPropio> {
+  return PerfilPropioSchema.parse(
+    await pedir("/perfil", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${tokenAcceso}` },
+      body: JSON.stringify(cambios),
+    }),
+  )
 }

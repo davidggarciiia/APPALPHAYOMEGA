@@ -11,6 +11,8 @@ import { AuthController } from "./auth.controller.js"
 import { AuthService } from "./auth.service.js"
 import { AutenticacionGuard } from "./autenticacion.guard.js"
 import { LimitadorDeIntentos } from "./limitador-intentos.service.js"
+import { PerfilController } from "./perfil.controller.js"
+import { PerfilService } from "./perfil.service.js"
 import { RolesGuard } from "./roles.guard.js"
 import { UsuariosController } from "./usuarios.controller.js"
 import { UsuariosService } from "./usuarios.service.js"
@@ -46,12 +48,13 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
       }),
     }),
   ],
-  controllers: [AuthController, UsuariosController],
+  controllers: [AuthController, UsuariosController, PerfilController],
   providers: [
     AuthService,
     TokensRefrescoService,
     ActivacionService,
     UsuariosService,
+    PerfilService,
     LimitadorDeIntentos,
     AlcanceClienteService,
     // No es global. Se pone a mano en las rutas que tratan datos de un cliente

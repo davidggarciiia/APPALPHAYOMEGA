@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -7,15 +8,19 @@ import { tema } from "../src/tema"
 /**
  * Pantalla provisional de sesion iniciada.
  *
- * Demuestra que la sesion existe y sobrevive a cerrar la app. La sustituye el
- * inicio real del cliente cuando llegue el modulo `agenda`.
+ * Demuestra que la sesion existe y da acceso al perfil. La sustituye el inicio
+ * real del cliente cuando llegue el modulo `agenda`.
  */
 export default function Inicio(): React.JSX.Element {
   const { estado, salir } = useSesion()
+  const router = useRouter()
 
   if (estado.fase !== "dentro") {
     return <SafeAreaView style={estilos.pantalla} />
   }
+
+  const { usuario } = estado
+  const nombreCompleto = [usuario.nombre, usuario.apellidos].filter(Boolean).join(" ")
 
   return (
     <SafeAreaView style={estilos.pantalla}>
@@ -25,12 +30,23 @@ export default function Inicio(): React.JSX.Element {
 
         <View style={estilos.tarjeta}>
           <Text style={estilos.titulo}>SESIÓN INICIADA</Text>
-          <Text style={estilos.valor}>{estado.usuario.email}</Text>
-          <Text style={estilos.perfil}>{estado.usuario.rol.toUpperCase()}</Text>
+          <Text style={estilos.valor}>{nombreCompleto}</Text>
+          <Text style={estilos.secundario}>{usuario.email}</Text>
+          <Text style={estilos.perfil}>{usuario.rol.toUpperCase()}</Text>
         </View>
 
         <Pressable
-          style={({ pressed }) => [estilos.boton, pressed && estilos.botonPulsado]}
+          style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+          onPress={() => {
+            router.push("/perfil")
+          }}
+          accessibilityRole="button"
+        >
+          <Text style={estilos.textoPrincipal}>MI PERFIL</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
           onPress={() => void salir()}
           accessibilityRole="button"
         >
@@ -56,17 +72,27 @@ const estilos = StyleSheet.create({
     gap: 6,
   },
   titulo: { color: tema.oroSuave, fontSize: 11, letterSpacing: 2, marginBottom: 8 },
-  valor: { color: tema.texto, fontSize: 16 },
-  perfil: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
-  boton: {
+  valor: { color: tema.texto, fontSize: 18 },
+  secundario: { color: tema.textoTenue, fontSize: 13 },
+  perfil: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2, marginTop: 4 },
+  botonPrincipal: {
     alignSelf: "stretch",
-    borderColor: tema.borde,
-    borderWidth: 1,
+    backgroundColor: tema.oro,
     borderRadius: 8,
     marginTop: 24,
     paddingVertical: 14,
     alignItems: "center",
   },
-  botonPulsado: { opacity: 0.6 },
+  textoPrincipal: { color: tema.fondo, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
+  boton: {
+    alignSelf: "stretch",
+    borderColor: tema.borde,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  pulsado: { opacity: 0.6 },
   textoBoton: { color: tema.textoTenue, fontSize: 13, fontWeight: "600", letterSpacing: 2 },
 })

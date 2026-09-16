@@ -79,6 +79,22 @@ export class TokensRefrescoService {
       // segundos, un token robado aparece mucho despues. Dentro de la ventana se
       // trata como reintento y se emite uno nuevo de la misma familia.
       if (fila.motivoRevocacion === "rotacion" && this.dentroDeLaVentanaDeGracia(fila.revocadoEn)) {
+        // La gracia se consume con una escritura condicional, igual que la
+        // rotacion. Sin este candado, cuatro peticiones simultaneas la usaban las
+        // cuatro y la sesion acababa bifurcada en varias cadenas vivas, que es
+        // justo lo que la rotacion existe para impedir. Comprobado: quedaban tres.
+        const { count: ganada } = await this.prisma.tokenRefresco.updateMany({
+          where: { id: fila.id, motivoRevocacion: "rotacion" },
+          data: { motivoRevocacion: "reintento" },
+        })
+
+        if (ganada !== 1) {
+          // Otra peticion se llevo la gracia hace un instante. No hay motivo para
+          // sospechar de nadie, asi que se rechaza sin tocar la familia: quien
+          // tenga el token bueno sigue dentro.
+          throw new UnauthorizedException("Sesion no valida")
+        }
+
         this.registro.log(
           `Canje repetido dentro de la ventana de gracia. Se asume respuesta perdida, ` +
             `familia ${fila.familiaId} intacta.`,
@@ -171,7 +187,7 @@ export class TokensRefrescoService {
     familiaId: string
     familiaCreadaEn: Date
     revocadoEn: Date | null
-    motivoRevocacion: "rotacion" | "cierre" | "reuso" | null
+    motivoRevocacion: "rotacion" | "cierre" | "reuso" | "reintento" | null
   }> {
     const separador = token.indexOf(".")
     if (separador === -1) {
@@ -231,7 +247,7 @@ export class TokensRefrescoService {
 
   private async revocarFamilia(
     familiaId: string,
-    motivo: "cierre" | "reuso" | "rotacion",
+    motivo: "cierre" | "reuso" | "rotacion" | "reintento",
   ): Promise<void> {
     await this.prisma.tokenRefresco.updateMany({
       where: { familiaId, revocadoEn: null },
