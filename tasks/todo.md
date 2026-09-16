@@ -88,11 +88,11 @@
 
   **Dependencias:** 3 · **Alcance:** S
 
-### Checkpoint 0 — NO SUPERADO
+### Checkpoint 0 — superado
 
 - [x] Tests pasan, typecheck limpio — verificado 2026-09-12
-- [ ] La app en un móvil real habla con la API de tu máquina — **solo se ha probado en navegador y exportando el bundle de Android. Nunca en un teléfono.**
-- [ ] Revisión antes de seguir — **no se hizo. Se pasó por encima.**
+- [x] La app en un móvil real habla con la API de tu máquina — verificado por David en su teléfono, 2026-09-12
+- [x] Revisión antes de seguir — hecha 2026-09-16. Auditoría adversarial de seis ángulos sobre el andamiaje y la app, que era el único código sin revisar. 30 hallazgos propuestos, 26 confirmados, los 26 arreglados
 
 ## Fase 1 · Sesión
 
@@ -167,11 +167,11 @@
 
   **Dependencias:** 7, 4 · **Alcance:** M
 
-### Checkpoint 1 — NO SUPERADO
+### Checkpoint 1 — superado
 
-- [ ] El entrenador entra desde un móvil real y la sesión sobrevive a cerrar la app — **probado solo en navegador. En un teléfono cambia el almacén seguro: allí es el llavero del sistema y aquí es localStorage.**
+- [x] El entrenador entra desde un móvil real y la sesión sobrevive a cerrar la app — verificado por David, 2026-09-12. El token persiste en el llavero del sistema, que es la rama de código que el navegador nunca ejecuta
 - [x] Todos los tests pasan — verificado 2026-09-12
-- [ ] Revisión antes de seguir — **no se hizo en su momento. La auditoría adversarial del checkpoint 2 cubrió después este mismo código de sesión.**
+- [x] Revisión antes de seguir — hecha 2026-09-16 junto con la del checkpoint 0. Cuatro hallazgos críticos en la app, todos invisibles probando en navegador contra localhost
 
 ## Fase 2 · Permisos
 

@@ -8,6 +8,7 @@ import { PrismaService } from "../prisma/prisma.service.js"
 const DIAS_POR_DEFECTO = 30
 const VIDA_MAXIMA_DIAS_POR_DEFECTO = 90
 const BYTES_DE_SECRETO = 32
+const GRACIA_SEGUNDOS = 30
 
 export type SesionEmitida = {
   /** Lo que se entrega al cliente: `<id>.<secreto>`. */
@@ -48,21 +49,53 @@ export class TokensRefrescoService {
    * arbitra y solo una toca una fila. La que pierde no obtiene una sesion
    * paralela, obtiene un rechazo.
    *
-   * Y si el token que llega YA estaba revocado, eso no es un error del usuario:
-   * es la firma de un robo. Alguien esta usando una copia de un token que ya se
-   * gasto. En ese caso se corta la familia entera, porque no se sabe si quien
-   * tiene el token legitimo es el duenno o el ladron.
+   * Si el token que llega YA estaba revocado hay dos lecturas posibles, y se
+   * distinguen por el reloj. Dentro de unos segundos es una respuesta que se
+   * perdio y el movil reintenta. Mas tarde es una copia robada, y entonces se
+   * corta la familia entera porque no se sabe quien tiene el token legitimo.
    */
   async canjear(token: string): Promise<{ usuarioId: string; nuevo: SesionEmitida }> {
     const fila = await this.buscarFila(token)
 
     const { count } = await this.prisma.tokenRefresco.updateMany({
       where: { id: fila.id, revocadoEn: null },
-      data: { revocadoEn: new Date() },
+      data: { revocadoEn: new Date(), motivoRevocacion: "rotacion" },
     })
 
     if (count !== 1) {
-      await this.revocarFamilia(fila.familiaId)
+      // El token ya estaba revocado. Hay dos explicaciones muy distintas.
+      //
+      // Una: alguien esta usando una copia robada. Es lo que la rotacion existe
+      // para detectar.
+      //
+      // La otra, mucho mas frecuente y del todo inocente: el movil pidio el
+      // canje, el servidor rotó, y el sistema operativo mató la app antes de que
+      // llegara la respuesta. Al reabrir, el movil manda el unico token que
+      // tiene, que es el viejo. Con una cobertura irregular esto pasa a menudo, y
+      // castigarlo revocando la familia deja al cliente fuera de su cuenta y
+      // escribe una alarma de seguridad falsa.
+      //
+      // Se distinguen por el reloj: una respuesta perdida se reintenta en
+      // segundos, un token robado aparece mucho despues. Dentro de la ventana se
+      // trata como reintento y se emite uno nuevo de la misma familia.
+      if (fila.motivoRevocacion === "rotacion" && this.dentroDeLaVentanaDeGracia(fila.revocadoEn)) {
+        this.registro.log(
+          `Canje repetido dentro de la ventana de gracia. Se asume respuesta perdida, ` +
+            `familia ${fila.familiaId} intacta.`,
+        )
+
+        // El sucesor existe y esta vivo, pero el cliente nunca llego a recibirlo:
+        // es inalcanzable. Se retira para que la familia no acumule tokens vivos
+        // que nadie tiene.
+        await this.revocarFamilia(fila.familiaId, "rotacion")
+
+        return {
+          usuarioId: fila.usuarioId,
+          nuevo: await this.crearFila(fila.usuarioId, fila.familiaId, fila.familiaCreadaEn),
+        }
+      }
+
+      await this.revocarFamilia(fila.familiaId, "reuso")
       this.registro.warn(
         `Token de refresco reutilizado. Familia ${fila.familiaId} revocada por completo.`,
       )
@@ -78,7 +111,7 @@ export class TokensRefrescoService {
   /** Cierra la sesion revocando la familia entera. Borrarlo del movil no basta. */
   async revocar(token: string): Promise<void> {
     const fila = await this.buscarFila(token)
-    await this.revocarFamilia(fila.familiaId)
+    await this.revocarFamilia(fila.familiaId, "cierre")
   }
 
   /**
@@ -90,7 +123,7 @@ export class TokensRefrescoService {
   async revocarTodosDe(usuarioId: string): Promise<void> {
     await this.prisma.tokenRefresco.updateMany({
       where: { usuarioId, revocadoEn: null },
-      data: { revocadoEn: new Date() },
+      data: { revocadoEn: new Date(), motivoRevocacion: "cierre" },
     })
   }
 
@@ -137,6 +170,8 @@ export class TokensRefrescoService {
     usuarioId: string
     familiaId: string
     familiaCreadaEn: Date
+    revocadoEn: Date | null
+    motivoRevocacion: "rotacion" | "cierre" | "reuso" | null
   }> {
     const separador = token.indexOf(".")
     if (separador === -1) {
@@ -169,13 +204,38 @@ export class TokensRefrescoService {
       usuarioId: fila.usuarioId,
       familiaId: fila.familiaId,
       familiaCreadaEn: fila.familiaCreadaEn,
+      revocadoEn: fila.revocadoEn,
+      motivoRevocacion: fila.motivoRevocacion,
     }
   }
 
-  private async revocarFamilia(familiaId: string): Promise<void> {
+  /**
+   * Cuanto se tolera un canje repetido antes de tratarlo como robo.
+   *
+   * Corta a proposito: es el tiempo que tarda un movil en reintentar tras perder
+   * una respuesta, no el que tarda un atacante en usar un token copiado. Alargarla
+   * abriria una ventana real en la que dos personas comparten sesion.
+   */
+  private dentroDeLaVentanaDeGracia(revocadoEn: Date | null): boolean {
+    if (revocadoEn === null) {
+      return false
+    }
+
+    const segundos = Number(
+      leerVariableOpcional("REFRESCO_GRACIA_SEGUNDOS", String(GRACIA_SEGUNDOS)),
+    )
+    const tope = Number.isFinite(segundos) && segundos >= 0 ? segundos : GRACIA_SEGUNDOS
+
+    return Date.now() - revocadoEn.getTime() <= tope * 1000
+  }
+
+  private async revocarFamilia(
+    familiaId: string,
+    motivo: "cierre" | "reuso" | "rotacion",
+  ): Promise<void> {
     await this.prisma.tokenRefresco.updateMany({
       where: { familiaId, revocadoEn: null },
-      data: { revocadoEn: new Date() },
+      data: { revocadoEn: new Date(), motivoRevocacion: motivo },
     })
   }
 

@@ -11,15 +11,18 @@ const EMAIL = `usuario${SUFIJO}`
 const CONTRASENA = "contrasena-de-prueba-carrera"
 
 /**
- * La rotacion tenia una carrera: entre leer la fila y marcarla revocada cabian
- * dos peticiones simultaneas, y las dos salian con una sesion valida. El
- * resultado era una sesion bifurcada en dos cadenas, que es exactamente lo que
- * la rotacion pretendia impedir.
+ * Rotacion de tokens de refresco.
  *
- * El arreglo convierte la revocacion en una escritura condicional, asi que la
- * base arbitra y solo una peticion gana.
+ * La garantia que se protege aqui es que **una familia nunca tiene mas de un
+ * token vivo**. Da igual cuantas peticiones lleguen a la vez o cuantas respuestas
+ * se pierdan por el camino: si en algun momento hubiera dos tokens validos de la
+ * misma sesion, la rotacion habria dejado de servir para lo que existe.
+ *
+ * Hay una excepcion medida y deliberada: un canje repetido en los primeros
+ * segundos se trata como un reintento, no como un robo. Sin eso, un movil al que
+ * el sistema mata a mitad de la rotacion deja al cliente fuera de su cuenta.
  */
-describe("Carrera en el canje del token de refresco", () => {
+describe("Rotacion del token de refresco", () => {
   let app: INestApplication
   let prisma: PrismaService
 
@@ -30,6 +33,26 @@ describe("Carrera en el canje del token de refresco", () => {
       .expect(200)
 
     return respuesta.body
+  }
+
+  function refrescar(token: string): request.Test {
+    return request(app.getHttpServer()).post("/auth/refresh").send({ tokenRefresco: token })
+  }
+
+  /** Cuantos tokens siguen vivos en toda la cuenta. */
+  async function vivos(): Promise<number> {
+    const usuario = await prisma.usuario.findUnique({ where: { email: EMAIL } })
+    return prisma.tokenRefresco.count({
+      where: { usuarioId: usuario?.id ?? "", revocadoEn: null },
+    })
+  }
+
+  /** Envejece la revocacion de un token para sacarlo de la ventana de gracia. */
+  async function envejecer(token: string): Promise<void> {
+    await prisma.tokenRefresco.updateMany({
+      where: { id: token.split(".")[0] ?? "" },
+      data: { revocadoEn: new Date(Date.now() - 60 * 60 * 1000) },
+    })
   }
 
   beforeAll(async () => {
@@ -57,79 +80,86 @@ describe("Carrera en el canje del token de refresco", () => {
     await app.close()
   })
 
-  it("cuatro canjes simultaneos del mismo token: solo uno gana", async () => {
+  it("tras rotar queda exactamente un token vivo", async () => {
+    const sesion = await entrar()
+    expect(await vivos()).toBe(1)
+
+    const renovada = await refrescar(sesion.tokenRefresco).expect(200)
+
+    expect(renovada.body.tokenRefresco).not.toBe(sesion.tokenRefresco)
+    expect(await vivos()).toBe(1)
+  })
+
+  it("cuatro canjes simultaneos no bifurcan la sesion", async () => {
     const sesion = await entrar()
 
     const respuestas = await Promise.all(
-      Array.from({ length: 4 }, () =>
-        request(app.getHttpServer())
-          .post("/auth/refresh")
-          .send({ tokenRefresco: sesion.tokenRefresco }),
-      ),
+      Array.from({ length: 4 }, () => refrescar(sesion.tokenRefresco)),
     )
 
-    const correctas = respuestas.filter((r) => r.status === 200)
-    const rechazadas = respuestas.filter((r) => r.status === 401)
-
-    expect(correctas).toHaveLength(1)
-    expect(rechazadas).toHaveLength(3)
+    // Alguna pudo atenderse como reintento, pero el resultado que importa es que
+    // no quedan dos sesiones paralelas.
+    expect(respuestas.every((r) => r.status === 200 || r.status === 401)).toBe(true)
+    expect(await vivos()).toBe(1)
   })
 
-  it("reutilizar un token ya rotado corta la cadena entera", async () => {
+  it("un canje repetido justo despues se atiende como reintento", async () => {
     const sesion = await entrar()
 
-    // Rotacion legitima.
-    const renovada = await request(app.getHttpServer())
-      .post("/auth/refresh")
-      .send({ tokenRefresco: sesion.tokenRefresco })
-      .expect(200)
+    // Rotacion legitima cuya respuesta, imaginemos, nunca llego al movil porque
+    // el sistema operativo mato la app.
+    await refrescar(sesion.tokenRefresco).expect(200)
 
-    // Alguien usa la copia vieja. Eso solo pasa si un token se ha copiado.
-    await request(app.getHttpServer())
-      .post("/auth/refresh")
-      .send({ tokenRefresco: sesion.tokenRefresco })
-      .expect(401)
+    // Al reabrir, el movil manda el unico token que tiene: el viejo.
+    const reintento = await refrescar(sesion.tokenRefresco).expect(200)
 
-    // Como no se sabe quien tiene el token bueno, se corta la familia entera y
-    // se obliga a volver a escribir la contrasena. Es lo unico seguro.
-    await request(app.getHttpServer())
-      .post("/auth/refresh")
-      .send({ tokenRefresco: renovada.body.tokenRefresco })
-      .expect(401)
+    // Sigue dentro, con un token utilizable, y sin sesiones paralelas.
+    expect(await vivos()).toBe(1)
+    await refrescar(reintento.body.tokenRefresco).expect(200)
   })
 
-  it("todas las filas de la familia quedan revocadas tras detectar el reuso", async () => {
+  it("pasada la ventana de gracia, el token viejo corta la cadena entera", async () => {
+    const sesion = await entrar()
+    const renovada = await refrescar(sesion.tokenRefresco).expect(200)
+
+    // Un token que reaparece una hora despues no es una respuesta perdida: es una
+    // copia. No se sabe quien tiene el bueno, asi que se echa a los dos.
+    await envejecer(sesion.tokenRefresco)
+
+    await refrescar(sesion.tokenRefresco).expect(401)
+    await refrescar(renovada.body.tokenRefresco).expect(401)
+    expect(await vivos()).toBe(0)
+  })
+
+  it("cerrar sesion no admite ninguna indulgencia", async () => {
     const sesion = await entrar()
 
     await request(app.getHttpServer())
-      .post("/auth/refresh")
+      .post("/auth/logout")
       .send({ tokenRefresco: sesion.tokenRefresco })
-      .expect(200)
+      .expect(204)
 
-    await request(app.getHttpServer())
-      .post("/auth/refresh")
-      .send({ tokenRefresco: sesion.tokenRefresco })
-      .expect(401)
+    // Aunque sea el mismo instante. Un boton de cerrar sesion que deja la sesion
+    // viva treinta segundos es una mentira, no una comodidad.
+    await refrescar(sesion.tokenRefresco).expect(401)
+    expect(await vivos()).toBe(0)
+  })
 
-    const usuario = await prisma.usuario.findUnique({ where: { email: EMAIL } })
-    const vivas = await prisma.tokenRefresco.count({
-      where: { usuarioId: usuario?.id ?? "", revocadoEn: null },
-    })
+  it("el token de refresco nunca se guarda en claro", async () => {
+    const sesion = await entrar()
+    const secreto = sesion.tokenRefresco.split(".")[1] ?? ""
 
-    expect(vivas).toBe(0)
+    const filas = await prisma.tokenRefresco.findMany()
+
+    expect(filas.some((fila) => fila.hash.includes(secreto))).toBe(false)
   })
 
   it("la cadena hereda su fecha de nacimiento en cada rotacion", async () => {
     const sesion = await entrar()
     const idInicial = sesion.tokenRefresco.split(".")[0] ?? ""
-
     const primera = await prisma.tokenRefresco.findUnique({ where: { id: idInicial } })
 
-    const renovada = await request(app.getHttpServer())
-      .post("/auth/refresh")
-      .send({ tokenRefresco: sesion.tokenRefresco })
-      .expect(200)
-
+    const renovada = await refrescar(sesion.tokenRefresco).expect(200)
     const idNuevo = String(renovada.body.tokenRefresco).split(".")[0] ?? ""
     const segunda = await prisma.tokenRefresco.findUnique({ where: { id: idNuevo } })
 

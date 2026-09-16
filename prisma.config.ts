@@ -17,6 +17,27 @@ import { urlDeConexion } from "./apps/api/src/config/postgres"
  */
 cargarEntornoLocal()
 
+/**
+ * La URL se calcula sin reventar si faltan variables.
+ *
+ * Este fichero se carga en TODOS los comandos de Prisma, incluido `generate`,
+ * que no necesita ninguna base de datos. Si aqui se lanzara una excepcion, un
+ * clon limpio sin `.env` no podria ni generar el cliente, y por tanto no podria
+ * compilar nada. Los comandos que si necesitan la base fallaran despues, con el
+ * mensaje de Prisma.
+ */
+function urlSiEsPosible(): string | undefined {
+  try {
+    return urlDeConexion()
+  } catch {
+    console.warn(
+      "[prisma] Sin variables de conexion. `generate` funciona igual; " +
+        "`migrate` y `studio` necesitan un .env. Copia .env.example.",
+    )
+    return undefined
+  }
+}
+
 export default defineConfig({
   schema: "apps/api/prisma/schema.prisma",
   migrations: {
@@ -27,6 +48,6 @@ export default defineConfig({
     seed: "npm run seed --workspace apps/api",
   },
   datasource: {
-    url: urlDeConexion(),
+    url: urlSiEsPosible(),
   },
 })

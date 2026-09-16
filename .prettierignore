@@ -1,0 +1,16 @@
+# Generado, no escrito por nadie.
+**/dist/
+**/build/
+**/coverage/
+package-lock.json
+
+# Cachés y artefactos de Expo. Aparecen en cuanto se arranca la app una vez, y
+# sin esta línea `npm run lint` empieza a fallar sin que nadie haya tocado nada.
+**/.expo/
+**/.expo-shared/
+apps/mobile/expo-env.d.ts
+
+# Cliente de Prisma y migraciones. El SQL lo escribe la herramienta, o lo
+# escribimos a mano con un formato que Prettier no debe tocar.
+**/prisma/migrations/
+**/.prisma/

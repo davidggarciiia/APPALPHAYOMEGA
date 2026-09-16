@@ -89,6 +89,11 @@ model TokenRefresco {
   revocadoEn DateTime?
   creadoEn   DateTime  @default(now())
 
+  /// Por que se revoco. No es documentacion: decide si un token que reaparece
+  /// merece indulgencia. Una rotacion cuya respuesta se perdio si; un cierre de
+  /// sesion o una expulsion, jamas.
+  motivoRevocacion MotivoRevocacion?
+
   @@index([usuarioId])
   @@index([familiaId])
   @@map("tokens_refresco")
@@ -139,4 +144,20 @@ model TokenActivacion {
 
   @@index([usuarioId])
   @@map("tokens_activacion")
+}
+
+
+/// Por que dejo de valer un token de refresco.
+enum MotivoRevocacion {
+  /// Se canjeo por otro. Es el caso normal y el unico que admite una ventana de
+  /// gracia: si la respuesta no llego al movil, el cliente reintenta con el viejo.
+  rotacion
+
+  /// El usuario cerro sesion, o se expulsaron todas sus sesiones. Aqui no hay
+  /// indulgencia posible: revivirlo convertiria el boton de cerrar sesion en una
+  /// mentira.
+  cierre
+
+  /// Se detecto que un token ya gastado volvia a aparecer fuera de plazo.
+  reuso
 }

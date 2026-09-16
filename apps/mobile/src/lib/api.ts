@@ -6,42 +6,62 @@ import {
   type Sesion,
 } from "@alpha-omega/shared"
 
+import { direccionDeLaApi } from "./direccion-api"
+
 /**
- * Cliente HTTP contra la API.
+ * Cuanto se espera antes de dar una peticion por perdida.
  *
- * La direccion no esta escrita en el codigo: sale de una variable de entorno,
- * porque cambia segun desde donde se pruebe. En un emulador de Android es una
- * direccion, en un movil fisico es la IP del ordenador en la wifi, y en
- * produccion sera el dominio.
+ * React Native configura su cliente HTTP de Android **sin ningun tiempo limite**.
+ * Sin esto, una peticion contra una direccion inalcanzable, que es exactamente lo
+ * que pasa al abrir la app fuera de la wifi de casa, no termina jamas: la app se
+ * queda con la ruleta girando y la unica salida es matarla desde el gestor de
+ * tareas.
  */
-function urlBase(): string {
-  const configurada = process.env.EXPO_PUBLIC_API_URL
-
-  if (configurada === undefined || configurada === "") {
-    throw new Error("Falta EXPO_PUBLIC_API_URL. Copia apps/mobile/.env.example a apps/mobile/.env.")
-  }
-
-  return configurada.replace(/\/+$/, "")
-}
+const LIMITE_MS = 10_000
 
 /** El servidor rechazo la sesion o las credenciales. */
 export class ErrorDeSesion extends Error {}
 
+/**
+ * No se pudo hablar con el servidor: sin cobertura, direccion inalcanzable o
+ * demasiado lento.
+ *
+ * Se distingue de un error del servidor a proposito. Ante este, la sesion
+ * guardada sigue siendo valida y **no hay que borrarla**: el problema es la red,
+ * no la credencial.
+ */
+export class ErrorDeRed extends Error {}
+
+/** El servidor contesto, pero con un fallo suyo. */
+export class ErrorDelServidor extends Error {
+  constructor(readonly codigo: number) {
+    super(`El servidor respondio ${String(codigo)}`)
+  }
+}
+
 async function pedir(ruta: string, opciones: RequestInit = {}): Promise<unknown> {
-  const respuesta = await fetch(`${urlBase()}${ruta}`, {
-    ...opciones,
-    headers: {
-      "Content-Type": "application/json",
-      ...opciones.headers,
-    },
-  })
+  let respuesta: Response
+
+  try {
+    respuesta = await fetch(`${direccionDeLaApi()}${ruta}`, {
+      ...opciones,
+      signal: AbortSignal.timeout(LIMITE_MS),
+      headers: {
+        "Content-Type": "application/json",
+        ...opciones.headers,
+      },
+    })
+  } catch (error) {
+    // Aqui solo caen fallos de transporte: sin red, DNS, o el limite de tiempo.
+    throw new ErrorDeRed(error instanceof Error ? error.message : "Sin conexion")
+  }
 
   if (respuesta.status === 401 || respuesta.status === 403) {
     throw new ErrorDeSesion(String(respuesta.status))
   }
 
   if (!respuesta.ok) {
-    throw new Error(`El servidor respondio ${String(respuesta.status)}`)
+    throw new ErrorDelServidor(respuesta.status)
   }
 
   if (respuesta.status === 204) {
@@ -75,4 +95,8 @@ export async function refrescarSesion(tokenRefresco: string): Promise<Sesion> {
 
 export async function cerrarSesionEnServidor(tokenRefresco: string): Promise<void> {
   await pedir("/auth/logout", { method: "POST", body: JSON.stringify({ tokenRefresco }) })
+}
+
+export async function activarCuenta(token: string, contrasena: string): Promise<void> {
+  await pedir("/auth/activar", { method: "POST", body: JSON.stringify({ token, contrasena }) })
 }

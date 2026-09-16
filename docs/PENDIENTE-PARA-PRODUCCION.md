@@ -31,6 +31,36 @@ CORREO_REMITENTE=Alpha & Omega Training <no-responder@alphayomegatraining.com>
 
 No hay que tocar código.
 
+### 1b. El enlace de activación es secuestrable hasta que el dominio esté verificado
+
+**Estado: pendiente, y depende del punto 1.** Lo encontró la revisión adversarial
+del andamiaje y es el hallazgo de seguridad más serio que queda abierto.
+
+Hoy el correo de activación apunta a `alphaomega://activar?token=...`. Un esquema
+propio no está reservado a nadie: **cualquier otra app instalada en el teléfono
+puede declarar que también responde a `alphaomega://`**. Si lo hace, al pulsar el
+enlace es esa app la que recibe el token, y con él fija la contraseña y entra
+como esa persona. Sin necesitar ninguna otra credencial.
+
+Importa mucho aquí porque quien recibe esos enlaces son clientes con su historial
+de peso, medidas, pliegues y fotos corporales, y también el nutricionista externo.
+
+Qué hay que hacer, y todo depende de tener el dominio:
+
+1. Alojar el enlace en `https://alphayomegatraining.com/activar?token=...`.
+2. Publicar `assetlinks.json` en el dominio para Android y
+   `apple-app-site-association` para iOS.
+3. Declarar `android.intentFilters` con `autoVerify` y `ios.associatedDomains` en
+   `app.json`.
+4. Apuntar `ACTIVACION_URL_BASE` a ese dominio.
+
+Con eso el sistema operativo comprueba contra el dominio que la app tiene derecho
+a abrir esos enlaces, y ninguna otra puede reclamarlos.
+
+Mientras tanto, el enlace funciona para probar y **no debe usarse con clientes
+reales**. Que hoy no se pueda enviar correo fuera de tu dirección lo hace
+inofensivo por accidente, no por diseño.
+
 ### 2. Cuentas de desarrollador de Apple y Google Play
 
 **Estado: sin abrir.** Apple cobra una cuota anual, Google un pago único. Ninguna
@@ -99,6 +129,20 @@ Tareas 17 y 20. Hoy el acceso ya se corta al comprobar el estado en cada
 petición, pero las filas de tokens de refresco sobreviven hasta treinta días.
 Efecto desagradable: reactivar a un usuario más tarde le resucita todas sus
 sesiones viejas.
+
+### 9b. La app móvil no tiene ni un solo test
+
+`SPEC.md` fija en su estrategia de pruebas que las pantallas se comprueban con
+React Native Testing Library. No existe ninguna, y `apps/mobile` ni siquiera
+define un comando de test.
+
+Se nota. La revisión adversarial encontró once fallos confirmados en la app, y
+tres eran críticos: dejaban la aplicación colgada para siempre o cerraban la
+sesión de un cliente sin motivo. Ninguno habría sobrevivido a un test decente.
+
+Los arreglos están hechos y razonados, pero **verificados leyendo el código, no
+ejecutándolo**. Montar el entorno de pruebas de la app es trabajo pendiente y
+debería ir antes de la fase 4, no después.
 
 ### 10. Avisos de `npm audit`
 

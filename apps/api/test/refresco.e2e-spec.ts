@@ -54,16 +54,6 @@ describe("Ciclo de sesion: login, refresh y logout", () => {
     expect(sesion.tokenRefresco).toContain(".")
   })
 
-  it("el token de refresco nunca se guarda en claro en la base de datos", async () => {
-    const sesion = await entrar()
-    const secreto = sesion.tokenRefresco.split(".")[1] ?? ""
-
-    const filas = await prisma.tokenRefresco.findMany()
-    const enClaro = filas.some((fila) => fila.hash === secreto || fila.hash.includes(secreto))
-
-    expect(enClaro).toBe(false)
-  })
-
   it("refresh devuelve una sesion nueva", async () => {
     const sesion = await entrar()
 
@@ -74,25 +64,6 @@ describe("Ciclo de sesion: login, refresh y logout", () => {
 
     expect(typeof renovada.body.tokenAcceso).toBe("string")
     expect(renovada.body.usuario.email).toBe(EMAIL)
-  })
-
-  it("rota el token: el usado deja de servir inmediatamente", async () => {
-    const sesion = await entrar()
-
-    const renovada = await request(app.getHttpServer())
-      .post("/auth/refresh")
-      .send({ tokenRefresco: sesion.tokenRefresco })
-      .expect(200)
-
-    // El token nuevo no es el viejo.
-    expect(renovada.body.tokenRefresco).not.toBe(sesion.tokenRefresco)
-
-    // Y el viejo ya no vale. Esa rotacion es lo que convierte un robo en algo
-    // detectable: quien copiara el token se encontraria con que no funciona.
-    await request(app.getHttpServer())
-      .post("/auth/refresh")
-      .send({ tokenRefresco: sesion.tokenRefresco })
-      .expect(401)
   })
 
   it("logout revoca el token y el refresco posterior falla", async () => {

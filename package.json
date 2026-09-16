@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "npm run build:shared && prisma generate",
     "build:shared": "npm run build --workspace packages/shared",
     "typecheck": "npm run build:shared && tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint . && prettier --check .",
