@@ -73,7 +73,7 @@ dibujadas por nadie y no son opcionales.
 
 | Módulo     | Spec     | Plan     | Implementación                               |
 | ---------- | -------- | -------- | -------------------------------------------- |
-| `identity` | aprobada | aprobado | 16 de 21 tareas. Fases 0, 1, 2 y 4 completas |
+| `identity` | aprobada | aprobado | 17 de 21 tareas. Fases 0, 1, 2 y 4 completas |
 | resto      | —        | —        | —                                            |
 
 ### Detalle de `identity`
@@ -85,4 +85,4 @@ dibujadas por nadie y no son opcionales.
 | 2. Permisos     | 9 y 10  | Hecha. Checkpoint 2 superado tras arreglar 8 hallazgos         |
 | 3. Invitaciones | 11 a 14 | 11 y 12 hechas. 13 y 14 aplazadas: falta el proyecto de Google |
 | 4. Gestión      | 15 a 18 | Hecha                                                          |
-| 5. Cumplimiento | 19 a 21 | Pendiente                                                      |
+| 5. Cumplimiento | 19 a 21 | 20 hecha. La 19 y la 21 necesitan decisiones de David          |

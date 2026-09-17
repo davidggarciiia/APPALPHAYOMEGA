@@ -301,3 +301,22 @@ export async function listarMisClientes(tokenAcceso: string): Promise<ListadoUsu
     await pedir("/mis-clientes", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
   )
 }
+
+/**
+ * Pide un enlace para volver a entrar.
+ *
+ * No devuelve nada y nunca falla por el correo: el servidor responde igual
+ * exista o no la cuenta, y la app no puede convertirse en el oraculo que el
+ * servidor evita ser.
+ */
+export async function pedirEnlaceDeRecuperacion(email: string): Promise<void> {
+  await pedir("/auth/recuperar", { method: "POST", body: JSON.stringify({ email }) })
+}
+
+/** Fija la contrasena nueva con el enlace del correo. Cierra las demas sesiones. */
+export async function restablecerContrasena(token: string, contrasena: string): Promise<void> {
+  await pedir("/auth/restablecer", {
+    method: "POST",
+    body: JSON.stringify({ token, contrasena }),
+  })
+}

@@ -6,9 +6,9 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
-/** Rutas a las que se llega sin sesion. Activar esta aqui porque, por definicion,
- *  quien activa su cuenta todavia no tiene ninguna. */
-const RUTAS_PUBLICAS = ["login", "activar"]
+/** Rutas a las que se llega sin sesion. Activar y recuperar estan aqui porque,
+ *  por definicion, quien activa o rescata su cuenta todavia no tiene ninguna. */
+const RUTAS_PUBLICAS = ["login", "activar", "recuperar", "restablecer"]
 
 /**
  * Manda al login a quien no tiene sesion y saca del login a quien si la tiene.

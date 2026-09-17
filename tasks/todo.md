@@ -519,7 +519,20 @@
 
   **Dependencias:** 15 · **Alcance:** M
 
-- [ ] **Tarea 20: Recuperación de contraseña**
+- [x] **Tarea 20: Recuperación de contraseña** — hecha 2026-09-17
+
+  > **La API no la escribí yo.** Me encontré el servicio, la migración y sus
+  > catorce casos de prueba sin commitear en el árbol de trabajo, hechos por otra
+  > sesión trabajando en la misma carpeta mientras yo estaba parado por el límite
+  > de uso. Los verifiqué, no los firmo: ver el commit `e157d50`.
+  >
+  > **La mitad móvil sí es mía**: enlace de "he olvidado mi contraseña" en el
+  > login, pantalla para pedir el enlace y pantalla donde aterriza el correo.
+  > Según la regla del propio plan, la tarea no está hecha sin la pantalla.
+  >
+  > La pantalla dice lo mismo exista o no la cuenta, igual que el servidor.
+  > Contestar "ese correo no está registrado" sería cómodo y convertiría la
+  > pantalla en un buscador de quién es cliente del entrenador.
 
   **Aceptación**
   - Token de un solo uso que caduca en una hora
@@ -529,6 +542,16 @@
   **Verificación**
   - Tests de token válido, usado, caducado e inventado
   - Test de que las sesiones abiertas se cierran al cambiar la contraseña
+
+  > Catorce casos en `apps/api/test/recuperacion.e2e-spec.ts`, incluidos los
+  > cuatro tipos de enlace, dos solicitudes simultáneas dejando uno solo vivo,
+  > dos canjes simultáneos consumiéndolo una vez, que activación y recuperación
+  > no se aceptan los tokens cruzados, y que cambiar la contraseña cierra las
+  > sesiones abiertas incluida la ventana de gracia de los tokens ya rotados.
+  >
+  > Prueba manual de las pantallas: pedir el enlace deja el mensaje que no
+  > confirma si la cuenta existe, y un enlace inventado responde "este enlace ya
+  > no vale" sin distinguir si está gastado, caducado o nunca existió.
 
   **Dependencias:** 11, 7 · **Alcance:** M
 

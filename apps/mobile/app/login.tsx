@@ -1,6 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
+import { Pressable, StyleSheet, Text } from "react-native"
 import { CredencialesSchema, type Credenciales } from "@alpha-omega/shared"
 
 import {
@@ -11,9 +13,11 @@ import {
 } from "../src/componentes/formulario"
 import { ErrorDeRed, ErrorDeSesion } from "../src/lib/api"
 import { useSesion } from "../src/sesion"
+import { tema } from "../src/tema"
 
 export default function Login(): React.JSX.Element {
   const { entrar, sesionCaducada } = useSesion()
+  const router = useRouter()
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
 
   const {
@@ -88,6 +92,21 @@ export default function Login(): React.JSX.Element {
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
       <BotonPrincipal texto="ENTRAR" onPress={() => void enviar()} ocupado={isSubmitting} />
+
+      <Pressable
+        style={estilos.olvidada}
+        onPress={() => {
+          router.push("/recuperar")
+        }}
+        accessibilityRole="button"
+      >
+        <Text style={estilos.textoOlvidada}>HE OLVIDADO MI CONTRASEÑA</Text>
+      </Pressable>
     </PantallaDeFormulario>
   )
 }
+
+const estilos = StyleSheet.create({
+  olvidada: { alignItems: "center", marginTop: 16, paddingVertical: 12 },
+  textoOlvidada: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
+})
