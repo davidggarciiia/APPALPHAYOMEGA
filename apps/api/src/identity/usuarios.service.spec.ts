@@ -67,6 +67,15 @@ function prismaFalso(inicial: Fila): {
         actual = { ...actual, ...(data as Partial<Fila>) }
         return Promise.resolve(actual)
       },
+      updateMany: ({ where, data }: { where: Partial<Fila>; data: Partial<Fila> }) => {
+        if (Object.entries(where).some(([clave, valor]) => actual[clave as keyof Fila] !== valor)) {
+          return Promise.resolve({ count: 0 })
+        }
+        escrituras.push(data)
+        actual = { ...actual, ...data }
+        return Promise.resolve({ count: 1 })
+      },
+      findUniqueOrThrow: () => Promise.resolve(actual),
     },
     tokenActivacion: {
       updateMany: () => {
@@ -74,6 +83,7 @@ function prismaFalso(inicial: Fila): {
         return Promise.resolve({ count: 1 })
       },
     },
+    tokenRecuperacion: { updateMany: () => Promise.resolve({ count: 0 }) },
     $transaction: (trabajo: (tx: unknown) => Promise<unknown>) => trabajo(cliente),
   }
 

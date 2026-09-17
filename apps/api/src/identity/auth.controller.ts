@@ -3,10 +3,14 @@ import {
   ActivacionSchema,
   CredencialesSchema,
   PeticionRefrescoSchema,
+  SolicitudRecuperacionSchema,
+  RestablecerContrasenaSchema,
   type Activacion,
   type Credenciales,
   type PeticionRefresco,
   type Sesion,
+  type SolicitudRecuperacion,
+  type RestablecerContrasena,
 } from "@alpha-omega/shared"
 
 import { ZodPipe } from "../comun/zod.pipe.js"
@@ -14,12 +18,14 @@ import { ZodPipe } from "../comun/zod.pipe.js"
 import { ActivacionService } from "./activacion.service.js"
 import { AuthService } from "./auth.service.js"
 import { Publico } from "./publico.decorator.js"
+import { RecuperacionService } from "./recuperacion.service.js"
 
 @Controller("auth")
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly activacion: ActivacionService,
+    private readonly recuperacion: RecuperacionService,
   ) {}
 
   /**
@@ -44,6 +50,26 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async activar(@Body(new ZodPipe(ActivacionSchema)) datos: Activacion): Promise<void> {
     await this.activacion.activar(datos.token, datos.contrasena)
+  }
+
+  @Publico()
+  @Post("recuperar")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async solicitarRecuperacion(
+    @Body(new ZodPipe(SolicitudRecuperacionSchema)) datos: SolicitudRecuperacion,
+    @Ip() origen: string,
+  ): Promise<void> {
+    await this.recuperacion.solicitar(datos.email, origen)
+  }
+
+  @Publico()
+  @Post("restablecer")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async restablecerContrasena(
+    @Body(new ZodPipe(RestablecerContrasenaSchema)) datos: RestablecerContrasena,
+    @Ip() origen: string,
+  ): Promise<void> {
+    await this.recuperacion.restablecer(datos.token, datos.contrasena, origen)
   }
 
   /**

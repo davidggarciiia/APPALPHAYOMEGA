@@ -53,7 +53,10 @@ const SIN_FALTA: Falta = { texto: "", reintentable: true, sesionCaducada: false 
 export default function FichaDeCliente(): React.JSX.Element {
   const { estado: sesion, salir } = useSesion()
   const router = useRouter()
-  const parametros = useLocalSearchParams<{ id?: string | string[] }>()
+  const parametros = useLocalSearchParams<{
+    id?: string | string[]
+    correoFallido?: string
+  }>()
 
   // El parametro llega de fuera: puede faltar, venir vacio o venir repetido en
   // la URL, y entonces expo-router entrega un array.
@@ -76,7 +79,7 @@ export default function FichaDeCliente(): React.JSX.Element {
     formState: { errors, isSubmitting },
   } = useForm<CambiosDeUsuario>({
     resolver: zodResolver(CambiosDeUsuarioSchema),
-    defaultValues: { nombre: "", apellidos: "", telefono: "", fechaNacimiento: "" },
+    defaultValues: { nombre: "", apellidos: "", telefono: "", fechaNacimiento: null },
   })
 
   const tokenAcceso = sesion.fase === "dentro" ? sesion.tokenAcceso : null
@@ -90,7 +93,7 @@ export default function FichaDeCliente(): React.JSX.Element {
       nombre: nueva.nombre,
       apellidos: nueva.apellidos ?? "",
       telefono: nueva.telefono ?? "",
-      fechaNacimiento: nueva.fechaNacimiento ?? "",
+      fechaNacimiento: nueva.fechaNacimiento,
     })
     setFase("listo")
   }
@@ -200,6 +203,7 @@ export default function FichaDeCliente(): React.JSX.Element {
       asentar(resultado.usuario)
 
       if (resultado.correoEnviado) {
+        router.setParams({ correoFallido: "0" })
         setAviso("Enlace enviado. El anterior ya no vale.")
       } else {
         setFalta({
@@ -379,6 +383,10 @@ export default function FichaDeCliente(): React.JSX.Element {
 
       <Respuesta zona="identidad" />
 
+      {parametros.correoFallido === "1" && esPendiente && (
+        <AvisoDeError mensaje="La cuenta se ha creado, pero no se pudo enviar el correo de activación. Usa REENVIAR ENLACE para intentarlo de nuevo." />
+      )}
+
       <Text style={estilos.etiquetaFija}>DADO DE ALTA</Text>
       <Text style={estilos.valorFijo}>{formatearFecha(ficha.creadoEn)}</Text>
 
@@ -435,7 +443,7 @@ export default function FichaDeCliente(): React.JSX.Element {
           <Campo
             etiqueta="Fecha de nacimiento"
             value={value ?? ""}
-            onChangeText={onChange}
+            onChangeText={(texto) => onChange(texto === "" ? null : texto)}
             onBlur={onBlur}
             keyboardType="numbers-and-punctuation"
             placeholder="AAAA-MM-DD"

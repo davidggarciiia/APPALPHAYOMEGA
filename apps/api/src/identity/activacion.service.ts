@@ -40,28 +40,31 @@ export class ActivacionService {
    * por ahi.
    */
   async enviarEnlace(usuarioId: string): Promise<void> {
-    const usuario = await this.prisma.usuario.findUnique({ where: { id: usuarioId } })
-
-    if (usuario === null || usuario.estado !== "pendiente") {
-      // Solo se activa lo que esta pendiente. Un usuario ya activo que recibiera
-      // un enlace tendria una via para cambiar su contrasena sin conocer la
-      // actual, que es justamente lo que hace la recuperacion (tarea 20) con sus
-      // propias salvaguardas.
-      throw new BadRequestException("Este perfil no esta pendiente de activacion")
-    }
-
-    await this.prisma.tokenActivacion.updateMany({
-      where: { usuarioId, usadoEn: null },
-      data: { usadoEn: new Date() },
-    })
-
     const secreto = randomBytes(BYTES_DE_SECRETO).toString("base64url")
-    const fila = await this.prisma.tokenActivacion.create({
-      data: {
-        usuarioId,
-        hash: hashDe(secreto),
-        expiraEn: new Date(Date.now() + DIAS_DE_VALIDEZ * 24 * 60 * 60 * 1000),
-      },
+    const { usuario, fila } = await this.prisma.$transaction(async (tx) => {
+      // Mismo orden de bloqueo que activar, corregir correo y dar de baja:
+      // primero el usuario, despues sus enlaces. Ningun reenvio puede dejar un
+      // enlace vivo emitido entre la comprobacion de estado y la baja.
+      const pendiente = await tx.usuario.updateMany({
+        where: { id: usuarioId, estado: "pendiente" },
+        data: { actualizadoEn: new Date() },
+      })
+      if (pendiente.count !== 1) {
+        throw new BadRequestException("Este perfil no esta pendiente de activacion")
+      }
+      const usuario = await tx.usuario.findUniqueOrThrow({ where: { id: usuarioId } })
+      await tx.tokenActivacion.updateMany({
+        where: { usuarioId, usadoEn: null },
+        data: { usadoEn: new Date() },
+      })
+      const fila = await tx.tokenActivacion.create({
+        data: {
+          usuarioId,
+          hash: hashDe(secreto),
+          expiraEn: new Date(Date.now() + DIAS_DE_VALIDEZ * 24 * 60 * 60 * 1000),
+        },
+      })
+      return { usuario, fila }
     })
 
     const enlace = this.componerEnlace(`${fila.id}.${secreto}`)
@@ -83,28 +86,24 @@ export class ActivacionService {
     const passwordHash = await cifrarContrasena(contrasena)
 
     await this.prisma.$transaction(async (tx) => {
+      // El usuario va primero para serializar el canje con baja y correccion
+      // de correo. Si el enlace falla despues, la transaccion deshace el cambio.
+      const activado = await tx.usuario.updateMany({
+        where: { id: fila.usuarioId, estado: "pendiente" },
+        data: { passwordHash, estado: "activo" },
+      })
+      if (activado.count !== 1) {
+        throw new BadRequestException("Este enlace ya no es valido")
+      }
+
       const { count } = await tx.tokenActivacion.updateMany({
-        where: { id: fila.id, usadoEn: null },
+        where: { id: fila.id, usadoEn: null, expiraEn: { gt: new Date() } },
         data: { usadoEn: new Date() },
       })
 
       // Escritura condicional: si dos peticiones llegan a la vez con el mismo
       // enlace, la base arbitra y solo una lo consume.
       if (count !== 1) {
-        throw new BadRequestException("Este enlace ya no es valido")
-      }
-
-      // Activar solo activa a quien esta pendiente, y se comprueba aqui aunque
-      // `enviarEnlace` ya lo exigiera al emitir. Entre la emision y el canje
-      // pueden pasar siete dias, y en medio el entrenador puede haber dado de
-      // baja a esa persona: sin esta condicion, el correo antiguo resucitaria la
-      // cuenta y anularia su decision.
-      const activado = await tx.usuario.updateMany({
-        where: { id: fila.usuarioId, estado: "pendiente" },
-        data: { passwordHash, estado: "activo" },
-      })
-
-      if (activado.count !== 1) {
         throw new BadRequestException("Este enlace ya no es valido")
       }
     })

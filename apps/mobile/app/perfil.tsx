@@ -31,7 +31,7 @@ export default function Perfil(): React.JSX.Element {
     formState: { errors, isSubmitting },
   } = useForm<CambiosDePerfil>({
     resolver: zodResolver(CambiosDePerfilSchema),
-    defaultValues: { nombre: "", apellidos: "", telefono: "", fechaNacimiento: "" },
+    defaultValues: { nombre: "", apellidos: "", telefono: "", fechaNacimiento: null },
   })
 
   const tokenAcceso = estado.fase === "dentro" ? estado.tokenAcceso : null
@@ -55,7 +55,7 @@ export default function Perfil(): React.JSX.Element {
           nombre: perfil.nombre,
           apellidos: perfil.apellidos ?? "",
           telefono: perfil.telefono ?? "",
-          fechaNacimiento: perfil.fechaNacimiento ?? "",
+          fechaNacimiento: perfil.fechaNacimiento,
         })
         setFase("listo")
       })
@@ -170,7 +170,7 @@ export default function Perfil(): React.JSX.Element {
           <Campo
             etiqueta="Fecha de nacimiento"
             value={value ?? ""}
-            onChangeText={onChange}
+            onChangeText={(texto) => onChange(texto === "" ? null : texto)}
             onBlur={onBlur}
             keyboardType="numbers-and-punctuation"
             placeholder="AAAA-MM-DD"

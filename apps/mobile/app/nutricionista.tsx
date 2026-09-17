@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router"
-import { useEffect, useState } from "react"
+import { useFocusEffect, useRouter } from "expo-router"
+import { useCallback, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
@@ -44,57 +44,76 @@ export default function Nutricionista(): React.JSX.Element {
   const [clientes, setClientes] = useState<ResumenUsuario[]>([])
   const [asignados, setAsignados] = useState<Set<string>>(new Set())
   const [moviendo, setMoviendo] = useState<string | null>(null)
+  const cambioEnCurso = useRef(false)
   const [falta, setFalta] = useState<Falta>(SIN_FALTA)
   const [intento, setIntento] = useState(0)
 
   const tokenAcceso = sesion.fase === "dentro" ? sesion.tokenAcceso : null
 
-  useEffect(() => {
-    if (tokenAcceso === null) return
+  useFocusEffect(
+    useCallback(() => {
+      if (tokenAcceso === null) return
 
-    let vigente = true
+      let vigente = true
+      setFase("cargando")
+      setFalta(SIN_FALTA)
 
-    const cargar = async (): Promise<void> => {
-      const nutricionistas = await listarUsuarios(tokenAcceso, {
-        rol: "nutricionista",
-        limite: LIMITE,
-        desde: 0,
-      })
+      const cargar = async (): Promise<void> => {
+        const nutricionistas = await listarUsuarios(tokenAcceso, {
+          rol: "nutricionista",
+          limite: LIMITE,
+          desde: 0,
+        })
 
-      const primero = nutricionistas.usuarios[0]
+        const primero = nutricionistas.usuarios[0]
 
-      if (primero === undefined) {
-        if (vigente) setFase("sin-nutricionista")
-        return
+        if (primero === undefined) {
+          if (vigente) setFase("sin-nutricionista")
+          return
+        }
+
+        // Hoy hay uno solo. El dia que haya dos, esta pantalla tendra que dejar
+        // elegir; mientras tanto, inventar un selector para una lista de uno seria
+        // un paso de mas en cada uso.
+        const [cartera, reparto] = await Promise.all([
+          listarUsuarios(tokenAcceso, { rol: "cliente", limite: LIMITE, desde: 0 }),
+          leerAsignaciones(tokenAcceso, primero.id),
+        ])
+
+        // El reparto permite administrar toda la cartera, tambien las paginas
+        // posteriores a la primera. La API limita cada peticion a cien personas.
+        const todos = [...cartera.usuarios]
+        while (todos.length < cartera.total) {
+          if (!vigente) return
+          const pagina = await listarUsuarios(tokenAcceso, {
+            rol: "cliente",
+            limite: LIMITE,
+            desde: todos.length,
+          })
+          if (pagina.usuarios.length === 0) break
+          todos.push(...pagina.usuarios)
+        }
+
+        if (!vigente) return
+
+        setNutri(primero)
+        setClientes(todos)
+        setAsignados(new Set(reparto.clienteIds))
+        setFase("listo")
       }
 
-      // Hoy hay uno solo. El dia que haya dos, esta pantalla tendra que dejar
-      // elegir; mientras tanto, inventar un selector para una lista de uno seria
-      // un paso de mas en cada uso.
-      const [cartera, reparto] = await Promise.all([
-        listarUsuarios(tokenAcceso, { rol: "cliente", limite: LIMITE, desde: 0 }),
-        leerAsignaciones(tokenAcceso, primero.id),
-      ])
+      cargar().catch((error: unknown) => {
+        if (!vigente) return
 
-      if (!vigente) return
+        setFalta(faltaDe(error, "No hemos podido cargar el reparto."))
+        setFase("error")
+      })
 
-      setNutri(primero)
-      setClientes(cartera.usuarios)
-      setAsignados(new Set(reparto.clienteIds))
-      setFase("listo")
-    }
-
-    cargar().catch((error: unknown) => {
-      if (!vigente) return
-
-      setFalta(faltaDe(error, "No hemos podido cargar el reparto."))
-      setFase("error")
-    })
-
-    return () => {
-      vigente = false
-    }
-  }, [tokenAcceso, intento])
+      return () => {
+        vigente = false
+      }
+    }, [tokenAcceso, intento]),
+  )
 
   /**
    * Mueve el interruptor.
@@ -104,8 +123,9 @@ export default function Nutricionista(): React.JSX.Element {
    * y entonces se ha asignado y retirado a la vez.
    */
   async function alternar(cliente: ResumenUsuario, dar: boolean): Promise<void> {
-    if (tokenAcceso === null || nutri === null) return
+    if (tokenAcceso === null || nutri === null || cambioEnCurso.current) return
 
+    cambioEnCurso.current = true
     setFalta(SIN_FALTA)
     setMoviendo(cliente.id)
     setAsignados((previos) => conCambio(previos, cliente.id, dar))
@@ -117,9 +137,12 @@ export default function Nutricionista(): React.JSX.Element {
         await retirarCliente(tokenAcceso, nutri.id, cliente.id)
       }
     } catch (error) {
-      setAsignados((previos) => conCambio(previos, cliente.id, !dar))
       setFalta(faltaDe(error, "No hemos podido cambiar el acceso."))
+      // Una respuesta perdida no demuestra que el servidor no escribio. Se
+      // exige recargar antes de mostrar otra vez el estado de los permisos.
+      setFase("error")
     } finally {
+      cambioEnCurso.current = false
       setMoviendo(null)
     }
   }
@@ -232,7 +255,7 @@ export default function Nutricionista(): React.JSX.Element {
               <Switch
                 value={tiene}
                 onValueChange={(dar) => void alternar(item, dar)}
-                disabled={moviendo === item.id}
+                disabled={moviendo !== null}
                 trackColor={{ false: tema.borde, true: tema.oro }}
                 thumbColor={tema.texto}
                 accessibilityLabel={`${nombre}. ${tiene ? "El nutricionista lo ve" : "El nutricionista no lo ve"}`}

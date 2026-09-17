@@ -102,6 +102,51 @@ describe("Gestion de clientes", () => {
   })
 
   describe("la baja impide entrar", () => {
+    it("la baja tambien cierra la gracia de un refresco ya rotado", async () => {
+      const cliente = await crearClienteActivo("Rotado", "baja-rotado")
+      const sesion = await request(app.getHttpServer())
+        .post("/auth/login")
+        .send({ email: cliente.email, contrasena: CONTRASENA_NUEVA })
+        .expect(200)
+      await request(app.getHttpServer())
+        .post("/auth/refresh")
+        .send({ tokenRefresco: sesion.body.tokenRefresco })
+        .expect(200)
+
+      await request(app.getHttpServer())
+        .post(`/usuarios/${cliente.id}/desactivar`)
+        .set("Authorization", como("entrenador"))
+        .expect(200)
+      await request(app.getHttpServer())
+        .post(`/usuarios/${cliente.id}/reactivar`)
+        .set("Authorization", como("entrenador"))
+        .expect(200)
+
+      await request(app.getHttpServer())
+        .post("/auth/refresh")
+        .send({ tokenRefresco: sesion.body.tokenRefresco })
+        .expect(401)
+    })
+
+    it("corregir un correo quema el enlace enviado a la direccion anterior", async () => {
+      const cliente = await crearCliente("Correo", "correo-equivocado")
+      const token = tokenDelCorreo(correo.ultimoPara(cliente.email)?.texto ?? "")
+
+      await request(app.getHttpServer())
+        .patch(`/usuarios/${cliente.id}/correo`)
+        .set("Authorization", como("entrenador"))
+        .send({ email: `correo-corregido${SUFIJO}` })
+        .expect(200)
+
+      await request(app.getHttpServer())
+        .post("/auth/activar")
+        .send({ token, contrasena: CONTRASENA_NUEVA })
+        .expect(400)
+      const ficha = await prisma.usuario.findUniqueOrThrow({ where: { id: cliente.id } })
+      expect(ficha.estado).toBe("pendiente")
+      expect(ficha.passwordHash).toBeNull()
+    })
+
     it("un cliente desactivado no inicia sesion, y no se le dice por que", async () => {
       const cliente = await crearClienteActivo("Ana", "baja-login")
 
@@ -326,6 +371,60 @@ describe("Gestion de clientes", () => {
   })
 
   describe("reenvio del enlace", () => {
+    it("dos reenvios simultaneos dejan un solo enlace utilizable", async () => {
+      const cliente = await crearCliente("Doble", "reenvio-simultaneo")
+      await Promise.all(
+        [0, 1].map(() =>
+          request(app.getHttpServer())
+            .post(`/usuarios/${cliente.id}/reenviar-activacion`)
+            .set("Authorization", como("entrenador"))
+            .expect(200),
+        ),
+      )
+      expect(
+        await prisma.tokenActivacion.count({
+          where: { usuarioId: cliente.id, usadoEn: null },
+        }),
+      ).toBe(1)
+    })
+
+    it("reenviar a la vez que una baja no deja enlaces vivos", async () => {
+      const cliente = await crearCliente("Carrera", "reenvio-baja")
+      const [reenvio] = await Promise.all([
+        request(app.getHttpServer())
+          .post(`/usuarios/${cliente.id}/reenviar-activacion`)
+          .set("Authorization", como("entrenador")),
+        request(app.getHttpServer())
+          .post(`/usuarios/${cliente.id}/desactivar`)
+          .set("Authorization", como("entrenador"))
+          .expect(200),
+      ])
+      expect([200, 400]).toContain(reenvio.status)
+      expect(
+        await prisma.tokenActivacion.count({
+          where: { usuarioId: cliente.id, usadoEn: null },
+        }),
+      ).toBe(0)
+    })
+
+    it("corregir el correo y activar con el antiguo no pueden triunfar juntos", async () => {
+      const cliente = await crearCliente("Carrera", "correo-activacion")
+      const token = tokenDelCorreo(correo.ultimoPara(cliente.email)?.texto ?? "")
+      const [correccion, activacion] = await Promise.all([
+        request(app.getHttpServer())
+          .patch(`/usuarios/${cliente.id}/correo`)
+          .set("Authorization", como("entrenador"))
+          .send({ email: `correo-carrera-corregido${SUFIJO}` }),
+        request(app.getHttpServer())
+          .post("/auth/activar")
+          .send({ token, contrasena: CONTRASENA_NUEVA }),
+      ])
+      expect([
+        [200, 400],
+        [400, 204],
+      ]).toContainEqual([correccion.status, activacion.status])
+    })
+
     it("el reenvio invalida el enlace anterior", async () => {
       const cliente = await crearCliente("Nuria", "reenvio")
       const primero = tokenDelCorreo(correo.ultimoPara(cliente.email)?.texto ?? "")

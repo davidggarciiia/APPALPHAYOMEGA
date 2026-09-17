@@ -119,7 +119,7 @@ export class UsuariosService {
     const [usuarios, total] = await Promise.all([
       this.prisma.usuario.findMany({
         where: donde,
-        orderBy: [{ nombre: "asc" }, { apellidos: "asc" }],
+        orderBy: [{ nombre: "asc" }, { apellidos: "asc" }, { id: "asc" }],
         skip: filtros.desde,
         take: filtros.limite,
         select: {
@@ -206,7 +206,24 @@ export class UsuariosService {
       }
     }
 
-    return aFicha(await this.prisma.usuario.update({ where: { id }, data: { email } }))
+    return this.prisma.$transaction(async (tx) => {
+      // La escritura comprueba de nuevo el estado y serializa la correccion con
+      // activar y reenviar. Leer pendiente antes de la transaccion no basta.
+      const cambiado = await tx.usuario.updateMany({
+        where: { id, estado: "pendiente", email: usuario.email },
+        data: { email },
+      })
+      if (cambiado.count !== 1) {
+        throw new BadRequestException("El perfil ha cambiado. Vuelve a cargarlo")
+      }
+      if (email !== usuario.email) {
+        await tx.tokenActivacion.updateMany({
+          where: { usuarioId: id, usadoEn: null },
+          data: { usadoEn: new Date() },
+        })
+      }
+      return aFicha(await tx.usuario.findUniqueOrThrow({ where: { id } }))
+    })
   }
 
   /**
@@ -249,7 +266,7 @@ export class UsuariosService {
   /**
    * Da de baja a alguien.
    *
-   * Tres escrituras y van juntas. El estado por si solo parece suficiente porque
+   * El estado y las credenciales se cambian juntos. El estado por si solo parece suficiente porque
    * el guard lee el estado en cada peticion y corta el acceso, pero eso solo
    * tapa las otras dos:
    *
@@ -275,6 +292,10 @@ export class UsuariosService {
 
       await this.refrescos.revocarTodosDe(id, tx)
       await tx.tokenActivacion.updateMany({
+        where: { usuarioId: id, usadoEn: null },
+        data: { usadoEn: new Date() },
+      })
+      await tx.tokenRecuperacion.updateMany({
         where: { usuarioId: id, usadoEn: null },
         data: { usadoEn: new Date() },
       })

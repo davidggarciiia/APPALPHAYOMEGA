@@ -78,7 +78,10 @@ export default function NuevoCliente(): React.JSX.Element {
 
       // Se va a la ficha y no a la lista. Lo siguiente en la vida real es
       // "¿te ha llegado?", y el boton de reenviar esta ahi.
-      router.replace({ pathname: "/cliente/[id]", params: { id: creado.id } })
+      router.replace({
+        pathname: "/cliente/[id]",
+        params: { id: creado.id, correoFallido: creado.correoEnviado ? "0" : "1" },
+      })
     } catch (error) {
       if (error instanceof ErrorDelServidor && error.codigo === 409) {
         setErrorGeneral("Ya existe una cuenta con ese correo.")

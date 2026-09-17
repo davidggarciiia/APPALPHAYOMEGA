@@ -150,7 +150,9 @@ export class TokensRefrescoService {
    */
   async revocarTodosDe(usuarioId: string, cliente: ClientePrisma = this.prisma): Promise<void> {
     await cliente.tokenRefresco.updateMany({
-      where: { usuarioId, revocadoEn: null },
+      // Incluye los ya rotados: conservar su motivo dejaria resucitar la sesion
+      // usando la gracia incluso despues de cambiar la contrasena o una baja.
+      where: { usuarioId },
       data: { revocadoEn: new Date(), motivoRevocacion: "cierre" },
     })
   }

@@ -116,9 +116,8 @@ export const CambiosDePerfilSchema = z.object({
     )
     .nullable()
     .optional(),
-  fechaNacimiento: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha va en formato AAAA-MM-DD")
+  fechaNacimiento: z.iso
+    .date("Escribe una fecha válida en formato AAAA-MM-DD")
     .nullable()
     .optional(),
 })
@@ -217,9 +216,8 @@ export const CambiosDeUsuarioSchema = z.strictObject({
     )
     .nullable()
     .optional(),
-  fechaNacimiento: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha va en formato AAAA-MM-DD")
+  fechaNacimiento: z.iso
+    .date("Escribe una fecha válida en formato AAAA-MM-DD")
     .nullable()
     .optional(),
 })
@@ -349,3 +347,14 @@ export const ActivacionSchema = z.object({
 })
 
 export type Activacion = z.infer<typeof ActivacionSchema>
+
+/** Solicitar recuperacion nunca revela si el correo tiene cuenta. */
+export const SolicitudRecuperacionSchema = CredencialesSchema.pick({ email: true })
+export type SolicitudRecuperacion = z.infer<typeof SolicitudRecuperacionSchema>
+
+/** Contrato distinto de activacion aunque comparta las reglas de contrasena. */
+export const RestablecerContrasenaSchema = z.object({
+  token: z.string().min(1).max(500),
+  contrasena: ContrasenaNuevaSchema,
+})
+export type RestablecerContrasena = z.infer<typeof RestablecerContrasenaSchema>

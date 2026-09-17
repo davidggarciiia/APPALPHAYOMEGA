@@ -56,6 +56,7 @@ model Usuario {
 
   tokensRefresco     TokenRefresco[]
   tokensActivacion   TokenActivacion[]
+  tokensRecuperacion TokenRecuperacion[]
 
   /// Clientes que este usuario ve como nutricionista.
   clientesAsignados AsignacionNutricionista[] @relation("ComoNutricionista")
@@ -150,6 +151,24 @@ model TokenActivacion {
 
   @@index([usuarioId])
   @@map("tokens_activacion")
+}
+
+/// Recuperacion de una cuenta activa. Independiente de activacion: un enlace
+/// de recuperacion nunca puede activar una cuenta pendiente o desactivada.
+/// Solo se almacena SHA-256 del secreto aleatorio y caduca en una hora.
+model TokenRecuperacion {
+  id String @id @default(uuid())
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  hash String
+  expiraEn DateTime
+  usadoEn DateTime?
+  creadoEn DateTime @default(now())
+
+  @@index([usuarioId])
+  @@map("tokens_recuperacion")
 }
 
 

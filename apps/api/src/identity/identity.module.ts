@@ -16,6 +16,7 @@ import { LimitadorDeIntentos } from "./limitador-intentos.service.js"
 import { PerfilController } from "./perfil.controller.js"
 import { PerfilService } from "./perfil.service.js"
 import { RolesGuard } from "./roles.guard.js"
+import { RecuperacionService } from "./recuperacion.service.js"
 import { UsuariosController } from "./usuarios.controller.js"
 import { UsuariosService } from "./usuarios.service.js"
 import { TokensRefrescoService } from "./tokens-refresco.service.js"
@@ -55,6 +56,7 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
     AuthService,
     TokensRefrescoService,
     ActivacionService,
+    RecuperacionService,
     UsuariosService,
     PerfilService,
     AsignacionesService,
