@@ -501,7 +501,19 @@
 
 ## Fase 5 · Cumplimiento
 
-- [ ] **Tarea 19: Consentimiento de datos de salud**
+> **Fase aplazada el 2026-09-17 por decisión de David.** "De momento no vamos a
+> hacer nada legal, vamos a hacer una app que funcione". Se retoma cuando haya
+> producto que enseñar.
+>
+> Lo que eso implica, para que no sorprenda después: hasta que exista el
+> consentimiento (tarea 19), **`seguimiento-corporal` se puede construir pero no
+> se puede usar con clientes reales**, porque el primer peso que se guarde de una
+> persona de verdad ya es un dato de salud. Con datos de prueba no hay problema.
+>
+> La tarea 20, recuperación de contraseña, sí está hecha: no era cumplimiento,
+> era que alguien que olvida su contraseña pueda volver a entrar.
+
+- [ ] **Tarea 19: Consentimiento de datos de salud** — APLAZADA
 
   Pantalla de consentimiento explícito en el primer acceso del cliente, y bloqueo
   en el servidor mientras no esté dado.
@@ -555,7 +567,7 @@
 
   **Dependencias:** 11, 7 · **Alcance:** M
 
-- [ ] **Tarea 21: Borrado a petición**
+- [ ] **Tarea 21: Borrado a petición** — APLAZADA, va con la 19
 
   **Aceptación**
   - Anonimiza los datos personales y elimina los de salud

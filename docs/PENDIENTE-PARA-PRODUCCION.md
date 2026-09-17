@@ -96,9 +96,17 @@ interfaz.
 
 ### 5. Dónde vive el servidor y quién lo paga
 
-**Estado: sin decidir.** Un VPS o un Postgres gestionado cuestan algunos euros al
-mes, todos los meses, durante años. En un proyecto de precio cerrado conviene
-decidir quién los asume **antes** de facturar, no después.
+**Decidido el 2026-09-17: lo asume el entrenador.** El servidor, la base de datos
+y el almacenamiento de las fotos corren de su cuenta como gasto del negocio, no
+van dentro del precio cerrado del desarrollo.
+
+Queda una consecuencia práctica que conviene no olvidar: **las cuentas se abren a
+su nombre desde el primer día**. Mover un servidor y una base de datos con datos
+de salud dentro de un año, porque la cuenta estaba a nombre de otro, es trabajo
+tirado y un riesgo innecesario.
+
+Sigue sin decidir el proveedor. Cuando toque, la restricción que manda es que los
+datos estén en la Unión Europea, por el [ADR 0005](adr/0005-almacenamiento-de-fotos.md).
 
 ## Bloqueantes blandos
 
