@@ -191,3 +191,51 @@ enum MotivoRevocacion {
   /// que es exactamente lo que la rotacion existe para impedir.
   reintento
 }
+
+/// Vocabulario compartido con packages/shared/src/catalogo-ejercicios.ts.
+enum GrupoMuscular {
+  pecho
+  espalda
+  hombros
+  biceps
+  triceps
+  antebrazos
+  abdomen
+  gluteos
+  cuadriceps
+  isquiotibiales
+  gemelos
+}
+
+enum EstadoEjercicio {
+  publicado
+  retirado
+}
+
+/// Catálogo global. La retirada conserva el ejercicio para su histórico.
+model Ejercicio {
+  id                String          @id @default(uuid())
+  nombre            String          @db.VarChar(120)
+  nombreNormalizado String          @unique @db.VarChar(120)
+  grupoPrincipal    GrupoMuscular
+  instrucciones     String          @db.VarChar(4000)
+  estado            EstadoEjercicio @default(publicado)
+  retiradoEn        DateTime?
+  creadoEn          DateTime        @default(now())
+  actualizadoEn     DateTime        @updatedAt
+
+  gruposSecundarios GrupoSecundarioDeEjercicio[]
+
+  @@index([estado, grupoPrincipal])
+  @@map("ejercicios")
+}
+
+model GrupoSecundarioDeEjercicio {
+  ejercicioId String
+  grupo       GrupoMuscular
+  ejercicio   Ejercicio     @relation(fields: [ejercicioId], references: [id], onDelete: Cascade)
+
+  @@id([ejercicioId, grupo])
+  @@index([grupo])
+  @@map("grupos_secundarios_de_ejercicio")
+}
