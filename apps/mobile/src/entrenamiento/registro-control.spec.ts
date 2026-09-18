@@ -80,14 +80,12 @@ it("repite un envío sin respuesta con la misma operación al reabrir", async ()
   const { control, api, almacen } = preparar()
   await control.abrir()
   await control.editar({ notas: "", series: [{ serieId, peso: "20", valor: "10", hecha: true }] })
-  jest
-    .spyOn(api, "guardar")
-    .mockImplementation(async (_id, datos) => ({
-      revision: 1,
-      revisionPrescripcion: 0,
-      registro: datos.registro,
-      actualizadoEn: new Date().toISOString(),
-    }))
+  jest.spyOn(api, "guardar").mockImplementation(async (_id, datos) => ({
+    revision: 1,
+    revisionPrescripcion: 0,
+    registro: datos.registro,
+    actualizadoEn: new Date().toISOString(),
+  }))
   const enviar = jest
     .spyOn(api, "enviar")
     .mockRejectedValueOnce(new Error("respuesta perdida"))
@@ -110,13 +108,11 @@ it("conserva la copia no enviada cuando otro dispositivo cierra la sesión", asy
     notas: "solo en A",
     series: [{ serieId, peso: "25", valor: "12", hecha: true }],
   })
-  jest
-    .mocked(api.leerCliente)
-    .mockResolvedValue({
-      ...sesion,
-      enviadoEn: resultado.enviadoEn,
-      agenda: { ...sesion.agenda, estado: "cerrada", revision: 1 },
-    })
+  jest.mocked(api.leerCliente).mockResolvedValue({
+    ...sesion,
+    enviadoEn: resultado.enviadoEn,
+    agenda: { ...sesion.agenda, estado: "cerrada", revision: 1 },
+  })
   jest.spyOn(api, "resultado").mockResolvedValue(resultado)
   await control.actualizar()
   expect(control.documento?.resultado).toEqual(resultado)
