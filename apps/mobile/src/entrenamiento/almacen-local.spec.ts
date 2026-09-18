@@ -1,0 +1,77 @@
+import { z } from "zod"
+import { crearAlmacenLocal, type PersistenciaCifrada, type Cifrado } from "./almacen-local"
+
+function memoria() {
+  const filas = new Map<string, string>()
+  const persistencia: PersistenciaCifrada = {
+    leer: async (cuenta, clave) => filas.get(`${cuenta}/${clave}`) ?? null,
+    escribir: async (cuenta, clave, valor) => {
+      filas.set(`${cuenta}/${clave}`, valor)
+    },
+    borrar: async (cuenta, clave) => {
+      filas.delete(`${cuenta}/${clave}`)
+    },
+    listar: async (cuenta) =>
+      [...filas.keys()]
+        .filter((k) => k.startsWith(`${cuenta}/`))
+        .map((k) => k.slice(cuenta.length + 1)),
+    limpiar: async (cuenta) => {
+      for (const k of filas.keys()) if (k.startsWith(`${cuenta}/`)) filas.delete(k)
+    },
+  }
+  const cifrado: Cifrado = {
+    cifrar: async (cuenta, clave, texto) => JSON.stringify([cuenta, clave, texto]),
+    descifrar: async (cuenta, clave, texto) => {
+      const valor = JSON.parse(texto) as string[]
+      if (valor[0] !== cuenta || valor[1] !== clave) throw new Error("Propietario incorrecto")
+      return valor[2]!
+    },
+    olvidar: async () => undefined,
+  }
+  return { filas, persistencia, cifrado }
+}
+const CUENTA = "10000000-0000-4000-8000-000000000000"
+const OTRA = "20000000-0000-4000-8000-000000000000"
+
+it("recupera documentos mayores de 2 KiB y no los mezcla entre cuentas", async () => {
+  const deps = memoria()
+  const almacen = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  const texto = "Entrenamiento ñ ".repeat(1000)
+  await almacen.guardar(CUENTA, "sesion-uno", texto)
+  const reabierto = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  expect(await reabierto.leer(CUENTA, "sesion-uno", z.string())).toBe(texto)
+  expect(await reabierto.leer(OTRA, "sesion-uno", z.string())).toBeNull()
+  await almacen.guardar(OTRA, "sesion-uno", "otro")
+  await almacen.limpiar(CUENTA)
+  expect(await almacen.leer(OTRA, "sesion-uno", z.string())).toBe("otro")
+})
+
+it("una escritura fallida conserva la anterior y no bloquea la cola siguiente", async () => {
+  const deps = memoria()
+  const almacen = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  await almacen.guardar(CUENTA, "borrador", "anterior")
+  const escribir = jest
+    .spyOn(deps.persistencia, "escribir")
+    .mockRejectedValueOnce(new Error("Disco lleno"))
+  await expect(almacen.guardar(CUENTA, "borrador", "perdido")).rejects.toThrow("Disco lleno")
+  expect(await almacen.leer(CUENTA, "borrador", z.string())).toBe("anterior")
+  escribir.mockRestore()
+  await Promise.all([
+    almacen.guardar(CUENTA, "borrador", "primero"),
+    almacen.guardar(CUENTA, "borrador", "último"),
+  ])
+  expect(await almacen.leer(CUENTA, "borrador", z.string())).toBe("último")
+})
+
+it("no sobrescribe documentos corruptos o de una versión desconocida al leer", async () => {
+  const deps = memoria()
+  const original = JSON.stringify([
+    CUENTA,
+    "sesion",
+    JSON.stringify({ version: 999, datos: "futuro" }),
+  ])
+  deps.filas.set(`${CUENTA}/sesion`, original)
+  const almacen = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  await expect(almacen.leer(CUENTA, "sesion", z.string())).rejects.toThrow()
+  expect(deps.filas.get(`${CUENTA}/sesion`)).toBe(original)
+})
