@@ -1,5 +1,9 @@
 import { z } from "zod"
 
+export * from "./catalogo-ejercicios"
+export * from "./agenda"
+export * from "./entrenamiento"
+
 /**
  * Vocabulario y contratos compartidos por la app y el servidor.
  *
