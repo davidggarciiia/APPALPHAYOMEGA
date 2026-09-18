@@ -15,23 +15,22 @@ series por repeticiones o tiempo, recupera su borrador y envía el entrenamiento
 ## Estado del flujo de Agent Skills
 
 David ha revisado los planes y ha indicado «vale, comienza tu parte». Esa
-instrucción autoriza iniciar las tareas de Codex. Se conserva abajo el registro
-del punto de revisión previo, ya superado para esta ejecución. Fable recibe
-su encargo cuando exista el commit común; no se ha iniciado otra sesión.
+instrucción autoriza iniciar las tareas de Codex. Fable recibe
+su base de implementación cuando exista el commit común. Ya ha dejado una
+entrega de lectura con dudas, resueltas en el encargo; no ha escrito código.
 La investigación adicional de animaciones está en
 [bibliotecas de figuras](../../docs/animaciones-ejercicios.md); aún no fija un proveedor.
 
-| Fase      | Estado                                                          | Validación para avanzar                                                                  |
-| --------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| SPECIFY   | Entrevista y especificaciones de agenda/entrenamiento aprobadas | Ya recibida; se conserva                                                                 |
-| PLAN      | Este plan y el plan de Fable preparados para revisión           | David valida enfoque, reparto, contratos, dependencias y vocabulario mínimo del catálogo |
-| TASKS     | Desgloses anticipados conservados como borradores sin validar   | Después de PLAN, ajustar y revisar tareas de Codex y Fable con David                     |
-| IMPLEMENT | Sin iniciar                                                     | Requiere PLAN y TASKS validados; comprobar y revisar cada incremento                     |
+| Fase      | Estado                                                          | Validación para avanzar                                 |
+| --------- | --------------------------------------------------------------- | ------------------------------------------------------- |
+| SPECIFY   | Entrevista y especificaciones de agenda/entrenamiento aprobadas | Ya recibida; se conserva                                |
+| PLAN      | Aprobado con la instrucción de comenzar                         | Reparto, contratos, dependencias y catálogo delimitados |
+| TASKS     | Ejecución de Codex autorizada; Fable espera el commit común     | Tareas de ambos responsables separadas                  |
+| IMPLEMENT | C00–C02 verificados; checkpoint 0A listo                        | Presentar evidencia del checkpoint 0A antes de C03      |
 
 `spec-driven-development` exige validar cada fase antes de pasar a la siguiente.
-Los [borradores de Codex](todo.md) y [Fable](todo-fable.md) no habilitan ejecución.
-Sus identificadores se usan abajo como referencias provisionales, pendientes
-de la revisión de TASKS. `planning-and-task-breakdown` guía su tamaño y verificación.
+Las [tareas de Codex](todo.md) y [Fable](todo-fable.md) conservan el reparto
+aprobado. `planning-and-task-breakdown` guía su tamaño y verificación.
 
 ## Base revisada y cambios recientes
 
@@ -42,12 +41,12 @@ rotación y revocación de tokens. Son cambios existentes que se conservan.
 Se ha leído el diff; esta fase de planificación no afirma haber vuelto a
 ejecutar sus tests.
 
-David confirma que Fable no tiene trabajo en marcha. No hay una tarea llamada
-Fable accesible desde Codex; el encargo se entrega por archivo para que David
-lo pase a su sesión. Escribir este plan no inicia trabajo en esa sesión.
+Fable no tenía trabajo en marcha al acordar el reparto. Su sesión externa ha
+dejado una entrega de lectura. La coordinación se hace por archivos, sin enviar
+mensajes a esa sesión ni atribuirle implementación todavía.
 
-El código actual aún no tiene catálogo, agenda ni entrenamiento. La app móvil
-tampoco tiene ejecutor de tests. Su restauración exige red y el cliente HTTP no
+La base inicial aún no tenía catálogo, agenda ni entrenamiento. La app móvil
+tampoco tenía ejecutor de tests. Su restauración exige red y el cliente HTTP no
 renueva automáticamente el token en las peticiones. Estos puntos son parte del
 recorrido nuevo: un entreno puede durar más que el token y sufrir cortes de red.
 
@@ -70,7 +69,7 @@ solo se marca terminado después de conectarlo a la API y comprobarlo completo.
 
 1. Antes de empezar, Codex registra las especificaciones aprobadas y este plan
    en una rama `codex/entrenamiento-iteracion-2`, con las comprobaciones exigidas.
-   Esto ocurre después de validar PLAN y TASKS; ahora solo se preparan documentos.
+   La documentación quedó registrada en `61945b1`.
 2. Codex prepara contratos y configuración comunes. Tras integrar la base C00–C03,
    Fable crea una copia de trabajo independiente en `codex/fable-catalogo` desde
    ese commit. No cambia la rama de la carpeta en la que trabaja Codex.
@@ -139,17 +138,17 @@ el objetivo tiene `pesoKg` nullable y exactamente `repeticiones` o `segundos`.
 El registro real se guarda aparte. Un borrador puede tener campos incompletos;
 solo una serie marcada debe satisfacer todos los requisitos de ejecución.
 
-### Catálogo mínimo y vocabulario pendiente
+### Catálogo mínimo y vocabulario aprobado
 
 No se necesita figura ni vídeo para empezar. La ficha expone esos campos como
 ausentes y conserva el hueco previsto. No se implementa almacenamiento de medios
 ni se elige un proveedor en esta iteración.
 
-La spec del catálogo deja los grupos musculares abiertos. Para poder cerrar el
-contrato se propone esta lista inicial: `pecho`, `espalda`, `hombros`, `biceps`,
+La spec del catálogo dejaba los grupos musculares abiertos. El plan fija esta
+lista inicial: `pecho`, `espalda`, `hombros`, `biceps`,
 `triceps`, `antebrazos`, `abdomen`, `gluteos`, `cuadriceps`, `isquiotibiales` y
 `gemelos`. Principal obligatorio y secundarios opcionales; no significa que el
-mapa muscular esté diseñado. Esta propuesta forma parte de la revisión del plan.
+mapa muscular esté diseñado. Zod y Prisma ya comparten este vocabulario.
 Se mantiene la denegación al nutricionista y al empleado ya descrita por la spec.
 
 Nombre único normalizado por espacios y mayúsculas; no se fusionan ejercicios
@@ -234,26 +233,33 @@ El panel consulta cada cinco segundos solo cuando está visible y la app activa,
 y al recuperar el foco. No se introduce WebSocket. Los resultados permanecen
 invisibles al entrenador hasta el envío; las fechas sí se actualizan antes.
 
-## Dependencias concretas para aprobar con el plan
+## Dependencias aprobadas y verificadas en C01
 
-No se ha instalado nada. Se han contrastado las versiones con
-`node_modules/expo/bundledNativeModules.json` y con los metadatos de npm.
+Instaladas en C01, contrastadas con `node_modules/expo/bundledNativeModules.json`
+y los metadatos de npm. React permanece en 19.2.3 y React Native en 0.86.3.
 
-| Paquete                         | Versión propuesta | Uso                                             |
-| ------------------------------- | ----------------- | ----------------------------------------------- |
-| `expo-sqlite`                   | `~57.0.3`         | Persistencia local                              |
-| `expo-crypto`                   | `~57.0.3`         | Cifrado de borradores y generación de ids       |
-| `jest-expo`                     | `~57.0.5`         | Preset móvil                                    |
-| `@react-native/jest-preset`     | `0.86.3`          | Peer requerido por el preset Expo               |
-| `@testing-library/react-native` | `14.0.1`          | Pruebas de interacción                          |
-| `test-renderer`                 | `1.3.0`           | Peer de Testing Library compatible con React 19 |
+| Paquete                         | Versión propuesta | Uso                                       |
+| ------------------------------- | ----------------- | ----------------------------------------- |
+| `expo-sqlite`                   | `~57.0.3`         | Persistencia local                        |
+| `expo-crypto`                   | `~57.0.3`         | Cifrado de borradores y generación de ids |
+| `jest-expo`                     | `~57.0.5`         | Preset móvil                              |
+| `@react-native/jest-preset`     | `0.86.3`          | Peer requerido por el preset Expo         |
+| `@testing-library/react-native` | `14.0.1`          | Pruebas de interacción                    |
+| `test-renderer`                 | `1.2.0` exacta    | Renderer compatible con React 19.2        |
 
 Jest 30 y `@types/jest` ya existen en la API; se declara la dependencia de
 desarrollo móvil compatible y se fija el resultado en el lockfile. No se actualiza
 React ni React Native. `react-server-dom-webpack` es un peer opcional que no se
 necesita. `jest-expo` trae una dependencia transitiva de `react-test-renderer`;
 las pruebas propias usarán Testing Library y su renderer, sin basarse en esa API
-obsoleta. La primera prueba debe confirmar que la combinación funciona.
+obsoleta. Las cuatro pruebas de interacción ya pasan, incluida una con estado real.
+
+La prueba detectó que `test-renderer` 1.3 incorporaba un reconciliador que exige
+React 19.3. Se fijó 1.2.0 también mediante un override raíz: utiliza
+`react-reconciler` 0.33 y evita dos copias incompatibles de React. Jest se configura
+en `apps/mobile/package.json`; el quinto archivo es el `package.json` raíz,
+en lugar de un `jest.config.cjs` separado. El lockfile reorganiza dependencias;
+ningún paquete ya presente en la misma ruta cambia de versión.
 
 Los tests móviles se colocan fuera de `app/`, con `jest-expo` y Testing Library,
 siguiendo [Expo](https://docs.expo.dev/develop/unit-testing/),
@@ -265,8 +271,8 @@ quedan acotados al entrenamiento, sin migrar las pantallas existentes.
 ## Comprobaciones y revisión
 
 - Cada tarea tiene aceptación, dependencias y comando en [todo.md](todo.md).
-  El desglose de Fable está en [todo-fable.md](todo-fable.md). Ambos son borradores
-  para revisar después de validar los planes.
+  El desglose de Fable está en [todo-fable.md](todo-fable.md), pendiente de su
+  inicio desde el commit común.
 - Un checkpoint cada dos o tres tareas por línea de trabajo verifica el recorrido
   disponible. Codex y Fable revisan la entrega ajena leyendo sus cambios; el
   responsable corrige sus propios archivos.

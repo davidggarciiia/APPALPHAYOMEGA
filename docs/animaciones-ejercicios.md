@@ -4,6 +4,29 @@ Investigación del 2026-09-18, siguiendo `source-driven-development` de Agent Sk
 David acepta valorar un pago único, probando primero. La investigación no implica
 compra ni selección definitiva de proveedor.
 
+Actualización: David pidió una búsqueda gratuita con un agente mientras Codex
+seguía el plan. Se contrastaron las opciones siguientes con fuentes del proveedor.
+
+## Opciones gratuitas
+
+| Opción                                                                               | Qué permite probar                                                                                                                                                    | Límites para esta app                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Vital, paquete gratuito](https://vitalanimations.com/free-pack)                     | MP4 3D de 1080p y JSON. El [README oficial](https://github.com/exercisedb-pro/exercisedb-dataset) extiende a la muestra la licencia comercial de los paquetes de pago | Cantidad no confirmada. La FAQ permite autoalojamiento; falta inspeccionar el EULA de la descarga y confirmar empaquetado offline y atribución. Los 1.500+ ejercicios no son gratuitos                                                                                 |
+| [LottieFiles: flexiones](https://lottiefiles.com/free-animation/push-ups-X6F71qOwYF) | Piezas sueltas de personajes bajo [Lottie Simple License](https://lottiefiles.com/page/license), con uso comercial y atribución opcional                              | No es un catálogo uniforme. Hay que comprobar autoría y licencia de cada pieza, conservar la licencia y respetar sus condiciones al distribuirla                                                                                                                       |
+| [Mixamo](https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html)                 | Personajes y movimientos 3D gratuitos para proyectos comerciales con cuenta Adobe                                                                                     | Requiere preparar/renderizar los clips y verificar los movimientos disponibles. No se ha acreditado cobertura suficiente de gimnasio                                                                                                                                   |
+| [WorkoutX](https://workoutxapp.com/docs.html)                                        | API freemium: 1.400+ GIFs, 500 peticiones/mes, 30/min, 10 resultados por petición; 180px con marca de agua                                                            | Su [guía](https://workoutxapp.com/blog/exercise-gif-api-licensing-guide.html) incluye uso comercial en Free. Los [términos](https://workoutxapp.com/terms.html) limitan extracción y caché masiva; no se ha confirmado permiso de autoalojamiento u offline permanente |
+
+No se ha verificado una biblioteca completa, gratuita, descargable y sin límites
+para este uso comercial. Vital es el primer candidato gratuito para una muestra
+de muñecos 3D; WorkoutX puede servir para explorar un catálogo amplio online.
+No se han creado cuentas ni incorporado estos medios a la app.
+
+Se descarta el paquete gratis de [Vector Fitness Exercises](https://vectorfitexercises.com/for-content-creators):
+sus 305 MP4 permiten contenido social, pero prohíben integrarlos en apps/productos.
+[RepDB](https://github.com/RepDB/exercise-dataset) ofrece ilustraciones gratuitas;
+sus animaciones son de pago y la muestra animada se limita a evaluación.
+La licencia del código de una API no acredita por sí sola los derechos de sus GIFs.
+
 ## Candidatos
 
 | Biblioteca                                          | Contenido y precio publicado                                                                                                                                                                                  | Encaje                                                                                       |
@@ -58,7 +81,7 @@ La caché de `expo-video` puede reproducirse sin conexión, pero el sistema pued
 eliminarla. No basta para prometer disponibilidad offline. La prueba de integración
 debe cubrir repetición, pausa al salir, retorno, cierre/reapertura y modo avión.
 
-Recomendación: evaluar visualmente las dos muestras de MoveKit y comparar el
-listado de ejercicios necesarios con GymVisual antes de comprar. La integración
+Recomendación actual: contrastar la muestra gratuita de Vital con las dos de
+MoveKit y comparar el listado necesario con GymVisual antes de comprar. La integración
 de medios se añadirá al plan de catálogo una vez elegido el enfoque; los contratos
 de entrenamiento y el trabajo de Codex pueden avanzar de forma independiente.

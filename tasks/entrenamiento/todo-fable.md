@@ -1,9 +1,9 @@
-# Borrador de tareas de Fable — catálogo y pantallas del entrenador
+# Tareas de Fable — catálogo y pantallas del entrenador
 
 > Preparado el 2026-09-18 con Agent Skills, `planning-and-task-breakdown`.
-> **Estado: borrador anticipado, no validado ni habilitado para ejecución.**
-> Se revisará en la fase TASKS, después de aprobar el [plan de Fable](plan-fable.md)
-> y la [coordinación con Codex](plan.md). Ninguna tarea está iniciada.
+> **Estado: reparto aprobado; pendiente del commit común C00–C03.**
+> Véanse el [plan de Fable](plan-fable.md) y la [coordinación con Codex](plan.md).
+> Ninguna tarea de Fable está iniciada.
 > [Encargo y contexto de arranque](fable.md). No sustituye el plan de identidad.
 
 ## Resultado a entregar

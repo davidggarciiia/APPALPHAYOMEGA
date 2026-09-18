@@ -1,18 +1,17 @@
 # Encargo para Fable — segunda iteración de Alpha & Omega
 
-> Propuesta de reparto preparada el 2026-09-18. No significa que Fable haya
-> recibido o iniciado el trabajo. David pasará este archivo a su sesión.
+> Reparto aprobado el 2026-09-18. Fable ha dejado una entrega de lectura y dudas;
+> la implementación espera el commit común C00–C03.
 
 ## Contexto que debes leer
 
 El usuario pidió continuar con Agent Skills, no Superpowers. La entrevista y
-las especificaciones están aprobadas. La fase actual es PLAN: se revisa primero
-el plan técnico y este reparto; después se validan las tareas antes de implementar.
+las especificaciones y el reparto están aprobados. Codex está implementando la
+base y presentará el checkpoint 0A antes de continuar con C03.
 
 1. `C:/Users/david/.claude/skills/using-agent-skills/SKILL.md`.
 2. [Tu plan](plan-fable.md), [coordinación](plan.md) y [SPEC.md](../../SPEC.md).
-   Los borradores de [tus tareas](todo-fable.md) y [las de Codex](todo.md)
-   indican dependencias provisionales; se validarán en TASKS.
+   [Tus tareas](todo-fable.md) y [las de Codex](todo.md) indican las dependencias.
 3. [Spec de catálogo](../../SPEC-catalogo-ejercicios.md), limitada al subconjunto
    de texto descrito por el plan para esta iteración.
 4. [Entrenamiento](../../SPEC-entrenamiento.md) y [agenda](../../SPEC-agenda.md).
@@ -50,7 +49,7 @@ acceso al catálogo: su permiso depende del rol, no de un cliente asignado.
 
 ## Inicio y secuencia
 
-Tras validar David PLAN y TASKS y recibir el commit de C00–C03, crea un worktree
+Tras recibir el commit de C00–C03, crea un worktree
 separado desde ese commit, rama `codex/fable-catalogo`. No cambies la rama ni
 instales paquetes en la carpeta principal que está usando Codex.
 
@@ -64,6 +63,31 @@ Aplica `incremental-implementation` y `test-driven-development`; revisa con
 `code-review-and-quality`. Un fallo no autoriza a borrar tests ni a descartar
 cambios de otra sesión. Mantén la marca negra y dorada y usa el tema existente.
 En cada checkpoint presenta evidencia para revisión de David antes de avanzar.
+
+## Respuesta a las dudas de la entrega de lectura
+
+Decisiones del 2026-09-18 para F01; no se modifica tu archivo de entrega.
+
+1. La columna es `Ejercicio.nombreNormalizado`, con índice único. El servicio
+   normaliza con `nombre.trim().replace(/\s+/gu, " ").toLocaleLowerCase("es")`.
+   No se eliminan acentos. Fable implementa y prueba esa función dentro del
+   catálogo; el formulario no decide la unicidad y presenta el 409 del servidor.
+   No hace falta exportar la función a `shared` para un único consumidor.
+2. Secundarios: relación `Ejercicio.gruposSecundarios` a
+   `GrupoSecundarioDeEjercicio`, clave compuesta `ejercicioId, grupo`.
+   El DTO mantiene el array de nombres; Fable transforma la relación al leer.
+3. Nombre repetido: HTTP 409 y cuerpo `{ statusCode: 409, codigo:
+"nombre_duplicado", message: "Ya existe un ejercicio con ese nombre" }`.
+   El formulario usa `codigo`, nunca compara el mensaje. Codex añadirá el esquema
+   de errores en C03a antes de entregar la base común. C03b preparará el transporte.
+4. `grupo` coincide con principal o secundario. El mapa muscular queda fuera.
+5. Cliente que pide `retirado` o `todos`: 403. Leer uno retirado por id sigue permitido.
+6. `buscar` usa el nombre normalizado y conserva acentos; orden por nombre
+   normalizado y después id para que sea estable.
+7. Retirar/reponer: 200 con `EjercicioSchema`; repetición idempotente.
+8. `:id` se valida con `z.uuid()` en el controlador, sin nuevo alias compartido.
+9. Edición textual completa sin revisión en esta iteración; última escritura gana.
+10. Pruebas de catálogo con prefijo propio y turno de base de datos, como propones.
 
 ## Qué entregar en cada checkpoint
 

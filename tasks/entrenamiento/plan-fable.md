@@ -18,10 +18,9 @@ Figuras, vídeos y mapa muscular quedan fuera de esta entrega.
 ## Flujo de la skill y punto actual
 
 1. **SPECIFY:** entrevista y especificaciones de agenda/entrenamiento aprobadas.
-2. **PLAN:** David revisa este plan junto con el reparto y las decisiones comunes.
-3. **TASKS:** después se ajusta y revisa el [desglose de Fable](todo-fable.md),
-   ahora conservado como borrador anticipado sin autorización de ejecución.
-4. **IMPLEMENT:** solo tras validar las tareas, Fable trabaja por incrementos:
+2. **PLAN:** aprobado junto con el reparto y las decisiones comunes.
+3. **TASKS:** el [desglose de Fable](todo-fable.md) fija sus tareas y dependencias.
+4. **IMPLEMENT:** pendiente de recibir el commit común C00–C03. Fable trabaja por incrementos:
    prueba, implementación, verificación y commit; revisión en cada checkpoint.
 
 Esta secuencia procede de `spec-driven-development`, y la descomposición sigue
@@ -55,7 +54,7 @@ contrato necesita cambiar, documenta la propuesta para que Codex la integre.
 
 Fable puede preparar componentes con ejemplos que cumplan el contrato mientras
 Codex implementa el proveedor. La verificación de salida siempre usa la API real.
-Los detalles de tareas, archivos y comandos se validarán en la fase TASKS.
+Los detalles de tareas, archivos y comandos están en el desglose independiente.
 
 ## Coordinación
 
@@ -87,8 +86,8 @@ con `npm run build --workspace apps/api`.
 | Cambios en rutinas que alteran históricos        | Copias independientes y pruebas con dos clientes y varias semanas           |
 | Pruebas automáticas que no cubren el dispositivo | Registrar por separado tests y comprobaciones en Android/iOS/web            |
 
-## Revisión pendiente
+## Próximo punto de coordinación
 
-David revisa ahora el alcance de Fable, el reparto de archivos, el orden y los
-checkpoints, junto con las decisiones comunes del plan general. Validado ese
-paso, se revisa el desglose de tareas antes de implementar.
+El reparto está aprobado. Fable espera el commit común C00–C03 para empezar F01.
+Su entrega de lectura ya tiene respuestas en el encargo. Las revisiones de cada
+incremento conservan los checkpoints del plan general.

@@ -1,7 +1,7 @@
 # Tareas de Codex — entrenamiento
 
 > Estado: ejecución de Codex autorizada por David el 2026-09-18 («comienza tu parte»).
-> C00 en curso. Ninguna tarea terminada todavía.
+> C00–C02 implementadas y verificadas; checkpoint 0A listo para revisión.
 > [Plan general](plan.md) · [Plan independiente de Fable](plan-fable.md).
 > Los identificadores C pertenecen a Codex; los F están en [todo-fable.md](todo-fable.md).
 > Esta lista no sustituye `tasks/todo.md` de identidad.
@@ -28,11 +28,11 @@ commit base y los commits entregados se anotan al final de este documento.
 
 ### C00 — Fijar contratos por módulo
 
-- [ ] Definir esquemas Zod de catálogo, agenda y entrenamiento; separar DTOs de
+- [x] Definir esquemas Zod de catálogo, agenda y entrenamiento; separar DTOs de
       cliente, entrenador, borrador y resultado.
-- [ ] Validar fechas reales, discriminación repeticiones/tiempo, objetivos
+- [x] Validar fechas reales, discriminación repeticiones/tiempo, objetivos
       opcionales, límites de longitud, revisiones e ids de operación.
-- [ ] Exportar sin modificar los contratos de identidad; incluir ejemplos de
+- [x] Exportar sin modificar los contratos de identidad; incluir ejemplos de
       respuestas válidas y tests que rechacen mezcla de series y campos incompatibles.
 
 **Dependencias:** PLAN y TASKS aprobados. **Alcance:** M, cinco archivos.
@@ -43,39 +43,61 @@ commit base y los commits entregados se anotan al final de este documento.
 
 ### C01 — Habilitar pruebas de interacción móvil
 
-- [ ] Instalar únicamente las dependencias aprobadas en el plan, fijando el lockfile.
-- [ ] Añadir un script `test` sin modo watch y preset Expo, sin incluir tests en `app/`.
-- [ ] Ejecutar una prueba significativa del formulario existente y verificar
+- [x] Instalar las dependencias del plan con el ajuste de compatibilidad documentado.
+- [x] Añadir un script `test` sin modo watch y preset Expo, sin incluir tests en `app/`.
+- [x] Ejecutar una prueba significativa del formulario existente y verificar
       que Jest de API y de móvil conviven con React 19.2.3.
 
 **Dependencias:** PLAN y TASKS aprobados. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/mobile/package.json`, `package-lock.json`,
-`apps/mobile/jest.config.cjs`, `apps/mobile/tsconfig.json`,
+`package.json` raíz, `apps/mobile/tsconfig.json`,
 `apps/mobile/src/componentes/formulario.spec.tsx`.
 **Verificar:** `npm run test --workspace apps/mobile -- --runInBand formulario`;
 `npm run test --workspace apps/api -- --runInBand`; `npm run typecheck`.
 
 ### C02 — Preparar la persistencia del catálogo
 
-- [ ] Añadir `Ejercicio`, grupos y restricciones de nombre; ninguna relación a clientes.
-- [ ] Crear y revisar una migración aditiva; no borrar ni reiniciar la base de desarrollo.
-- [ ] Registrar un módulo de catálogo vacío para que Fable añada sus servicios
+- [x] Añadir `Ejercicio`, grupos y restricciones de nombre; ninguna relación a clientes.
+- [x] Crear y revisar una migración aditiva; no borrar ni reiniciar la base de desarrollo.
+- [x] Registrar un módulo de catálogo vacío para que Fable añada sus servicios
       sin modificar el módulo raíz.
 
-**Dependencias:** C00 y vocabulario aprobado con el plan. **Alcance:** M, cuatro archivos.
+**Dependencias:** C00 y vocabulario aprobado con el plan. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/api/prisma/schema.prisma`, una migración de catálogo,
-`apps/api/src/catalogo-ejercicios/catalogo-ejercicios.module.ts`, `apps/api/src/app.module.ts`.
-**Verificar:** `npx prisma validate`; `npx prisma migrate dev --name catalogo_minimo`;
+`apps/api/src/catalogo-ejercicios/catalogo-ejercicios.module.ts`, `apps/api/src/app.module.ts`,
+`apps/api/prisma/rollback/catalogo_minimo.sql` (solo reversión explícita, no automática).
+Los grupos secundarios usan la tabla relacional de la especificación. La migración
+se genera y revisa antes de aplicarla. Al no estar disponible PostgreSQL, se generó
+con `migrate diff --from-schema` desde el esquema base y `--to-schema` hacia el nuevo.
+Tras recuperar Docker, `migrate dev` la aplicó y confirmó ausencia de drift.
+**Verificar:** `npx prisma validate`; `npx prisma migrate dev --create-only --name catalogo_minimo`;
+revisar SQL y aplicar con `npx prisma migrate dev`;
 `npm run db:generate`; `npm run build --workspace apps/api`.
 Ante una propuesta de reset, detener la migración y analizar el drift; no aceptarla.
 
 ### Checkpoint 0A — base compilable
 
-- [ ] C00–C02 pasan sus comprobaciones y el proyecto sigue arrancando.
-- [ ] El contrato puede ser leído y usado por Fable sin decidir otros campos.
-- [ ] Registrar el commit de contrato y presentar la evidencia del checkpoint a David.
+- [x] C00–C02 pasan sus comprobaciones y el proyecto sigue arrancando.
+- [x] El contrato puede ser leído y usado por Fable sin decidir otros campos.
+- [x] Registrar el commit de contrato y presentar la evidencia del checkpoint a David.
+- [ ] Revisión de David del checkpoint 0A antes de C03a–C03b.
 
-### C03 — Ofrecer un transporte HTTP común a los módulos nuevos
+### C03a — Fijar los errores comunes solicitados por Fable
+
+- [ ] Exportar `ErrorDeApiSchema` con `statusCode`, `codigo` y `message`;
+      código estable `nombre_duplicado` para 409, sin depender del texto visible.
+- [ ] Cubrir 400 de validación y 409 de dominio, rechazando cuerpos incompatibles.
+- [ ] Mantener la compatibilidad con errores existentes de identidad en el transporte.
+
+**Dependencias:** checkpoint 0A revisado. **Alcance:** S, tres archivos.
+**Archivos:** `packages/shared/src/errores-api.ts`, `packages/shared/src/index.ts`,
+`apps/api/src/entrenamiento/errores-api.spec.ts`.
+**Verificar:** `npm run build:shared`;
+`npm run test --workspace apps/api -- --runInBand errores-api`; `npm run typecheck`.
+La separación responde a la entrega de lectura de Fable y mantiene cada tarea
+por debajo de cinco archivos. C03 designa C03a y C03b en el resto del plan.
+
+### C03b — Ofrecer un transporte HTTP común a los módulos nuevos
 
 - [ ] Extraer la petición de red de `src/lib/api.ts` conservando el comportamiento
       de las funciones de identidad existentes.
@@ -83,7 +105,7 @@ Ante una propuesta de reset, detener la migración y analizar el drift; no acept
 - [ ] Añadir un punto de acceso autenticado que C06 conectará a la renovación,
       manteniendo ids de operación en reintentos.
 
-**Dependencias:** C01. **Alcance:** M, cuatro archivos.
+**Dependencias:** C01 y C03a. **Alcance:** M, cuatro archivos.
 **Archivos:** `apps/mobile/src/lib/api.ts`, `http.ts`, `http.spec.ts`,
 `peticion-autenticada.ts`.
 **Verificar:** `npm run test --workspace apps/mobile -- --runInBand http`;
@@ -429,5 +451,11 @@ recorrido en Expo Go desde `npm run dev --workspace apps/mobile`.
 
 ## Registro de entregas
 
-No hay commits de implementación ni pruebas ejecutadas para esta iteración.
-Base leída: `055c401`. El plan y los contratos propuestos esperan revisión.
+- Base: `055c401`; documentación y reparto: `61945b1`.
+- C00: `0f07539`, guardado por otra sesión mientras Codex trabajaba. Se conserva
+  ese commit. Los 17 tests de contratos pasan; revisión independiente sin hallazgos.
+- C01: `b456523`. `npm run test`: 65 pruebas de API y 4 móviles; `npm run typecheck`
+  y `npm run lint` pasan. No implica comprobación en dispositivo.
+- C02: `eade5f2`. Migración aplicada sin drift; 204 pruebas HTTP pasan.
+  Modelo, SQL y reversión revisados sin hallazgos. Evidencia completa en
+  [verificacion.md](verificacion.md). El commit común para Fable espera C03.
