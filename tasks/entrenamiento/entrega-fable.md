@@ -6,41 +6,97 @@
 
 ## Estado a 2026-09-18
 
-**Ninguna tarea F consta como terminada ni integrada.** Lo entregado es
-preparación de pantallas contra el contrato fijo de C00, que el plan permite
-mientras el proveedor no existe. Todo está probado solo con datos de prueba.
+| Tarea             | Estado                                                                           |
+| ----------------- | -------------------------------------------------------------------------------- |
+| F01 API           | Terminada y probada contra PostgreSQL real. Pendiente de revisión e integración  |
+| F02 móvil         | Pantallas preparadas con datos de prueba. **No integrada:** falta conectar a C03 |
+| F03 API           | Retirar y reponer terminados y probados contra PostgreSQL real                   |
+| F03 móvil         | Preparado con datos de prueba. **No integrado**, igual que F02                   |
+| Checkpoint F-A    | No alcanzado: exige F02 contra la API real                                       |
+| Dispositivo / web | Nada comprobado en pantalla todavía                                              |
 
-| Condición del encargo | Estado                                                                   |
-| --------------------- | ------------------------------------------------------------------------ |
-| PLAN                  | Aprobado                                                                 |
-| TASKS de Fable        | David indica ejecutar `todo-fable.md`; Codex lo marca «reparto aprobado» |
-| C00 contratos         | Entregado: `0f07539`                                                     |
-| C01 tests móviles     | Entregado: `b456523`                                                     |
-| C02 persistencia      | En curso en la carpeta de Codex, sin commit                              |
-| C03 transporte        | Sin empezar                                                              |
+**Base:** `9fc9003` de `codex/entrenamiento-iteracion-2` (C00, C01, C02 y el
+contrato de errores). Los commits se ven con
+`git log --oneline 9fc9003..codex/fable-catalogo`. Rebaso sobre cada entrega de
+Codex, así que los hash cambian; los asuntos no:
 
-F01 sigue bloqueada hasta el commit de C02: Prisma, migraciones y
-`app.module.ts` son de Codex y no los he tocado.
+1. `feat(catalogo): lista del catalogo en el movil contra el contrato fijo`
+2. `feat(catalogo): formulario de alta y edicion de ejercicios en el movil`
+3. `feat(catalogo): retirar y reponer ejercicios desde el movil`
+4. `feat(catalogo): F01, crear, leer, editar y buscar ejercicios en la API`
+5. `feat(catalogo): retirar y reponer ejercicios en la API`
+6. `feat(catalogo): el 409 de nombre repetido cumple el contrato de errores`
+7. Los commits `docs(entrenamiento)` de este archivo.
 
-### Desviación que conviene revisar
+### Desviaciones que conviene revisar
 
-El encargo pide crear el worktree desde el commit común C00–C03. Lo he creado
-antes, desde `b456523` (C00 + C01), para no esperar parado. Mis archivos están
-solo en `apps/mobile/src/catalogo-ejercicios/` y en este documento, así que
-rebasar sobre el commit común no debería dar conflictos. En la carpeta de Codex
-no he cambiado de rama, ni instalado paquetes, ni editado archivos suyos;
-`npm ci` se ejecutó dentro del worktree y no modificó el lockfile.
+- El encargo pide crear el worktree desde el commit común C00–C03. Lo creé
+  antes, desde C01, y he rebasado sobre C02 y sobre `9fc9003` sin conflictos.
+  C03 sigue sin commit; cuando llegue, rebaso otra vez.
+- He hecho la parte de API de F03 antes de integrar F02, porque no dependía de
+  C03. La parte móvil de F03 sigue sin contar.
+- En la carpeta de Codex no he cambiado de rama, ni instalado paquetes, ni
+  editado archivos suyos. Un primer borrador de este documento estuvo allí sin
+  añadir a git y ya lo he movido aquí.
+
+## Archivos
+
+Todos dentro de mis límites de escritura:
+
+- `apps/api/src/catalogo-ejercicios/`: `catalogo-ejercicios.service.ts`,
+  `.controller.ts`, `.service.spec.ts` y `.module.ts`. El módulo lo creó Codex
+  vacío en C02 para este fin; solo registra controlador y servicio.
+- `apps/api/test/catalogo-ejercicios.e2e-spec.ts`.
+- `apps/mobile/src/catalogo-ejercicios/`: `api.ts`, `catalogo.tsx`,
+  `formulario-ejercicio.tsx`, `catalogo-en-memoria.ts` y las dos specs.
+- Este documento.
+
+## F01 y parte de API de F03
+
+Rutas: `GET/POST /ejercicios`, `GET/PATCH /ejercicios/:id`,
+`POST /ejercicios/:id/retirar` y `/reponer`. No hay ruta `DELETE`.
+
+### Criterios cubiertos por pruebas HTTP
+
+- El cliente lee ficha y listado. Crear, editar, retirar y reponer son solo del
+  entrenador. Nutricionista y empleado reciben 403 en todas las rutas, también
+  en lectura. Sin sesión, 401. No se usa ni se toca `AlcanceClienteGuard`.
+- Alta sin figura ni vídeo: viajan como `null`, no omitidos.
+- Nombre único por `nombreNormalizado`: 409 con `codigo: "nombre_duplicado"`
+  según `ErrorDeApiSchema`, en alta y en edición, sin crear ni cambiar nada.
+  Guardar sin cambiar el nombre no choca consigo mismo, y un nombre liberado se
+  puede reutilizar.
+- 400 sin crear nada: grupo fuera del vocabulario, principal repetido como
+  secundario, secundario repetido, nombre o instrucciones vacíos y campos que
+  el formulario no edita. Id mal formado, 400; id inexistente, 404.
+- Búsqueda por trozo del nombre sin distinguir mayúsculas, filtro por grupo
+  principal o secundario, orden estable y total real con límite y desplazamiento.
+- Retirar saca el ejercicio de la búsqueda de todos y no de la base. El
+  entrenador lo pide con `estado=retirado` o `todos`; el cliente recibe 403 si
+  pide otro estado que `publicado`. Un retirado se abre por id, también para el
+  cliente, y lo dice. Reponer lo devuelve y limpia `retiradoEn`. Repetir la
+  operación devuelve 200 y no mueve la fecha. Editar un retirado no lo repone.
+- Unitarias: normalización, traducción de errores de Prisma sin disfrazar fallos
+  desconocidos, y el criterio 18 de la spec: ninguna tabla del módulo referencia
+  a un usuario.
+
+### Comandos y resultado
+
+Dentro del worktree, sobre el último commit de código:
+
+- `npm run test:e2e --workspace apps/api -- --runInBand catalogo-ejercicios`:
+  35 pruebas pasan. **Con PostgreSQL real, en una base separada**
+  (`alpha_omega_fable`, mismo contenedor) para no compartir la que usa Codex. El
+  `.env` del worktree es una copia del de la carpeta principal con otro
+  `POSTGRES_DB`; está ignorado por git. Migraciones con `prisma migrate deploy`.
+- `npm run test`: 76 pruebas de API y 31 móviles pasan.
+- `npm run typecheck`, `npm run lint` y `npm run build --workspace apps/api`: pasan.
+- El resto de la suite HTTP (identidad) no la he ejecutado.
 
 ## Preparación de F02 y F03 en el móvil
 
-**Base:** `b456523`. **Commits:** `f1c9575` lista, `203da2c` formulario y
-`062856d` retirar y reponer.
-
-**Archivos** (todos nuevos, en `apps/mobile/src/catalogo-ejercicios/`):
-`api.ts`, `catalogo.tsx`, `formulario-ejercicio.tsx`, `catalogo-en-memoria.ts`,
-`catalogo.spec.tsx`, `formulario-ejercicio.spec.tsx`.
-
-### Qué hace ya, con datos de prueba
+Probado **solo con un catálogo en memoria** que valida contra los esquemas
+compartidos. No consta como integrado.
 
 - Lista: búsqueda con espera, filtro por grupo, carga, vacío, error con
   reintento, aviso «mostrando X de Y» y acceso al alta y a la edición.
@@ -50,83 +106,47 @@ no he cambiado de rama, ni instalado paquetes, ni editado archivos suyos;
   lo escrito y permite volver a guardar.
 - Retirados: fuera de la lista normal; el entrenador los pide con RETIRADOS y
   salen señalados. La ficha de un retirado lo dice y ofrece REPONER. RETIRAR
-  pide confirmación en dos pasos, como la baja de un cliente. Editar el texto de
-  un retirado no lo repone.
+  pide confirmación en dos pasos, como la baja de un cliente.
 - Las pantallas reciben la API por props (`ApiDeCatalogo`) y no conocen rutas
   ni sesión. Campos, grupos y botones tienen nombre y rol accesibles.
+- Comprobé que las pruebas del formulario fallan si se rompe el comportamiento
+  antes de darlas por buenas.
 
-### Qué falta para que F02 y F03 cuenten
+### Qué falta para que cuenten
 
-- `api.ts` solo declara el tipo. El adaptador HTTP real espera a C03.
+- `api.ts` solo declara el tipo. El adaptador HTTP real espera a C03; traducirá
+  el 409 con `codigo: "nombre_duplicado"` a `ErrorDeNombreDuplicado`.
 - Rutas `app/catalogo/`: sin crear, porque necesitan el adaptador y la sesión.
-- Ninguna comprobación con API real ni en dispositivo. No se ha visto en
-  pantalla: solo pruebas de componentes con `jest-expo`.
+- Crear un ejercicio desde el móvil y volver a encontrarlo, con API real.
 
-### Comandos y resultado
+## Propuestas y dudas para Codex
 
-Todos dentro del worktree, sobre el último commit:
+1. **400 de los módulos nuevos.** `ErrorDeApiSchema` fija
+   `codigo: "solicitud_invalida"`, pero `comun/zod.pipe.ts` responde
+   `{ mensaje, campos }` y es un archivo común que usa identidad. Mis 400 salen
+   hoy con esa forma antigua. Necesito que Codex aporte la variante del pipe para
+   los módulos nuevos, o que me autorice a crear una dentro de mi módulo.
+2. **404 y 403.** El esquema no los contempla. Los míos usan el cuerpo por
+   defecto de Nest. Si se van a tipar, que sea en `shared`.
+3. **Normalización.** La regla vive en mi servicio: recortar, colapsar espacios
+   y minúsculas con locale `es`, sin plegar acentos. `buscar` se normaliza igual,
+   así que «bulgara» no encuentra «búlgara». Aceptado para esta iteración.
+4. **División de F02**, sin cambiar el alcance, porque lista y formulario no
+   caben en los cuatro archivos previstos:
+   - F02a lista: `catalogo.tsx`, `catalogo.spec.tsx`, `api.ts`.
+   - F02b formulario: `formulario-ejercicio.tsx`, su spec y `catalogo-en-memoria.ts`.
+   - F02c conexión: adaptador en `api.ts` sobre C03 y tres rutas finas,
+     `app/catalogo/index.tsx`, `nuevo.tsx` y `[id].tsx`, como ya hace
+     `app/cliente/`. Con pantalla propia, el botón atrás de Android vuelve a la lista.
+5. Ruta que Codex enlazará desde el inicio: `/catalogo`.
 
-- `npm run test`: 65 pruebas de API y 31 móviles (27 son del catálogo). Pasan.
-- `npm run typecheck`: pasa. `npm run lint`: pasa.
-- Pruebas HTTP: no ejecutadas. No he usado la base de datos de Codex.
-
-Comprobé que las pruebas del formulario fallan si se rompe el comportamiento
-(grupo principal repetido y nombre duplicado) antes de darlas por buenas.
-
-## Dudas sobre el contrato del catálogo
-
-Revisadas tras leer el C02 en curso de Codex (solo lectura).
-
-**Resueltas por C02**
-
-1. Nombre único: columna `nombreNormalizado` con `@unique`. La regla la pongo en
-   mi servicio: recortar, colapsar espacios internos y minúsculas con locale
-   `es`, sin plegar acentos. Si Codex prefiere otra, que lo diga antes de F01.
-2. Grupos secundarios: tabla `GrupoSecundarioDeEjercicio`. Escribo el servicio
-   contra esa forma.
-
-**Ya no bloquea**
-
-3. Error de nombre duplicado: la pantalla solo conoce `ErrorDeNombreDuplicado` y
-   el adaptador decide cómo reconocerlo. En estas rutas un 409 solo puede
-   significar nombre repetido, así que basta el código HTTP. Un `codigo` estable
-   en el cuerpo sigue siendo preferible si C03 define un esquema de error.
-
-**Las decido yo salvo objeción (son de mi servicio)**
-
-4. `grupo` coincide con principal **o** secundario (spec, req. 6). El mapa
-   muscular, fuera de esta iteración, pediría un parámetro propio.
-5. Un cliente que pide `estado` distinto de `publicado` recibe 403. Abrir un
-   retirado por id sigue permitido (req. 3).
-6. `buscar` por contenido sobre el nombre normalizado. Orden por nombre y
-   desempate por id.
-7. Retirar y reponer devuelven 200 con `EjercicioSchema` y son idempotentes. Las
-   pantallas ya cuentan con ello.
-8. `:id` validado con `z.uuid()` en el controlador.
-
-**Para dejar constancia**
-
-9. `PATCH /ejercicios/:id` sustituye la ficha completa y no lleva revisión: con
-   varios entrenadores gana la última escritura. Lo acepto en esta iteración.
-10. Las pruebas HTTP del catálogo limpiarán por prefijo de nombre
-    (`e2e-catalogo-`). Pediré turno a Codex o una base separada antes de
-    ejecutarlas.
-
-## Cambios de tareas que propongo
-
-F02 y F03 no caben en los archivos previstos sin mezclar lista y formulario en
-uno solo. Propongo, sin cambiar el alcance:
-
-- **F02a** lista: `catalogo.tsx`, `catalogo.spec.tsx`, `api.ts`.
-- **F02b** formulario: `formulario-ejercicio.tsx`, su spec y
-  `catalogo-en-memoria.ts`.
-- **F02c** conexión: adaptador en `api.ts` sobre C03 y tres rutas finas,
-  `app/catalogo/index.tsx`, `nuevo.tsx` y `[id].tsx`, como ya hace `app/cliente/`.
-  Con pantalla propia para el alta, el botón atrás de Android vuelve a la lista.
-
-Ruta que Codex enlazará desde el inicio: `/catalogo`.
+Decisiones de mi servicio ya aplicadas y probadas, por si hay objeción: `grupo`
+coincide con principal o secundario; el cliente recibe 403 al pedir un estado
+no publicado; retirar y reponer responden 200 y son idempotentes;
+`PATCH` sustituye la ficha completa y no lleva revisión, de modo que con varios
+entrenadores gana la última escritura.
 
 ## Siguiente tarea
 
-F01 en cuanto exista el commit de C02: rebaso sobre él y empiezo por la prueba
-del servicio. Cuando llegue C03, F02c y la comprobación con la API real.
+F02c en cuanto C03 tenga commit: adaptador, rutas y comprobación con la API
+real. Con eso se puede presentar el checkpoint F-A a David.
