@@ -30,9 +30,11 @@ import { tema } from "../tema"
 export function PantallaDeFormulario({
   children,
   acceso = false,
+  sinTarjeta = false,
 }: {
   children: ReactNode
   acceso?: boolean
+  sinTarjeta?: boolean
 }): React.JSX.Element {
   return (
     <SafeAreaView
@@ -55,7 +57,7 @@ export function PantallaDeFormulario({
               <Text style={estilos.lema}>TRAINING</Text>
             </View>
           )}
-          <View style={estilos.tarjeta}>{children}</View>
+          <View style={!sinTarjeta && estilos.tarjeta}>{children}</View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

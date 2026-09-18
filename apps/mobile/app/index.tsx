@@ -1,159 +1,106 @@
-import { useRouter } from "expo-router"
+import { useRouter, type Href } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-
+import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
+import { SemanaEntrenamiento } from "../src/entrenamiento/semana"
+import { useEntrenamiento } from "../src/entrenamiento/use-entrenamiento"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
-/**
- * Pantalla provisional de sesion iniciada.
- *
- * Demuestra que la sesion existe y da acceso al perfil. La sustituye el inicio
- * real del cliente cuando llegue el modulo `agenda`.
- */
 export default function Inicio(): React.JSX.Element {
   const { estado, salir } = useSesion()
+  const api = useEntrenamiento()
   const router = useRouter()
-
-  if (estado.fase !== "dentro") {
-    return <SafeAreaView style={estilos.pantalla} />
-  }
-
+  if (estado.fase !== "dentro") return <View />
   const { usuario } = estado
-  const nombreCompleto = [usuario.nombre, usuario.apellidos].filter(Boolean).join(" ")
-
-  return (
-    <SafeAreaView style={estilos.pantalla}>
-      <View style={estilos.contenido}>
-        <Text style={estilos.marca}>ALPHA &amp; OMEGA</Text>
-        <Text style={estilos.lema}>TRAINING</Text>
-
-        <View style={estilos.tarjeta}>
-          <Text style={estilos.titulo}>SESIÓN INICIADA</Text>
-          <Text style={estilos.valor}>{nombreCompleto}</Text>
-          <Text style={estilos.secundario}>{usuario.email}</Text>
-          <Text style={estilos.perfil}>{usuario.rol.toUpperCase()}</Text>
-        </View>
-
-        {/* Esconder el boton es comodidad, no seguridad: quien entre a la ruta a
-            mano se encuentra con el 403 del servidor, que es quien decide. */}
-        {usuario.rol === "cliente" && (
-          <Pressable
-            style={estilos.botonPrincipal}
-            accessibilityRole="button"
-            onPress={() => router.push("/entrenamiento")}
-          >
-            <Text style={estilos.textoPrincipal}>MIS ENTRENAMIENTOS</Text>
-          </Pressable>
-        )}
-        {usuario.rol === "entrenador" && (
-          <>
-            <Pressable
-              style={estilos.boton}
-              accessibilityRole="button"
-              onPress={() => router.push("/rutinas")}
-            >
-              <Text style={estilos.textoBoton}>MIS RUTINAS</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
-              onPress={() => router.push("/catalogo")}
-              accessibilityRole="button"
-            >
-              <Text style={estilos.textoBoton}>CATÁLOGO DE EJERCICIOS</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
-              onPress={() => {
-                router.push("/cartera")
-              }}
-              accessibilityRole="button"
-            >
-              <Text style={estilos.textoPrincipal}>MI CARTERA</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
-              onPress={() => {
-                router.push("/nutricionista")
-              }}
-              accessibilityRole="button"
-            >
-              <Text style={estilos.textoBoton}>NUTRICIONISTA</Text>
-            </Pressable>
-          </>
-        )}
-
-        {usuario.rol === "nutricionista" && (
-          <Pressable
-            style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
-            onPress={() => {
-              router.push("/mis-clientes")
-            }}
-            accessibilityRole="button"
-          >
-            <Text style={estilos.textoPrincipal}>MIS CLIENTES</Text>
-          </Pressable>
-        )}
-
-        <Pressable
-          style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
-          onPress={() => {
-            router.push("/perfil")
-          }}
-          accessibilityRole="button"
-        >
-          <Text style={estilos.textoBoton}>MI PERFIL</Text>
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
-          onPress={() => void salir()}
-          accessibilityRole="button"
-        >
-          <Text style={estilos.textoBoton}>CERRAR SESIÓN</Text>
-        </Pressable>
+  const acceso = (
+    titulo: string,
+    detalle: string,
+    ruta: Href,
+    principal = false,
+  ): React.JSX.Element => (
+    <Pressable
+      style={[s.tarjeta, principal && s.principal]}
+      accessibilityRole="button"
+      accessibilityLabel={titulo}
+      onPress={() => router.push(ruta)}
+    >
+      <View style={s.fila}>
+        <Text style={[s.titulo, principal && s.claro]}>{titulo}</Text>
+        <Text style={[s.flecha, principal && s.claro]}>↗</Text>
       </View>
-    </SafeAreaView>
+      <Text style={[s.detalle, principal && s.detalleClaro]}>{detalle}</Text>
+    </Pressable>
+  )
+  return (
+    <PantallaDeFormulario sinTarjeta>
+      {usuario.rol === "cliente" ? (
+        <SemanaEntrenamiento
+          clienteId={usuario.id}
+          api={api}
+          copiaLocal
+          resumenHoy
+          abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
+        />
+      ) : (
+        <View style={s.contenido}>
+          <Text style={s.leyenda}>TU ESPACIO DE TRABAJO</Text>
+          {usuario.rol === "entrenador" && (
+            <>
+              {acceso(
+                "Mis clientes",
+                "Organiza sus semanas y revisa los entrenamientos enviados.",
+                "/cartera",
+                true,
+              )}
+              {acceso(
+                "Mis rutinas",
+                "Prepara tus sesiones y adáptalas a cada cliente.",
+                "/rutinas",
+              )}
+              {acceso("Ejercicios", "Gestiona los ejercicios de tu catálogo.", "/catalogo")}
+              {acceso(
+                "Nutricionista",
+                "Gestiona el acceso de tu profesional de nutrición.",
+                "/nutricionista",
+              )}
+            </>
+          )}
+          {usuario.rol === "nutricionista" &&
+            acceso(
+              "Mis clientes",
+              "Consulta las fichas de los clientes asignados.",
+              "/mis-clientes",
+              true,
+            )}
+          {acceso("Mi perfil", "Consulta y actualiza tus datos personales.", "/perfil")}
+        </View>
+      )}
+      <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
+    </PantallaDeFormulario>
   )
 }
-
-const estilos = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: tema.fondo },
-  contenido: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  marca: { color: tema.acento, fontSize: 24, letterSpacing: 4, fontWeight: "700" },
-  lema: { color: tema.textoTenue, fontSize: 12, letterSpacing: 8, marginTop: 4, marginBottom: 40 },
+const s = StyleSheet.create({
+  contenido: { gap: 14 },
+  leyenda: {
+    color: tema.textoTenue,
+    fontFamily: tema.fuenteTexto,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    marginVertical: 6,
+  },
   tarjeta: {
-    alignSelf: "stretch",
     backgroundColor: tema.superficie,
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 20,
-    gap: 6,
+    borderRadius: 18,
+    padding: 22,
+    gap: 10,
   },
-  titulo: { color: tema.textoSecundario, fontSize: 11, letterSpacing: 2, marginBottom: 8 },
-  valor: { color: tema.texto, fontSize: 18 },
-  secundario: { color: tema.textoTenue, fontSize: 13 },
-  perfil: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2, marginTop: 4 },
-  botonPrincipal: {
-    alignSelf: "stretch",
-    backgroundColor: tema.acento,
-    borderRadius: 8,
-    marginTop: 24,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  textoPrincipal: { color: tema.fondo, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
-  boton: {
-    alignSelf: "stretch",
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 8,
-    marginTop: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  pulsado: { opacity: 0.6 },
-  textoBoton: { color: tema.textoTenue, fontSize: 13, fontWeight: "600", letterSpacing: 2 },
+  principal: { backgroundColor: tema.acento, borderColor: tema.acento, paddingVertical: 28 },
+  fila: { flexDirection: "row", gap: 12, alignItems: "center" },
+  titulo: { color: tema.texto, fontFamily: tema.fuenteTitulo, fontSize: 32, flex: 1 },
+  flecha: { color: tema.texto, fontSize: 28 },
+  claro: { color: tema.sobreAcento },
+  detalle: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
+  detalleClaro: { color: "#DADADA" },
 })
