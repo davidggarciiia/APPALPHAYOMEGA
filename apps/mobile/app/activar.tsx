@@ -74,7 +74,7 @@ export default function Activar(): React.JSX.Element {
 
   if (token === undefined || token === "") {
     return (
-      <PantallaDeFormulario>
+      <PantallaDeFormulario acceso>
         <Text style={estilos.titulo}>Enlace incompleto</Text>
         <Text style={estilos.detalle}>
           Abre el enlace desde el correo que te enviamos, sin copiarlo a mano.
@@ -84,7 +84,7 @@ export default function Activar(): React.JSX.Element {
   }
 
   return (
-    <PantallaDeFormulario>
+    <PantallaDeFormulario acceso>
       <Text style={estilos.titulo}>Elige tu contraseña</Text>
       <Text style={estilos.detalle}>
         Con ella entrarás a partir de ahora. Una frase que recuerdes vale más que algo corto y

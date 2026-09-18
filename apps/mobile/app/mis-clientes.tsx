@@ -61,7 +61,7 @@ export default function MisClientes(): React.JSX.Element {
     return (
       <View style={estilos.centrado}>
         <ActivityIndicator
-          color={tema.oro}
+          color={tema.acento}
           size="large"
           accessibilityLabel="Cargando tus clientes"
         />
@@ -157,7 +157,7 @@ const estilos = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
-  titulo: { color: tema.oro, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
+  titulo: { color: tema.acento, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
   volver: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
   aviso: { color: tema.texto, fontSize: 15, textAlign: "center" },
   lista: { padding: 20, gap: 10 },

@@ -77,7 +77,7 @@ export default function Restablecer(): React.JSX.Element {
 
   if (hecho) {
     return (
-      <PantallaDeFormulario>
+      <PantallaDeFormulario acceso>
         <Text style={estilos.titulo}>Contraseña cambiada</Text>
         <Text style={estilos.detalle}>
           Ya puedes entrar con la nueva. Por seguridad hemos cerrado las sesiones que tuvieras
@@ -95,7 +95,7 @@ export default function Restablecer(): React.JSX.Element {
   }
 
   return (
-    <PantallaDeFormulario>
+    <PantallaDeFormulario acceso>
       <Text style={estilos.titulo}>Elige una contraseña nueva</Text>
       <Text style={estilos.detalle}>
         Una frase que recuerdes vale más que algo corto y retorcido. Al cambiarla se cerrarán tus

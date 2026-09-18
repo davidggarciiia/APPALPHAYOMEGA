@@ -143,7 +143,7 @@ export function FormularioDeEjercicio({
         <Text style={estilos.titulo}>{titulo}</Text>
         {carga.fase === "cargando" ? (
           <ActivityIndicator
-            color={tema.oro}
+            color={tema.acento}
             style={estilos.espera}
             accessibilityLabel="Cargando el ejercicio"
           />
@@ -354,7 +354,7 @@ const estilos = StyleSheet.create({
   titulo: { color: tema.texto, fontSize: 18, fontWeight: "600" },
   espera: { marginTop: 24 },
   etiqueta: {
-    color: tema.oroSuave,
+    color: tema.textoSecundario,
     fontSize: 11,
     letterSpacing: 2,
     marginBottom: 8,
@@ -368,12 +368,12 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  opcionMarcada: { backgroundColor: tema.oro, borderColor: tema.oro },
+  opcionMarcada: { backgroundColor: tema.acento, borderColor: tema.acento },
   opcionApagada: { opacity: 0.35 },
   textoOpcion: { color: tema.texto, fontSize: 13 },
   textoOpcionMarcada: { color: tema.fondo, fontWeight: "700" },
   error: { color: tema.error, fontSize: 12, marginTop: 6 },
-  avisoRetirado: { color: tema.oroSuave, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  avisoRetirado: { color: tema.textoSecundario, fontSize: 13, lineHeight: 19, marginTop: 8 },
   zonaRetirada: { marginTop: 20 },
   panel: {
     borderColor: tema.error,

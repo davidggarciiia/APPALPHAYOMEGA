@@ -95,7 +95,7 @@ export default function Perfil(): React.JSX.Element {
   if (fase === "cargando") {
     return (
       <View style={estilos.centrado}>
-        <ActivityIndicator color={tema.oro} accessibilityLabel="Cargando tu perfil" />
+        <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando tu perfil" />
       </View>
     )
   }
@@ -211,9 +211,9 @@ const estilos = StyleSheet.create({
   },
   titulo: { color: tema.texto, fontSize: 18, fontWeight: "600" },
   detalle: { color: tema.textoTenue, fontSize: 12, marginTop: 6, lineHeight: 17 },
-  etiquetaFija: { color: tema.oroSuave, fontSize: 11, letterSpacing: 2, marginTop: 20 },
+  etiquetaFija: { color: tema.textoSecundario, fontSize: 11, letterSpacing: 2, marginTop: 20 },
   valorFijo: { color: tema.texto, fontSize: 16, marginTop: 6 },
-  confirmacion: { color: tema.oroSuave, fontSize: 14, textAlign: "center", marginTop: 16 },
+  confirmacion: { color: tema.textoSecundario, fontSize: 14, textAlign: "center", marginTop: 16 },
   volver: { alignItems: "center", marginTop: 16, paddingVertical: 12 },
   textoVolver: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
 })

@@ -49,7 +49,7 @@ export default function Login(): React.JSX.Element {
   })
 
   return (
-    <PantallaDeFormulario>
+    <PantallaDeFormulario acceso>
       {sesionCaducada && <AvisoDeError mensaje="Tu sesión ha caducado. Entra otra vez." />}
 
       <Controller

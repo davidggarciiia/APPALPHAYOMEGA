@@ -1,5 +1,7 @@
+import marca from "../../assets/marca.png"
 import type { ReactNode } from "react"
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -25,20 +27,34 @@ import { tema } from "../tema"
  * abierto. Sin eso, el primer toque solo cierra el teclado y el usuario cree que
  * el boton no funciona.
  */
-export function PantallaDeFormulario({ children }: { children: ReactNode }): React.JSX.Element {
+export function PantallaDeFormulario({
+  children,
+  acceso = false,
+}: {
+  children: ReactNode
+  acceso?: boolean
+}): React.JSX.Element {
   return (
-    <SafeAreaView style={estilos.pantalla}>
+    <SafeAreaView
+      edges={acceso ? undefined : ["left", "right"]}
+      style={[estilos.pantalla, acceso && estilos.acceso]}
+    >
       <KeyboardAvoidingView
         style={estilos.flexible}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
-          contentContainerStyle={estilos.contenido}
+          contentContainerStyle={[estilos.contenido, acceso && estilos.contenidoAcceso]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
-          <Text style={estilos.marca}>ALPHA &amp; OMEGA</Text>
-          <Text style={estilos.lema}>TRAINING</Text>
+          {acceso && (
+            <View style={estilos.identidad}>
+              <Image source={marca} style={estilos.logo} accessibilityLabel="Alpha & Omega" />
+              <Text style={estilos.marca}>ALPHA &amp; OMEGA</Text>
+              <Text style={estilos.lema}>TRAINING</Text>
+            </View>
+          )}
           <View style={estilos.tarjeta}>{children}</View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -100,7 +116,7 @@ export function BotonPrincipal({
 /**
  * Acción secundaria: cancelar, volver, reenviar.
  *
- * Existe porque hasta ahora solo había un botón, el de oro. Cuando todos los
+ * Cuando todos los
  * botones de una pantalla se ven igual, el que da de baja a alguien se pulsa por
  * error tarde o temprano.
  */
@@ -108,26 +124,31 @@ export function BotonSecundario({
   texto,
   onPress,
   ocupado = false,
+  deshabilitado = false,
 }: {
   texto: string
   onPress: () => void
   ocupado?: boolean
+  deshabilitado?: boolean
 }): React.JSX.Element {
   return (
     <Pressable
-      style={({ pressed }) => [estilos.secundario, (pressed || ocupado) && estilos.botonPulsado]}
+      style={({ pressed }) => [
+        estilos.secundario,
+        (pressed || ocupado || deshabilitado) && estilos.botonPulsado,
+      ]}
       onPress={onPress}
-      disabled={ocupado}
+      disabled={ocupado || deshabilitado}
       accessibilityRole="button"
       accessibilityLabel={texto}
-      accessibilityState={{ disabled: ocupado, busy: ocupado }}
+      accessibilityState={{ disabled: ocupado || deshabilitado, busy: ocupado }}
     >
       <Text style={estilos.textoSecundario}>{ocupado ? "..." : texto}</Text>
     </Pressable>
   )
 }
 
-/** Acción con consecuencias. Va en rojo y nunca al lado de guardar. */
+/** Acción con consecuencias, identificada por su texto y separada de guardar. */
 export function BotonDestructivo({
   texto,
   onPress,
@@ -168,33 +189,44 @@ export function AvisoDeError({ mensaje }: { mensaje: string }): React.JSX.Elemen
 const estilos = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: tema.fondo },
   flexible: { flex: 1 },
-  contenido: { flexGrow: 1, justifyContent: "center", padding: 24 },
+  contenido: { flexGrow: 1, padding: 16, width: "100%", maxWidth: 820, alignSelf: "center" },
+  acceso: { backgroundColor: tema.cabecera },
+  contenidoAcceso: { justifyContent: "center", maxWidth: 460, paddingVertical: 32 },
+  identidad: { alignItems: "center", marginBottom: 28 },
+  logo: {
+    width: 116,
+    height: 116,
+    tintColor: tema.sobreAcento,
+    resizeMode: "contain",
+    marginBottom: 12,
+  },
   marca: {
-    color: tema.oro,
-    fontSize: 24,
+    color: tema.sobreAcento,
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 32,
     letterSpacing: 4,
     fontWeight: "700",
     textAlign: "center",
   },
   lema: {
-    color: tema.textoTenue,
+    color: "#BDBDBD",
     fontSize: 12,
     letterSpacing: 8,
     marginTop: 4,
-    marginBottom: 40,
+    marginBottom: 0,
     textAlign: "center",
   },
   tarjeta: {
     backgroundColor: tema.superficie,
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 20,
   },
   etiqueta: {
-    color: tema.oroSuave,
+    color: tema.textoSecundario,
     fontSize: 11,
-    letterSpacing: 2,
+    letterSpacing: 0.7,
     marginBottom: 6,
     marginTop: 12,
   },
@@ -202,39 +234,62 @@ const estilos = StyleSheet.create({
     backgroundColor: tema.fondo,
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     color: tema.texto,
     fontSize: 16,
+    fontFamily: tema.fuenteTexto,
+    minHeight: 52,
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
   error: { color: tema.error, fontSize: 12, marginTop: 6 },
   errorGeneral: { color: tema.error, fontSize: 14, marginTop: 16, textAlign: "center" },
   boton: {
-    backgroundColor: tema.oro,
-    borderRadius: 8,
+    backgroundColor: tema.acento,
+    borderRadius: 14,
     marginTop: 24,
     paddingVertical: 14,
+    paddingHorizontal: 14,
+    minHeight: 48,
+    justifyContent: "center",
     alignItems: "center",
   },
   botonPulsado: { opacity: 0.75 },
-  textoBoton: { color: tema.fondo, fontSize: 14, fontWeight: "700", letterSpacing: 2 },
+  textoBoton: {
+    color: tema.sobreAcento,
+    fontFamily: tema.fuenteBoton,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.7,
+  },
   secundario: {
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     marginTop: 12,
     paddingVertical: 14,
+    paddingHorizontal: 14,
+    minHeight: 48,
+    justifyContent: "center",
     alignItems: "center",
   },
-  textoSecundario: { color: tema.texto, fontSize: 13, fontWeight: "600", letterSpacing: 2 },
+  textoSecundario: {
+    color: tema.texto,
+    fontFamily: tema.fuenteBoton,
+    fontSize: 13,
+    fontWeight: "600",
+    letterSpacing: 0.7,
+  },
   destructivo: {
     borderColor: tema.error,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     marginTop: 12,
     paddingVertical: 14,
+    paddingHorizontal: 14,
+    minHeight: 48,
+    justifyContent: "center",
     alignItems: "center",
   },
-  textoDestructivo: { color: tema.error, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
+  textoDestructivo: { color: tema.error, fontSize: 13, fontWeight: "700", letterSpacing: 0.7 },
 })

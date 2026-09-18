@@ -150,7 +150,11 @@ export default function Nutricionista(): React.JSX.Element {
   if (fase === "cargando") {
     return (
       <View style={estilos.centrado}>
-        <ActivityIndicator color={tema.oro} size="large" accessibilityLabel="Cargando el reparto" />
+        <ActivityIndicator
+          color={tema.acento}
+          size="large"
+          accessibilityLabel="Cargando el reparto"
+        />
       </View>
     )
   }
@@ -256,7 +260,7 @@ export default function Nutricionista(): React.JSX.Element {
                 value={tiene}
                 onValueChange={(dar) => void alternar(item, dar)}
                 disabled={moviendo !== null}
-                trackColor={{ false: tema.borde, true: tema.oro }}
+                trackColor={{ false: tema.borde, true: tema.acento }}
                 thumbColor={tema.texto}
                 accessibilityLabel={`${nombre}. ${tiene ? "El nutricionista lo ve" : "El nutricionista no lo ve"}`}
               />
@@ -303,7 +307,7 @@ const estilos = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
-  titulo: { color: tema.oro, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
+  titulo: { color: tema.acento, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
   volver: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
   ficha: {
     marginHorizontal: 20,

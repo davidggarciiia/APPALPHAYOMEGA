@@ -1,10 +1,15 @@
+import barlow from "../assets/fonts/Barlow-Regular.ttf"
+import barlowBold from "../assets/fonts/Barlow-Bold.ttf"
+import barlowCondensed from "../assets/fonts/BarlowCondensed-Bold.ttf"
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
+import { useFonts } from "expo-font"
 import { useEffect } from "react"
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
 
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
+import { Armazon } from "../src/componentes/armazon"
 
 /** Rutas a las que se llega sin sesion. Activar y recuperar estan aqui porque,
  *  por definicion, quien activa o rescata su cuenta todavia no tiene ninguna. */
@@ -41,7 +46,7 @@ function Enrutador(): React.JSX.Element {
     return (
       <View style={estilos.centrado}>
         <ActivityIndicator
-          color={tema.oro}
+          color={tema.acento}
           size="large"
           accessibilityLabel="Comprobando tu sesión"
         />
@@ -69,16 +74,29 @@ function Enrutador(): React.JSX.Element {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: tema.fondo },
-      }}
-    />
+    <Armazon>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: tema.fondo },
+        }}
+      />
+    </Armazon>
   )
 }
 
 export default function DisposicionRaiz(): React.JSX.Element {
+  const [fuentes, errorFuentes] = useFonts({
+    Barlow: barlow,
+    BarlowBold: barlowBold,
+    BarlowCondensed: barlowCondensed,
+  })
+  if (!fuentes && !errorFuentes)
+    return (
+      <View style={estilos.centrado}>
+        <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando aplicación" />
+      </View>
+    )
   return (
     <ProveedorDeSesion>
       <StatusBar style="light" />
@@ -95,11 +113,17 @@ const estilos = StyleSheet.create({
     backgroundColor: tema.fondo,
     padding: 24,
   },
-  marca: { color: tema.oro, fontSize: 20, letterSpacing: 4, fontWeight: "700", marginBottom: 32 },
+  marca: {
+    color: tema.acento,
+    fontSize: 20,
+    letterSpacing: 4,
+    fontWeight: "700",
+    marginBottom: 32,
+  },
   aviso: { color: tema.texto, fontSize: 16, textAlign: "center" },
   detalle: { color: tema.textoTenue, fontSize: 13, textAlign: "center", marginTop: 8 },
   boton: {
-    borderColor: tema.oro,
+    borderColor: tema.acento,
     borderWidth: 1,
     borderRadius: 8,
     marginTop: 28,
@@ -107,5 +131,5 @@ const estilos = StyleSheet.create({
     paddingVertical: 14,
   },
   botonPulsado: { opacity: 0.6 },
-  textoBoton: { color: tema.oro, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
+  textoBoton: { color: tema.acento, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
 })

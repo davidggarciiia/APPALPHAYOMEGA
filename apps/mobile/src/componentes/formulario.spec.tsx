@@ -34,3 +34,14 @@ it("un campo se encuentra por su etiqueta y comunica el error al usuario", async
   expect(screen.getByDisplayValue("12,5")).toBeOnTheScreen()
   expect(screen.getByRole("alert")).toHaveTextContent("Revisa el peso")
 })
+
+it("un botón deshabilitado conserva su texto sin anunciar una carga", async () => {
+  const subir = jest.fn()
+  await render(<BotonSecundario texto="Subir ejercicio" onPress={subir} deshabilitado />)
+  const boton = screen.getByRole("button", { name: "Subir ejercicio" })
+  expect(boton).toBeDisabled()
+  expect(screen.getByText("Subir ejercicio")).toBeOnTheScreen()
+  expect(boton.props.accessibilityState.busy).toBe(false)
+  await fireEvent.press(boton)
+  expect(subir).not.toHaveBeenCalled()
+})

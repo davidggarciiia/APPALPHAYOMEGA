@@ -33,8 +33,14 @@ const estilos = StyleSheet.create({
     backgroundColor: tema.fondo,
     padding: 24,
   },
-  marca: { color: tema.oro, fontSize: 20, letterSpacing: 4, fontWeight: "700", marginBottom: 32 },
+  marca: {
+    color: tema.acento,
+    fontSize: 20,
+    letterSpacing: 4,
+    fontWeight: "700",
+    marginBottom: 32,
+  },
   titulo: { color: tema.texto, fontSize: 18, textAlign: "center" },
   detalle: { color: tema.textoTenue, fontSize: 13, textAlign: "center", marginTop: 8 },
-  enlace: { color: tema.oro, fontSize: 14, marginTop: 28, letterSpacing: 1 },
+  enlace: { color: tema.acento, fontSize: 14, marginTop: 28, letterSpacing: 1 },
 })

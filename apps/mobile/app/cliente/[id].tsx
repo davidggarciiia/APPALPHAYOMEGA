@@ -256,7 +256,11 @@ export default function FichaDeCliente(): React.JSX.Element {
   if (fase === "cargando") {
     return (
       <View style={estilos.centrado}>
-        <ActivityIndicator color={tema.oro} size="large" accessibilityLabel="Cargando la ficha" />
+        <ActivityIndicator
+          color={tema.acento}
+          size="large"
+          accessibilityLabel="Cargando la ficha"
+        />
       </View>
     )
   }
@@ -594,11 +598,11 @@ const estilos = StyleSheet.create({
   identidad: { flex: 1, gap: 4 },
   nombre: { color: tema.texto, fontSize: 20, fontWeight: "600" },
   rol: { color: tema.textoTenue, fontSize: 11, letterSpacing: 2 },
-  etiquetaFija: { color: tema.oroSuave, fontSize: 11, letterSpacing: 2, marginTop: 20 },
+  etiquetaFija: { color: tema.textoSecundario, fontSize: 11, letterSpacing: 2, marginTop: 20 },
   valorFijo: { color: tema.texto, fontSize: 16, marginTop: 6 },
   detalle: { color: tema.textoTenue, fontSize: 12, marginTop: 8, lineHeight: 17 },
   enlace: {
-    color: tema.oro,
+    color: tema.acento,
     fontSize: 12,
     letterSpacing: 2,
     fontWeight: "700",
@@ -606,7 +610,7 @@ const estilos = StyleSheet.create({
     paddingVertical: 6,
   },
   separador: { height: 1, backgroundColor: tema.borde, marginTop: 24 },
-  confirmacion: { color: tema.oroSuave, fontSize: 14, textAlign: "center", marginTop: 16 },
+  confirmacion: { color: tema.textoSecundario, fontSize: 14, textAlign: "center", marginTop: 16 },
   panel: {
     borderColor: tema.error,
     borderWidth: 1,

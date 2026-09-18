@@ -56,7 +56,7 @@ export function EditorSesion({
           <View style={{ flexDirection: "row", gap: 12 }}>
             <BotonSecundario
               texto={`Subir ${e.nombre}`}
-              ocupado={indice === 0}
+              deshabilitado={indice === 0}
               onPress={() => cambiar(moverEjercicio(valor, indice, -1))}
             />
             <BotonSecundario
@@ -110,7 +110,7 @@ export function EditorSesion({
                 />
                 <BotonSecundario
                   texto={`Quitar serie ${numero + 1} de ${e.nombre}`}
-                  ocupado={e.series.length === 1}
+                  deshabilitado={e.series.length === 1}
                   onPress={() =>
                     ejercicio(e.id, { series: e.series.filter((otra) => otra.id !== s.id) })
                   }
@@ -120,7 +120,7 @@ export function EditorSesion({
           })}
           <BotonSecundario
             texto={`Añadir serie a ${e.nombre}`}
-            ocupado={e.series.length >= 30}
+            deshabilitado={e.series.length >= 30}
             onPress={() => ejercicio(e.id, { series: [...e.series, nuevaSerie()] })}
           />
         </View>

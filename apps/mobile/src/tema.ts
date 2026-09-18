@@ -1,14 +1,16 @@
-/**
- * Identidad visual de Alpha & Omega Training, tomada de la web y del boceto.
- * Negro y oro. No se inventa nada: la marca ya existe.
- */
+/** Paleta monocroma y tipografía de la referencia aprobada. */
 export const tema = {
-  fondo: "#0A0A0A",
-  superficie: "#141414",
-  borde: "#2A2413",
-  oro: "#C9A227",
-  oroSuave: "#E0C158",
-  texto: "#F5F5F0",
-  textoTenue: "#8A8A85",
-  error: "#C24444",
+  fondo: "#F5F5F5",
+  superficie: "#FFFFFF",
+  borde: "#E3E3E3",
+  acento: "#111111",
+  sobreAcento: "#FFFFFF",
+  cabecera: "#080808",
+  texto: "#141414",
+  textoSecundario: "#454545",
+  textoTenue: "#626262",
+  error: "#252525",
+  fuenteTitulo: "BarlowCondensed",
+  fuenteTexto: "Barlow",
+  fuenteBoton: "BarlowBold",
 } as const

@@ -121,7 +121,7 @@ export default function Inicio(): React.JSX.Element {
 const estilos = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: tema.fondo },
   contenido: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  marca: { color: tema.oro, fontSize: 24, letterSpacing: 4, fontWeight: "700" },
+  marca: { color: tema.acento, fontSize: 24, letterSpacing: 4, fontWeight: "700" },
   lema: { color: tema.textoTenue, fontSize: 12, letterSpacing: 8, marginTop: 4, marginBottom: 40 },
   tarjeta: {
     alignSelf: "stretch",
@@ -132,13 +132,13 @@ const estilos = StyleSheet.create({
     padding: 20,
     gap: 6,
   },
-  titulo: { color: tema.oroSuave, fontSize: 11, letterSpacing: 2, marginBottom: 8 },
+  titulo: { color: tema.textoSecundario, fontSize: 11, letterSpacing: 2, marginBottom: 8 },
   valor: { color: tema.texto, fontSize: 18 },
   secundario: { color: tema.textoTenue, fontSize: 13 },
   perfil: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2, marginTop: 4 },
   botonPrincipal: {
     alignSelf: "stretch",
-    backgroundColor: tema.oro,
+    backgroundColor: tema.acento,
     borderRadius: 8,
     marginTop: 24,
     paddingVertical: 14,

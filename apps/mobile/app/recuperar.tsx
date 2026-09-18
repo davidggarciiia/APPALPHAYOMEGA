@@ -51,7 +51,7 @@ export default function Recuperar(): React.JSX.Element {
 
   if (enviado) {
     return (
-      <PantallaDeFormulario>
+      <PantallaDeFormulario acceso>
         <Text style={estilos.titulo}>Mira tu correo</Text>
         <Text style={estilos.detalle}>
           Si esa dirección tiene cuenta, le acaba de llegar un enlace para elegir una contraseña
@@ -75,7 +75,7 @@ export default function Recuperar(): React.JSX.Element {
   }
 
   return (
-    <PantallaDeFormulario>
+    <PantallaDeFormulario acceso>
       <Text style={estilos.titulo}>¿Has olvidado tu contraseña?</Text>
       <Text style={estilos.detalle}>
         Escribe tu correo y te mandamos un enlace para elegir una nueva.

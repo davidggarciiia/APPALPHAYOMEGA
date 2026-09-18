@@ -182,7 +182,7 @@ export function Catalogo({
           autoCapitalize="none"
           returnKeyType="search"
         />
-        {actualizando && <ActivityIndicator color={tema.oro} style={estilos.girando} />}
+        {actualizando && <ActivityIndicator color={tema.acento} style={estilos.girando} />}
       </View>
 
       {/* Doce filtros en vertical se comen media pantalla; en una fila se deslizan. */}
@@ -218,7 +218,7 @@ export function Catalogo({
       {fase === "cargando" ? (
         <View style={estilos.centrado}>
           <ActivityIndicator
-            color={tema.oro}
+            color={tema.acento}
             size="large"
             accessibilityLabel="Cargando el catálogo"
           />
@@ -255,8 +255,8 @@ export function Catalogo({
                 setRefrescando(true)
                 setIntento((n) => n + 1)
               }}
-              tintColor={tema.oro}
-              colors={[tema.oro]}
+              tintColor={tema.acento}
+              colors={[tema.acento]}
             />
           }
           renderItem={({ item }) => (
@@ -360,11 +360,11 @@ const estilos = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
-  titulo: { color: tema.oro, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
+  titulo: { color: tema.acento, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
   accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
-  nuevo: { color: tema.oro, fontSize: 12, letterSpacing: 2, fontWeight: "700" },
+  nuevo: { color: tema.acento, fontSize: 12, letterSpacing: 2, fontWeight: "700" },
   retirados: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
-  retiradosPuesto: { color: tema.oro, fontWeight: "700" },
+  retiradosPuesto: { color: tema.acento, fontWeight: "700" },
   buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, gap: 10 },
   campo: {
     flex: 1,
@@ -386,7 +386,7 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  filtroPuesto: { backgroundColor: tema.oro, borderColor: tema.oro },
+  filtroPuesto: { backgroundColor: tema.acento, borderColor: tema.acento },
   textoFiltro: { color: tema.textoTenue, fontSize: 11, letterSpacing: 1, fontWeight: "600" },
   textoFiltroPuesto: { color: tema.fondo },
   lista: { padding: 20, gap: 10, flexGrow: 1 },
@@ -399,7 +399,7 @@ const estilos = StyleSheet.create({
     gap: 3,
   },
   filaApagada: { opacity: 0.55 },
-  filaPulsada: { borderColor: tema.oro },
+  filaPulsada: { borderColor: tema.acento },
   nombre: { color: tema.texto, fontSize: 16 },
   grupos: { color: tema.textoTenue, fontSize: 12 },
   marcaRetirado: { color: tema.error, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
@@ -414,7 +414,7 @@ const estilos = StyleSheet.create({
   },
   pie: { color: tema.textoTenue, fontSize: 12, textAlign: "center", marginTop: 12, lineHeight: 18 },
   boton: {
-    borderColor: tema.oro,
+    borderColor: tema.acento,
     borderWidth: 1,
     borderRadius: 8,
     marginTop: 24,
@@ -422,5 +422,5 @@ const estilos = StyleSheet.create({
     paddingVertical: 14,
   },
   pulsado: { opacity: 0.6 },
-  textoBoton: { color: tema.oro, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
+  textoBoton: { color: tema.acento, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
 })

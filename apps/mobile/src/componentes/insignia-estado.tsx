@@ -30,10 +30,10 @@ export function InsigniaDeEstado({ estado }: { estado: EstadoUsuario }): React.J
 const estilos = StyleSheet.create({
   insignia: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
   texto: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
-  pendiente: { backgroundColor: "#2A2413", borderColor: tema.oro },
+  pendiente: { backgroundColor: tema.fondo, borderColor: tema.acento },
   activo: { backgroundColor: "transparent", borderColor: tema.borde },
   desactivado: { backgroundColor: "transparent", borderColor: tema.borde },
-  texto_pendiente: { color: tema.oroSuave },
+  texto_pendiente: { color: tema.textoSecundario },
   texto_activo: { color: tema.texto },
   texto_desactivado: { color: tema.textoTenue },
 })
