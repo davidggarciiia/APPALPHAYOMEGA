@@ -22,7 +22,7 @@ import {
 } from "@alpha-omega/shared"
 import { z } from "zod"
 
-import { ZodPipe } from "../comun/zod.pipe.js"
+import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
 import type { PeticionAutenticada } from "../identity/peticion.js"
 import { Roles } from "../identity/roles.decorator.js"
 
@@ -50,7 +50,7 @@ export class CatalogoEjerciciosController {
   @Get()
   async buscar(
     @Req() peticion: PeticionAutenticada,
-    @Query(new ZodPipe(BuscarEjerciciosSchema)) filtros: BuscarEjercicios,
+    @Query(new EntradaApiPipe(BuscarEjerciciosSchema)) filtros: BuscarEjercicios,
   ): Promise<ListadoEjercicios> {
     // El guard de roles ya ha exigido un usuario. Si faltara, se trata como el
     // rol que menos ve.
@@ -59,21 +59,23 @@ export class CatalogoEjerciciosController {
 
   @Roles("entrenador")
   @Post()
-  async crear(@Body(new ZodPipe(CrearEjercicioSchema)) datos: CrearEjercicio): Promise<Ejercicio> {
+  async crear(
+    @Body(new EntradaApiPipe(CrearEjercicioSchema)) datos: CrearEjercicio,
+  ): Promise<Ejercicio> {
     return this.catalogo.crear(datos)
   }
 
   @Roles("cliente", "entrenador")
   @Get(":id")
-  async leer(@Param("id", new ZodPipe(IdEjercicioSchema)) id: string): Promise<Ejercicio> {
+  async leer(@Param("id", new EntradaApiPipe(IdEjercicioSchema)) id: string): Promise<Ejercicio> {
     return this.catalogo.leer(id)
   }
 
   @Roles("entrenador")
   @Patch(":id")
   async editar(
-    @Param("id", new ZodPipe(IdEjercicioSchema)) id: string,
-    @Body(new ZodPipe(EditarEjercicioSchema)) datos: EditarEjercicio,
+    @Param("id", new EntradaApiPipe(IdEjercicioSchema)) id: string,
+    @Body(new EntradaApiPipe(EditarEjercicioSchema)) datos: EditarEjercicio,
   ): Promise<Ejercicio> {
     return this.catalogo.editar(id, datos)
   }
@@ -82,14 +84,18 @@ export class CatalogoEjerciciosController {
   @Roles("entrenador")
   @Post(":id/retirar")
   @HttpCode(HttpStatus.OK)
-  async retirar(@Param("id", new ZodPipe(IdEjercicioSchema)) id: string): Promise<Ejercicio> {
+  async retirar(
+    @Param("id", new EntradaApiPipe(IdEjercicioSchema)) id: string,
+  ): Promise<Ejercicio> {
     return this.catalogo.retirar(id)
   }
 
   @Roles("entrenador")
   @Post(":id/reponer")
   @HttpCode(HttpStatus.OK)
-  async reponer(@Param("id", new ZodPipe(IdEjercicioSchema)) id: string): Promise<Ejercicio> {
+  async reponer(
+    @Param("id", new EntradaApiPipe(IdEjercicioSchema)) id: string,
+  ): Promise<Ejercicio> {
     return this.catalogo.reponer(id)
   }
 }

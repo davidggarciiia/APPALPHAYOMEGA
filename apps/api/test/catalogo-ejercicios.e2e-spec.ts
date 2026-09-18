@@ -92,6 +92,25 @@ describe("Catalogo de ejercicios", () => {
     await app.close()
   })
 
+  it("devuelve el contrato común de validación en lugar de un cuerpo de identidad", async () => {
+    const respuesta = await request(app.getHttpServer())
+      .post("/ejercicios")
+      .set(como("entrenador"))
+      .send({ nombre: "" })
+      .expect(400)
+    expect(ErrorDeApiSchema.parse(respuesta.body).codigo).toBe("solicitud_invalida")
+  })
+
+  it("guarda nombres válidos cuya normalización Unicode ocupa más caracteres", async () => {
+    const nombre = `${PREFIJO}${"İ".repeat(120 - PREFIJO.length)}`
+    const respuesta = await request(app.getHttpServer())
+      .post("/ejercicios")
+      .set(como("entrenador"))
+      .send({ ...ficha("unicode"), nombre })
+      .expect(201)
+    expect(EjercicioSchema.parse(respuesta.body).nombre).toBe(nombre)
+  })
+
   describe("quien puede que", () => {
     it("sin sesion no se obtiene ni se escribe nada", async () => {
       const servidor = app.getHttpServer()

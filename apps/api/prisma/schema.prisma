@@ -216,7 +216,7 @@ enum EstadoEjercicio {
 model Ejercicio {
   id                String          @id @default(uuid())
   nombre            String          @db.VarChar(120)
-  nombreNormalizado String          @unique @db.VarChar(120)
+  nombreNormalizado String          @unique
   grupoPrincipal    GrupoMuscular
   instrucciones     String          @db.VarChar(4000)
   estado            EstadoEjercicio @default(publicado)
