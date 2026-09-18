@@ -328,6 +328,20 @@ export default function FichaDeCliente(): React.JSX.Element {
         <InsigniaDeEstado estado={ficha.estado} />
       </View>
 
+      {ficha.rol === "cliente" &&
+        sesion.fase === "dentro" &&
+        sesion.usuario.rol === "entrenador" && (
+          <BotonPrincipal
+            texto="Entrenamientos"
+            onPress={() =>
+              router.push({
+                pathname: "/entrenador/cliente/[id]/entrenos",
+                params: { id: ficha.id },
+              })
+            }
+          />
+        )}
+
       <Text style={estilos.etiquetaFija}>CORREO</Text>
       <Text style={estilos.valorFijo}>{ficha.email}</Text>
 

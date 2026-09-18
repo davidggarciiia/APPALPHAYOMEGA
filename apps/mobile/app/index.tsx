@@ -37,6 +37,15 @@ export default function Inicio(): React.JSX.Element {
 
         {/* Esconder el boton es comodidad, no seguridad: quien entre a la ruta a
             mano se encuentra con el 403 del servidor, que es quien decide. */}
+        {usuario.rol === "cliente" && (
+          <Pressable
+            style={estilos.botonPrincipal}
+            accessibilityRole="button"
+            onPress={() => router.push("/entrenamiento")}
+          >
+            <Text style={estilos.textoPrincipal}>MIS ENTRENAMIENTOS</Text>
+          </Pressable>
+        )}
         {usuario.rol === "entrenador" && (
           <>
             <Pressable
