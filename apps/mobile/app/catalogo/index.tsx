@@ -20,7 +20,6 @@ export default function RutaCatalogo(): React.JSX.Element {
       key={visita}
       api={api}
       onNuevo={() => router.push("/catalogo/nuevo")}
-      onVolver={() => router.replace("/")}
       onAbrir={(id) => router.push({ pathname: "/catalogo/[id]", params: { id } })}
     />
   )

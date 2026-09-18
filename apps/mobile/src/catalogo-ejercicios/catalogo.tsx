@@ -57,12 +57,10 @@ export function Catalogo({
   api,
   onNuevo,
   onAbrir,
-  onVolver,
 }: {
   api: ApiDeCatalogo
   onNuevo: () => void
   onAbrir: (id: string) => void
-  onVolver?: () => void
 }): React.JSX.Element {
   const [texto, setTexto] = useState("")
   const [busqueda, setBusqueda] = useState("")
@@ -131,17 +129,7 @@ export function Catalogo({
   const recortada = ejercicios.length < total
 
   return (
-    <SafeAreaView style={estilos.pantalla}>
-      {onVolver && (
-        <Pressable
-          onPress={onVolver}
-          accessibilityRole="button"
-          accessibilityLabel="Volver al inicio"
-          style={estilos.buscador}
-        >
-          <Text style={estilos.nuevo}>VOLVER AL INICIO</Text>
-        </Pressable>
-      )}
+    <SafeAreaView edges={["left", "right"]} style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>CATÁLOGO</Text>
         <View style={estilos.accionesCabecera}>
@@ -356,51 +344,53 @@ const estilos = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
   },
-  titulo: { color: tema.acento, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
+  titulo: { color: tema.texto, fontSize: 26, fontFamily: tema.fuenteTitulo },
   accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
   nuevo: { color: tema.acento, fontSize: 12, letterSpacing: 2, fontWeight: "700" },
   retirados: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
   retiradosPuesto: { color: tema.acento, fontWeight: "700" },
-  buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, gap: 10 },
+  buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 },
   campo: {
     flex: 1,
     backgroundColor: tema.superficie,
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     color: tema.texto,
     fontSize: 15,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   girando: { width: 20 },
-  filtros: { gap: 8, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
+  filtros: { gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   filtro: {
     borderColor: tema.borde,
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   filtroPuesto: { backgroundColor: tema.acento, borderColor: tema.acento },
   textoFiltro: { color: tema.textoTenue, fontSize: 11, letterSpacing: 1, fontWeight: "600" },
   textoFiltroPuesto: { color: tema.fondo },
-  lista: { padding: 20, gap: 10, flexGrow: 1 },
+  lista: { padding: 16, gap: 12, flexGrow: 1 },
   fila: {
     backgroundColor: tema.superficie,
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 18,
     padding: 14,
     gap: 3,
   },
   filaApagada: { opacity: 0.55 },
   filaPulsada: { borderColor: tema.acento },
-  nombre: { color: tema.texto, fontSize: 16 },
+  nombre: { color: tema.texto, fontSize: 17, fontFamily: tema.fuenteBoton },
   grupos: { color: tema.textoTenue, fontSize: 12 },
   marcaRetirado: { color: tema.error, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
   centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
@@ -416,7 +406,7 @@ const estilos = StyleSheet.create({
   boton: {
     borderColor: tema.acento,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     marginTop: 24,
     paddingHorizontal: 32,
     paddingVertical: 14,

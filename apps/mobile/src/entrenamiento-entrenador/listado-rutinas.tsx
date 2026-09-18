@@ -53,9 +53,17 @@ export function ListadoDeRutinas({
       {datos?.rutinas.map((r) => (
         <View
           key={r.id}
-          style={{ padding: 14, borderWidth: 1, borderColor: tema.borde, borderRadius: 18 }}
+          style={{
+            padding: 18,
+            backgroundColor: tema.superficie,
+            borderWidth: 1,
+            borderColor: tema.borde,
+            borderRadius: 18,
+          }}
         >
-          <Text style={{ color: tema.texto, fontWeight: "700" }}>{r.nombre}</Text>
+          <Text style={{ color: tema.texto, fontFamily: tema.fuenteTitulo, fontSize: 28 }}>
+            {r.nombre}
+          </Text>
           <Text style={{ color: tema.textoTenue }}>{r.patron.sesiones.length} sesiones</Text>
           <BotonSecundario texto={`Elegir ${r.nombre}`} onPress={() => elegir(r)} />
         </View>

@@ -142,7 +142,7 @@ export default function Cartera(): React.JSX.Element {
   const recortada = clientes.length < total
 
   return (
-    <SafeAreaView style={estilos.pantalla}>
+    <SafeAreaView edges={["left", "right"]} style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>TU CARTERA</Text>
         <View style={estilos.accionesCabecera}>
@@ -155,15 +155,6 @@ export default function Cartera(): React.JSX.Element {
             hitSlop={12}
           >
             <Text style={estilos.nuevo}>+ NUEVO</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              router.back()
-            }}
-            accessibilityRole="button"
-            hitSlop={12}
-          >
-            <Text style={estilos.volver}>VOLVER</Text>
           </Pressable>
         </View>
       </View>
@@ -299,6 +290,9 @@ function Fila({
       accessibilityLabel={`${nombreCompleto}. ${ETIQUETA_DE_ESTADO[cliente.estado]}. ${cliente.email}`}
       accessibilityHint="Abre su ficha"
     >
+      <View style={estilos.avatar}>
+        <Text style={estilos.inicial}>{cliente.nombre.slice(0, 1).toUpperCase()}</Text>
+      </View>
       <View style={estilos.datos}>
         <Text style={estilos.nombre} numberOfLines={1}>
           {nombreCompleto}
@@ -319,32 +313,32 @@ const estilos = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
   },
-  titulo: { color: tema.acento, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
+  titulo: { color: tema.texto, fontSize: 26, fontFamily: tema.fuenteTitulo },
   accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
   nuevo: { color: tema.acento, fontSize: 12, letterSpacing: 2, fontWeight: "700" },
-  volver: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
-  buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, gap: 10 },
+  buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 },
   campo: {
     flex: 1,
     backgroundColor: tema.superficie,
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     color: tema.texto,
     fontSize: 15,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   girando: { width: 20 },
   filtros: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 12,
   },
   filtro: {
@@ -352,12 +346,14 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 10,
+    minHeight: 40,
+    justifyContent: "center",
   },
   filtroPuesto: { backgroundColor: tema.acento, borderColor: tema.acento },
   textoFiltro: { color: tema.textoTenue, fontSize: 11, letterSpacing: 1, fontWeight: "600" },
   textoFiltroPuesto: { color: tema.fondo },
-  lista: { padding: 20, gap: 10, flexGrow: 1 },
+  lista: { padding: 16, gap: 12, flexGrow: 1 },
   fila: {
     flexDirection: "row",
     alignItems: "center",
@@ -365,14 +361,23 @@ const estilos = StyleSheet.create({
     backgroundColor: tema.superficie,
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 18,
     padding: 14,
     gap: 12,
   },
   filaApagada: { opacity: 0.55 },
   filaPulsada: { borderColor: tema.acento },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: tema.fondo,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inicial: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
   datos: { flex: 1, gap: 3 },
-  nombre: { color: tema.texto, fontSize: 16 },
+  nombre: { color: tema.texto, fontSize: 17, fontFamily: tema.fuenteBoton },
   correo: { color: tema.textoTenue, fontSize: 12 },
   centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   aviso: { color: tema.texto, fontSize: 15, textAlign: "center" },
@@ -387,7 +392,7 @@ const estilos = StyleSheet.create({
   boton: {
     borderColor: tema.acento,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
     marginTop: 24,
     paddingHorizontal: 32,
     paddingVertical: 14,
