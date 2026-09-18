@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { AppState, Text, View } from "react-native"
-import type { ListadoSesiones } from "@alpha-omega/shared"
+import { ListadoSesionesSchema, type ListadoSesiones } from "@alpha-omega/shared"
+import { almacenDispositivo } from "./almacen-dispositivo"
 import type { ApiEntrenamiento } from "./api"
 import { fechaLegible, lunesDeSemana, sumarDias } from "./fechas"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
@@ -11,10 +12,12 @@ export function SemanaEntrenamiento({
   clienteId,
   api,
   abrir,
+  copiaLocal = false,
 }: {
   clienteId: string
   api: ApiEntrenamiento
   abrir: (id: string) => void
+  copiaLocal?: boolean
 }): React.JSX.Element {
   const [semana, setSemana] = useState(lunesDeSemana)
   const [listado, setListado] = useState<ListadoSesiones | null>(null)
@@ -32,11 +35,19 @@ export function SemanaEntrenamiento({
         enCurso = true
         try {
           const datos = await api.semana(clienteId, semana, cancelacion.signal)
+          if (vigente && copiaLocal)
+            await almacenDispositivo.guardar(clienteId, `semana-${semana}`, datos)
           if (vigente) {
             setListado(datos)
             setError("")
           }
         } catch {
+          if (vigente && copiaLocal) {
+            const copia = await almacenDispositivo
+              .leer(clienteId, `semana-${semana}`, ListadoSesionesSchema)
+              .catch(() => null)
+            if (vigente && copia) setListado(copia)
+          }
           if (vigente)
             setError("No se pudo actualizar la semana. Revisa la conexión y vuelve a intentarlo.")
         } finally {
@@ -54,7 +65,7 @@ export function SemanaEntrenamiento({
         clearInterval(reloj)
         actividad.remove()
       }
-    }, [api, clienteId, semana, intento]),
+    }, [api, clienteId, semana, intento, copiaLocal]),
   )
   return (
     <View style={{ gap: 14 }}>

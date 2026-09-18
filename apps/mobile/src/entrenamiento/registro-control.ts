@@ -1,0 +1,283 @@
+import { EnviarEntrenamientoSchema, type ResultadoEntrenamiento } from "@alpha-omega/shared"
+import type { ApiEntrenamiento } from "./api"
+import type { AlmacenLocal } from "./almacen-local"
+import {
+  DocumentoSesionSchema,
+  claveSesion,
+  nuevoDocumento,
+  type DocumentoSesion,
+} from "./documento-local"
+import { desdePrescripcion, registroParaEnviar, type EdicionRegistro } from "./registro-modelo"
+import { ErrorDelServidor } from "../lib/http"
+
+/** Una instancia por pantalla; al cerrarla ninguna respuesta puede escribir detrás de la siguiente. */
+export class RegistroControl {
+  documento: DocumentoSesion | null = null
+  guardando = 0
+  errorLocal = false
+  conflicto = false
+  sinRed = false
+  private vigente = true
+  private enCurso: Promise<void> | null = null
+  private enviando = false
+  private lectura = 0
+  constructor(
+    private cuenta: string,
+    private id: string,
+    private api: ApiEntrenamiento,
+    private almacen: AlmacenLocal,
+    private uuid: () => string,
+    private cambio: () => void,
+  ) {}
+
+  cerrar(): void {
+    this.vigente = false
+  }
+  private exigir(): DocumentoSesion {
+    if (!this.vigente || !this.documento) throw new Error("La sesión no está abierta")
+    return this.documento
+  }
+  private async persistir(): Promise<void> {
+    const datos = this.exigir()
+    this.guardando++
+    this.cambio()
+    try {
+      await this.almacen.guardar(this.cuenta, claveSesion(this.id), datos)
+      this.errorLocal = false
+    } catch (error) {
+      this.errorLocal = true
+      throw error
+    } finally {
+      this.guardando--
+      if (this.vigente) this.cambio()
+    }
+  }
+  async abrir(): Promise<void> {
+    const local = await this.almacen.leer(this.cuenta, claveSesion(this.id), DocumentoSesionSchema)
+    if (!this.vigente) return
+    if (local) {
+      this.documento = local
+      this.cambio()
+    }
+    try {
+      await this.actualizar()
+    } catch (error) {
+      if (!local) throw error
+      this.sinRed = true
+      this.cambio()
+    }
+  }
+  async actualizar(): Promise<void> {
+    const lectura = ++this.lectura
+    const sesion = await this.api.leerCliente(this.id)
+    if (!this.vigente || lectura !== this.lectura) return
+    const conocido = this.documento
+    if (
+      conocido?.resultado ||
+      (conocido &&
+        (sesion.revisionPrescripcion < conocido.sesion.revisionPrescripcion ||
+          sesion.agenda.revision < conocido.sesion.agenda.revision ||
+          (!sesion.enviadoEn && (sesion.borrador?.revision ?? 0) < conocido.revisionBorrador)))
+    )
+      return
+    this.sinRed = false
+    if (sesion.enviadoEn) {
+      if (conocido?.envioPendiente) {
+        try {
+          await this.confirmarResultado(await this.api.enviar(this.id, conocido.envioPendiente))
+          return
+        } catch (error) {
+          if (!(error instanceof ErrorDelServidor) || error.codigo !== 409) throw error
+        }
+      }
+      const resultado = await this.api.resultado(this.id)
+      if (lectura !== this.lectura) return
+      await this.confirmarResultado(resultado, true)
+      return
+    }
+    const local = this.documento
+    if (
+      local &&
+      (local.secuencia > local.sincronizada || local.pendiente || local.envioPendiente)
+    ) {
+      // El replay pendiente resuelve si este incremento remoto es nuestro.
+      if (
+        !local.pendiente &&
+        !local.envioPendiente &&
+        (sesion.revisionPrescripcion !== local.sesion.revisionPrescripcion ||
+          (sesion.borrador?.revision ?? 0) !== local.revisionBorrador)
+      ) {
+        this.conflicto = true
+      }
+      this.documento = { ...local, sesion: { ...local.sesion, agenda: sesion.agenda } }
+    } else this.documento = { ...nuevoDocumento(sesion), respaldo: local?.respaldo ?? null }
+    await this.persistir()
+  }
+  async editar(edicion: EdicionRegistro): Promise<void> {
+    const local = this.exigir()
+    if (local.resultado || local.envioPendiente || this.enviando || this.conflicto)
+      throw new Error("Resuelve la operación pendiente antes de editar")
+    this.documento = { ...local, edicion, secuencia: local.secuencia + 1 }
+    await this.persistir()
+  }
+  async reintentarGuardado(): Promise<void> {
+    await this.persistir()
+  }
+  sincronizar(): Promise<void> {
+    this.enCurso ??= this.guardar().finally(() => {
+      this.enCurso = null
+    })
+    return this.enCurso
+  }
+  private async guardar(): Promise<void> {
+    let local = this.exigir()
+    if (local.resultado || local.envioPendiente) return
+    if (this.conflicto)
+      throw new Error("Hay otra versión del entrenamiento. Elige cómo recuperarla.")
+    if (this.errorLocal) {
+      await this.persistir()
+      local = this.exigir()
+    }
+    if (!local.pendiente && local.secuencia === local.sincronizada) return
+    if (!local.pendiente) {
+      const registro = registroParaEnviar(local.sesion.prescripcion, local.edicion)
+      this.documento = {
+        ...local,
+        pendiente: {
+          secuencia: local.secuencia,
+          peticion: {
+            operacionId: this.uuid(),
+            revisionPrescripcion: local.sesion.revisionPrescripcion,
+            revisionBorrador: local.revisionBorrador,
+            registro,
+          },
+        },
+      }
+      await this.persistir()
+      local = this.exigir()
+    }
+    const pendiente = local.pendiente!
+    try {
+      const borrador = await this.api.guardar(this.id, pendiente.peticion)
+      if (!this.vigente) return
+      this.documento = {
+        ...this.exigir(),
+        pendiente: null,
+        revisionBorrador: borrador.revision,
+        sincronizada: pendiente.secuencia,
+      }
+      this.sinRed = false
+      await this.persistir()
+    } catch (error) {
+      this.falloRemoto(error)
+      throw error
+    }
+  }
+  private falloRemoto(error: unknown): void {
+    if (!this.vigente) return
+    if (error instanceof ErrorDelServidor && error.codigo === 409) this.conflicto = true
+    else this.sinRed = true
+    this.cambio()
+  }
+  async recuperarServidor(): Promise<void> {
+    const remoto = await this.api.leerCliente(this.id)
+    if (!this.vigente) return
+    if (remoto.enviadoEn) {
+      await this.actualizar()
+      return
+    }
+    this.documento = {
+      ...nuevoDocumento(remoto),
+      respaldo: { edicion: this.exigir().edicion, prescripcion: this.exigir().sesion.prescripcion },
+    }
+    this.conflicto = false
+    this.sinRed = false
+    await this.persistir()
+  }
+  async recuperarCopia(): Promise<void> {
+    const local = this.exigir()
+    if (!local.respaldo) return
+    const anteriores = new Map(
+      local.respaldo.prescripcion.ejercicios.flatMap((e) =>
+        e.series.map((s) => [s.id, s.tipoMedicion] as const),
+      ),
+    )
+    const actuales = new Map(
+      local.sesion.prescripcion.ejercicios.flatMap((e) =>
+        e.series.map((s) => [s.id, s.tipoMedicion] as const),
+      ),
+    )
+    const valores = new Map(local.respaldo.edicion.series.map((s) => [s.serieId, s]))
+    const edicion = desdePrescripcion(local.sesion.prescripcion)
+    edicion.notas = local.respaldo.edicion.notas
+    edicion.series = edicion.series.map((s) =>
+      anteriores.get(s.serieId) === actuales.get(s.serieId) ? (valores.get(s.serieId) ?? s) : s,
+    )
+    await this.editar(edicion)
+  }
+  async enviar(): Promise<void> {
+    if (this.enviando) return
+    this.enviando = true
+    try {
+      await this.sincronizar()
+      let local = this.exigir()
+      if (this.conflicto) throw new Error("Recupera la versión del servidor antes de enviar")
+      if (!local.envioPendiente) {
+        const peticion = EnviarEntrenamientoSchema.parse({
+          operacionId: this.uuid(),
+          revisionPrescripcion: local.sesion.revisionPrescripcion,
+          revisionBorrador: local.revisionBorrador,
+          registro: registroParaEnviar(local.sesion.prescripcion, local.edicion),
+        })
+        this.documento = { ...local, envioPendiente: peticion }
+        await this.persistir()
+        local = this.exigir()
+      }
+      await this.confirmarResultado(await this.api.enviar(this.id, local.envioPendiente!))
+    } catch (error) {
+      this.falloRemoto(error)
+      throw error
+    } finally {
+      this.enviando = false
+    }
+  }
+  async descartarCopia(): Promise<void> {
+    this.documento = { ...this.exigir(), respaldo: null }
+    await this.persistir()
+  }
+  private async confirmarResultado(
+    resultado: ResultadoEntrenamiento,
+    cierreRemoto = false,
+  ): Promise<void> {
+    if (!this.vigente) return
+    // No quedan valores omitidos ni copias privadas tras la confirmación del servidor.
+    let local = this.documento
+    if (!local) {
+      local = nuevoDocumento(await this.api.leerCliente(this.id))
+      if (!this.vigente) return
+    }
+    this.documento = {
+      ...local,
+      resultado,
+      pendiente: null,
+      envioPendiente: null,
+      respaldo: cierreRemoto
+        ? local.secuencia > local.sincronizada || local.pendiente || local.envioPendiente
+          ? { edicion: local.edicion, prescripcion: local.sesion.prescripcion }
+          : local.respaldo
+        : null,
+      sincronizada: local.secuencia,
+      edicion: desdePrescripcion(resultado.prescripcion),
+      sesion: {
+        ...local.sesion,
+        enviadoEn: resultado.enviadoEn,
+        borrador: null,
+        permiteAjuste: false,
+        agenda: { ...local.sesion.agenda, estado: "cerrada" },
+      },
+    }
+    this.conflicto = false
+    this.sinRed = false
+    await this.persistir()
+  }
+}

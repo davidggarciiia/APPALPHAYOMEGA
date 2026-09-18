@@ -11,9 +11,11 @@ import {
 export function EditorSesion({
   valor,
   cambiar,
+  mostrarDia = true,
 }: {
   valor: SesionEditable
   cambiar: (sesion: SesionEditable) => void
+  mostrarDia?: boolean
 }): React.JSX.Element {
   function ejercicio(id: string, cambios: Partial<EjercicioEditable>): void {
     cambiar({
@@ -29,16 +31,20 @@ export function EditorSesion({
         onChangeText={(nombre) => cambiar({ ...valor, nombre })}
         maxLength={120}
       />
-      <Text style={{ color: tema.texto }}>Día de la semana</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((dia, i) => (
-          <BotonSecundario
-            key={dia}
-            texto={`${valor.diaSemana === i + 1 ? "✓ " : ""}${dia}`}
-            onPress={() => cambiar({ ...valor, diaSemana: i + 1 })}
-          />
-        ))}
-      </View>
+      {mostrarDia && (
+        <>
+          <Text style={{ color: tema.texto }}>Día de la semana</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((dia, i) => (
+              <BotonSecundario
+                key={dia}
+                texto={`${valor.diaSemana === i + 1 ? "✓ " : ""}${dia}`}
+                onPress={() => cambiar({ ...valor, diaSemana: i + 1 })}
+              />
+            ))}
+          </View>
+        </>
+      )}
       {valor.ejercicios.map((e, indice) => (
         <View
           key={e.id}
