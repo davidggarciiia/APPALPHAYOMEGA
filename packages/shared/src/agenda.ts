@@ -36,3 +36,14 @@ export const CambioDeFechaSchema = z.strictObject({
   cambiadoEn: z.iso.datetime(),
 })
 export type CambioDeFecha = z.infer<typeof CambioDeFechaSchema>
+
+export const ConsultarCambiosSchema = z.strictObject({
+  limite: z.coerce.number().int().min(1).max(100).default(30),
+  desplazamiento: z.coerce.number().int().min(0).max(100000).default(0),
+})
+export type ConsultarCambios = z.infer<typeof ConsultarCambiosSchema>
+export const ListadoCambiosSchema = z.strictObject({
+  cambios: z.array(CambioDeFechaSchema),
+  total: z.number().int().nonnegative(),
+})
+export type ListadoCambios = z.infer<typeof ListadoCambiosSchema>

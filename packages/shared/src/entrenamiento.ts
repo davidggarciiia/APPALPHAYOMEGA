@@ -116,6 +116,12 @@ export const ListadoRutinasSchema = z.strictObject({
   total: z.number().int().nonnegative(),
 })
 export type ListadoRutinas = z.infer<typeof ListadoRutinasSchema>
+export const ConsultarRutinasSchema = z.strictObject({
+  buscar: z.string().trim().max(120).default(""),
+  limite: z.coerce.number().int().min(1).max(100).default(30),
+  desplazamiento: z.coerce.number().int().min(0).max(100000).default(0),
+})
+export type ConsultarRutinas = z.infer<typeof ConsultarRutinasSchema>
 
 export const CambiarPrescripcionSchema = z
   .strictObject({
