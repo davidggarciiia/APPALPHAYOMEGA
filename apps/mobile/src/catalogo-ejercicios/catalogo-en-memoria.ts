@@ -22,6 +22,7 @@ export function ejercicioDePrueba(
   nombre: string,
   grupoPrincipal: GrupoMuscular,
   gruposSecundarios: GrupoMuscular[] = [],
+  estado: Ejercicio["estado"] = "publicado",
 ): Ejercicio {
   return EjercicioSchema.parse({
     id,
@@ -29,7 +30,7 @@ export function ejercicioDePrueba(
     grupoPrincipal,
     gruposSecundarios,
     instrucciones: "Baja controlando y sube sin bloquear.",
-    estado: "publicado",
+    estado,
     figura: null,
     video: null,
   })
@@ -41,7 +42,7 @@ function normalizar(nombre: string): string {
 
 /**
  * Catálogo para las pruebas de pantalla, con el comportamiento que el plan pide
- * al servidor: filtra por nombre y por grupo, y rechaza nombres repetidos.
+ * al servidor: filtra por nombre, grupo y estado, y rechaza nombres repetidos.
  *
  * `total` permite fingir un catálogo más grande que la página devuelta.
  */
@@ -65,11 +66,25 @@ export function catalogoEnMemoria(iniciales: Ejercicio[] = [], total?: number): 
     })
   }
 
+  function cambiarEstado(id: string, estado: Ejercicio["estado"]): Ejercicio {
+    const posicion = ejercicios.findIndex((fila) => fila.id === id)
+    const anterior = ejercicios[posicion]
+    if (anterior === undefined) throw new ErrorDelServidor(404)
+
+    const cambiado = { ...anterior, estado }
+    ejercicios[posicion] = cambiado
+
+    return cambiado
+  }
+
   return {
     buscar: async (filtros) => {
       const texto = normalizar(filtros.buscar ?? "")
+      // Sin pedirlo, solo los publicados: es el valor por defecto del contrato.
+      const estado = filtros.estado ?? "publicado"
       const filas = ejercicios.filter(
         (fila) =>
+          (estado === "todos" || fila.estado === estado) &&
           normalizar(fila.nombre).includes(texto) &&
           (filtros.grupo === undefined ||
             fila.grupoPrincipal === filtros.grupo ||
@@ -106,5 +121,8 @@ export function catalogoEnMemoria(iniciales: Ejercicio[] = [], total?: number): 
 
       return editado
     },
+
+    retirar: async (id) => cambiarEstado(id, "retirado"),
+    reponer: async (id) => cambiarEstado(id, "publicado"),
   }
 }

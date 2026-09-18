@@ -30,4 +30,7 @@ export type ApiDeCatalogo = {
   leer: (id: string) => Promise<Ejercicio>
   crear: (datos: CrearEjercicio) => Promise<Ejercicio>
   editar: (id: string, datos: EditarEjercicio) => Promise<Ejercicio>
+  /** Retirar y reponer devuelven la ficha ya cambiada. Repetirlos no es un error. */
+  retirar: (id: string) => Promise<Ejercicio>
+  reponer: (id: string) => Promise<Ejercicio>
 }

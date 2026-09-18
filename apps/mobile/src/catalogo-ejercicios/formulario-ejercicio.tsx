@@ -11,6 +11,7 @@ import {
 
 import {
   AvisoDeError,
+  BotonDestructivo,
   BotonPrincipal,
   BotonSecundario,
   Campo,
@@ -45,6 +46,10 @@ export function FormularioDeEjercicio({
   const [carga, setCarga] = useState<Carga>({ fase: id === undefined ? "lista" : "cargando" })
   const [intento, setIntento] = useState(0)
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
+  // `null` mientras no hay ejercicio guardado: el alta no tiene nada que retirar.
+  const [estado, setEstado] = useState<Ejercicio["estado"] | null>(null)
+  const [confirmandoRetirada, setConfirmandoRetirada] = useState(false)
+  const [cambiandoEstado, setCambiandoEstado] = useState(false)
 
   const {
     control,
@@ -77,6 +82,7 @@ export function FormularioDeEjercicio({
           gruposSecundarios: ejercicio.gruposSecundarios,
           instrucciones: ejercicio.instrucciones,
         })
+        setEstado(ejercicio.estado)
         setCarga({ fase: "lista" })
       })
       .catch((error: unknown) => {
@@ -104,6 +110,30 @@ export function FormularioDeEjercicio({
       setErrorGeneral(faltaDe(error, "No hemos podido guardar el ejercicio.").texto)
     }
   })
+
+  async function cambiarEstado(operacion: "retirar" | "reponer"): Promise<void> {
+    if (id === undefined) return
+
+    setErrorGeneral(null)
+    setConfirmandoRetirada(false)
+    setCambiandoEstado(true)
+
+    try {
+      // Se pinta lo que contesta el servidor, no lo que se pidió.
+      setEstado((await api[operacion](id)).estado)
+    } catch (error) {
+      setErrorGeneral(
+        faltaDe(
+          error,
+          operacion === "retirar"
+            ? "No hemos podido retirar el ejercicio."
+            : "No hemos podido reponer el ejercicio.",
+        ).texto,
+      )
+    } finally {
+      setCambiandoEstado(false)
+    }
+  }
 
   const titulo = id === undefined ? "Nuevo ejercicio" : "Editar ejercicio"
 
@@ -139,6 +169,12 @@ export function FormularioDeEjercicio({
   return (
     <PantallaDeFormulario>
       <Text style={estilos.titulo}>{titulo}</Text>
+      {estado === "retirado" && (
+        <Text style={estilos.avisoRetirado}>
+          Este ejercicio está retirado: no sale en la búsqueda ni se puede elegir en rutinas nuevas.
+          Los entrenos que ya lo usan lo conservan.
+        </Text>
+      )}
 
       <Controller
         control={control}
@@ -242,6 +278,42 @@ export function FormularioDeEjercicio({
 
       <BotonPrincipal texto="GUARDAR" onPress={() => void enviar()} ocupado={isSubmitting} />
       <BotonSecundario texto="CANCELAR" onPress={onCancelar} />
+
+      {estado === "retirado" ? (
+        <BotonSecundario
+          texto="REPONER"
+          ocupado={cambiandoEstado}
+          onPress={() => void cambiarEstado("reponer")}
+        />
+      ) : estado === "publicado" && confirmandoRetirada ? (
+        <View style={estilos.panel} accessibilityLiveRegion="polite">
+          <Text style={estilos.textoPanel}>
+            Dejará de salir en la búsqueda y en el selector de rutinas. No se borra nada y puedes
+            reponerlo cuando quieras.
+          </Text>
+          <BotonDestructivo
+            texto="CONFIRMAR RETIRADA"
+            onPress={() => void cambiarEstado("retirar")}
+          />
+          <BotonSecundario
+            texto="NO RETIRAR"
+            onPress={() => {
+              setConfirmandoRetirada(false)
+            }}
+          />
+        </View>
+      ) : estado === "publicado" ? (
+        // Lejos de GUARDAR y en rojo: no es la acción de todos los días.
+        <View style={estilos.zonaRetirada}>
+          <BotonDestructivo
+            texto="RETIRAR"
+            ocupado={cambiandoEstado}
+            onPress={() => {
+              setConfirmandoRetirada(true)
+            }}
+          />
+        </View>
+      ) : null}
     </PantallaDeFormulario>
   )
 }
@@ -301,4 +373,14 @@ const estilos = StyleSheet.create({
   textoOpcion: { color: tema.texto, fontSize: 13 },
   textoOpcionMarcada: { color: tema.fondo, fontWeight: "700" },
   error: { color: tema.error, fontSize: 12, marginTop: 6 },
+  avisoRetirado: { color: tema.oroSuave, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  zonaRetirada: { marginTop: 20 },
+  panel: {
+    borderColor: tema.error,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginTop: 20,
+    padding: 14,
+  },
+  textoPanel: { color: tema.texto, fontSize: 13, lineHeight: 19 },
 })

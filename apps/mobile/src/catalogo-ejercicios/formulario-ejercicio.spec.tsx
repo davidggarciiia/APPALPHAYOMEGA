@@ -11,6 +11,13 @@ import { FormularioDeEjercicio } from "./formulario-ejercicio"
 const PRESS = ejercicioDePrueba("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b01", "Press de banca", "pecho", [
   "triceps",
 ])
+const REMO = ejercicioDePrueba(
+  "3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b04",
+  "Remo con barra",
+  "espalda",
+  [],
+  "retirado",
+)
 
 async function pintar(api: ApiDeCatalogo, opciones: { id?: string } = {}) {
   const onGuardado = jest.fn<(ejercicio: Ejercicio) => void>()
@@ -191,5 +198,80 @@ describe("Edición de un ejercicio", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Nombre")).toHaveDisplayValue("Press de banca")
     })
+  })
+})
+
+describe("Retirar y reponer un ejercicio", () => {
+  it("el alta no ofrece retirar lo que todavía no existe", async () => {
+    await pintar(catalogoEnMemoria())
+    await screen.findByLabelText("Nombre")
+
+    expect(screen.queryByRole("button", { name: "RETIRAR" })).toBeNull()
+  })
+
+  it("retirar pide confirmación y deja el ejercicio retirado, con la salida a la vista", async () => {
+    const api = catalogoEnMemoria([PRESS])
+    await pintar(api, { id: PRESS.id })
+    await screen.findByRole("button", { name: "RETIRAR" })
+
+    await fireEvent.press(screen.getByRole("button", { name: "RETIRAR" }))
+    expect((await api.leer(PRESS.id)).estado).toBe("publicado")
+    await fireEvent.press(screen.getByRole("button", { name: "CONFIRMAR RETIRADA" }))
+
+    await screen.findByRole("button", { name: "REPONER" })
+    expect(screen.getByText(/Este ejercicio está retirado/)).toBeOnTheScreen()
+    expect((await api.leer(PRESS.id)).estado).toBe("retirado")
+  })
+
+  it("cancelar la confirmación no retira nada", async () => {
+    const api = catalogoEnMemoria([PRESS])
+    await pintar(api, { id: PRESS.id })
+    await screen.findByRole("button", { name: "RETIRAR" })
+
+    await fireEvent.press(screen.getByRole("button", { name: "RETIRAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "NO RETIRAR" }))
+
+    expect(screen.getByRole("button", { name: "RETIRAR" })).toBeOnTheScreen()
+    expect((await api.leer(PRESS.id)).estado).toBe("publicado")
+  })
+
+  it("un ejercicio retirado lo dice al abrirlo y se puede reponer", async () => {
+    const api = catalogoEnMemoria([REMO])
+    await pintar(api, { id: REMO.id })
+
+    await screen.findByText(/Este ejercicio está retirado/)
+    await fireEvent.press(screen.getByRole("button", { name: "REPONER" }))
+
+    await screen.findByRole("button", { name: "RETIRAR" })
+    expect(screen.queryByText(/Este ejercicio está retirado/)).toBeNull()
+    expect((await api.leer(REMO.id)).estado).toBe("publicado")
+  })
+
+  it("si retirar falla lo dice y el ejercicio sigue publicado", async () => {
+    const api = catalogoEnMemoria([PRESS])
+    api.retirar = () => Promise.reject(new ErrorDeRed("sin cobertura"))
+    await pintar(api, { id: PRESS.id })
+    await screen.findByRole("button", { name: "RETIRAR" })
+
+    await fireEvent.press(screen.getByRole("button", { name: "RETIRAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "CONFIRMAR RETIRADA" }))
+
+    await screen.findByText(/No hemos podido conectar/)
+    expect(screen.getByRole("button", { name: "RETIRAR" })).toBeOnTheScreen()
+    expect((await api.leer(PRESS.id)).estado).toBe("publicado")
+  })
+
+  it("editar el texto de un retirado no lo repone", async () => {
+    const api = catalogoEnMemoria([REMO])
+    const { onGuardado } = await pintar(api, { id: REMO.id })
+    await screen.findByText(/Este ejercicio está retirado/)
+
+    await fireEvent.changeText(screen.getByLabelText("Instrucciones"), "Espalda recta.")
+    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+
+    await waitFor(() => {
+      expect(onGuardado).toHaveBeenCalledTimes(1)
+    })
+    expect((await api.leer(REMO.id)).estado).toBe("retirado")
   })
 })

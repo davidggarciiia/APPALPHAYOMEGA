@@ -65,6 +65,7 @@ export function Catalogo({
   const [texto, setTexto] = useState("")
   const [busqueda, setBusqueda] = useState("")
   const [grupo, setGrupo] = useState<GrupoMuscular | null>(null)
+  const [verRetirados, setVerRetirados] = useState(false)
   const [intento, setIntento] = useState(0)
 
   const [fase, setFase] = useState<Fase>("cargando")
@@ -98,6 +99,7 @@ export function Catalogo({
       .buscar({
         buscar: busqueda === "" ? undefined : busqueda,
         grupo: grupo ?? undefined,
+        estado: verRetirados ? "retirado" : "publicado",
         limite: LIMITE,
       })
       .then((listado) => {
@@ -121,7 +123,7 @@ export function Catalogo({
     return () => {
       vigente = false
     }
-  }, [api, busqueda, grupo, intento])
+  }, [api, busqueda, grupo, verRetirados, intento])
 
   const hayFiltroPuesto = busqueda !== "" || grupo !== null
   const recortada = ejercicios.length < total
@@ -130,14 +132,30 @@ export function Catalogo({
     <SafeAreaView style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>CATÁLOGO</Text>
-        <Pressable
-          onPress={onNuevo}
-          accessibilityRole="button"
-          accessibilityLabel="Crear un ejercicio nuevo"
-          hitSlop={12}
-        >
-          <Text style={estilos.nuevo}>+ NUEVO</Text>
-        </Pressable>
+        <View style={estilos.accionesCabecera}>
+          {/* Los retirados no se mezclan con los vigentes: se piden aparte. */}
+          <Pressable
+            onPress={() => {
+              setVerRetirados((ver) => !ver)
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Ver los ejercicios retirados"
+            accessibilityState={{ selected: verRetirados }}
+            hitSlop={12}
+          >
+            <Text style={[estilos.retirados, verRetirados && estilos.retiradosPuesto]}>
+              RETIRADOS
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={onNuevo}
+            accessibilityRole="button"
+            accessibilityLabel="Crear un ejercicio nuevo"
+            hitSlop={12}
+          >
+            <Text style={estilos.nuevo}>+ NUEVO</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={estilos.buscador}>
@@ -241,7 +259,9 @@ export function Catalogo({
             <Text style={estilos.vacio}>
               {hayFiltroPuesto
                 ? "Ningún ejercicio coincide con esa búsqueda."
-                : "Todavía no hay ejercicios. Crea el primero con + NUEVO."}
+                : verRetirados
+                  ? "No hay ejercicios retirados."
+                  : "Todavía no hay ejercicios. Crea el primero con + NUEVO."}
             </Text>
           }
           ListFooterComponent={
@@ -291,15 +311,20 @@ function Fila({
 }): React.JSX.Element {
   const principal = ETIQUETA_DE_GRUPO[ejercicio.grupoPrincipal]
   const secundarios = ejercicio.gruposSecundarios.map((grupo) => ETIQUETA_DE_GRUPO[grupo])
+  const retirado = ejercicio.estado === "retirado"
 
   return (
     <Pressable
-      style={({ pressed }) => [estilos.fila, pressed && estilos.filaPulsada]}
+      style={({ pressed }) => [
+        estilos.fila,
+        retirado && estilos.filaApagada,
+        pressed && estilos.filaPulsada,
+      ]}
       onPress={onAbrir}
       // Un lector de pantalla lee la fila de una vez y no en trozos sueltos.
       accessible
       accessibilityRole="button"
-      accessibilityLabel={`${ejercicio.nombre}. ${principal}`}
+      accessibilityLabel={`${ejercicio.nombre}. ${principal}${retirado ? ". Retirado" : ""}`}
       accessibilityHint="Abre el ejercicio para editarlo"
     >
       <Text style={estilos.nombre} numberOfLines={1}>
@@ -308,6 +333,7 @@ function Fila({
       <Text style={estilos.grupos} numberOfLines={1}>
         {[principal, ...secundarios].join(" · ")}
       </Text>
+      {retirado && <Text style={estilos.marcaRetirado}>RETIRADO</Text>}
     </Pressable>
   )
 }
@@ -323,7 +349,10 @@ const estilos = StyleSheet.create({
     paddingBottom: 8,
   },
   titulo: { color: tema.oro, fontSize: 16, fontWeight: "700", letterSpacing: 3 },
+  accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
   nuevo: { color: tema.oro, fontSize: 12, letterSpacing: 2, fontWeight: "700" },
+  retirados: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
+  retiradosPuesto: { color: tema.oro, fontWeight: "700" },
   buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, gap: 10 },
   campo: {
     flex: 1,
@@ -357,9 +386,11 @@ const estilos = StyleSheet.create({
     padding: 14,
     gap: 3,
   },
+  filaApagada: { opacity: 0.55 },
   filaPulsada: { borderColor: tema.oro },
   nombre: { color: tema.texto, fontSize: 16 },
   grupos: { color: tema.textoTenue, fontSize: 12 },
+  marcaRetirado: { color: tema.error, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
   centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   aviso: { color: tema.texto, fontSize: 15, textAlign: "center" },
   vacio: {

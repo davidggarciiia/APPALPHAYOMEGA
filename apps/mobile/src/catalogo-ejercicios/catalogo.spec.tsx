@@ -20,6 +20,13 @@ const SENTADILLA = ejercicioDePrueba(
 const FONDOS = ejercicioDePrueba("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b03", "Fondos", "triceps", [
   "pecho",
 ])
+const REMO = ejercicioDePrueba(
+  "3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b04",
+  "Remo con barra",
+  "espalda",
+  [],
+  "retirado",
+)
 
 function pintar(
   api: ApiDeCatalogo,
@@ -130,5 +137,32 @@ describe("Catálogo de ejercicios", () => {
 
     expect(onNuevo).toHaveBeenCalledTimes(1)
     expect(onAbrir).toHaveBeenCalledWith(PRESS.id)
+  })
+
+  it("los ejercicios retirados no salen en la lista normal", async () => {
+    await pintar(catalogoEnMemoria([PRESS, REMO]))
+
+    await screen.findByRole("button", { name: "Press de banca. Pecho" })
+    expect(screen.queryByText("Remo con barra")).toBeNull()
+  })
+
+  it("el entrenador puede pedir los retirados y los ve señalados", async () => {
+    await pintar(catalogoEnMemoria([PRESS, REMO]))
+    await screen.findByRole("button", { name: "Press de banca. Pecho" })
+
+    await fireEvent.press(screen.getByRole("button", { name: "Ver los ejercicios retirados" }))
+
+    await screen.findByRole("button", { name: "Remo con barra. Espalda. Retirado" })
+    expect(screen.queryByText("Press de banca")).toBeNull()
+    expect(screen.getByRole("button", { name: "Ver los ejercicios retirados" })).toBeSelected()
+  })
+
+  it("dice que no hay retirados en lugar de invitar a crear el primero", async () => {
+    await pintar(catalogoEnMemoria([PRESS]))
+    await screen.findByRole("button", { name: "Press de banca. Pecho" })
+
+    await fireEvent.press(screen.getByRole("button", { name: "Ver los ejercicios retirados" }))
+
+    await screen.findByText("No hay ejercicios retirados.")
   })
 })
