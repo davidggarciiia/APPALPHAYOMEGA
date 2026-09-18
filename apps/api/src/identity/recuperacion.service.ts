@@ -24,7 +24,13 @@ export class RecuperacionService {
 
   /** La respuesta no distingue cuenta ausente, no activa, limite o fallo de correo. */
   async solicitar(email: string, origen: string): Promise<void> {
-    const claves = [`recuperar:ip:${origen}`, `recuperar:correo:${hashDe(email)}`]
+    // La clave del correo lleva tambien el origen. Sin el, ese contador es de la
+    // victima y lo sube cualquiera desde cualquier sitio: cinco peticiones
+    // anonimas dejaban a una persona sin poder recuperar su cuenta, y como el
+    // limitador dobla la espera a cada fallo, el bloqueo llegaba a los quince
+    // minutos y se renovaba con otra peticion. Denegar el servicio a alguien
+    // concreto no puede costar cinco peticiones.
+    const claves = [`recuperar:ip:${origen}`, `recuperar:correo:${hashDe(email)}|${origen}`]
     try {
       claves.forEach((clave) => this.limitador.comprobar(clave))
     } catch (error) {
@@ -63,6 +69,19 @@ export class RecuperacionService {
     if (fila === null) return
 
     const enlace = `alphaomega://restablecer?token=${encodeURIComponent(`${fila.id}.${secreto}`)}`
+
+    // El envio NO se espera dentro de la peticion, y no es por velocidad.
+    //
+    // Esta ruta contesta 204 exista o no la cuenta, que es lo correcto, pero si
+    // esperase al proveedor de correo el reloj delataria lo que el cuerpo calla:
+    // un correo desconocido responde en milisegundos y uno real tarda lo que
+    // tarde Resend. Con cien peticiones y un cronometro, cualquiera separa los
+    // clientes del entrenador del resto. Soltando el envio, las dos ramas salen
+    // igual de rapido.
+    void this.enviarEnlace(email, enlace)
+  }
+
+  private async enviarEnlace(email: string, enlace: string): Promise<void> {
     try {
       await this.correo.enviar({
         para: email,

@@ -3,10 +3,17 @@ import type { PrismaService } from "../prisma/prisma.service.js"
 import { AlcanceClienteService } from "./alcance-cliente.service.js"
 import type { Rol } from "@alpha-omega/shared"
 
+/**
+ * El doble responde a la consulta de asignacion.
+ *
+ * `findFirst` y no `findUnique` porque la consulta real filtra tambien por el
+ * estado del cliente: una asignacion viva sobre alguien dado de baja no da
+ * acceso, y eso deja de ser una busqueda por clave unica.
+ */
 function prismaConAsignacion(existe: boolean): PrismaService {
   return {
     asignacionNutricionista: {
-      findUnique: () => Promise.resolve(existe ? { id: "a-1" } : null),
+      findFirst: () => Promise.resolve(existe ? { id: "a-1" } : null),
     },
   } as unknown as PrismaService
 }

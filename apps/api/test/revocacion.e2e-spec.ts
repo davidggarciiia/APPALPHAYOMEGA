@@ -137,4 +137,63 @@ describe("Revocacion efectiva del token de acceso", () => {
     await conToken(sesion.tokenAcceso).expect(401)
     await conToken(renovada.body.tokenAcceso).expect(200)
   })
+
+  it("cerrar sesion apaga tambien la gracia del token recien rotado", async () => {
+    const sesion = await entrar()
+
+    // Rotar es lo que hace la app nada mas abrirse, asi que este es el estado
+    // normal de un movil un segundo antes de que alguien pulse cerrar sesion.
+    const renovada = await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: sesion.tokenRefresco })
+      .expect(200)
+
+    await request(app.getHttpServer())
+      .post("/auth/logout")
+      .send({ tokenRefresco: renovada.body.tokenRefresco })
+      .expect(204)
+
+    // El token ANTERIOR quedo revocado por rotacion hace un instante, dentro de
+    // la ventana de gracia. Si cerrar sesion no apagara esa ventana, este canje
+    // abriria una sesion nueva despues del cierre: cerrar sesion no cerraria
+    // nada durante treinta segundos, que es justo cuando le da a alguien tiempo
+    // de usar un token copiado.
+    await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: sesion.tokenRefresco })
+      .expect(401)
+
+    // Y el de la sesion cerrada tampoco, por si acaso.
+    await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: renovada.body.tokenRefresco })
+      .expect(401)
+  })
+
+  it("un reuso detectado apaga la gracia de toda la familia", async () => {
+    const sesion = await entrar()
+
+    const renovada = await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: sesion.tokenRefresco })
+      .expect(200)
+
+    // Segundo canje del viejo: entra por la gracia y se consume. Es el
+    // reintento legitimo de un movil que perdio la respuesta.
+    await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: sesion.tokenRefresco })
+      .expect(200)
+
+    // Tercero: ya no hay gracia que valga, y la familia entera queda cortada.
+    await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: sesion.tokenRefresco })
+      .expect(401)
+
+    await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: renovada.body.tokenRefresco })
+      .expect(401)
+  })
 })

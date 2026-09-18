@@ -81,7 +81,14 @@ export class AsignacionesService {
    */
   async misClientes(nutricionistaId: string): Promise<ListadoUsuarios> {
     const usuarios = await this.prisma.usuario.findMany({
-      where: { nutricionistasAsignados: { some: { nutricionistaId } } },
+      where: {
+        nutricionistasAsignados: { some: { nutricionistaId } },
+        // Un cliente dado de baja desaparece de la lista del nutricionista
+        // subcontratado. La fila de asignacion se conserva a proposito, para no
+        // perder el rastro de quien tuvo acceso a que, pero conservar la fila no
+        // es conservar el acceso: quien deja de ser cliente deja de verse.
+        estado: { not: "desactivado" },
+      },
       orderBy: [{ nombre: "asc" }, { apellidos: "asc" }],
       select: {
         id: true,

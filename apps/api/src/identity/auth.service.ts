@@ -39,8 +39,16 @@ export class AuthService {
    * clientes del entrenador.
    */
   async iniciarSesion(credenciales: Credenciales, origen: string): Promise<Sesion> {
-    const clave = `${credenciales.email}|${origen}`
-    this.limitador.comprobar(clave)
+    // Dos contadores, porque son dos ataques distintos.
+    //
+    // El de correo mas origen frena a quien insiste con una cuenta concreta. No
+    // frena lo contrario: probar la misma contrasena facil contra trescientos
+    // correos desde la misma maquina deja cada contador a uno y pasa entero.
+    // El de origen a secas es el que corta eso.
+    const claves = [`login:${credenciales.email}|${origen}`, `login:origen:${origen}`]
+    claves.forEach((clave) => {
+      this.limitador.comprobar(clave)
+    })
 
     const usuario = await this.prisma.usuario.findUnique({
       where: { email: credenciales.email },
@@ -54,11 +62,15 @@ export class AuthService {
     // Un usuario en estado pendiente existe y todavia no tiene contrasena
     // (requisito 2). Uno desactivado conserva la suya y aun asi no entra.
     if (usuario === null || !coincide || usuario.estado !== "activo") {
-      this.limitador.registrarFallo(clave)
+      claves.forEach((clave) => {
+        this.limitador.registrarFallo(clave)
+      })
       throw new UnauthorizedException("Credenciales incorrectas")
     }
 
-    this.limitador.registrarExito(clave)
+    claves.forEach((clave) => {
+      this.limitador.registrarExito(clave)
+    })
 
     return this.componerSesion(usuario, await this.refrescos.emitir(usuario.id))
   }

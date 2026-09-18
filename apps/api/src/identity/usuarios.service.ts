@@ -45,6 +45,15 @@ export class UsuariosService {
    * ya existe fuera de la app (requisito 2).
    */
   async crear(datos: CrearUsuario): Promise<UsuarioCreado> {
+    if (datos.rol === "entrenador") {
+      // El negocio tiene un entrenador y su cuenta nace del seed, que es la
+      // unica via. Dejar que esta ruta cree otro convierte el alta de clientes
+      // en una fabrica de administradores: quien se cuele una vez con la sesion
+      // del entrenador se fabrica una cuenta propia y ya no hace falta volver a
+      // colarse. Que la app no ofrezca la opcion es comodidad, no una defensa.
+      throw new BadRequestException("Desde aqui no se crean cuentas de entrenador")
+    }
+
     const existente = await this.prisma.usuario.findUnique({ where: { email: datos.email } })
 
     if (existente !== null) {

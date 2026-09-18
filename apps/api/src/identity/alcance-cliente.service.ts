@@ -47,9 +47,24 @@ export class AlcanceClienteService {
     }
   }
 
+  /**
+   * Hay asignacion Y el cliente sigue siendo cliente.
+   *
+   * La fila de asignacion sobrevive a la baja a proposito: borrarla perderia el
+   * rastro de quien tuvo acceso a los datos de salud de quien. Pero conservar el
+   * rastro no es conservar el acceso. Sin la comprobacion de estado, dar de baja
+   * a alguien le cortaba la entrada a su propia cuenta y dejaba al nutricionista
+   * subcontratado viendo su peso, sus medidas y sus fotos igual que el dia
+   * anterior.
+   */
   async tieneAsignado(nutricionistaId: string, clienteId: string): Promise<boolean> {
-    const asignacion = await this.prisma.asignacionNutricionista.findUnique({
-      where: { nutricionistaId_clienteId: { nutricionistaId, clienteId } },
+    const asignacion = await this.prisma.asignacionNutricionista.findFirst({
+      where: {
+        nutricionistaId,
+        clienteId,
+        cliente: { estado: { not: "desactivado" } },
+      },
+      select: { id: true },
     })
 
     return asignacion !== null

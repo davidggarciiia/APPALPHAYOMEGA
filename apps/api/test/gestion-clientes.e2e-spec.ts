@@ -822,6 +822,21 @@ describe("Gestion de clientes", () => {
       }
     })
 
+    it("ni el entrenador puede crear otra cuenta de entrenador", async () => {
+      const antes = await prisma.usuario.count({ where: { rol: "entrenador" } })
+
+      await request(app.getHttpServer())
+        .post("/usuarios")
+        .set("Authorization", como("entrenador"))
+        .send({ email: `otro-jefe${SUFIJO}`, nombre: "Otro jefe", rol: "entrenador" })
+        .expect(400)
+
+      // La cuenta del entrenador nace del seed y de ningun otro sitio. Si esta
+      // ruta pudiera crear administradores, colarse una vez con su sesion
+      // bastaria para fabricarse una cuenta propia y no volver a necesitarla.
+      expect(await prisma.usuario.count({ where: { rol: "entrenador" } })).toBe(antes)
+    })
+
     it("un cliente no puede darse de alta a si mismo por la puerta de atras", async () => {
       await request(app.getHttpServer())
         .post("/usuarios")

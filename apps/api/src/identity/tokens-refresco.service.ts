@@ -17,6 +17,19 @@ const GRACIA_SEGUNDOS = 30
  */
 type ClientePrisma = Pick<PrismaService, "tokenRefresco">
 
+/**
+ * Lo que sale de un canje.
+ *
+ * Los dos rechazos se devuelven en lugar de lanzarse porque el canje vive dentro
+ * de una transaccion: lanzar desde dentro deshace lo escrito, y en el caso del
+ * reuso lo escrito es justo el corte de la familia, que es lo unico que no puede
+ * perderse.
+ */
+type ResultadoDeCanje =
+  | { tipo: "sesion"; sesion: { usuarioId: string; nuevo: SesionEmitida } }
+  | { tipo: "reuso" }
+  | { tipo: "rechazo" }
+
 export type SesionEmitida = {
   /** Lo que se entrega al cliente: `<id>.<secreto>`. */
   token: string
@@ -64,7 +77,60 @@ export class TokensRefrescoService {
   async canjear(token: string): Promise<{ usuarioId: string; nuevo: SesionEmitida }> {
     const fila = await this.buscarFila(token)
 
-    const { count } = await this.prisma.tokenRefresco.updateMany({
+    const resultado = await this.prisma.$transaction(async (tx) =>
+      this.canjearDentroDeLaTransaccion(fila, tx),
+    )
+
+    // El corte por reuso se hace FUERA de la transaccion, y no es un detalle de
+    // estilo: la peticion termina en error, y si la revocacion viviera dentro se
+    // desharia con el rollback. La familia seguiria viva justo en el caso en el
+    // que hay que matarla. Lo cazaron los tests de rotacion al meter el canje en
+    // una transaccion.
+    if (resultado.tipo === "reuso") {
+      await this.revocarFamilia(fila.familiaId, "reuso")
+      this.registro.warn(
+        `Token de refresco reutilizado. Familia ${fila.familiaId} revocada por completo.`,
+      )
+      throw new UnauthorizedException("Sesion no valida")
+    }
+
+    if (resultado.tipo === "rechazo") {
+      // Otra peticion se llevo la gracia hace un instante. No hay motivo para
+      // sospechar de nadie, asi que no se toca la familia: quien tenga el token
+      // bueno sigue dentro.
+      throw new UnauthorizedException("Sesion no valida")
+    }
+
+    return resultado.sesion
+  }
+
+  /**
+   * El canje, serializado contra el resto de operaciones sobre la misma cuenta.
+   *
+   * La primera escritura es sobre la fila del usuario, que es el mismo candado
+   * que toman cambiar la contrasena, dar de baja y activar. Sin el, una rotacion
+   * en vuelo podia insertar su fila sucesora justo DESPUES del `UPDATE` que
+   * revoca todas las sesiones: quien cambiaba su contrasena porque le habian
+   * robado la sesion se quedaba con el ladron dentro, con un token recien
+   * emitido y treinta dias por delante.
+   */
+  private async canjearDentroDeLaTransaccion(
+    fila: {
+      id: string
+      usuarioId: string
+      familiaId: string
+      familiaCreadaEn: Date
+      revocadoEn: Date | null
+      motivoRevocacion: "rotacion" | "cierre" | "reuso" | "reintento" | null
+    },
+    tx: ClientePrisma & Pick<PrismaService, "usuario">,
+  ): Promise<ResultadoDeCanje> {
+    await tx.usuario.updateMany({
+      where: { id: fila.usuarioId },
+      data: { actualizadoEn: new Date() },
+    })
+
+    const { count } = await tx.tokenRefresco.updateMany({
       where: { id: fila.id, revocadoEn: null },
       data: { revocadoEn: new Date(), motivoRevocacion: "rotacion" },
     })
@@ -90,16 +156,13 @@ export class TokensRefrescoService {
         // rotacion. Sin este candado, cuatro peticiones simultaneas la usaban las
         // cuatro y la sesion acababa bifurcada en varias cadenas vivas, que es
         // justo lo que la rotacion existe para impedir. Comprobado: quedaban tres.
-        const { count: ganada } = await this.prisma.tokenRefresco.updateMany({
+        const { count: ganada } = await tx.tokenRefresco.updateMany({
           where: { id: fila.id, motivoRevocacion: "rotacion" },
           data: { motivoRevocacion: "reintento" },
         })
 
         if (ganada !== 1) {
-          // Otra peticion se llevo la gracia hace un instante. No hay motivo para
-          // sospechar de nadie, asi que se rechaza sin tocar la familia: quien
-          // tenga el token bueno sigue dentro.
-          throw new UnauthorizedException("Sesion no valida")
+          return { tipo: "rechazo" }
         }
 
         this.registro.log(
@@ -110,24 +173,26 @@ export class TokensRefrescoService {
         // El sucesor existe y esta vivo, pero el cliente nunca llego a recibirlo:
         // es inalcanzable. Se retira para que la familia no acumule tokens vivos
         // que nadie tiene.
-        await this.revocarFamilia(fila.familiaId, "rotacion")
+        await this.revocarFamilia(fila.familiaId, "rotacion", tx)
 
         return {
-          usuarioId: fila.usuarioId,
-          nuevo: await this.crearFila(fila.usuarioId, fila.familiaId, fila.familiaCreadaEn),
+          tipo: "sesion",
+          sesion: {
+            usuarioId: fila.usuarioId,
+            nuevo: await this.crearFila(fila.usuarioId, fila.familiaId, fila.familiaCreadaEn, tx),
+          },
         }
       }
 
-      await this.revocarFamilia(fila.familiaId, "reuso")
-      this.registro.warn(
-        `Token de refresco reutilizado. Familia ${fila.familiaId} revocada por completo.`,
-      )
-      throw new UnauthorizedException("Sesion no valida")
+      return { tipo: "reuso" }
     }
 
     return {
-      usuarioId: fila.usuarioId,
-      nuevo: await this.crearFila(fila.usuarioId, fila.familiaId, fila.familiaCreadaEn),
+      tipo: "sesion",
+      sesion: {
+        usuarioId: fila.usuarioId,
+        nuevo: await this.crearFila(fila.usuarioId, fila.familiaId, fila.familiaCreadaEn, tx),
+      },
     }
   }
 
@@ -179,10 +244,11 @@ export class TokensRefrescoService {
     usuarioId: string,
     familiaId: string,
     familiaCreadaEn: Date,
+    cliente: ClientePrisma = this.prisma,
   ): Promise<SesionEmitida> {
     const secreto = randomBytes(BYTES_DE_SECRETO).toString("base64url")
 
-    const fila = await this.prisma.tokenRefresco.create({
+    const fila = await cliente.tokenRefresco.create({
       data: {
         usuarioId,
         hash: hashDe(secreto),
@@ -259,14 +325,37 @@ export class TokensRefrescoService {
     return Date.now() - revocadoEn.getTime() <= tope * 1000
   }
 
+  /**
+   * Corta una familia entera.
+   *
+   * Cerrar sesion y detectar un reuso apagan tambien la ventana de gracia de las
+   * filas que ya estaban rotadas. Sin eso, cerrar sesion justo despues de que el
+   * movil rotara su token dejaba el token anterior canjeable durante treinta
+   * segundos: la fila seguia marcada como "rotacion" y el canje entraba por la
+   * puerta de la gracia, creando una sesion nueva DESPUES del cierre. Cerrar
+   * sesion tiene que cerrar la sesion, sin ventanas.
+   *
+   * Al rotar no se toca nada de lo ya revocado: la gracia existe precisamente
+   * para el movil que reintenta un canje cuya respuesta se perdio.
+   */
   private async revocarFamilia(
     familiaId: string,
     motivo: "cierre" | "reuso" | "rotacion" | "reintento",
+    cliente: ClientePrisma = this.prisma,
   ): Promise<void> {
-    await this.prisma.tokenRefresco.updateMany({
+    const ahora = new Date()
+
+    await cliente.tokenRefresco.updateMany({
       where: { familiaId, revocadoEn: null },
-      data: { revocadoEn: new Date(), motivoRevocacion: motivo },
+      data: { revocadoEn: ahora, motivoRevocacion: motivo },
     })
+
+    if (motivo === "cierre" || motivo === "reuso") {
+      await cliente.tokenRefresco.updateMany({
+        where: { familiaId, motivoRevocacion: "rotacion" },
+        data: { motivoRevocacion: motivo },
+      })
+    }
   }
 
   /**

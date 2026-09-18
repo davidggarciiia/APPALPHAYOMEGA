@@ -323,6 +323,47 @@ describe("Asignacion de clientes al nutricionista", () => {
       await pedirDatos("ana", "luis").expect(403)
     })
 
+    it("dar de baja a un cliente le corta el acceso al nutricionista", async () => {
+      await asignar("elena", "ana").expect(204)
+      await pedirDatos("elena", "ana").expect(200)
+
+      await request(app.getHttpServer())
+        .post(`/usuarios/${id("ana")}/desactivar`)
+        .set("Authorization", como("entrenador"))
+        .expect(200)
+
+      // Conservar la fila de asignacion es conservar el rastro de quien tuvo
+      // acceso a que, no el acceso. Alguien que deja de ser cliente deja de
+      // verse, y su peso y sus medidas dejan de estar al alcance de un
+      // subcontratado en la peticion siguiente.
+      await pedirDatos("elena", "ana").expect(403)
+
+      const mios = await request(app.getHttpServer())
+        .get("/mis-clientes")
+        .set("Authorization", como("elena"))
+        .expect(200)
+
+      expect(mios.body.usuarios).toHaveLength(0)
+    })
+
+    it("reactivar a un cliente le devuelve el acceso al nutricionista", async () => {
+      await asignar("elena", "ana").expect(204)
+
+      await request(app.getHttpServer())
+        .post(`/usuarios/${id("ana")}/desactivar`)
+        .set("Authorization", como("entrenador"))
+        .expect(200)
+
+      await request(app.getHttpServer())
+        .post(`/usuarios/${id("ana")}/reactivar`)
+        .set("Authorization", como("entrenador"))
+        .expect(200)
+
+      // La asignacion nunca se toco, asi que vuelve tal cual estaba. Es la otra
+      // cara de no borrar la fila.
+      await pedirDatos("elena", "ana").expect(200)
+    })
+
     it("dar de baja a un cliente no borra su asignacion", async () => {
       await asignar("elena", "ana").expect(204)
 
