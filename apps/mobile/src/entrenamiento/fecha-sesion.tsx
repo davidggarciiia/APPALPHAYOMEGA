@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Text, View } from "react-native"
+import { Pressable, Text, View } from "react-native"
 import type { SesionProgramada, CambioDeFecha } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { fechaLegible, lunesDeSemana, sumarDias } from "./fechas"
@@ -50,20 +50,50 @@ export function FechaSesion({
     }
   }
   return (
-    <View style={{ gap: 6 }}>
+    <View
+      style={{
+        gap: 6,
+        padding: 14,
+        backgroundColor: tema.superficie,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: tema.borde,
+      }}
+    >
       <Text style={{ color: tema.texto }}>{fechaLegible(agenda.fechaActual)}</Text>
       {agenda.fechaActual !== agenda.fechaOriginal && (
         <Text style={{ color: tema.textoTenue }}>
           Día original: {fechaLegible(agenda.fechaOriginal)}
         </Text>
       )}
-      {agenda.estado === "abierta" && (
-        <BotonSecundario
-          texto={eligiendo ? "Cancelar cambio de día" : "Cambiar día"}
-          onPress={() => setEligiendo(!eligiendo)}
-          ocupado={ocupado}
-        />
-      )}
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        {agenda.estado === "abierta" && (
+          <BotonSecundario
+            texto={eligiendo ? "Cancelar cambio de día" : "Cambiar día"}
+            onPress={() => setEligiendo(!eligiendo)}
+            ocupado={ocupado}
+          />
+        )}
+        {(total === null || historial.length < total) && (
+          <Pressable
+            accessibilityRole="button"
+            disabled={ocupado}
+            accessibilityState={{ disabled: ocupado, busy: ocupado }}
+            onPress={() => void cambios()}
+            style={{ minHeight: 48, justifyContent: "center", paddingHorizontal: 6, marginTop: 12 }}
+          >
+            <Text
+              style={{
+                color: tema.textoTenue,
+                fontFamily: tema.fuenteTexto,
+                textDecorationLine: "underline",
+              }}
+            >
+              {total === null ? "Ver cambios de día" : "Más cambios"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
       {eligiendo && (
         <View style={{ gap: 4 }}>
           <Text style={{ color: tema.textoTenue }}>
@@ -80,13 +110,6 @@ export function FechaSesion({
             />
           ))}
         </View>
-      )}
-      {(total === null || historial.length < total) && (
-        <BotonSecundario
-          texto={total === null ? "Ver cambios de día" : "Más cambios"}
-          ocupado={ocupado}
-          onPress={() => void cambios()}
-        />
       )}
       {total === 0 && <Text style={{ color: tema.textoTenue }}>Sin cambios de día.</Text>}
       {historial.map((c) => (

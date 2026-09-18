@@ -11,7 +11,7 @@ export default function MiEntrenamiento(): React.JSX.Element {
   const api = useEntrenamiento()
   const router = useRouter()
   return (
-    <PantallaDeFormulario>
+    <PantallaDeFormulario sinTarjeta>
       {"usuario" in estado && estado.usuario.rol === "cliente" ? (
         <SemanaEntrenamiento
           clienteId={estado.usuario.id}

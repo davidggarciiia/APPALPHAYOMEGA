@@ -20,9 +20,28 @@ export function PrescripcionVisible({
   return (
     <View style={{ gap: 18 }}>
       {resultado && (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: tema.texto, fontSize: 26, fontWeight: "800" }}>
-            ✓ Entrenamiento enviado
+        <View style={{ gap: 10, alignItems: "center", paddingVertical: 24 }}>
+          <View
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: 36,
+              backgroundColor: tema.acento,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={{ color: tema.sobreAcento, fontSize: 36 }}>✓</Text>
+          </View>
+          <Text
+            style={{
+              color: tema.texto,
+              fontSize: 34,
+              fontFamily: tema.fuenteTitulo,
+              textAlign: "center",
+            }}
+          >
+            Entrenamiento enviado
           </Text>
           <Text style={{ color: tema.textoTenue }}>
             {resultado.series.filter((s) => s.hecha).length} de {resultado.series.length} series
@@ -42,9 +61,12 @@ export function PrescripcionVisible({
             borderColor: tema.borde,
             borderRadius: 18,
             padding: 16,
+            backgroundColor: tema.superficie,
           }}
         >
-          <Text style={{ color: tema.texto, fontSize: 19, fontWeight: "700" }}>{e.nombre}</Text>
+          <Text style={{ color: tema.texto, fontSize: 26, fontFamily: tema.fuenteTitulo }}>
+            {e.nombre}
+          </Text>
           {e.indicaciones && <Text style={{ color: tema.textoTenue }}>{e.indicaciones}</Text>}
           {e.series.map((s, n) => {
             const real = resultado?.series.find((r) => r.serieId === s.id)

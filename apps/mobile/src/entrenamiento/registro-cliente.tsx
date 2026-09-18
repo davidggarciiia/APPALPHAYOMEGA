@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { randomUUID } from "expo-crypto"
-import { AppState, Modal, Pressable, Text, TextInput, View } from "react-native"
+import { AppState, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native"
 import { ZodError } from "zod"
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
@@ -169,7 +169,7 @@ export function RegistroCliente({
   const hechas = documento.edicion.series.filter((s) => s.hecha).length
   return (
     <View style={{ gap: 18 }}>
-      <Text style={{ color: tema.texto, fontSize: 28, fontWeight: "800" }}>
+      <Text style={{ color: tema.texto, fontSize: 36, fontFamily: tema.fuenteTitulo }}>
         {documento.sesion.prescripcion.nombre}
       </Text>
       <FechaSesion
@@ -248,18 +248,21 @@ export function RegistroCliente({
             borderWidth: 1,
             borderColor: tema.borde,
             borderRadius: 18,
-            padding: 12,
+            padding: 16,
+            backgroundColor: tema.superficie,
             gap: 12,
           }}
         >
-          <Text style={{ color: tema.texto, fontSize: 19, fontWeight: "700" }}>{e.nombre}</Text>
+          <Text style={{ color: tema.texto, fontSize: 26, fontFamily: tema.fuenteTitulo }}>
+            {e.nombre}
+          </Text>
           {e.indicaciones && <Text style={{ color: tema.textoTenue }}>{e.indicaciones}</Text>}
           {e.series.map((s, n) => {
             const real = documento.edicion.series.find((r) => r.serieId === s.id)!
             const unidad = s.tipoMedicion === "tiempo" ? "Segundos" : "Repeticiones"
             return (
               <View key={s.id} style={{ gap: 6 }}>
-                <Text style={{ color: tema.textoTenue, opacity: 0.75 }}>
+                <Text style={{ color: tema.textoTenue, fontSize: 12 }}>
                   Serie {n + 1} · Objetivo {valoresLegibles(s)}
                 </Text>
                 <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
@@ -274,6 +277,11 @@ export function RegistroCliente({
                     maxLength={30}
                     style={{
                       flex: 1,
+                      minWidth: 0,
+                      textAlign: "center",
+                      fontFamily: tema.fuenteBoton,
+                      fontSize: 18,
+                      backgroundColor: tema.fondo,
                       minHeight: 44,
                       borderWidth: 1,
                       borderColor: tema.borde,
@@ -293,6 +301,11 @@ export function RegistroCliente({
                     maxLength={30}
                     style={{
                       flex: 1,
+                      minWidth: 0,
+                      textAlign: "center",
+                      fontFamily: tema.fuenteBoton,
+                      fontSize: 18,
+                      backgroundColor: tema.fondo,
                       minHeight: 44,
                       borderWidth: 1,
                       borderColor: tema.borde,
@@ -371,29 +384,38 @@ export function RegistroCliente({
           }}
         >
           <View
-            style={{ backgroundColor: tema.superficie, padding: 24, borderRadius: 18, gap: 14 }}
+            style={{
+              backgroundColor: tema.superficie,
+              borderRadius: 18,
+              maxHeight: "95%",
+              width: "100%",
+              maxWidth: 520,
+              alignSelf: "center",
+            }}
           >
-            <Text style={{ color: tema.texto, fontSize: 24, fontWeight: "700" }}>
-              Enviar al entrenador
-            </Text>
-            <Text style={{ color: tema.texto }}>
-              {hechas} series hechas · {documento.edicion.series.length - hechas} omitidas.
-            </Text>
-            <Text style={{ color: tema.textoTenue }}>
-              Solo se enviarán los valores de las series marcadas. Después, el entrenamiento quedará
-              cerrado.
-            </Text>
-            {error !== "" && <AvisoDeError mensaje={error} />}
-            <BotonPrincipal
-              texto="Confirmar y enviar"
-              ocupado={ocupado}
-              onPress={() => void accion(() => control.enviar())}
-            />
-            <BotonSecundario
-              texto="Seguir entrenando"
-              ocupado={ocupado}
-              onPress={() => setResumen(false)}
-            />
+            <ScrollView contentContainerStyle={{ padding: 24, gap: 14 }}>
+              <Text style={{ color: tema.texto, fontSize: 30, fontFamily: tema.fuenteTitulo }}>
+                Enviar al entrenador
+              </Text>
+              <Text style={{ color: tema.texto }}>
+                {hechas} series hechas · {documento.edicion.series.length - hechas} omitidas.
+              </Text>
+              <Text style={{ color: tema.textoTenue }}>
+                Solo se enviarán los valores de las series marcadas. Después, el entrenamiento
+                quedará cerrado.
+              </Text>
+              {error !== "" && <AvisoDeError mensaje={error} />}
+              <BotonPrincipal
+                texto="Confirmar y enviar"
+                ocupado={ocupado}
+                onPress={() => void accion(() => control.enviar())}
+              />
+              <BotonSecundario
+                texto="Seguir entrenando"
+                ocupado={ocupado}
+                onPress={() => setResumen(false)}
+              />
+            </ScrollView>
           </View>
         </View>
       </Modal>

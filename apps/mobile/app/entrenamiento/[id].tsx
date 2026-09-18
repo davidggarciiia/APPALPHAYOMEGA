@@ -13,7 +13,11 @@ export default function DetalleEntrenamiento(): React.JSX.Element {
   const api = useEntrenamiento()
   const router = useRouter()
   return (
-    <PantallaDeFormulario>
+    <PantallaDeFormulario sinTarjeta>
+      <BotonSecundario
+        texto="← Volver"
+        onPress={() => (router.canGoBack() ? router.back() : router.replace("/entrenamiento"))}
+      />
       {"usuario" in estado && estado.usuario.rol === "cliente" ? (
         <RegistroCliente cuenta={estado.usuario.id} id={id} api={api} />
       ) : estado.fase === "dentro" && estado.usuario.rol === "entrenador" ? (
@@ -21,7 +25,6 @@ export default function DetalleEntrenamiento(): React.JSX.Element {
       ) : (
         <Text style={{ color: tema.texto }}>Inicia sesión para abrir el entrenamiento.</Text>
       )}
-      <BotonSecundario texto="Volver" onPress={() => router.back()} />
     </PantallaDeFormulario>
   )
 }
