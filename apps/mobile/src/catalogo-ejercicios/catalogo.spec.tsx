@@ -1,69 +1,25 @@
 import { describe, it, jest } from "@jest/globals"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
-import {
-  EjercicioSchema,
-  ListadoEjerciciosSchema,
-  type Ejercicio,
-  type GrupoMuscular,
-  type ListadoEjercicios,
-} from "@alpha-omega/shared"
+import { ListadoEjerciciosSchema, type ListadoEjercicios } from "@alpha-omega/shared"
 
 import { ErrorDeRed } from "../lib/api"
 
-import type { ApiDeCatalogo, FiltrosDeCatalogo } from "./api"
+import type { ApiDeCatalogo } from "./api"
 import { Catalogo } from "./catalogo"
+import { catalogoEnMemoria, ejercicioDePrueba } from "./catalogo-en-memoria"
 
-/**
- * Datos de prueba, no respuestas del servidor.
- *
- * Pasan por el esquema compartido para que un cambio de contrato rompa aquí y no
- * en el móvil de nadie. La comprobación contra la API real es aparte.
- */
-function ejercicio(
-  id: string,
-  nombre: string,
-  grupoPrincipal: GrupoMuscular,
-  gruposSecundarios: GrupoMuscular[] = [],
-): Ejercicio {
-  return EjercicioSchema.parse({
-    id,
-    nombre,
-    grupoPrincipal,
-    gruposSecundarios,
-    instrucciones: "Baja controlando y sube sin bloquear.",
-    estado: "publicado",
-    figura: null,
-    video: null,
-  })
-}
-
-const PRESS = ejercicio("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b01", "Press de banca", "pecho", [
+const PRESS = ejercicioDePrueba("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b01", "Press de banca", "pecho", [
   "triceps",
 ])
-const SENTADILLA = ejercicio("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b02", "Sentadilla", "cuadriceps", [
-  "gluteos",
+const SENTADILLA = ejercicioDePrueba(
+  "3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b02",
+  "Sentadilla",
+  "cuadriceps",
+  ["gluteos"],
+)
+const FONDOS = ejercicioDePrueba("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b03", "Fondos", "triceps", [
+  "pecho",
 ])
-const FONDOS = ejercicio("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b03", "Fondos", "triceps", ["pecho"])
-
-/** Catálogo en memoria que filtra como se espera que filtre el servidor. */
-function apiEnMemoria(ejercicios: Ejercicio[], total?: number): ApiDeCatalogo {
-  return {
-    buscar: (filtros: FiltrosDeCatalogo) => {
-      const texto = filtros.buscar?.toLowerCase() ?? ""
-      const filas = ejercicios.filter(
-        (fila) =>
-          fila.nombre.toLowerCase().includes(texto) &&
-          (filtros.grupo === undefined ||
-            fila.grupoPrincipal === filtros.grupo ||
-            fila.gruposSecundarios.includes(filtros.grupo)),
-      )
-
-      return Promise.resolve(
-        ListadoEjerciciosSchema.parse({ ejercicios: filas, total: total ?? filas.length }),
-      )
-    },
-  }
-}
 
 function pintar(
   api: ApiDeCatalogo,
@@ -84,7 +40,7 @@ describe("Catálogo de ejercicios", () => {
     const pendiente = new Promise<ListadoEjercicios>((resolver) => {
       contestar = resolver
     })
-    await pintar({ buscar: () => pendiente })
+    await pintar({ ...catalogoEnMemoria(), buscar: () => pendiente })
 
     expect(screen.getByLabelText("Cargando el catálogo")).toBeOnTheScreen()
 
@@ -94,7 +50,7 @@ describe("Catálogo de ejercicios", () => {
   })
 
   it("enseña cada ejercicio con su grupo principal", async () => {
-    await pintar(apiEnMemoria([PRESS, SENTADILLA]))
+    await pintar(catalogoEnMemoria([PRESS, SENTADILLA]))
 
     await screen.findByRole("button", { name: "Press de banca. Pecho" })
     expect(screen.getByRole("button", { name: "Sentadilla. Cuádriceps" })).toBeOnTheScreen()
@@ -102,13 +58,13 @@ describe("Catálogo de ejercicios", () => {
   })
 
   it("dice que el catálogo está vacío en lugar de enseñar una lista en blanco", async () => {
-    await pintar(apiEnMemoria([]))
+    await pintar(catalogoEnMemoria([]))
 
     await screen.findByText(/Todavía no hay ejercicios/)
   })
 
   it("cuenta el fallo de red y vuelve a pedir la lista al reintentar", async () => {
-    const api = apiEnMemoria([PRESS])
+    const api = catalogoEnMemoria([PRESS])
     const buscar = api.buscar
     let fallos = 1
     api.buscar = (filtros) =>
@@ -123,7 +79,7 @@ describe("Catálogo de ejercicios", () => {
   })
 
   it("busca por nombre cuando el entrenador deja de teclear", async () => {
-    await pintar(apiEnMemoria([PRESS, SENTADILLA]))
+    await pintar(catalogoEnMemoria([PRESS, SENTADILLA]))
     await screen.findByRole("button", { name: "Press de banca. Pecho" })
 
     await fireEvent.changeText(screen.getByLabelText("Buscar ejercicio"), "senta")
@@ -136,7 +92,7 @@ describe("Catálogo de ejercicios", () => {
   })
 
   it("distingue una búsqueda sin resultados de un catálogo vacío", async () => {
-    await pintar(apiEnMemoria([PRESS]))
+    await pintar(catalogoEnMemoria([PRESS]))
     await screen.findByRole("button", { name: "Press de banca. Pecho" })
 
     await fireEvent.changeText(screen.getByLabelText("Buscar ejercicio"), "remo")
@@ -145,7 +101,7 @@ describe("Catálogo de ejercicios", () => {
   })
 
   it("filtra por grupo muscular, sea principal o secundario", async () => {
-    await pintar(apiEnMemoria([PRESS, SENTADILLA, FONDOS]))
+    await pintar(catalogoEnMemoria([PRESS, SENTADILLA, FONDOS]))
     await screen.findByRole("button", { name: "Sentadilla. Cuádriceps" })
 
     await fireEvent.press(screen.getByRole("button", { name: "Filtrar por Pecho" }))
@@ -159,7 +115,7 @@ describe("Catálogo de ejercicios", () => {
   })
 
   it("avisa cuando el servidor tiene más ejercicios de los que caben en la lista", async () => {
-    await pintar(apiEnMemoria([PRESS, SENTADILLA], 140))
+    await pintar(catalogoEnMemoria([PRESS, SENTADILLA], 140))
 
     await screen.findByText(/Mostrando 2 de 140/)
   })
@@ -167,7 +123,7 @@ describe("Catálogo de ejercicios", () => {
   it("da acceso al alta y a la edición de un ejercicio", async () => {
     const onNuevo = jest.fn()
     const onAbrir = jest.fn()
-    await pintar(apiEnMemoria([PRESS]), { onNuevo, onAbrir })
+    await pintar(catalogoEnMemoria([PRESS]), { onNuevo, onAbrir })
 
     await fireEvent.press(screen.getByRole("button", { name: "Crear un ejercicio nuevo" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Press de banca. Pecho" }))
