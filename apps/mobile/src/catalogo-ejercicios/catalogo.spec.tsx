@@ -6,7 +6,7 @@ import { ErrorDeRed } from "../lib/api"
 
 import type { ApiDeCatalogo } from "./api"
 import { Catalogo } from "./catalogo"
-import { catalogoEnMemoria, ejercicioDePrueba } from "./catalogo-en-memoria"
+import { catalogoEnMemoria, ejercicioDePrueba } from "./pruebas/catalogo-en-memoria"
 
 const PRESS = ejercicioDePrueba("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b01", "Press de banca", "pecho", [
   "triceps",

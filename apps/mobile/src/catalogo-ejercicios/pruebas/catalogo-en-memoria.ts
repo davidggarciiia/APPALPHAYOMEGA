@@ -7,9 +7,9 @@ import {
   type GrupoMuscular,
 } from "@alpha-omega/shared"
 
-import { ErrorDelServidor } from "../lib/api"
+import { ErrorDelServidor } from "../../lib/api"
 
-import { ErrorDeNombreDuplicado, type ApiDeCatalogo } from "./api"
+import { ErrorDeNombreDuplicado, type ApiDeCatalogo } from "../api"
 
 /**
  * Datos de prueba, no respuestas del servidor.
