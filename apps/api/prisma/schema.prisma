@@ -64,6 +64,12 @@ model Usuario {
   /// Nutricionistas que ven a este usuario como cliente.
   nutricionistasAsignados AsignacionNutricionista[] @relation("ComoCliente")
 
+  planesRecibidos PlanEntrenamiento[] @relation("ClientePlan")
+  planesCreados PlanEntrenamiento[] @relation("CreadorPlan")
+  sesionesProgramadas SesionProgramada[]
+  cambiosDeFecha CambioDeFecha[]
+  rutinasGuardadas RutinaGuardada[]
+
   @@map("usuarios")
 }
 
@@ -225,6 +231,7 @@ model Ejercicio {
   actualizadoEn     DateTime        @updatedAt
 
   gruposSecundarios GrupoSecundarioDeEjercicio[]
+  referencias ReferenciaEjercicio[]
 
   @@index([estado, grupoPrincipal])
   @@map("ejercicios")
@@ -238,4 +245,119 @@ model GrupoSecundarioDeEjercicio {
   @@id([ejercicioId, grupo])
   @@index([grupo])
   @@map("grupos_secundarios_de_ejercicio")
+}
+
+enum EstadoSesionProgramada {
+  abierta
+  cerrada
+}
+
+model PlanEntrenamiento {
+  id String @id @default(uuid())
+  clienteId String
+  cliente Usuario @relation("ClientePlan", fields: [clienteId], references: [id], onDelete: Restrict)
+  creadorId String
+  creador Usuario @relation("CreadorPlan", fields: [creadorId], references: [id], onDelete: Restrict)
+  operacionId String
+  hashPeticion String
+  nombre String @db.VarChar(120)
+  semanaInicial DateTime @db.Date
+  semanas Int
+  version Int @default(1)
+  patron Json
+  respuesta Json
+  creadoEn DateTime @default(now())
+  sesiones SesionEntrenamiento[]
+  @@unique([creadorId, operacionId])
+  @@unique([id, clienteId])
+  @@index([clienteId])
+  @@map("planes_entrenamiento")
+}
+
+model SesionProgramada {
+  id String @id @default(uuid())
+  clienteId String
+  cliente Usuario @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  fechaOriginal DateTime @db.Date
+  fechaActual DateTime @db.Date
+  estado EstadoSesionProgramada @default(abierta)
+  revision Int @default(0)
+  entrenamiento SesionEntrenamiento?
+  cambios CambioDeFecha[]
+  @@unique([id, clienteId])
+  @@index([clienteId, fechaActual])
+  @@map("sesiones_programadas")
+}
+
+model SesionEntrenamiento {
+  id String @id
+  clienteId String
+  agenda SesionProgramada @relation(fields: [id, clienteId], references: [id, clienteId], onDelete: Restrict)
+  planId String
+  plan PlanEntrenamiento @relation(fields: [planId, clienteId], references: [id, clienteId], onDelete: Restrict)
+  version Int @default(1)
+  prescripcion Json
+  revisionPrescripcion Int @default(0)
+  iniciada Boolean @default(false)
+  revisionBorrador Int @default(0)
+  borrador Json?
+  resultado Json?
+  enviadoEn DateTime?
+  referencias ReferenciaEjercicio[]
+  operaciones OperacionEntrenamiento[]
+  @@unique([id, clienteId])
+  @@index([planId])
+  @@map("sesiones_entrenamiento")
+}
+
+model ReferenciaEjercicio {
+  sesionId String
+  idPrescrito String
+  ejercicioId String
+  sesion SesionEntrenamiento @relation(fields: [sesionId], references: [id], onDelete: Restrict)
+  ejercicio Ejercicio @relation(fields: [ejercicioId], references: [id], onDelete: Restrict)
+  @@id([sesionId, idPrescrito])
+  @@index([ejercicioId])
+  @@map("referencias_ejercicio")
+}
+
+model CambioDeFecha {
+  id String @id @default(uuid())
+  sesionId String
+  sesion SesionProgramada @relation(fields: [sesionId], references: [id], onDelete: Restrict)
+  fechaAnterior DateTime @db.Date
+  fechaNueva DateTime @db.Date
+  autorId String
+  autor Usuario @relation(fields: [autorId], references: [id], onDelete: Restrict)
+  cambiadoEn DateTime @default(now())
+  @@index([sesionId, cambiadoEn])
+  @@map("cambios_de_fecha")
+}
+
+model RutinaGuardada {
+  id String @id @default(uuid())
+  nombre String @db.VarChar(120)
+  creadorId String
+  creador Usuario @relation(fields: [creadorId], references: [id], onDelete: Restrict)
+  version Int @default(1)
+  patron Json
+  revision Int @default(0)
+  creadoEn DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  @@index([creadorId])
+  @@map("rutinas_guardadas")
+}
+
+/// Registro de operaciones confirmado en la misma transacción que la escritura.
+model OperacionEntrenamiento {
+  sesionId String
+  sesion SesionEntrenamiento @relation(fields: [sesionId], references: [id], onDelete: Restrict)
+  operacionId String
+  tipo String
+  version Int @default(1)
+  hashPeticion String
+  respuesta Json
+  creadoEn DateTime @default(now())
+  @@id([sesionId, operacionId])
+  @@map("operaciones_entrenamiento")
 }
