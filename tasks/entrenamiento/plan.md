@@ -15,9 +15,10 @@ series por repeticiones o tiempo, recupera su borrador y envía el entrenamiento
 ## Estado del flujo de Agent Skills
 
 David ha revisado los planes y ha indicado «vale, comienza tu parte». Esa
-instrucción autoriza iniciar las tareas de Codex. Fable recibe
-su base de implementación cuando exista el commit común. Ya ha dejado una
-entrega de lectura con dudas, resueltas en el encargo; no ha escrito código.
+instrucción autoriza iniciar las tareas de Codex. También ha validado el
+checkpoint 0A con «adelant». La base común de código C00–C03 está en `83177eb`;
+Fable puede empezar F01 desde ella siguiendo el encargo actualizado.
+Su entrega de lectura tiene las dudas resueltas; no constan commits de implementación.
 La investigación adicional de animaciones está en
 [bibliotecas de figuras](../../docs/animaciones-ejercicios.md); aún no fija un proveedor.
 
@@ -25,8 +26,8 @@ La investigación adicional de animaciones está en
 | --------- | --------------------------------------------------------------- | ------------------------------------------------------- |
 | SPECIFY   | Entrevista y especificaciones de agenda/entrenamiento aprobadas | Ya recibida; se conserva                                |
 | PLAN      | Aprobado con la instrucción de comenzar                         | Reparto, contratos, dependencias y catálogo delimitados |
-| TASKS     | Ejecución de Codex autorizada; Fable espera el commit común     | Tareas de ambos responsables separadas                  |
-| IMPLEMENT | C00–C02 verificados; checkpoint 0A listo                        | Presentar evidencia del checkpoint 0A antes de C03      |
+| TASKS     | Ejecución autorizada y base común preparada para Fable          | Tareas de ambos responsables separadas                  |
+| IMPLEMENT | C00–C03 verificados; checkpoint 0A aprobado                     | C04–C05 y F01–F02 conducen al checkpoint 1A             |
 
 `spec-driven-development` exige validar cada fase antes de pasar a la siguiente.
 Las [tareas de Codex](todo.md) y [Fable](todo-fable.md) conservan el reparto
@@ -296,6 +297,7 @@ quedan acotados al entrenamiento, sin migrar las pantallas existentes.
 | Tests móviles aparentan verificar el nativo | Se distinguen tests con mocks de pruebas en Expo Go                      |
 | Pendientes de identidad ocultos             | Se conserva su plan y no se marca identidad completa                     |
 
-El siguiente punto de revisión es el checkpoint 0A, tras C00–C02. Se presentarán
-las comprobaciones del incremento antes de avanzar. La compra o integración de
-una biblioteca de animaciones se decide por separado tras evaluar las muestras.
+El siguiente punto de revisión es el checkpoint 1A, tras C04–C05 y la revisión
+del catálogo F01–F02. La base común C00–C03 ya está verificada y el encargo listo
+para que David lo pase a Fable. La compra o integración de una biblioteca de
+animaciones se decide por separado tras evaluar las muestras.

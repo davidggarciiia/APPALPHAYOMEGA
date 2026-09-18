@@ -79,7 +79,7 @@ relación de secundarios, búsqueda, permisos y respuestas de retirada/reposici�
 C03 se divide en C03a (errores compartidos) y C03b (transporte) para entregar
 un código `nombre_duplicado` estable sin superar cinco archivos por tarea.
 
-El checkpoint 0A se presenta a David antes de C03. La skill
+David aprobó el checkpoint 0A con «adelant», antes de C03. La skill
 `planning-and-task-breakdown`, paso 5, incluye «Review with human before proceeding»;
 el plan adoptó ese punto de revisión cada dos o tres tareas.
 
@@ -91,6 +91,70 @@ el plan adoptó ese punto de revisión cada dos o tres tareas.
   ya presentes en la misma ruta.
 - El peer de `react-native-worklets` y el aviso de motor de `@angular-devkit`
   ya existían. No se actualizó React, React Native ni Node para ocultarlos.
-- C03 sigue pendiente. Fable espera el commit común C00–C03 para comenzar.
+- C03 se completó después de la aprobación; su evidencia se registra abajo.
 - Las animaciones tienen su [comparación propia](../../docs/animaciones-ejercicios.md).
   No se ha comprado ni integrado una biblioteca.
+
+## Base común C00–C03 — entrega para Fable
+
+### C03a: errores compartidos
+
+- Commit `9fc9003`. `ErrorDeApiSchema` exporta cuerpos estrictos para 400
+  (`solicitud_invalida`) y 409 (`nombre_duplicado`, `revision_obsoleta`,
+  `operacion_incompatible`). Identidad conserva sus respuestas anteriores.
+- Tres pruebas nuevas verifican cuerpos válidos y rechazo de estados/códigos
+  incompatibles. Se observaron fallar antes de implementar el contrato.
+
+### C03b: transporte y compatibilidad
+
+- Commit `83177eb`, base común de código C00–C03. `http.ts` concentra la petición,
+  valida respuestas con Zod y añade `ErrorDePeticion.detalle` sin cambiar el
+  estado numérico de `ErrorDelServidor.codigo` que utiliza identidad.
+- La fábrica autenticada obtiene el token actual en cada llamada y conserva los
+  headers del consumidor. No renueva tokens ni repite mutaciones automáticamente;
+  C06 incorporará la renovación coordinada.
+- 22 pruebas HTTP cubren 401/403, red, errores 400/409 nuevos y antiguos,
+  contrato de respuesta, 204, headers, token actual, cancelación, límite de diez
+  segundos y conservación del cuerpo/id de operación al reintentar explícitamente.
+- Se reprodujo con una prueba roja que `AbortSignal.timeout` no está disponible
+  en el polyfill de React Native instalado. El transporte utiliza ahora
+  `AbortController` y temporizador con limpieza. Esto no sustituye la prueba nativa.
+- La revisión independiente detectó que un corte al leer el cuerpo de 400/409
+  se confundía con un error HTTP normal. Dos pruebas adicionales reprodujeron el
+  problema antes del arreglo. La revisión posterior no deja hallazgos accionables.
+
+### Comprobación web real
+
+La aplicación mostró inicialmente una pantalla en blanco: la configuración manual
+de Metro forzaba a Expo/HMR a resolver `pretty-format` 30 de Jest en lugar de 29.
+Se añadió `metro.config.js` al alcance de C03b antes de cambiarlo, manteniendo cinco
+archivos. Ahora usa `getDefaultConfig(__dirname)` y resolución automática de
+workspaces; no se modificaron dependencias ni lockfile. Es la configuración
+recomendada desde SDK 52 por [Expo para monorepos](https://docs.expo.dev/guides/monorepos/).
+
+Tras reiniciar Expo con `--clear`, en navegador se comprobó:
+
+1. Formulario de acceso visible.
+2. Login correcto con una cuenta local temporal, contra la API y PostgreSQL reales.
+3. Lectura de perfil con nombre y correo de esa cuenta.
+4. Cierre de sesión y regreso al formulario de acceso.
+
+La consola del navegador no registró errores ni avisos en ese recorrido. La cuenta
+temporal se eliminó al finalizar y se cerraron los servidores de prueba iniciados
+por Codex. No se modificaron perfiles existentes. Android/iOS siguen sin comprobar.
+
+### Resultado de las comprobaciones de C03
+
+| Comprobación                         | Resultado                         |
+| ------------------------------------ | --------------------------------- |
+| `npm run test`                       | 68 pruebas API + 26 móviles pasan |
+| `npm run typecheck`                  | Pasa en todos los workspaces      |
+| `npm run lint`                       | ESLint y Prettier pasan           |
+| `npm run build --workspace apps/api` | Compila                           |
+| `git diff --check`                   | Sin errores                       |
+| Login, perfil y logout web           | Verificados con API real          |
+
+Las 204 pruebas HTTP de C02 no se repitieron en C03: no se cambió implementación
+de servidor, esquema Prisma ni migraciones. Los tests móviles siguen usando el
+entorno Jest/Expo y no prueban dispositivos. C04, C05 y C06 permanecen pendientes.
+El [encargo de Fable](fable.md) está preparado; este trabajo no inicia su sesión.

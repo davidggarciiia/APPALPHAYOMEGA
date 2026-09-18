@@ -1,13 +1,13 @@
 # Encargo para Fable — segunda iteración de Alpha & Omega
 
-> Reparto aprobado el 2026-09-18. Fable ha dejado una entrega de lectura y dudas;
-> la implementación espera el commit común C00–C03.
+> Reparto aprobado el 2026-09-18. Dudas de lectura resueltas.
+> Base común de código C00–C03: `83177eb`. F01 puede comenzar.
 
 ## Contexto que debes leer
 
 El usuario pidió continuar con Agent Skills, no Superpowers. La entrevista y
-las especificaciones y el reparto están aprobados. Codex está implementando la
-base y presentará el checkpoint 0A antes de continuar con C03.
+las especificaciones y el reparto están aprobados. David validó el checkpoint 0A
+con «adelant» y Codex completó C03. La evidencia está en [verificacion.md](verificacion.md).
 
 1. `C:/Users/david/.claude/skills/using-agent-skills/SKILL.md`.
 2. [Tu plan](plan-fable.md), [coordinación](plan.md) y [SPEC.md](../../SPEC.md).
@@ -49,9 +49,12 @@ acceso al catálogo: su permiso depende del rol, no de un cliente asignado.
 
 ## Inicio y secuencia
 
-Tras recibir el commit de C00–C03, crea un worktree
-separado desde ese commit, rama `codex/fable-catalogo`. No cambies la rama ni
-instales paquetes en la carpeta principal que está usando Codex.
+La base común de código C00–C03 es `83177eb`; los documentos de entrega se
+actualizan en el commit siguiente de `codex/entrenamiento-iteracion-2`. Usa ese
+commit de documentación para que el worktree incluya este encargo actualizado.
+David te facilitará el hash; confirma que desciende de `83177eb` antes de crear
+el worktree separado, rama `codex/fable-catalogo`. No cambies la rama ni instales
+paquetes en la carpeta principal que está usando Codex.
 
 Empieza por F01; después F02 y F03. Entrega el catálogo con sus commits y pruebas.
 Continúa F04 cuando Codex comparta el contrato y el servicio de asignación C09.
@@ -78,8 +81,8 @@ Decisiones del 2026-09-18 para F01; no se modifica tu archivo de entrega.
    El DTO mantiene el array de nombres; Fable transforma la relación al leer.
 3. Nombre repetido: HTTP 409 y cuerpo `{ statusCode: 409, codigo:
 "nombre_duplicado", message: "Ya existe un ejercicio con ese nombre" }`.
-   El formulario usa `codigo`, nunca compara el mensaje. Codex añadirá el esquema
-   de errores en C03a antes de entregar la base común. C03b preparará el transporte.
+   El formulario usa `codigo`, nunca compara el mensaje. El esquema ya está
+   exportado por `@alpha-omega/shared` y el transporte lo reconoce.
 4. `grupo` coincide con principal o secundario. El mapa muscular queda fuera.
 5. Cliente que pide `retirado` o `todos`: 403. Leer uno retirado por id sigue permitido.
 6. `buscar` usa el nombre normalizado y conserva acentos; orden por nombre
@@ -88,6 +91,41 @@ Decisiones del 2026-09-18 para F01; no se modifica tu archivo de entrega.
 8. `:id` se valida con `z.uuid()` en el controlador, sin nuevo alias compartido.
 9. Edición textual completa sin revisión en esta iteración; última escritura gana.
 10. Pruebas de catálogo con prefijo propio y turno de base de datos, como propones.
+
+## Transporte disponible para F02
+
+Importa `crearPeticionAutenticada` y el tipo `PeticionAutenticada` desde
+`src/lib/peticion-autenticada.ts`. Tu adaptador de catálogo puede recibir esa
+función como dependencia. La fábrica recibe un getter que devuelve el token
+vigente o `null`; cada llamada consulta ese getter. No cierres sobre una copia
+antigua del estado de sesión: actualiza la referencia o reconstruye el adaptador
+cuando cambie el token. No crees un almacén global de credenciales.
+
+La firma es `pedir(ruta, esquemaZodDeRespuesta, opcionesRequestInit?)`.
+La ruta empieza por `/`, el cuerpo se pasa como JSON serializado y los headers
+se combinan con `Authorization: Bearer …`. La respuesta se valida antes de
+entregarla al consumidor; un 204 requiere un esquema que admita `null`.
+
+Errores exportados por `src/lib/http.ts`:
+
+- `ErrorDePeticion`: cuerpo validado de 400/409. Para nombre duplicado comprueba
+  `error.detalle.codigo === "nombre_duplicado"`. `error.codigo` sigue siendo el
+  estado HTTP numérico, por compatibilidad con identidad.
+- `ErrorDeSesion`: 401 o ausencia de token antes de la petición.
+- `ErrorDePermiso`: 403; no indica cierre de sesión.
+- `ErrorDeRed`: fallo de transporte, cancelación o límite de diez segundos,
+  también durante la lectura del cuerpo.
+- `ErrorDelServidor`: otros estados HTTP o un cuerpo de error no conforme.
+
+El esquema de error 400 requiere `{ statusCode: 400, codigo: "solicitud_invalida",
+message: "…" }`. Los de 409 admiten `nombre_duplicado`, `revision_obsoleta` y
+`operacion_incompatible`. Son contratos estrictos: no añadas campos extra.
+
+C06 añadirá la renovación coordinada; esta base no renueva ni reintenta sola.
+F02 puede conectar con una sesión vigente, dejando la prueba de sesión larga
+pendiente de C06. Conserva cuerpo e id de operación al reintentar operaciones
+que lo incluyan; el transporte no genera otro id. Las respuestas de identidad
+anteriores y sus imports siguen funcionando.
 
 ## Qué entregar en cada checkpoint
 
@@ -104,7 +142,8 @@ fusiones a `main` como efecto de este encargo.
 
 > Sigue Agent Skills y lee `tasks/entrenamiento/fable.md` y `plan-fable.md`.
 > Tu parte es el catálogo completo mínimo y las pantallas del entrenador. Codex
-> lleva contratos, migraciones, agenda y registro del cliente. Comprueba que el
-> PLAN y TASKS están validados y que C00–C03 tienen commit de entrega antes de implementar.
-> Trabaja en un worktree independiente, respeta los archivos comunes y entrega
-> tus avances por los checkpoints indicados.
+> lleva contratos, migraciones, agenda y registro del cliente. PLAN y TASKS están
+> aprobados; C00–C03 están en `83177eb`. Parte del commit de documentación que
+> acompaña a esta entrega para conservar el encargo actualizado. Crea tu worktree
+> independiente en `codex/fable-catalogo` y empieza F01. Respeta los archivos comunes,
+> coordina las pruebas HTTP y entrega tus avances por los checkpoints indicados.

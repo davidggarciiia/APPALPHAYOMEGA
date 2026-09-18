@@ -1,7 +1,7 @@
 # Tareas de Codex — entrenamiento
 
 > Estado: ejecución de Codex autorizada por David el 2026-09-18 («comienza tu parte»).
-> C00–C02 implementadas y verificadas; checkpoint 0A listo para revisión.
+> Checkpoint 0A validado por David («adelant»); C03 terminado y base común preparada.
 > [Plan general](plan.md) · [Plan independiente de Fable](plan-fable.md).
 > Los identificadores C pertenecen a Codex; los F están en [todo-fable.md](todo-fable.md).
 > Esta lista no sustituye `tasks/todo.md` de identidad.
@@ -80,14 +80,14 @@ Ante una propuesta de reset, detener la migración y analizar el drift; no acept
 - [x] C00–C02 pasan sus comprobaciones y el proyecto sigue arrancando.
 - [x] El contrato puede ser leído y usado por Fable sin decidir otros campos.
 - [x] Registrar el commit de contrato y presentar la evidencia del checkpoint a David.
-- [ ] Revisión de David del checkpoint 0A antes de C03a–C03b.
+- [x] Revisión de David del checkpoint 0A antes de C03a–C03b.
 
 ### C03a — Fijar los errores comunes solicitados por Fable
 
-- [ ] Exportar `ErrorDeApiSchema` con `statusCode`, `codigo` y `message`;
+- [x] Exportar `ErrorDeApiSchema` con `statusCode`, `codigo` y `message`;
       código estable `nombre_duplicado` para 409, sin depender del texto visible.
-- [ ] Cubrir 400 de validación y 409 de dominio, rechazando cuerpos incompatibles.
-- [ ] Mantener la compatibilidad con errores existentes de identidad en el transporte.
+- [x] Cubrir 400 de validación y 409 de dominio, rechazando cuerpos incompatibles.
+- [x] Mantener la compatibilidad con errores existentes de identidad en el transporte.
 
 **Dependencias:** checkpoint 0A revisado. **Alcance:** S, tres archivos.
 **Archivos:** `packages/shared/src/errores-api.ts`, `packages/shared/src/index.ts`,
@@ -99,15 +99,18 @@ por debajo de cinco archivos. C03 designa C03a y C03b en el resto del plan.
 
 ### C03b — Ofrecer un transporte HTTP común a los módulos nuevos
 
-- [ ] Extraer la petición de red de `src/lib/api.ts` conservando el comportamiento
+- [x] Extraer la petición de red de `src/lib/api.ts` conservando el comportamiento
       de las funciones de identidad existentes.
-- [ ] Tipar errores 400/409 y cuerpos de respuesta; no tratar 403 como cierre de sesión.
-- [ ] Añadir un punto de acceso autenticado que C06 conectará a la renovación,
+- [x] Tipar errores 400/409 y cuerpos de respuesta; no tratar 403 como cierre de sesión.
+- [x] Añadir un punto de acceso autenticado que C06 conectará a la renovación,
       manteniendo ids de operación en reintentos.
 
-**Dependencias:** C01 y C03a. **Alcance:** M, cuatro archivos.
+**Dependencias:** C01 y C03a. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/mobile/src/lib/api.ts`, `http.ts`, `http.spec.ts`,
-`peticion-autenticada.ts`.
+`peticion-autenticada.ts`, `apps/mobile/metro.config.js`.
+La prueba web reprodujo una pantalla en blanco: la resolución manual de Metro
+forzaba a Expo a cargar la versión de `pretty-format` usada por Jest en la app.
+Se recupera la resolución automática de monorepos de Expo, sin cambiar paquetes.
 **Verificar:** `npm run test --workspace apps/mobile -- --runInBand http`;
 `npm run typecheck`. Repetir login y lectura de perfil en desarrollo.
 
@@ -145,7 +148,8 @@ por debajo de cinco archivos. C03 designa C03a y C03b en el resto del plan.
 
 ### Checkpoint 1A — contrato y persistencia
 
-- [ ] Entregar a Fable el commit común C00–C03 antes de sus cambios de código.
+- [x] Preparar para Fable el commit común C00–C03 y el encargo por archivo.
+      La sesión externa la inicia David; no consta implementación de Fable.
 - [ ] C04–C05 preservan un borrador y separan usuarios en pruebas nativas.
 - [ ] Revisar el catálogo F01–F02 sin editar simultáneamente sus archivos.
 
@@ -458,4 +462,11 @@ recorrido en Expo Go desde `npm run dev --workspace apps/mobile`.
   y `npm run lint` pasan. No implica comprobación en dispositivo.
 - C02: `eade5f2`. Migración aplicada sin drift; 204 pruebas HTTP pasan.
   Modelo, SQL y reversión revisados sin hallazgos. Evidencia completa en
-  [verificacion.md](verificacion.md). El commit común para Fable espera C03.
+  [verificacion.md](verificacion.md).
+- C03a: `9fc9003`. Esquema de errores 400/409 y tres pruebas nuevas.
+- C03b y base común de código C00–C03: `83177eb`. 68 pruebas API y 26 móviles
+  pasan; typecheck, lint y compilación API correctos. Login, perfil y logout
+  comprobados en web con API/PostgreSQL reales y cuenta temporal eliminada.
+  La revisión independiente queda sin hallazgos pendientes. Android/iOS no probados.
+- Encargo actualizado en [fable.md](fable.md): F01 puede arrancar desde la base
+  común; C06 sigue pendiente y no hay renovación automática dentro del transporte.

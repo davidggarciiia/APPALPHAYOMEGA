@@ -1,7 +1,7 @@
 # Plan de Fable — catálogo y pantallas del entrenador
 
 > Preparado el 2026-09-18 siguiendo Agent Skills.
-> **Estado: plan aprobado el 2026-09-18; Fable pendiente del commit común.**
+> **Estado: plan aprobado; base común `83177eb` preparada para empezar F01.**
 > [Plan y coordinación general](plan.md) · [Encargo para Fable](fable.md).
 
 ## Objetivo y alcance
@@ -20,7 +20,9 @@ Figuras, vídeos y mapa muscular quedan fuera de esta entrega.
 1. **SPECIFY:** entrevista y especificaciones de agenda/entrenamiento aprobadas.
 2. **PLAN:** aprobado junto con el reparto y las decisiones comunes.
 3. **TASKS:** el [desglose de Fable](todo-fable.md) fija sus tareas y dependencias.
-4. **IMPLEMENT:** pendiente de recibir el commit común C00–C03. Fable trabaja por incrementos:
+4. **IMPLEMENT:** base común C00–C03 lista en `83177eb`; F01 puede empezar.
+   Usa el commit de documentación que acompaña a la entrega, según [el encargo](fable.md).
+   Fable trabaja por incrementos:
    prueba, implementación, verificación y commit; revisión en cada checkpoint.
 
 Esta secuencia procede de `spec-driven-development`, y la descomposición sigue
@@ -88,6 +90,8 @@ con `npm run build --workspace apps/api`.
 
 ## Próximo punto de coordinación
 
-El reparto está aprobado. Fable espera el commit común C00–C03 para empezar F01.
-Su entrega de lectura ya tiene respuestas en el encargo. Las revisiones de cada
-incremento conservan los checkpoints del plan general.
+El reparto está aprobado y la base común de código C00–C03 está en `83177eb`.
+F01 puede empezar en el worktree independiente. Su entrega de lectura ya tiene
+respuestas y la guía del transporte en el encargo; C06 sigue pendiente para la
+renovación automática. No consta que Fable haya comenzado la implementación.
+Las revisiones de cada incremento conservan los checkpoints del plan general.

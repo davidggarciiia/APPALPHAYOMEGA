@@ -1,9 +1,9 @@
 # Tareas de Fable — catálogo y pantallas del entrenador
 
 > Preparado el 2026-09-18 con Agent Skills, `planning-and-task-breakdown`.
-> **Estado: reparto aprobado; pendiente del commit común C00–C03.**
+> **Estado: reparto aprobado; C00–C03 listos en `83177eb`; F01 puede comenzar.**
 > Véanse el [plan de Fable](plan-fable.md) y la [coordinación con Codex](plan.md).
-> Ninguna tarea de Fable está iniciada.
+> No constan tareas implementadas por Fable; este archivo no inicia su sesión.
 > [Encargo y contexto de arranque](fable.md). No sustituye el plan de identidad.
 
 ## Resultado a entregar
@@ -17,7 +17,8 @@ los resultados que el cliente ha enviado. Tus pantallas conservan negro y oro.
 - C00: contratos Zod, rutas y ejemplos de respuesta con tipos compartidos.
 - C01: dependencias y entorno de tests de componentes.
 - C02: modelo/migración del catálogo y módulo registrado.
-- C03 y C06: transporte común y renovación coordinada de sesión.
+- C03: transporte común disponible; uso y errores documentados en el encargo.
+- C06: renovación coordinada de sesión, todavía pendiente de Codex.
 - C09: asignación de una sesión y consultas semanales.
 - C13a–C13b: movimiento de fechas y componente reutilizable.
 - C14: resultado enviado y separación de borradores privados.
@@ -29,7 +30,8 @@ hasta comprobarlo contra su endpoint real.
 
 ## Archivos y trabajo simultáneo
 
-Trabaja en un worktree independiente desde el commit común que entregue Codex,
+Trabaja en un worktree independiente desde el commit de documentación que acompaña
+a la base común `83177eb`, siguiendo las instrucciones de [fable.md](fable.md),
 rama `codex/fable-catalogo`. No cambies la rama de la carpeta principal.
 Los cambios comunes (Prisma, migraciones, shared, módulos raíz, dependencias y
 lockfile) los integra Codex. No añadas otra librería de formularios, navegación,
@@ -49,9 +51,9 @@ Usa `incremental-implementation` y `test-driven-development`: reproduce con una
 prueba el comportamiento que falta, implementa el incremento y compruébalo.
 Revisa con `code-review-and-quality` antes de entregar.
 
-Antes de ejecutar, David debe haber validado primero el plan y después las tareas.
-La revisión cruzada de Codex no sustituye esos pasos. En cada checkpoint se revisa
-con David la entrega del incremento antes de avanzar al siguiente.
+David ya ha validado el plan y las tareas de este reparto. La revisión cruzada
+de Codex no sustituye esa validación. En cada checkpoint se revisa con David
+la entrega del incremento antes de avanzar al siguiente.
 
 Antes de cada test enfocado: `npm run build:shared`.
 Antes de cada commit: `npm run test`, `npm run typecheck`, `npm run lint`.
