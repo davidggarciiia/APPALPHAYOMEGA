@@ -2,6 +2,7 @@ import type { INestApplication } from "@nestjs/common"
 import { Test } from "@nestjs/testing"
 import {
   EjercicioSchema,
+  ErrorDeApiSchema,
   ListadoEjerciciosSchema,
   ROLES,
   type CrearEjercicio,
@@ -204,11 +205,14 @@ describe("Catalogo de ejercicios", () => {
     it("rechaza con 409 un nombre que solo cambia en mayusculas y espacios", async () => {
       await crear(ficha("Remo con barra"))
 
-      await request(app.getHttpServer())
+      const respuesta = await request(app.getHttpServer())
         .post("/ejercicios")
         .set(como("entrenador"))
         .send({ ...ficha("x"), nombre: `  ${PREFIJO.toUpperCase()}   remo   CON barra ` })
         .expect(409)
+
+      // El formulario pinta este rechazo en el campo del nombre por su codigo.
+      expect(ErrorDeApiSchema.parse(respuesta.body)).toMatchObject({ codigo: "nombre_duplicado" })
 
       expect(
         await prisma.ejercicio.count({ where: { nombreNormalizado: { startsWith: PREFIJO } } }),
@@ -285,11 +289,12 @@ describe("Catalogo de ejercicios", () => {
       const press = await crear(ficha("Press militar", { grupoPrincipal: "hombros" }))
       const elevaciones = await crear(ficha("Elevaciones", { grupoPrincipal: "hombros" }))
 
-      await request(app.getHttpServer())
+      const respuesta = await request(app.getHttpServer())
         .patch(`/ejercicios/${elevaciones.id}`)
         .set(como("entrenador"))
         .send(ficha("PRESS  militar", { grupoPrincipal: "hombros" }))
         .expect(409)
+      expect(ErrorDeApiSchema.parse(respuesta.body)).toMatchObject({ codigo: "nombre_duplicado" })
 
       const filas = await prisma.ejercicio.findMany({
         where: { id: { in: [press.id, elevaciones.id] } },

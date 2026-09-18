@@ -9,6 +9,7 @@ import type {
   CrearEjercicio,
   EditarEjercicio,
   Ejercicio,
+  ErrorDeApi,
   ListadoEjercicios,
   Rol,
 } from "@alpha-omega/shared"
@@ -222,7 +223,13 @@ export class CatalogoEjerciciosService {
     const codigo = codigoDePrisma(error)
 
     if (codigo === NOMBRE_REPETIDO) {
-      return new ConflictException("Ya existe un ejercicio con ese nombre")
+      // Con `codigo`, como fija el contrato de errores: el formulario pinta este
+      // rechazo en el campo del nombre sin interpretar el texto.
+      return new ConflictException({
+        statusCode: 409,
+        codigo: "nombre_duplicado",
+        message: "Ya existe un ejercicio con ese nombre",
+      } satisfies ErrorDeApi)
     }
 
     if (codigo === FILA_INEXISTENTE) {
