@@ -32,6 +32,8 @@ function Enrutador(): React.JSX.Element {
       router.replace("/login")
     } else if (estado.fase === "dentro" && enRutaPublica) {
       router.replace("/")
+    } else if (estado.fase === "local" && segmentos[0] !== "entrenamiento") {
+      router.replace("/entrenamiento")
     }
   }, [estado, segmentos, router])
 

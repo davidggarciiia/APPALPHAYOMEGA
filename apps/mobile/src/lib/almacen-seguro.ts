@@ -68,16 +68,11 @@ export async function leerTokenRefresco(): Promise<string | null> {
   }
 }
 
-/** Nunca lanza: quien lo llama esta cerrando sesion y no puede quedarse a medias. */
+/** Propaga fallos para que la sesión bloquee el cambio de cuenta y permita reintentar. */
 export async function borrarTokenRefresco(): Promise<void> {
-  try {
-    if (esWeb) {
-      globalThis.localStorage?.removeItem(CLAVE_REFRESCO)
-      return
-    }
-    await SecureStore.deleteItemAsync(CLAVE_REFRESCO, OPCIONES)
-  } catch {
-    // Si ni siquiera se puede borrar, no hay nada mejor que hacer aqui. El
-    // servidor ya tiene la sesion revocada, que es lo que de verdad importa.
+  if (esWeb) {
+    localStorage.removeItem(CLAVE_REFRESCO)
+    return
   }
+  await SecureStore.deleteItemAsync(CLAVE_REFRESCO, OPCIONES)
 }

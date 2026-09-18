@@ -75,3 +75,34 @@ it("no sobrescribe documentos corruptos o de una versión desconocida al leer", 
   await expect(almacen.leer(CUENTA, "sesion", z.string())).rejects.toThrow()
   expect(deps.filas.get(`${CUENTA}/sesion`)).toBe(original)
 })
+
+it("cerrar una cuenta bloquea escrituras tardías hasta autenticarla de nuevo", async () => {
+  const deps = memoria()
+  const almacen = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  await almacen.guardar(CUENTA, "sesion", "anterior")
+  await almacen.limpiar(CUENTA)
+  await expect(almacen.guardar(CUENTA, "sesion", "respuesta tardía")).rejects.toThrow()
+  await expect(almacen.listar(CUENTA)).rejects.toThrow()
+  almacen.habilitar(CUENTA)
+  await almacen.guardar(CUENTA, "sesion", "nueva sesión autenticada")
+  expect(await almacen.leer(CUENTA, "sesion", z.string())).toBe("nueva sesión autenticada")
+})
+
+it("una lectura diferida no entrega datos después de cerrar la cuenta", async () => {
+  const deps = memoria()
+  const almacen = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  await almacen.guardar(CUENTA, "sesion", "privado")
+  let liberar!: (texto: string) => void
+  jest.spyOn(deps.cifrado, "descifrar").mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        liberar = resolve
+      }),
+  )
+  const lectura = almacen.leer(CUENTA, "sesion", z.string())
+  while (!liberar) await new Promise((resolve) => setTimeout(resolve, 1))
+  const cierre = almacen.limpiar(CUENTA)
+  liberar(JSON.stringify({ version: 1, datos: "privado" }))
+  await expect(lectura).rejects.toThrow("cerrado")
+  await cierre
+})

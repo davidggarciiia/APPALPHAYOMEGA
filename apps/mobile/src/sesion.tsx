@@ -1,167 +1,338 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
-import type { ReactNode } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  Fragment,
+  type ReactNode,
+} from "react"
+import { Modal, Text, View } from "react-native"
 import type { Credenciales, Sesion, UsuarioPublico } from "@alpha-omega/shared"
-
 import { borrarTokenRefresco, guardarTokenRefresco, leerTokenRefresco } from "./lib/almacen-seguro"
 import {
+  ErrorDeRed,
   ErrorDeSesion,
   cerrarSesionEnServidor,
   iniciarSesion as pedirSesion,
   refrescarSesion,
 } from "./lib/api"
+import {
+  borrarIdentidadLocal,
+  guardarIdentidadLocal,
+  leerIdentidadLocal,
+  leerCuentaLocal,
+  marcarLimpieza,
+  leerLimpieza,
+  terminarLimpieza,
+  type IdentidadLocal,
+} from "./lib/sesion-local"
+import { crearPeticionAutenticada, type PeticionAutenticada } from "./lib/peticion-autenticada"
+import { almacenDispositivo } from "./entrenamiento/almacen-dispositivo"
+import { hayCambiosLocales } from "./entrenamiento/documento-local"
+import { BotonPrincipal, BotonSecundario } from "./componentes/formulario"
+import { tema } from "./tema"
 
-type EstadoSesion =
+export type EstadoSesion =
   | { fase: "comprobando" }
   | { fase: "fuera" }
+  | { fase: "local"; usuario: IdentidadLocal }
   | { fase: "dentro"; usuario: UsuarioPublico; tokenAcceso: string }
-
 type Contexto = {
   estado: EstadoSesion
-  /** El servidor rechazo la sesion guardada y hubo que descartarla. */
   sesionCaducada: boolean
-  /** No se pudo hablar con el servidor al arrancar. El token sigue guardado. */
   sinConexion: boolean
   entrar: (credenciales: Credenciales) => Promise<void>
   salir: () => Promise<void>
   reintentar: () => void
+  pedir: PeticionAutenticada
 }
-
 const ContextoSesion = createContext<Contexto | null>(null)
 
-/**
- * Estado de sesion de toda la app.
- *
- * El token de acceso vive solo en memoria, a proposito: dura quince minutos y no
- * gana nada con sobrevivir al cierre de la app. El de refresco es el unico que se
- * guarda, y va al llavero del sistema.
- *
- * La regla que gobierna este fichero, y que costo cara aprender: **el token
- * guardado solo se borra cuando el servidor lo rechaza**. Un fallo de red, un
- * error del servidor o un llavero roto no son motivo para destruir una sesion
- * valida de treinta dias. Antes se borraba ante cualquier excepcion, asi que
- * abrir la app en el metro sin cobertura te dejaba fuera de forma permanente.
- */
 export function ProveedorDeSesion({ children }: { children: ReactNode }): React.JSX.Element {
   const [estado, setEstado] = useState<EstadoSesion>({ fase: "comprobando" })
+  const actual = useRef<EstadoSesion>(estado)
+  const epoca = useRef(0)
+  const refresco = useRef<string | null>(null)
+  const renovacion = useRef<{ epoca: number; promesa: Promise<string> } | null>(null)
+  const colaCredenciales = useRef<Promise<unknown>>(Promise.resolve())
   const [sesionCaducada, setSesionCaducada] = useState(false)
   const [sinConexion, setSinConexion] = useState(false)
   const [intento, setIntento] = useState(0)
+  const [confirmandoSalida, setConfirmandoSalida] = useState(false)
+  const [avisoSalida, setAvisoSalida] = useState("")
+  const cambiando = useRef(false)
+  const cuentaPorLimpiar = useRef<string | null>(null)
+  const actualizar = useCallback((nuevo: EstadoSesion): void => {
+    actual.current = nuevo
+    setEstado(nuevo)
+  }, [])
+  const enCola = useCallback((accion: () => Promise<void>): Promise<void> => {
+    const siguiente = colaCredenciales.current.then(accion)
+    colaCredenciales.current = siguiente.catch(() => undefined)
+    return siguiente
+  }, [])
+
+  const limpiarAcceso = useCallback(async (): Promise<void> => {
+    cambiando.current = true
+    const cuenta = cuentaPorLimpiar.current
+    try {
+      await marcarLimpieza(cuenta)
+    } catch {
+      setAvisoSalida("No se pudo guardar el cierre de sesión. Reintenta la limpieza.")
+      return
+    }
+    const resultados = await Promise.allSettled([
+      enCola(async () => {
+        await Promise.all([borrarIdentidadLocal(), borrarTokenRefresco()])
+      }),
+      cuenta ? almacenDispositivo.limpiar(cuenta) : Promise.resolve(),
+    ])
+    let fallo = resultados.some((r) => r.status === "rejected")
+    if (!fallo) {
+      try {
+        await terminarLimpieza()
+      } catch {
+        fallo = true
+      }
+    }
+    cambiando.current = fallo
+    setAvisoSalida(
+      fallo ? "No se pudo completar la limpieza local. Reintenta antes de usar otra cuenta." : "",
+    )
+    if (!fallo) cuentaPorLimpiar.current = null
+  }, [enCola])
+
+  const revocar = useCallback(async (): Promise<void> => {
+    const version = epoca.current
+    const anterior = actual.current
+    const cuenta =
+      "usuario" in anterior ? anterior.usuario.id : await leerCuentaLocal().catch(() => null)
+    if (version !== epoca.current) return
+    epoca.current++
+    refresco.current = null
+    cuentaPorLimpiar.current = cuenta
+    actualizar({ fase: "fuera" })
+    setSesionCaducada(true)
+    setSinConexion(false)
+    await limpiarAcceso()
+  }, [actualizar, limpiarAcceso])
+
+  const asentar = useCallback(
+    async (sesion: Sesion, version: number): Promise<string> => {
+      await enCola(async () => {
+        if (version !== epoca.current) throw new ErrorDeSesion("La sesión ha cambiado")
+        // Persistir la credencial rotada antes de utilizar el acceso nuevo.
+        await guardarTokenRefresco(sesion.tokenRefresco)
+        await guardarIdentidadLocal(sesion.usuario, sesion.tokenRefresco)
+      })
+      if (version !== epoca.current) throw new ErrorDeSesion("La sesión ha cambiado")
+      const anterior = actual.current
+      if (!("usuario" in anterior) || anterior.usuario.id !== sesion.usuario.id)
+        almacenDispositivo.habilitar(sesion.usuario.id)
+      refresco.current = sesion.tokenRefresco
+      setSesionCaducada(false)
+      setSinConexion(false)
+      actualizar({ fase: "dentro", usuario: sesion.usuario, tokenAcceso: sesion.tokenAcceso })
+      return sesion.tokenAcceso
+    },
+    [actualizar, enCola],
+  )
+
+  const renovar = useCallback((): Promise<string> => {
+    const version = epoca.current
+    if (renovacion.current?.epoca === version) return renovacion.current.promesa
+    const promesa = (async () => {
+      let teniaCredencial = false
+      try {
+        const token = refresco.current ?? (await leerTokenRefresco())
+        if (version !== epoca.current) throw new ErrorDeSesion("La sesión ha cambiado")
+        if (!token) throw new ErrorDeSesion("Sin sesión guardada")
+        refresco.current = token
+        teniaCredencial = true
+        return await asentar(await refrescarSesion(token), version)
+      } catch (error) {
+        if (version === epoca.current) {
+          if (error instanceof ErrorDeSesion && teniaCredencial) await revocar()
+          else if (error instanceof ErrorDeSesion) {
+            actualizar({ fase: "fuera" })
+            setSesionCaducada(false)
+          } else setSinConexion(true)
+        }
+        throw error
+      }
+    })().finally(() => {
+      if (renovacion.current?.promesa === promesa) renovacion.current = null
+    })
+    renovacion.current = { epoca: version, promesa }
+    return promesa
+  }, [asentar, revocar, actualizar])
 
   useEffect(() => {
     let vigente = true
-
-    const restaurar = async (): Promise<void> => {
-      setSinConexion(false)
-
-      // `leerTokenRefresco` no lanza: ante un llavero roto devuelve null y borra
-      // la entrada. Si propagara, la app se quedaria en "comprobando" para
-      // siempre y reabrirla repetiria el mismo fallo.
-      const guardado = await leerTokenRefresco()
-
-      if (guardado === null) {
-        if (vigente) setEstado({ fase: "fuera" })
+    const version = epoca.current
+    void (async () => {
+      const pendiente = await leerLimpieza()
+      if (!vigente || version !== epoca.current) return
+      if (pendiente) {
+        cuentaPorLimpiar.current = pendiente.cuenta
+        actualizar({ fase: "fuera" })
+        await limpiarAcceso()
         return
       }
-
-      let sesion: Sesion
-      try {
-        sesion = await refrescarSesion(guardado)
-      } catch (error) {
-        if (!vigente) return
-
-        if (error instanceof ErrorDeSesion) {
-          // Este es el unico caso en el que el token deja de servir: caducado,
-          // revocado, o la cuenta desactivada. Se borra para no reintentarlo.
-          await borrarTokenRefresco()
-          setSesionCaducada(true)
-        } else {
-          // Red o servidor. El token sigue valiendo y se conserva: el usuario
-          // podra reintentar sin volver a escribir su contrasena.
-          setSinConexion(true)
+      await renovar()
+    })().catch(async (error: unknown) => {
+      if (!vigente || version !== epoca.current) return
+      if (error instanceof ErrorDeRed) {
+        const token = await leerTokenRefresco()
+        const identidad = token ? await leerIdentidadLocal(token).catch(() => null) : null
+        if (!vigente || version !== epoca.current) return
+        if (identidad) {
+          almacenDispositivo.habilitar(identidad.id)
+          actualizar({ fase: "local", usuario: identidad })
+          return
         }
-
-        setEstado({ fase: "fuera" })
-        return
       }
-
-      // El token nuevo se guarda ANTES de dar la sesion por buena. Si la app
-      // muriera entre ambas cosas, el servidor ya habria rotado y al volver
-      // mandariamos el viejo, que el servidor interpreta como una copia robada.
-      await guardarTokenRefresco(sesion.tokenRefresco)
-
-      if (vigente) {
-        setSesionCaducada(false)
-        setEstado({ fase: "dentro", usuario: sesion.usuario, tokenAcceso: sesion.tokenAcceso })
-      }
-    }
-
-    // Red de seguridad: ninguna rama puede dejar el estado en "comprobando", que
-    // en pantalla es una ruleta girando sin salida.
-    void restaurar().catch(() => {
-      if (vigente) setEstado({ fase: "fuera" })
+      actualizar({ fase: "fuera" })
     })
-
     return () => {
       vigente = false
     }
-  }, [intento])
+  }, [intento, renovar, actualizar, limpiarAcceso])
 
-  const entrar = useCallback(async (credenciales: Credenciales): Promise<void> => {
-    const sesion = await pedirSesion(credenciales)
-
-    // Si el llavero no admite la escritura, la sesion sigue siendo valida para
-    // esta ejecucion: no se cae el login entero. Lo unico que se pierde es que
-    // sobreviva a cerrar la app, y eso no justifica rechazar la entrada.
-    await guardarTokenRefresco(sesion.tokenRefresco).catch(() => undefined)
-
-    setSesionCaducada(false)
-    setSinConexion(false)
-    setEstado({ fase: "dentro", usuario: sesion.usuario, tokenAcceso: sesion.tokenAcceso })
-  }, [])
-
-  /**
-   * Cierra la sesion.
-   *
-   * Sale localmente pase lo que pase. Antes, un fallo de red hacia que el boton
-   * no hiciera nada visible y el token se quedara en el llavero: el usuario creia
-   * haber cerrado sesion y no era cierto, que es peor que cualquier error.
-   *
-   * Si no se pudo avisar al servidor, la sesion sigue viva alli hasta que caduque.
-   * No es ideal, pero dejar al usuario dentro contra su voluntad es peor.
-   */
-  const salir = useCallback(async (): Promise<void> => {
-    const guardado = await leerTokenRefresco()
-
-    if (guardado !== null) {
-      await cerrarSesionEnServidor(guardado).catch(() => undefined)
-    }
-
-    await borrarTokenRefresco()
-    setSesionCaducada(false)
-    setSinConexion(false)
-    setEstado({ fase: "fuera" })
-  }, [])
-
-  /** Vuelve a intentar restaurar la sesion. Para el caso de "sin conexion". */
-  const reintentar = useCallback((): void => {
-    setEstado({ fase: "comprobando" })
-    setIntento((n) => n + 1)
-  }, [])
-
-  const valor = useMemo<Contexto>(
-    () => ({ estado, sesionCaducada, sinConexion, entrar, salir, reintentar }),
-    [estado, sesionCaducada, sinConexion, entrar, salir, reintentar],
+  const entrar = useCallback(
+    async (credenciales: Credenciales): Promise<void> => {
+      if (cambiando.current) throw new Error("Espera a que termine la limpieza local.")
+      const version = ++epoca.current
+      const sesion = await pedirSesion(credenciales)
+      await asentar(sesion, version)
+    },
+    [asentar],
   )
 
-  return <ContextoSesion.Provider value={valor}>{children}</ContextoSesion.Provider>
+  const salirDefinitivamente = useCallback(async (): Promise<void> => {
+    if (cambiando.current) return
+    cambiando.current = true
+    const anterior = actual.current
+    const cuenta = "usuario" in anterior ? anterior.usuario.id : null
+    const token = refresco.current
+    cuentaPorLimpiar.current = cuenta
+    try {
+      await marcarLimpieza(cuenta)
+    } catch {
+      cambiando.current = false
+      setAvisoSalida("No se pudo iniciar el cierre. Vuelve a pulsar Cerrar sesión.")
+      return
+    }
+    epoca.current++
+    refresco.current = null
+    setConfirmandoSalida(false)
+    setSesionCaducada(false)
+    setSinConexion(false)
+    actualizar({ fase: "fuera" })
+    await Promise.all([
+      limpiarAcceso(),
+      token ? cerrarSesionEnServidor(token).catch(() => undefined) : Promise.resolve(),
+    ])
+  }, [actualizar, limpiarAcceso])
+
+  const salir = useCallback(async (): Promise<void> => {
+    const version = epoca.current
+    const anterior = actual.current
+    if ("usuario" in anterior) {
+      const pendiente = await hayCambiosLocales(almacenDispositivo, anterior.usuario.id).catch(
+        () => true,
+      )
+      if (version !== epoca.current) return
+      if (pendiente) {
+        setConfirmandoSalida(true)
+        return
+      }
+    }
+    await salirDefinitivamente()
+  }, [salirDefinitivamente])
+  const reintentar = useCallback((): void => {
+    if (actual.current.fase === "fuera") actualizar({ fase: "comprobando" })
+    setIntento((n) => n + 1)
+  }, [actualizar])
+  const generacion = epoca.current
+  const pedir = useMemo(() => {
+    const comprobar = (): void => {
+      if (generacion !== epoca.current) throw new ErrorDeSesion("La cuenta ha cambiado")
+    }
+    return crearPeticionAutenticada(
+      () => {
+        comprobar()
+        return actual.current.fase === "dentro" ? actual.current.tokenAcceso : null
+      },
+      {
+        renovar: async () => {
+          comprobar()
+          return renovar()
+        },
+        epoca: () => epoca.current,
+        revocada: revocar,
+      },
+    )
+  }, [renovar, revocar, generacion])
+  const valor = useMemo<Contexto>(
+    () => ({ estado, sesionCaducada, sinConexion, entrar, salir, reintentar, pedir }),
+    [estado, sesionCaducada, sinConexion, entrar, salir, reintentar, pedir],
+  )
+  const cuenta = "usuario" in estado ? estado.usuario.id : "sin-cuenta"
+  return (
+    <ContextoSesion.Provider value={valor}>
+      <Fragment key={cuenta}>{children}</Fragment>
+      {avisoSalida !== "" && (
+        <View style={{ backgroundColor: tema.superficie, padding: 16 }}>
+          <Text accessibilityRole="alert" style={{ color: tema.texto }}>
+            {avisoSalida}
+          </Text>
+          <BotonSecundario
+            texto="Reintentar limpieza"
+            onPress={() =>
+              void (actual.current.fase === "fuera" ? limpiarAcceso() : salirDefinitivamente())
+            }
+          />
+        </View>
+      )}
+      <Modal
+        visible={confirmandoSalida}
+        transparent
+        onRequestClose={() => setConfirmandoSalida(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            padding: 24,
+            backgroundColor: "rgba(0,0,0,0.75)",
+          }}
+        >
+          <View style={{ backgroundColor: tema.superficie, borderRadius: 18, padding: 22 }}>
+            <Text style={{ color: tema.texto, fontSize: 20, fontWeight: "700" }}>
+              Hay cambios sin confirmar
+            </Text>
+            <Text style={{ color: tema.textoTenue, marginTop: 12 }}>
+              Al cerrar se descartarán las copias locales que aún no han llegado al servidor. Puedes
+              volver al entrenamiento y sincronizarlas.
+            </Text>
+            <BotonPrincipal texto="Seguir entrenando" onPress={() => setConfirmandoSalida(false)} />
+            <BotonSecundario
+              texto="Descartar y cerrar sesión"
+              onPress={() => void salirDefinitivamente()}
+            />
+          </View>
+        </View>
+      </Modal>
+    </ContextoSesion.Provider>
+  )
 }
 
 export function useSesion(): Contexto {
   const contexto = useContext(ContextoSesion)
-
-  if (contexto === null) {
-    throw new Error("useSesion se ha usado fuera de ProveedorDeSesion")
-  }
-
+  if (contexto === null) throw new Error("useSesion se ha usado fuera de ProveedorDeSesion")
   return contexto
 }

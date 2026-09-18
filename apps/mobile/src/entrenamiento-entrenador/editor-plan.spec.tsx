@@ -22,6 +22,7 @@ it("revisa objetivos y conserva exactamente la operación tras un fallo de red",
   ])
   let pendiente: unknown = null
   const almacen: AlmacenLocal = {
+    habilitar: () => undefined,
     leer: async (_cuenta, _clave, esquema) =>
       pendiente === null ? null : esquema.parse(pendiente),
     guardar: async (_cuenta, _clave, datos) => {
