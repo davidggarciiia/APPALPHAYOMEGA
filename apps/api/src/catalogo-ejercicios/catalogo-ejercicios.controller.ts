@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from "@nestjs/common"
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from "@nestjs/common"
 import {
   BuscarEjerciciosSchema,
   CrearEjercicioSchema,
@@ -65,5 +76,20 @@ export class CatalogoEjerciciosController {
     @Body(new ZodPipe(EditarEjercicioSchema)) datos: EditarEjercicio,
   ): Promise<Ejercicio> {
     return this.catalogo.editar(id, datos)
+  }
+
+  /** 200 y no el 201 por defecto de un POST: no crea nada, mueve un estado. */
+  @Roles("entrenador")
+  @Post(":id/retirar")
+  @HttpCode(HttpStatus.OK)
+  async retirar(@Param("id", new ZodPipe(IdEjercicioSchema)) id: string): Promise<Ejercicio> {
+    return this.catalogo.retirar(id)
+  }
+
+  @Roles("entrenador")
+  @Post(":id/reponer")
+  @HttpCode(HttpStatus.OK)
+  async reponer(@Param("id", new ZodPipe(IdEjercicioSchema)) id: string): Promise<Ejercicio> {
+    return this.catalogo.reponer(id)
   }
 }

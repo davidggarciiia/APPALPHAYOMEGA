@@ -187,6 +187,34 @@ export class CatalogoEjerciciosService {
   }
 
   /**
+   * Saca el ejercicio del presente sin tocar el pasado: deja de salir en la
+   * busqueda y en el selector, y los entrenos que lo citan lo siguen abriendo.
+   */
+  async retirar(id: string): Promise<Ejercicio> {
+    return this.cambiarEstado(id, "publicado", { estado: "retirado", retiradoEn: new Date() })
+  }
+
+  /** Retirar por error no puede exigir entrar en la base de datos a mano. */
+  async reponer(id: string): Promise<Ejercicio> {
+    return this.cambiarEstado(id, "retirado", { estado: "publicado", retiradoEn: null })
+  }
+
+  /**
+   * Solo escribe si el ejercicio esta en el estado de partida. Repetir la
+   * operacion no toca nada, asi que no mueve `retiradoEn`, y dos peticiones a
+   * la vez acaban igual que una. Despues se lee la fila: si no existe, 404.
+   */
+  private async cambiarEstado(
+    id: string,
+    desde: Ejercicio["estado"],
+    cambio: Pick<Prisma.EjercicioUpdateManyMutationInput, "estado" | "retiradoEn">,
+  ): Promise<Ejercicio> {
+    await this.prisma.ejercicio.updateMany({ where: { id, estado: desde }, data: cambio })
+
+    return this.leer(id)
+  }
+
+  /**
    * El nombre unico lo impone la base, no una consulta previa: dos altas a la
    * vez pasarian las dos por un "¿existe ya?" y solo el indice las distingue.
    */

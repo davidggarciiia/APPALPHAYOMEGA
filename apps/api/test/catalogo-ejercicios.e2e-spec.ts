@@ -379,4 +379,124 @@ describe("Catalogo de ejercicios", () => {
         .expect(400)
     })
   })
+
+  describe("retirar y reponer", () => {
+    async function cambiar(
+      operacion: "retirar" | "reponer",
+      id: string,
+      rol: Rol = "entrenador",
+    ): Promise<request.Response> {
+      return request(app.getHttpServer()).post(`/ejercicios/${id}/${operacion}`).set(como(rol))
+    }
+
+    async function nombresVisibles(rol: Rol, estado?: string): Promise<string[]> {
+      const respuesta = await request(app.getHttpServer())
+        .get("/ejercicios")
+        .query({ buscar: PREFIJO, ...(estado !== undefined && { estado }) })
+        .set(como(rol))
+        .expect(200)
+
+      return ListadoEjerciciosSchema.parse(respuesta.body).ejercicios.map((fila) => fila.nombre)
+    }
+
+    it("retirar lo saca de la busqueda de todos, pero no de la base", async () => {
+      const vigente = await crear(ficha("Vigente"))
+      const viejo = await crear(ficha("Viejo"))
+
+      const respuesta = await cambiar("retirar", viejo.id)
+
+      expect(respuesta.status).toBe(200)
+      expect(EjercicioSchema.parse(respuesta.body)).toEqual({ ...viejo, estado: "retirado" })
+      expect(await nombresVisibles("entrenador")).toEqual([vigente.nombre])
+      expect(await nombresVisibles("cliente")).toEqual([vigente.nombre])
+      expect(await prisma.ejercicio.count({ where: { id: viejo.id } })).toBe(1)
+    })
+
+    it("el entrenador puede pedir los retirados, solos o junto al resto", async () => {
+      const vigente = await crear(ficha("Vigente"))
+      const viejo = await crear(ficha("Viejo"))
+      await cambiar("retirar", viejo.id)
+
+      expect(await nombresVisibles("entrenador", "retirado")).toEqual([viejo.nombre])
+      expect(await nombresVisibles("entrenador", "todos")).toEqual([viejo.nombre, vigente.nombre])
+    })
+
+    it("un retirado se sigue abriendo por su id, tambien para el cliente, y lo dice", async () => {
+      const viejo = await crear(ficha("Viejo"))
+      await cambiar("retirar", viejo.id)
+
+      for (const rol of ["cliente", "entrenador"] as const) {
+        const detalle = await request(app.getHttpServer())
+          .get(`/ejercicios/${viejo.id}`)
+          .set(como(rol))
+          .expect(200)
+        expect(EjercicioSchema.parse(detalle.body).estado).toBe("retirado")
+      }
+    })
+
+    it("reponer lo devuelve a la busqueda y olvida cuando se retiro", async () => {
+      const viejo = await crear(ficha("Viejo"))
+      await cambiar("retirar", viejo.id)
+
+      const respuesta = await cambiar("reponer", viejo.id)
+
+      expect(respuesta.status).toBe(200)
+      expect(EjercicioSchema.parse(respuesta.body)).toEqual(viejo)
+      expect(await nombresVisibles("cliente")).toEqual([viejo.nombre])
+      const fila = await prisma.ejercicio.findUniqueOrThrow({ where: { id: viejo.id } })
+      expect(fila.retiradoEn).toBeNull()
+    })
+
+    it("repetir la operacion no es un error ni mueve la fecha de retirada", async () => {
+      const viejo = await crear(ficha("Viejo"))
+
+      expect((await cambiar("reponer", viejo.id)).status).toBe(200)
+      expect((await cambiar("retirar", viejo.id)).status).toBe(200)
+      const primera = await prisma.ejercicio.findUniqueOrThrow({ where: { id: viejo.id } })
+      expect(primera.retiradoEn).not.toBeNull()
+
+      const repetida = await cambiar("retirar", viejo.id)
+
+      expect(repetida.status).toBe(200)
+      expect(EjercicioSchema.parse(repetida.body).estado).toBe("retirado")
+      const segunda = await prisma.ejercicio.findUniqueOrThrow({ where: { id: viejo.id } })
+      expect(segunda.retiradoEn).toEqual(primera.retiradoEn)
+    })
+
+    it("editar la ficha de un retirado no lo repone", async () => {
+      const viejo = await crear(ficha("Viejo"))
+      await cambiar("retirar", viejo.id)
+
+      const respuesta = await request(app.getHttpServer())
+        .patch(`/ejercicios/${viejo.id}`)
+        .set(como("entrenador"))
+        .send(ficha("Viejo", { instrucciones: "Texto corregido." }))
+        .expect(200)
+
+      expect(EjercicioSchema.parse(respuesta.body).estado).toBe("retirado")
+    })
+
+    it("DENIEGA retirar y reponer a quien no es el entrenador, y no cambia nada", async () => {
+      const vigente = await crear(ficha("Vigente"))
+      const viejo = await crear(ficha("Viejo"))
+      await cambiar("retirar", viejo.id)
+
+      for (const rol of ["cliente", "nutricionista", "empleado"] as const) {
+        expect((await cambiar("retirar", vigente.id, rol)).status).toBe(403)
+        expect((await cambiar("reponer", viejo.id, rol)).status).toBe(403)
+      }
+      await request(app.getHttpServer()).post(`/ejercicios/${vigente.id}/retirar`).expect(401)
+      await request(app.getHttpServer()).post(`/ejercicios/${viejo.id}/reponer`).expect(401)
+
+      expect(await nombresVisibles("entrenador")).toEqual([vigente.nombre])
+      expect(await nombresVisibles("entrenador", "retirado")).toEqual([viejo.nombre])
+    })
+
+    it("un id que no existe es 404 y uno mal formado es 400", async () => {
+      for (const operacion of ["retirar", "reponer"] as const) {
+        expect((await cambiar(operacion, ID_QUE_NO_EXISTE)).status).toBe(404)
+        expect((await cambiar(operacion, "no-es-un-uuid")).status).toBe(400)
+      }
+    })
+  })
 })
