@@ -4,6 +4,7 @@
     // Expo trae su propia base. Volvemos a exigir aqui el nivel de rigor que
     // fija SPEC.md, porque su base no lo garantiza.
     "strict": true,
+    "types": ["jest", "node"],
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

@@ -25,6 +25,7 @@
   },
   "overrides": {
     "multer": "^2.3.0",
+    "test-renderer": "1.2.0",
     "react-native": "0.86.3",
     "@react-native/virtualized-lists": "0.86.3",
     "@react-native/community-cli-plugin": "0.86.3",
