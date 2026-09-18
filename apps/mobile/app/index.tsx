@@ -40,6 +40,13 @@ export default function Inicio(): React.JSX.Element {
         {usuario.rol === "entrenador" && (
           <>
             <Pressable
+              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+              onPress={() => router.push("/catalogo")}
+              accessibilityRole="button"
+            >
+              <Text style={estilos.textoBoton}>CATÁLOGO DE EJERCICIOS</Text>
+            </Pressable>
+            <Pressable
               style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
               onPress={() => {
                 router.push("/cartera")

@@ -57,10 +57,12 @@ export function Catalogo({
   api,
   onNuevo,
   onAbrir,
+  onVolver,
 }: {
   api: ApiDeCatalogo
   onNuevo: () => void
   onAbrir: (id: string) => void
+  onVolver?: () => void
 }): React.JSX.Element {
   const [texto, setTexto] = useState("")
   const [busqueda, setBusqueda] = useState("")
@@ -130,6 +132,16 @@ export function Catalogo({
 
   return (
     <SafeAreaView style={estilos.pantalla}>
+      {onVolver && (
+        <Pressable
+          onPress={onVolver}
+          accessibilityRole="button"
+          accessibilityLabel="Volver al inicio"
+          style={estilos.buscador}
+        >
+          <Text style={estilos.nuevo}>VOLVER AL INICIO</Text>
+        </Pressable>
+      )}
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>CATÁLOGO</Text>
         <View style={estilos.accionesCabecera}>
