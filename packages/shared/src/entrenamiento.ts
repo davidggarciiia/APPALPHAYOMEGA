@@ -76,13 +76,27 @@ export const PatronRutinaSchema = z
   )
 export type PatronRutina = z.infer<typeof PatronRutinaSchema>
 
-export const AsignarPlanSchema = z.strictObject({
-  operacionId: z.uuid(),
-  nombre: NombreSchema,
-  semanaInicial: SemanaSchema,
-  semanas: z.number().int().min(1).max(52),
-  patron: PatronRutinaSchema,
-})
+export const MAX_SERIES_PLAN = 10000
+export const AsignarPlanSchema = z
+  .strictObject({
+    operacionId: z.uuid(),
+    nombre: NombreSchema,
+    semanaInicial: SemanaSchema,
+    semanas: z.number().int().min(1).max(52),
+    patron: PatronRutinaSchema,
+  })
+  .refine(
+    (datos) =>
+      datos.semanas *
+        datos.patron.sesiones.reduce(
+          (total, sesion) =>
+            total +
+            sesion.ejercicios.reduce((suma, ejercicio) => suma + ejercicio.series.length, 0),
+          0,
+        ) <=
+      MAX_SERIES_PLAN,
+    "Divide este plan: admite como máximo 10.000 series entre todas las semanas",
+  )
 export type AsignarPlan = z.infer<typeof AsignarPlanSchema>
 
 export const GuardarRutinaSchema = z.strictObject({

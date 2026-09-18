@@ -2,6 +2,8 @@ import "reflect-metadata"
 
 import { Logger } from "@nestjs/common"
 import { NestFactory } from "@nestjs/core"
+import type { NestExpressApplication } from "@nestjs/platform-express"
+import { configurarCuerposHttp } from "./config/http.js"
 
 import { AppModule } from "./app.module.js"
 import { cargarEntornoLocal, leerVariableOpcional } from "./config/entorno.js"
@@ -9,7 +11,8 @@ import { cargarEntornoLocal, leerVariableOpcional } from "./config/entorno.js"
 cargarEntornoLocal()
 
 async function arrancar(): Promise<void> {
-  const app = await NestFactory.create(AppModule)
+  const app = await NestFactory.create<NestExpressApplication>(AppModule)
+  configurarCuerposHttp(app)
   const registro = new Logger("arranque")
 
   /**
