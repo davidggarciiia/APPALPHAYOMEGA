@@ -7,12 +7,14 @@ import { EditorPlan } from "../../../../src/entrenamiento-entrenador/editor-plan
 import { useSesion } from "../../../../src/sesion"
 import { tema } from "../../../../src/tema"
 import { almacenDispositivo } from "../../../../src/entrenamiento/almacen-dispositivo"
+import { useRutinas } from "../../../../src/entrenamiento-entrenador/api-rutinas"
 
 export default function PrepararPlan(): React.JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { estado } = useSesion()
   const api = useEntrenamiento()
   const catalogo = useCatalogo()
+  const rutinas = useRutinas()
   const router = useRouter()
   return (
     <PantallaDeFormulario>
@@ -24,6 +26,7 @@ export default function PrepararPlan(): React.JSX.Element {
           almacen={almacenDispositivo}
           api={api}
           catalogo={catalogo}
+          rutinas={rutinas}
           terminado={() =>
             router.dismissTo({ pathname: "/entrenador/cliente/[id]/entrenos", params: { id } })
           }

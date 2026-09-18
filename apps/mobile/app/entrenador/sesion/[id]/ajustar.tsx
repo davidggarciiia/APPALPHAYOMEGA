@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { Text } from "react-native"
 import { randomUUID } from "expo-crypto"
@@ -24,6 +24,13 @@ import { tema } from "../../../../src/tema"
 
 export default function AjustarSesion(): React.JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const vigente = useRef(true)
+  useEffect(() => {
+    vigente.current = true
+    return () => {
+      vigente.current = false
+    }
+  }, [])
   const api = useEntrenamiento(),
     catalogo = useCatalogo(),
     router = useRouter()
@@ -70,15 +77,16 @@ export default function AjustarSesion(): React.JSX.Element {
         nombre: datos.nombre,
         ejercicios: datos.ejercicios,
       })
-      router.back()
+      if (vigente.current) router.back()
     } catch (e) {
-      setError(
-        e instanceof ErrorDelServidor && e.codigo === 409
-          ? "La sesión cambió o el cliente ya empezó. Recarga la versión actual; tus cambios no se han aplicado."
-          : "No se pudo confirmar el ajuste. Revisa los objetivos y recarga antes de reintentar.",
-      )
+      if (vigente.current)
+        setError(
+          e instanceof ErrorDelServidor && e.codigo === 409
+            ? "La sesión cambió o el cliente ya empezó. Recarga la versión actual; tus cambios no se han aplicado."
+            : "No se pudo confirmar el ajuste. Revisa los objetivos y recarga antes de reintentar.",
+        )
     } finally {
-      setOcupado(false)
+      if (vigente.current) setOcupado(false)
     }
   }
   return (

@@ -10,9 +10,12 @@ import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../compone
 import { fechaLegible, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
 import { ErrorDePeticion, ErrorDelServidor, ErrorDePermiso } from "../lib/http"
 import { tema } from "../tema"
-import { agregarEjercicio, convertirSesion, nuevaSesion, desdeSesion } from "./editor-modelo"
-import { EditorSesion } from "./editor-sesion"
-import { SelectorEjercicios } from "./selector-ejercicios"
+import { convertirSesion, nuevaSesion, desdeSesion } from "./editor-modelo"
+import { EditorPatron } from "./editor-patron"
+import type { ApiRutinas } from "./api-rutinas"
+import { ListadoDeRutinas } from "./listado-rutinas"
+import { cargarRutina } from "./cargar-rutina"
+import type { RutinaGuardada } from "@alpha-omega/shared"
 
 const PendienteSchema = z.strictObject({
   solicitud: AsignarPlanSchema,
@@ -25,6 +28,7 @@ export function EditorPlan({
   almacen,
   api,
   catalogo,
+  rutinas,
   terminado,
 }: {
   clienteId: string
@@ -32,9 +36,14 @@ export function EditorPlan({
   almacen: AlmacenLocal
   api: ApiEntrenamiento
   catalogo: ApiDeCatalogo
+  rutinas: ApiRutinas
   terminado: () => void
 }): React.JSX.Element {
-  const [sesion, setSesion] = useState(nuevaSesion)
+  const [sesiones, setSesiones] = useState(() => [nuevaSesion()])
+  const [nombre, setNombre] = useState("")
+  const [semanas, setSemanas] = useState("1")
+  const [existentes, setExistentes] = useState(0)
+  const [eligiendoRutina, setEligiendoRutina] = useState(false)
   const [semana, setSemana] = useState(lunesDeSemana)
   const [revision, setRevision] = useState<AsignarPlan | null>(null)
   const [error, setError] = useState("")
@@ -56,7 +65,11 @@ export function EditorPlan({
         if (pendiente) {
           setRevision(pendiente.solicitud)
           setSemana(pendiente.solicitud.semanaInicial)
-          setSesion(desdeSesion(pendiente.solicitud.patron.sesiones[0]!, pendiente.nombres))
+          setSesiones(
+            pendiente.solicitud.patron.sesiones.map((s) => desdeSesion(s, pendiente.nombres)),
+          )
+          setNombre(pendiente.solicitud.nombre)
+          setSemanas(String(pendiente.solicitud.semanas))
           setIntentado(true)
         }
         setRecuperado(true)
@@ -73,23 +86,52 @@ export function EditorPlan({
     }
   }, [almacen, cuentaId, clave, recuperacion])
 
-  function revisar(): void {
+  async function elegirRutina(rutina: RutinaGuardada): Promise<void> {
+    setOcupado(true)
+    setError("")
     try {
-      const patron = { sesiones: [convertirSesion(sesion)] }
-      setRevision(
-        AsignarPlanSchema.parse({
-          operacionId: randomUUID(),
-          nombre: sesion.nombre,
-          semanaInicial: semana,
-          semanas: 1,
-          patron,
-        }),
+      const copia = await cargarRutina(rutina.patron, catalogo)
+      if (!vigente.current) return
+      setSesiones(copia.sesiones)
+      setNombre(rutina.nombre)
+      setEligiendoRutina(false)
+      if (copia.retirados.length)
+        setError(
+          `Sustituye los ejercicios retirados antes de asignar: ${copia.retirados.join(", ")}`,
+        )
+    } catch {
+      if (vigente.current) setError("No se pudo cargar la rutina completa. Reintenta con conexión.")
+    } finally {
+      if (vigente.current) setOcupado(false)
+    }
+  }
+
+  async function revisar(): Promise<void> {
+    setOcupado(true)
+    try {
+      const patron = { sesiones: sesiones.map(convertirSesion) }
+      const propuesta = AsignarPlanSchema.parse({
+        operacionId: randomUUID(),
+        nombre: nombre || sesiones[0]!.nombre,
+        semanaInicial: semana,
+        semanas: Number(semanas),
+        patron,
+      })
+      const previas = await Promise.all(
+        Array.from({ length: propuesta.semanas }, (_, n) =>
+          api.semana(clienteId, sumarDias(semana, n * 7)),
+        ),
       )
+      if (!vigente.current) return
+      setExistentes(previas.reduce((total, s) => total + s.total, 0))
+      setRevision(propuesta)
       setError("")
     } catch {
       setError(
-        "Revisa el nombre, el lunes de inicio y los objetivos de cada serie. Las repeticiones y los segundos deben ser enteros mayores que cero; la carga es opcional.",
+        "Revisa el nombre, el lunes de inicio, de 1 a 52 semanas y los objetivos de cada serie. Necesitamos conexión para comprobar las sesiones existentes.",
       )
+    } finally {
+      setOcupado(false)
     }
   }
   async function asignar(): Promise<void> {
@@ -101,7 +143,9 @@ export function EditorPlan({
     try {
       await almacen.guardar(cuentaId, clave, {
         solicitud: revision,
-        nombres: Object.fromEntries(sesion.ejercicios.map((e) => [e.ejercicioId, e.nombre])),
+        nombres: Object.fromEntries(
+          sesiones.flatMap((s) => s.ejercicios.map((e) => [e.ejercicioId, e.nombre])),
+        ),
       })
       await api.asignar(clienteId, revision)
       await almacen.borrar(cuentaId, clave)
@@ -149,23 +193,31 @@ export function EditorPlan({
         </>
       ) : revision ? (
         <>
-          <Text style={{ color: tema.texto, fontSize: 20 }}>{sesion.nombre}</Text>
-          <Text style={{ color: tema.texto }}>
-            {fechaLegible(sumarDias(revision.semanaInicial, sesion.diaSemana - 1))}
-          </Text>
-          {sesion.ejercicios.map((e) => (
-            <View key={e.id}>
-              <Text style={{ color: tema.texto, fontWeight: "700" }}>{e.nombre}</Text>
-              {e.series.map((s, n) => (
-                <Text key={s.id} style={{ color: tema.textoTenue }}>
-                  Serie {n + 1}: {s.objetivo} {s.tipoMedicion === "tiempo" ? "s" : "rep"}
-                  {s.peso ? ` · ${s.peso} kg` : ""}
-                </Text>
+          <Text style={{ color: tema.texto, fontSize: 20 }}>{revision.nombre}</Text>
+          {sesiones.map((sesion) => (
+            <View key={sesion.id} style={{ gap: 10 }}>
+              <Text style={{ color: tema.texto, fontWeight: "700" }}>{sesion.nombre}</Text>
+              <Text style={{ color: tema.texto }}>
+                {Array.from({ length: revision.semanas }, (_, n) =>
+                  fechaLegible(sumarDias(revision.semanaInicial, n * 7 + sesion.diaSemana - 1)),
+                ).join(" · ")}
+              </Text>
+              {sesion.ejercicios.map((e) => (
+                <View key={e.id}>
+                  <Text style={{ color: tema.texto, fontWeight: "700" }}>{e.nombre}</Text>
+                  {e.series.map((s, n) => (
+                    <Text key={s.id} style={{ color: tema.textoTenue }}>
+                      Serie {n + 1}: {s.objetivo} {s.tipoMedicion === "tiempo" ? "s" : "rep"}
+                      {s.peso ? ` · ${s.peso} kg` : ""}
+                    </Text>
+                  ))}
+                </View>
               ))}
             </View>
           ))}
           <Text style={{ color: tema.textoTenue }}>
-            Se añadirá a la semana del cliente. Las sesiones existentes se conservan.
+            Se añadirán {revision.semanas * revision.patron.sesiones.length} sesiones. Ya hay{" "}
+            {existentes} sesiones en estas semanas: se conservarán todas.
           </Text>
           <BotonPrincipal
             texto={intentado ? "Reintentar asignación" : "Asignar entrenamiento"}
@@ -176,22 +228,51 @@ export function EditorPlan({
             <BotonSecundario texto="Volver a editar" onPress={() => setRevision(null)} />
           )}
         </>
+      ) : ocupado ? (
+        <Text style={{ color: tema.textoTenue }}>Comprobando el plan…</Text>
       ) : (
         <>
+          <BotonSecundario
+            texto={
+              eligiendoRutina ? "Cerrar biblioteca de rutinas" : "Partir de una rutina guardada"
+            }
+            onPress={() => setEligiendoRutina(!eligiendoRutina)}
+          />
+          {eligiendoRutina && (
+            <>
+              <Text style={{ color: tema.textoTenue }}>
+                Elegir una rutina sustituye el plan que estás preparando. La copia será
+                independiente para este cliente.
+              </Text>
+              <ListadoDeRutinas api={rutinas} elegir={(r) => void elegirRutina(r)} />
+            </>
+          )}
+          <Campo
+            etiqueta="Nombre del plan (opcional)"
+            value={nombre}
+            onChangeText={setNombre}
+            maxLength={120}
+            placeholder="Usar el nombre de la primera sesión"
+          />
           <Campo
             etiqueta="Lunes de inicio (AAAA-MM-DD)"
             value={semana}
             onChangeText={setSemana}
             placeholder="2026-09-21"
           />
-          <EditorSesion valor={sesion} cambiar={setSesion} />
-          {sesion.ejercicios.length < 40 && (
-            <SelectorEjercicios
-              api={catalogo}
-              elegir={(e) => setSesion((actual) => agregarEjercicio(actual, e))}
-            />
-          )}
-          <BotonPrincipal texto="Revisar asignación" onPress={revisar} />
+          <Campo
+            etiqueta="Número de semanas"
+            value={semanas}
+            onChangeText={setSemanas}
+            keyboardType="number-pad"
+            maxLength={2}
+          />
+          <EditorPatron sesiones={sesiones} cambiar={setSesiones} catalogo={catalogo} />
+          <BotonPrincipal
+            texto="Revisar asignación"
+            ocupado={ocupado}
+            onPress={() => void revisar()}
+          />
         </>
       )}
       {error !== "" && <AvisoDeError mensaje={error} />}
