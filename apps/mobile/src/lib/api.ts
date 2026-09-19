@@ -23,6 +23,7 @@ import {
 } from "@alpha-omega/shared"
 
 import { pedir } from "./http"
+import type { PeticionAutenticada } from "./peticion-autenticada"
 
 export { ErrorDeSesion, ErrorDePermiso, ErrorDeRed, ErrorDelServidor } from "./http"
 
@@ -51,23 +52,18 @@ export async function activarCuenta(token: string, contrasena: string): Promise<
   await pedir("/auth/activar", { method: "POST", body: JSON.stringify({ token, contrasena }) })
 }
 
-export async function leerPerfil(tokenAcceso: string): Promise<PerfilPropio> {
-  return PerfilPropioSchema.parse(
-    await pedir("/perfil", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+export async function leerPerfil(peticion: PeticionAutenticada): Promise<PerfilPropio> {
+  return peticion("/perfil", PerfilPropioSchema)
 }
 
 export async function guardarPerfil(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   cambios: CambiosDePerfil,
 ): Promise<PerfilPropio> {
-  return PerfilPropioSchema.parse(
-    await pedir("/perfil", {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-      body: JSON.stringify(cambios),
-    }),
-  )
+  return peticion("/perfil", PerfilPropioSchema, {
+    method: "PATCH",
+    body: JSON.stringify(cambios),
+  })
 }
 
 /**
