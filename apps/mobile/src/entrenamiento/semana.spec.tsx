@@ -4,6 +4,7 @@ import { SemanaEntrenamiento } from "./semana"
 import { crearApiEntrenamiento } from "./api"
 import { crearPeticionAutenticada } from "../lib/peticion-autenticada"
 import { fechaLegible, lunesDeSemana, sumarDias } from "./fechas"
+import { AgendaSemanal } from "./agenda-semanal"
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
@@ -11,6 +12,42 @@ jest.mock("expo-router", () => ({
 }))
 jest.mock("./almacen-dispositivo", () => ({ almacenDispositivo: {} }))
 jest.mock("../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
+
+it("separa los resultados enviados de los pendientes en el inicio", async () => {
+  const lunes = lunesDeSemana()
+  const agenda = {
+    clienteId: "cliente",
+    fechaOriginal: lunes,
+    fechaActual: lunes,
+    estado: "abierta" as const,
+    revision: 0,
+  }
+  const abrir = jest.fn()
+  await render(
+    <AgendaSemanal
+      semana={lunes}
+      resumenHoy
+      cambiarSemana={jest.fn()}
+      abrir={abrir}
+      listado={{
+        total: 2,
+        sesiones: [
+          { agenda: { ...agenda, id: "pendiente" }, nombre: "Sesión pendiente", enviadoEn: null },
+          {
+            agenda: { ...agenda, id: "enviado", estado: "cerrada" },
+            nombre: "Sesión enviada",
+            enviadoEn: "2026-09-14T10:00:00Z",
+          },
+        ],
+      }}
+    />,
+  )
+  expect(screen.getByRole("header", { name: "Últimos entrenos de la semana" })).toBeOnTheScreen()
+  await fireEvent.press(
+    screen.getByRole("button", { name: `Abrir Sesión enviada, ${fechaLegible(lunes)}, enviado` }),
+  )
+  expect(abrir).toHaveBeenCalledWith("enviado")
+})
 
 it("filtra por la fecha actual, abre la sesión y limpia el filtro al cambiar semana", async () => {
   AppState.currentState = "active"
