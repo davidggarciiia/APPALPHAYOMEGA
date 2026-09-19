@@ -237,7 +237,9 @@ const s = StyleSheet.create({
   },
   imagen: {
     width: "100%",
-    height: 140,
+    aspectRatio: 2.2,
+    minHeight: 130,
+    maxHeight: 280,
     borderRadius: 14,
     resizeMode: "cover",
     filter: "grayscale(100%)",
