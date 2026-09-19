@@ -48,19 +48,28 @@ export function EditorSesion({
       {valor.ejercicios.map((e, indice) => (
         <View
           key={e.id}
-          style={{ borderColor: tema.borde, borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 }}
+          style={{
+            borderColor: tema.borde,
+            borderWidth: 1,
+            borderRadius: 18,
+            padding: 12,
+            gap: 8,
+            backgroundColor: tema.superficie,
+          }}
         >
           <Text style={{ color: tema.texto, fontWeight: "700", fontSize: 18 }}>
             {indice + 1}. {e.nombre}
           </Text>
-          <View style={{ flexDirection: "row", gap: 12 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             <BotonSecundario
-              texto={`Subir ${e.nombre}`}
+              texto="↑ Subir"
+              etiquetaAccesible={`Subir ${e.nombre}`}
               deshabilitado={indice === 0}
               onPress={() => cambiar(moverEjercicio(valor, indice, -1))}
             />
             <BotonSecundario
-              texto={`Quitar ${e.nombre}`}
+              texto="Quitar"
+              etiquetaAccesible={`Quitar ${e.nombre}`}
               onPress={() =>
                 cambiar({
                   ...valor,
@@ -85,7 +94,7 @@ export function EditorSesion({
             return (
               <View key={s.id} style={{ gap: 4 }}>
                 <Text style={{ color: tema.texto }}>Serie {numero + 1}</Text>
-                <View style={{ flexDirection: "row", gap: 12 }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                   <BotonSecundario
                     texto={s.tipoMedicion === "repeticiones" ? "✓ Repeticiones" : "Repeticiones"}
                     onPress={() => editar({ tipoMedicion: "repeticiones", objetivo: "" })}
@@ -109,7 +118,8 @@ export function EditorSesion({
                   onChangeText={(objetivo) => editar({ objetivo })}
                 />
                 <BotonSecundario
-                  texto={`Quitar serie ${numero + 1} de ${e.nombre}`}
+                  texto={`Quitar serie ${numero + 1}`}
+                  etiquetaAccesible={`Quitar serie ${numero + 1} de ${e.nombre}`}
                   deshabilitado={e.series.length === 1}
                   onPress={() =>
                     ejercicio(e.id, { series: e.series.filter((otra) => otra.id !== s.id) })
@@ -119,7 +129,8 @@ export function EditorSesion({
             )
           })}
           <BotonSecundario
-            texto={`Añadir serie a ${e.nombre}`}
+            texto="+ Añadir serie"
+            etiquetaAccesible={`Añadir serie a ${e.nombre}`}
             deshabilitado={e.series.length >= 30}
             onPress={() => ejercicio(e.id, { series: [...e.series, nuevaSerie()] })}
           />

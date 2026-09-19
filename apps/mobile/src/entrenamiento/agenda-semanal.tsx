@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import type { ListadoSesiones } from "@alpha-omega/shared"
 import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
 import { BotonSecundario } from "../componentes/formulario"
@@ -78,7 +78,7 @@ export function AgendaSemanal({
           <Text style={s.numero}>›</Text>
         </Pressable>
       </View>
-      <View style={s.dias}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dias}>
         {["L", "M", "X", "J", "V", "S", "D"].map((nombre, n) => {
           const fecha = sumarDias(semana, n)
           const cantidad = sesiones.filter((s) => s.agenda.fechaActual === fecha).length
@@ -98,7 +98,7 @@ export function AgendaSemanal({
             </Pressable>
           )
         })}
-      </View>
+      </ScrollView>
       {listado && (
         <Text style={s.secundario}>
           {sesiones.filter((s) => s.enviadoEn !== null).length} de {listado.total} entrenamientos
@@ -116,7 +116,7 @@ export function AgendaSemanal({
         <Pressable
           key={sesion.agenda.id}
           accessibilityRole="button"
-          accessibilityLabel={`Abrir ${sesion.nombre}`}
+          accessibilityLabel={`Abrir ${sesion.nombre}, ${fechaLegible(sesion.agenda.fechaActual)}, ${sesion.enviadoEn === null ? "pendiente" : "enviado"}`}
           onPress={() => abrir(sesion.agenda.id)}
           style={({ pressed }) => [s.tarjeta, pressed && { opacity: 0.7 }]}
         >
@@ -153,10 +153,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dias: { flexDirection: "row", gap: 4 },
+  dias: { flexDirection: "row", flexGrow: 1, gap: 4 },
   dia: {
     flex: 1,
     minHeight: 80,
+    minWidth: 44,
     backgroundColor: tema.superficie,
     borderRadius: 14,
     borderColor: tema.borde,

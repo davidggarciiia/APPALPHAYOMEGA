@@ -124,11 +124,13 @@ export function BotonPrincipal({
  */
 export function BotonSecundario({
   texto,
+  etiquetaAccesible = texto,
   onPress,
   ocupado = false,
   deshabilitado = false,
 }: {
   texto: string
+  etiquetaAccesible?: string
   onPress: () => void
   ocupado?: boolean
   deshabilitado?: boolean
@@ -142,7 +144,7 @@ export function BotonSecundario({
       onPress={onPress}
       disabled={ocupado || deshabilitado}
       accessibilityRole="button"
-      accessibilityLabel={texto}
+      accessibilityLabel={etiquetaAccesible}
       accessibilityState={{ disabled: ocupado || deshabilitado, busy: ocupado }}
     >
       <Text style={estilos.textoSecundario}>{ocupado ? "..." : texto}</Text>
@@ -265,6 +267,8 @@ const estilos = StyleSheet.create({
     letterSpacing: 0.7,
   },
   secundario: {
+    maxWidth: "100%",
+    flexShrink: 1,
     borderColor: tema.borde,
     borderWidth: 1,
     borderRadius: 14,
@@ -276,6 +280,7 @@ const estilos = StyleSheet.create({
     alignItems: "center",
   },
   textoSecundario: {
+    textAlign: "center",
     color: tema.texto,
     fontFamily: tema.fuenteBoton,
     fontSize: 13,

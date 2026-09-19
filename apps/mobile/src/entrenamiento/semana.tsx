@@ -1,5 +1,5 @@
 import { AgendaSemanal } from "./agenda-semanal"
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { AppState, Text, View } from "react-native"
 import { ListadoSesionesSchema, type ListadoSesiones } from "@alpha-omega/shared"
@@ -23,6 +23,7 @@ export function SemanaEntrenamiento({
   resumenHoy?: boolean
 }): React.JSX.Element {
   const [semana, setSemana] = useState(lunesDeSemana)
+  const semanaActual = useRef(lunesDeSemana())
   const [listado, setListado] = useState<ListadoSesiones | null>(null)
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
@@ -35,6 +36,15 @@ export function SemanaEntrenamiento({
       const cargar = async (): Promise<void> => {
         if (enCurso || (AppState.currentState !== null && AppState.currentState !== "active"))
           return
+        const actual = lunesDeSemana()
+        if (resumenHoy && semanaActual.current !== actual) {
+          const anterior = semanaActual.current
+          semanaActual.current = actual
+          if (semana === anterior) {
+            setSemana(actual)
+            return
+          }
+        }
         enCurso = true
         try {
           const datos = await api.semana(clienteId, semana, cancelacion.signal)
@@ -68,7 +78,7 @@ export function SemanaEntrenamiento({
         clearInterval(reloj)
         actividad.remove()
       }
-    }, [api, clienteId, semana, intento, copiaLocal]),
+    }, [api, clienteId, semana, intento, copiaLocal, resumenHoy]),
   )
   return (
     <View style={{ gap: 14 }}>

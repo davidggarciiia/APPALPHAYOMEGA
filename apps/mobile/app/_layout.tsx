@@ -85,6 +85,17 @@ function Enrutador(): React.JSX.Element {
   )
 }
 
+function BarraDeEstado(): React.JSX.Element {
+  const { estado, sinConexion } = useSesion()
+  return (
+    <StatusBar
+      style={
+        estado.fase === "comprobando" || (estado.fase === "fuera" && sinConexion) ? "dark" : "light"
+      }
+    />
+  )
+}
+
 export default function DisposicionRaiz(): React.JSX.Element {
   const [fuentes, errorFuentes] = useFonts({
     Barlow: barlow,
@@ -94,12 +105,13 @@ export default function DisposicionRaiz(): React.JSX.Element {
   if (!fuentes && !errorFuentes)
     return (
       <View style={estilos.centrado}>
+        <StatusBar style="dark" />
         <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando aplicación" />
       </View>
     )
   return (
     <ProveedorDeSesion>
-      <StatusBar style="light" />
+      <BarraDeEstado />
       <Enrutador />
     </ProveedorDeSesion>
   )
