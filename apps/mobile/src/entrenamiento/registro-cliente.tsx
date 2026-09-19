@@ -1,14 +1,15 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { randomUUID } from "expo-crypto"
-import { AppState, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native"
+import { AppState, Modal, ScrollView, Text, View } from "react-native"
 import { ZodError } from "zod"
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import { RegistroControl } from "./registro-control"
 import { registroParaEnviar, type EdicionRegistro } from "./registro-modelo"
 import { FechaSesion } from "./fecha-sesion"
-import { PrescripcionVisible, valoresLegibles } from "./resultado"
+import { TablaSeries } from "./tabla-series"
+import { PrescripcionVisible } from "./resultado"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { tema } from "../tema"
 
@@ -172,11 +173,6 @@ export function RegistroCliente({
       <Text style={{ color: tema.texto, fontSize: 36, fontFamily: tema.fuenteTitulo }}>
         {documento.sesion.prescripcion.nombre}
       </Text>
-      <FechaSesion
-        agenda={documento.sesion.agenda}
-        api={api}
-        actualizado={() => control.actualizar()}
-      />
       <Text accessibilityLiveRegion="polite" style={{ color: tema.textoTenue }}>
         {control.errorLocal
           ? "No guardado en el dispositivo"
@@ -241,108 +237,20 @@ export function RegistroCliente({
           }}
         />
       </View>
-      {documento.sesion.prescripcion.ejercicios.map((e) => (
-        <View
-          key={e.id}
-          style={{
-            borderWidth: 1,
-            borderColor: tema.borde,
-            borderRadius: 18,
-            padding: 16,
-            backgroundColor: tema.superficie,
-            gap: 12,
-          }}
-        >
-          <Text style={{ color: tema.texto, fontSize: 26, fontFamily: tema.fuenteTitulo }}>
-            {e.nombre}
-          </Text>
-          {e.indicaciones && <Text style={{ color: tema.textoTenue }}>{e.indicaciones}</Text>}
-          {e.series.map((s, n) => {
-            const real = documento.edicion.series.find((r) => r.serieId === s.id)!
-            const unidad = s.tipoMedicion === "tiempo" ? "Segundos" : "Repeticiones"
-            return (
-              <View key={s.id} style={{ gap: 6 }}>
-                <Text style={{ color: tema.textoTenue, fontSize: 12 }}>
-                  Serie {n + 1} · Objetivo {valoresLegibles(s)}
-                </Text>
-                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                  <TextInput
-                    accessibilityLabel={`Peso — ${e.nombre}, serie ${n + 1}`}
-                    editable={!bloqueado}
-                    value={real.peso}
-                    onChangeText={(peso) => serie(s.id, { peso })}
-                    placeholder={s.pesoKg === null ? "kg (opc.)" : `${s.pesoKg} kg`}
-                    placeholderTextColor={tema.textoTenue}
-                    keyboardType="decimal-pad"
-                    maxLength={30}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      textAlign: "center",
-                      fontFamily: tema.fuenteBoton,
-                      fontSize: 18,
-                      backgroundColor: tema.fondo,
-                      minHeight: 44,
-                      borderWidth: 1,
-                      borderColor: tema.borde,
-                      color: tema.texto,
-                      borderRadius: 10,
-                      padding: 10,
-                    }}
-                  />
-                  <TextInput
-                    accessibilityLabel={`${unidad} — ${e.nombre}, serie ${n + 1}`}
-                    editable={!bloqueado}
-                    value={real.valor}
-                    onChangeText={(valor) => serie(s.id, { valor })}
-                    placeholder={`${s.tipoMedicion === "tiempo" ? s.segundos : s.repeticiones} ${s.tipoMedicion === "tiempo" ? "s" : "rep"}`}
-                    placeholderTextColor={tema.textoTenue}
-                    keyboardType="number-pad"
-                    maxLength={30}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      textAlign: "center",
-                      fontFamily: tema.fuenteBoton,
-                      fontSize: 18,
-                      backgroundColor: tema.fondo,
-                      minHeight: 44,
-                      borderWidth: 1,
-                      borderColor: tema.borde,
-                      color: tema.texto,
-                      borderRadius: 10,
-                      padding: 10,
-                    }}
-                  />
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={`Hecha — ${e.nombre}, serie ${n + 1}`}
-                    accessibilityState={{ checked: real.hecha, disabled: bloqueado }}
-                    disabled={bloqueado}
-                    onPress={() => serie(s.id, { hecha: !real.hecha })}
-                    style={{
-                      minWidth: 44,
-                      minHeight: 44,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderWidth: 1,
-                      borderColor: tema.texto,
-                      borderRadius: 10,
-                      backgroundColor: real.hecha ? tema.texto : tema.superficie,
-                    }}
-                  >
-                    <Text
-                      style={{ fontSize: 22, color: real.hecha ? tema.superficie : tema.texto }}
-                    >
-                      {real.hecha ? "✓" : "○"}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )
-          })}
-        </View>
+      {documento.sesion.prescripcion.ejercicios.map((ejercicio) => (
+        <TablaSeries
+          key={ejercicio.id}
+          ejercicio={ejercicio}
+          series={documento.edicion.series}
+          bloqueado={bloqueado}
+          cambiar={serie}
+        />
       ))}
+      <FechaSesion
+        agenda={documento.sesion.agenda}
+        api={api}
+        actualizado={() => control.actualizar()}
+      />
       <Campo
         etiqueta="Notas del entrenamiento"
         value={documento.edicion.notas}

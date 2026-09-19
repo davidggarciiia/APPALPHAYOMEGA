@@ -59,33 +59,36 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
     "/perfil",
     "/mis-clientes",
   ].includes(ruta)
+  const sesionCompleta = usuario.rol === "cliente" && /^\/entrenamiento\/[^/]+$/.test(ruta)
   return (
     <View style={s.raiz}>
       <SafeAreaView edges={["top", "left", "right"]} style={s.fondo}>
-        <View style={s.cabecera}>
-          <View style={s.titulos}>
-            <Text style={s.rol}>
-              {principal === ""
-                ? `Hola, ${usuario.nombre.split(" ")[0]}`
-                : "Alpha & Omega Training"}
-              {estado.fase === "local" ? " · Sin conexión" : ""}
-            </Text>
-            <Text accessibilityRole="header" style={s.titulo}>
-              {titulos[principal] ??
-                (usuario.rol === "cliente" ? "Tu entrenamiento" : "Tu espacio")}
-            </Text>
+        {!sesionCompleta && (
+          <View style={s.cabecera}>
+            <View style={s.titulos}>
+              <Text style={s.rol}>
+                {principal === ""
+                  ? `Hola, ${usuario.nombre.split(" ")[0]}`
+                  : "Alpha & Omega Training"}
+                {estado.fase === "local" ? " · Sin conexión" : ""}
+              </Text>
+              <Text accessibilityRole="header" style={s.titulo}>
+                {titulos[principal] ??
+                  (usuario.rol === "cliente" ? "Tu entrenamiento" : "Tu espacio")}
+              </Text>
+            </View>
+            {estado.fase === "dentro" && (
+              <Pressable
+                style={s.avatar}
+                accessibilityRole="button"
+                accessibilityLabel="Abrir mi perfil"
+                onPress={() => router.push("/perfil")}
+              >
+                <Text style={s.inicial}>{usuario.nombre.slice(0, 1).toUpperCase()}</Text>
+              </Pressable>
+            )}
           </View>
-          {estado.fase === "dentro" && (
-            <Pressable
-              style={s.avatar}
-              accessibilityRole="button"
-              accessibilityLabel="Abrir mi perfil"
-              onPress={() => router.push("/perfil")}
-            >
-              <Text style={s.inicial}>{usuario.nombre.slice(0, 1).toUpperCase()}</Text>
-            </Pressable>
-          )}
-        </View>
+        )}
       </SafeAreaView>
       <View style={s.contenido}>{children}</View>
       <SafeAreaView edges={["bottom", "left", "right"]} style={mostrarPie ? s.pie : s.fondo}>
