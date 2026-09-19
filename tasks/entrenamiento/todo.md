@@ -1,7 +1,8 @@
 # Tareas de Codex — entrenamiento
 
 > Estado: ejecución de Codex autorizada por David el 2026-09-18 («comienza tu parte»).
-> Checkpoint 0A validado por David («adelant»); C03 terminado y base común preparada.
+> Integración funcional C00–C18 completada por Codex, incluida la continuación de Fable.
+> C19: comprobación web y documentación; queda la validación física Android/iOS.
 > [Plan general](plan.md) · [Plan independiente de Fable](plan-fable.md).
 > Los identificadores C pertenecen a Codex; los F están en [todo-fable.md](todo-fable.md).
 > Esta lista no sustituye `tasks/todo.md` de identidad.
@@ -12,9 +13,11 @@ Una tarea cada vez. Si una tarea supera los cinco archivos previstos o necesita
 cambiar el contrato, se divide o se actualiza el plan antes de implementarla.
 Cada entrega distingue implementación, tests y comprobación en dispositivo.
 
-Antes de ejecutar, David valida primero los planes y después las tareas. Cada
-checkpoint presenta evidencia para revisión humana antes del siguiente incremento;
-la revisión cruzada entre Codex y Fable no sustituye esa revisión.
+Los planes y tareas fueron aprobados. David encargó a Codex terminar lo pendiente
+de Fable e integrar todo: [continuación autorizada](integracion.md). Los checkpoints
+se verifican durante la ejecución. La revisión humana final no autoriza publicación.
+Las rutas de archivo del desglose eran propuestas; la trazabilidad de los archivos
+implementados y las plataformas comprobadas están en [verificación](verificacion.md).
 
 Antes de cada commit: `npm run test`, `npm run typecheck`, `npm run lint`.
 Antes de un test enfocado: `npm run build:shared`. Las pruebas HTTP que usan la
@@ -118,9 +121,9 @@ Se recupera la resolución automática de monorepos de Expo, sin cambiar paquete
 
 ### C04 — Probar el almacén privado de borradores
 
-- [ ] Persistir por cuenta/sesión con SQLite nativo y cifrado Crypto; clave pequeña
+- [x] Persistir por cuenta/sesión con SQLite nativo y cifrado Crypto; clave pequeña
       en SecureStore. Proveer adaptador web para desarrollo con límites documentados.
-- [ ] Serializar escrituras y devolver confirmación solo tras persistencia;
+- [x] Serializar escrituras y devolver confirmación solo tras persistencia;
       errores de cifrado, disco o lectura no borran silenciosamente la copia anterior.
 - [ ] Comprobar en Expo Go guardar, cerrar y recuperar un documento mayor que
       el límite histórico de una entrada pequeña del llavero.
@@ -134,11 +137,11 @@ Se recupera la resolución automática de monorepos de Expo, sin cambiar paquete
 
 ### C05 — Recuperar sesiones descargadas sin conexión
 
-- [ ] Persistir identidad local mínima tras autenticación y distinguir sesión
+- [x] Persistir identidad local mínima tras autenticación y distinguir sesión
       online de acceso local limitado a sesiones descargadas del cliente.
-- [ ] Un fallo de red permite el borrador local; 401 o cambio de cuenta no
+- [x] Un fallo de red permite el borrador local; 401 o cambio de cuenta no
       conceden acceso al servidor ni al historial de otra persona.
-- [ ] Conservar el comportamiento existente para entrenador y otros roles.
+- [x] Conservar el comportamiento existente para entrenador y otros roles.
 
 **Dependencias:** C04. **Alcance:** M, cuatro archivos.
 **Archivos:** `apps/mobile/src/sesion.tsx`, `src/lib/sesion-local.ts`,
@@ -151,15 +154,15 @@ Se recupera la resolución automática de monorepos de Expo, sin cambiar paquete
 - [x] Preparar para Fable el commit común C00–C03 y el encargo por archivo.
       La sesión externa la inicia David; no consta implementación de Fable.
 - [ ] C04–C05 preservan un borrador y separan usuarios en pruebas nativas.
-- [ ] Revisar el catálogo F01–F02 sin editar simultáneamente sus archivos.
+- [x] Revisar el catálogo F01–F02 sin editar simultáneamente sus archivos.
 
 ### C06 — Renovar la sesión durante una petición
 
-- [ ] Unificar renovaciones concurrentes en una promesa en vuelo, persistiendo
+- [x] Unificar renovaciones concurrentes en una promesa en vuelo, persistiendo
       el refresh nuevo antes de darlo por válido.
-- [ ] Reintentar una vez una petición rechazada por token vencido; no repetir
+- [x] Reintentar una vez una petición rechazada por token vencido; no repetir
       automáticamente una mutación sin id de operación estable.
-- [ ] Logout o cambio de cuenta invalidan renovaciones en vuelo; red no equivale a 401.
+- [x] Logout o cambio de cuenta invalidan renovaciones en vuelo; red no equivale a 401.
 
 **Dependencias:** C03, C05. **Alcance:** M, tres archivos.
 **Archivos:** `apps/mobile/src/lib/peticion-autenticada.ts`, `src/sesion.tsx`,
@@ -169,11 +172,11 @@ Se recupera la resolución automática de monorepos de Expo, sin cambiar paquete
 
 ### C07 — Cerrar sesión sin filtrar ni perder datos inadvertidamente
 
-- [ ] Detectar cambios no sincronizados y permitir cancelar el cierre o aceptar
+- [x] Detectar cambios no sincronizados y permitir cancelar el cierre o aceptar
       su descarte; no prometer sincronización cuando no hay red.
-- [ ] Desactivar el acceso local y limpiar claves/caché de esa cuenta cuando se
+- [x] Desactivar el acceso local y limpiar claves/caché de esa cuenta cuando se
       confirma la salida, incluso si el servidor no contesta.
-- [ ] Otra cuenta no hereda el borrador ni recibe una respuesta tardía de la anterior.
+- [x] Otra cuenta no hereda el borrador ni recibe una respuesta tardía de la anterior.
 
 **Dependencias:** C04–C06. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/mobile/src/sesion.tsx`, `src/lib/sesion-local.ts`,
@@ -184,18 +187,18 @@ Se recupera la resolución automática de monorepos de Expo, sin cambiar paquete
 
 ### Checkpoint 1B — catálogo integrado
 
-- [ ] Integrar F01–F03; alta, búsqueda y retirada funcionan desde el móvil.
-- [ ] C06–C07 pasan, incluida la compatibilidad con identidad de `055c401`.
-- [ ] Compartir el commit integrado y anotar comprobaciones de dispositivo.
+- [x] Integrar F01–F03; alta, búsqueda y retirada funcionan desde el móvil.
+- [x] C06–C07 pasan, incluida la compatibilidad con identidad de `055c401`.
+- [x] Compartir el commit integrado y anotar comprobaciones de dispositivo.
 
 ## Incremento 2 — primera asignación visible
 
 ### C08 — Añadir persistencia de agenda y entrenamiento
 
-- [ ] Crear entidades, índices, relaciones y unicidad descritos en el plan;
+- [x] Crear entidades, índices, relaciones y unicidad descritos en el plan;
       fechas calendario y documentos con versión explícita.
-- [ ] Revisar una migración aditiva y preservar todos los datos de identidad y catálogo.
-- [ ] Registrar los dos módulos nuevos vacíos, sin rutas accesibles por omisión.
+- [x] Revisar una migración aditiva y preservar todos los datos de identidad y catálogo.
+- [x] Registrar los dos módulos nuevos vacíos, sin rutas accesibles por omisión.
 
 **Dependencias:** C02 y catálogo integrado. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/api/prisma/schema.prisma`, una migración de entrenamiento,
@@ -206,11 +209,11 @@ Se recupera la resolución automática de monorepos de Expo, sin cambiar paquete
 
 ### C09 — Asignar y consultar una sesión
 
-- [ ] Crear para un cliente pendiente o activo una sesión con prescripción
+- [x] Crear para un cliente pendiente o activo una sesión con prescripción
       validada, referencia a ejercicios publicados y fecha concreta.
-- [ ] Hacer idempotente la asignación y devolver semana/detalle con DTOs distintos
+- [x] Hacer idempotente la asignación y devolver semana/detalle con DTOs distintos
       para propietario y entrenador. No publicar borradores.
-- [ ] Probar cuentas ajenas, roles prohibidos y cliente desactivado mediante HTTP.
+- [x] Probar cuentas ajenas, roles prohibidos y cliente desactivado mediante HTTP.
 
 **Dependencias:** C00, C08. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/api/src/agenda/agenda.service.ts`,
@@ -223,9 +226,9 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### C10 — Mostrar la semana del cliente
 
-- [ ] Consultar semanas y abrir prescripción con etiquetas de fecha, nombre y estado.
-- [ ] Descargar la prescripción al almacén local de la cuenta sin inventar registros.
-- [ ] Mostrar carga, vacío y error, conectando desde el inicio existente.
+- [x] Consultar semanas y abrir prescripción con etiquetas de fecha, nombre y estado.
+- [x] Descargar la prescripción al almacén local de la cuenta sin inventar registros.
+- [x] Mostrar carga, vacío y error, conectando desde el inicio existente.
 
 **Dependencias:** C03–C06, C09. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/mobile/app/entrenos/index.tsx`,
@@ -236,19 +239,19 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### Checkpoint 2 — entrenador asigna, cliente abre
 
-- [ ] Integrar F04 y comprobar el recorrido completo con un ejercicio y una serie.
-- [ ] Reintentar la asignación no crea otra sesión; otro cliente no puede leerla.
-- [ ] Revisión del incremento antes de ampliar el editor.
+- [x] Integrar F04 y comprobar el recorrido completo con un ejercicio y una serie.
+- [x] Reintentar la asignación no crea otra sesión; otro cliente no puede leerla.
+- [x] Revisión del incremento antes de ampliar el editor.
 
 ## Incremento 3 — ejecución y envío
 
 ### C11 — Guardar borradores privados en la API
 
-- [ ] Leer/escribir solo el borrador propio, admitiendo campos incompletos no
+- [x] Leer/escribir solo el borrador propio, admitiendo campos incompletos no
       marcados y validando todas las series contra la prescripción.
-- [ ] Aplicar revisiones e ids de operación; la primera escritura impide ajustes
+- [x] Aplicar revisiones e ids de operación; la primera escritura impide ajustes
       posteriores de prescripción y no permite mezclar series de sesiones distintas.
-- [ ] Denegar entrenador y otros roles incluso en lecturas de detalle/listado.
+- [x] Denegar entrenador y otros roles incluso en lecturas de detalle/listado.
 
 **Dependencias:** C09. **Alcance:** M, cuatro archivos.
 **Archivos:** `apps/api/src/entrenamiento/borradores.service.ts`,
@@ -259,11 +262,11 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### C12a — Sincronizar el borrador sin perder ediciones
 
-- [ ] Persistir localmente antes de enviar y serializar operaciones por sesión;
+- [x] Persistir localmente antes de enviar y serializar operaciones por sesión;
       una respuesta antigua no pisa el texto más reciente.
-- [ ] Mantener edición parcial y estados Guardando/Guardado/Error sin confundir
+- [x] Mantener edición parcial y estados Guardando/Guardado/Error sin confundir
       el objetivo tenue con el valor real.
-- [ ] Resolver 409 conservando ambas copias; no reemplazar datos por antigüedad
+- [x] Resolver 409 conservando ambas copias; no reemplazar datos por antigüedad
       de una respuesta ni publicar el borrador al entrenador.
 
 **Dependencias:** C04, C06, C11. **Alcance:** M, cuatro archivos.
@@ -274,11 +277,11 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### C12b — Registrar una serie desde el móvil
 
-- [ ] Dos campos con unidades, objetivos tenues, valores reales y marcador;
+- [x] Dos campos con unidades, objetivos tenues, valores reales y marcador;
       repeticiones/tiempo y carga opcional siguen el contrato.
-- [ ] Marcar requiere valores válidos; vacío no es cero, se admite coma decimal,
+- [x] Marcar requiere valores válidos; vacío no es cero, se admite coma decimal,
       y desmarcar conserva el contenido sin contarlo como realizado.
-- [ ] Conectar notas y recuperación del borrador, sin permitir cambiar la rutina.
+- [x] Conectar notas y recuperación del borrador, sin permitir cambiar la rutina.
 
 **Dependencias:** C10, C12a. **Alcance:** M, cuatro archivos.
 **Archivos:** `apps/mobile/app/entrenos/[id].tsx`,
@@ -289,15 +292,15 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### Checkpoint 3A — borrador recuperable
 
-- [ ] C11–C12b pasan; entrenador y otro cliente no reciben el borrador.
-- [ ] Recuperación real con red cortada y posterior reconexión.
-- [ ] No ampliar hasta demostrar que ninguna respuesta atrasada pierde una edición.
+- [x] C11–C12b pasan; entrenador y otro cliente no reciben el borrador.
+- [x] Recuperación real con red cortada y posterior reconexión.
+- [x] No ampliar hasta demostrar que ninguna respuesta atrasada pierde una edición.
 
 ### C13a — Mover fechas en la API
 
-- [ ] Cambiar dentro de la semana original sin modificar futuras ocurrencias ni borradores.
-- [ ] Registrar autor, antes/después y revisión; resolver concurrencia y denegar cerradas.
-- [ ] Verificar lunes/domingo, año nuevo y DST; admitir varias sesiones el mismo día.
+- [x] Cambiar dentro de la semana original sin modificar futuras ocurrencias ni borradores.
+- [x] Registrar autor, antes/después y revisión; resolver concurrencia y denegar cerradas.
+- [x] Verificar lunes/domingo, año nuevo y DST; admitir varias sesiones el mismo día.
 
 **Dependencias:** C08–C09. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/api/src/agenda/agenda.service.ts`, `agenda.controller.ts`,
@@ -308,9 +311,9 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### C13b — Cambiar día desde la semana
 
-- [ ] Ofrecer solo días de la misma semana y mostrar fecha original/actual.
-- [ ] Conservar el último estado confirmado si falla el cambio y ofrecer reintento.
-- [ ] Integrar el mismo control reutilizable en el panel del entrenador mediante
+- [x] Ofrecer solo días de la misma semana y mostrar fecha original/actual.
+- [x] Conservar el último estado confirmado si falla el cambio y ofrecer reintento.
+- [x] Integrar el mismo control reutilizable en el panel del entrenador mediante
       contrato de componente, sin editar sus archivos en paralelo.
 
 **Dependencias:** C10, C13a. **Alcance:** M, cuatro archivos.
@@ -321,10 +324,10 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### C14 — Enviar una ejecución de forma atómica
 
-- [ ] Validar versión, propiedad, al menos una serie hecha y datos completos de
+- [x] Validar versión, propiedad, al menos una serie hecha y datos completos de
       las marcadas; excluir valores de series no realizadas del resultado público.
-- [ ] Publicar resultado y cerrar agenda en una transacción; dejar histórico inmutable.
-- [ ] Doble envío y respuesta perdida devuelven el mismo resultado; payload
+- [x] Publicar resultado y cerrar agenda en una transacción; dejar histórico inmutable.
+- [x] Doble envío y respuesta perdida devuelven el mismo resultado; payload
       diferente con la misma clave y guardado tardío se rechazan sin sobrescribir.
 
 **Dependencias:** C11, C13a. **Alcance:** M, cinco archivos.
@@ -336,17 +339,17 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### Checkpoint 3B — API de envío y fechas
 
-- [ ] C13–C14 pasan; no hay resultado publicado con agenda abierta.
-- [ ] Fable recibe el contrato integrado de resultados para F05.
-- [ ] Las respuestas del entrenador siguen sin contener borradores.
+- [x] C13–C14 pasan; no hay resultado publicado con agenda abierta.
+- [x] Fable recibe el contrato integrado de resultados para F05.
+- [x] Las respuestas del entrenador siguen sin contener borradores.
 
 ### C15 — Enviar y consultar el resultado desde el cliente
 
-- [ ] Resumen de hechas/pendientes, confirmación de envío incompleto y estado
+- [x] Resumen de hechas/pendientes, confirmación de envío incompleto y estado
       pendiente mientras el servidor no confirma.
-- [ ] Un fallo conserva el borrador; reintentar conserva clave y contenido;
+- [x] Un fallo conserva el borrador; reintentar conserva clave y contenido;
       resolver un éxito cuya respuesta se perdió no duplica nada.
-- [ ] Mostrar el resultado confirmado en modo consulta y limpiar la cola local
+- [x] Mostrar el resultado confirmado en modo consulta y limpiar la cola local
       sin permitir que una respuesta tardía lo reabra.
 
 **Dependencias:** C12b, C14. **Alcance:** M, cinco archivos.
@@ -359,9 +362,9 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### C16a — Repetir el plan durante varias semanas
 
-- [ ] Expandir el patrón en fechas concretas, conservando sesiones ya existentes.
-- [ ] Copiar objetivos por ocurrencia y mostrar colisiones como aviso, sin sustitución.
-- [ ] Hacer atómica/idempotente la asignación del bloque completo.
+- [x] Expandir el patrón en fechas concretas, conservando sesiones ya existentes.
+- [x] Copiar objetivos por ocurrencia y mostrar colisiones como aviso, sin sustitución.
+- [x] Hacer atómica/idempotente la asignación del bloque completo.
 
 **Dependencias:** C09, C14. **Alcance:** M, cuatro archivos.
 **Archivos:** `apps/api/src/entrenamiento/planes.service.ts`, `fechas-del-plan.ts`,
@@ -372,9 +375,9 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### C16b — Guardar y reutilizar plantillas independientes
 
-- [ ] Guardar/listar/leer/editar rutinas para el entrenador, sin datos de clientes.
-- [ ] Asignar desde una copia; editar plantilla no altera planes asignados.
-- [ ] Denegar otros roles y rechazar nuevas asignaciones con ejercicios retirados,
+- [x] Guardar/listar/leer/editar rutinas para el entrenador, sin datos de clientes.
+- [x] Asignar desde una copia; editar plantilla no altera planes asignados.
+- [x] Denegar otros roles y rechazar nuevas asignaciones con ejercicios retirados,
       manteniendo la consulta de la plantilla y del histórico.
 
 **Dependencias:** C16a. **Alcance:** M, cinco archivos.
@@ -386,17 +389,17 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### Checkpoint 4A — primer recorrido y repetición
 
-- [ ] C15 y F05 completan el recorrido de una sesión con servidor real.
-- [ ] C16a–C16b preservan otros clientes y semanas ante copias y ediciones.
-- [ ] Compartir base integrada para F06 y F07a.
+- [x] C15 y F05 completan el recorrido de una sesión con servidor real.
+- [x] C16a–C16b preservan otros clientes y semanas ante copias y ediciones.
+- [x] Compartir base integrada para F06 y F07a.
 
 ### C17 — Ajustar una sesión no iniciada
 
-- [ ] Permitir al entrenador editar prescripción con revisión mientras no haya
+- [x] Permitir al entrenador editar prescripción con revisión mientras no haya
       borrador sincronizado ni envío.
-- [ ] El ajuste y el primer guardado compiten atómicamente; quien pierde recibe
+- [x] El ajuste y el primer guardado compiten atómicamente; quien pierde recibe
       conflicto, conservando la copia local del cliente.
-- [ ] Retirar ejercicios o editar nombres no modifica lo ya enviado.
+- [x] Retirar ejercicios o editar nombres no modifica lo ya enviado.
 
 **Dependencias:** C11, C16b. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/api/src/entrenamiento/prescripciones.service.ts`,
@@ -409,11 +412,11 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### C18 — Probar carreras e integrar los accesos definitivos
 
-- [ ] Verificar carreras mover/enviar, editar/guardar, dos dispositivos, logout
+- [x] Verificar carreras mover/enviar, editar/guardar, dos dispositivos, logout
       durante refresh y cuenta desactivada en servidor con datos locales pendientes.
-- [ ] Conectar cartera/ficha/inicio con las rutas reales de Fable y revisar
+- [x] Conectar cartera/ficha/inicio con las rutas reales de Fable y revisar
       sondeo visible, cambio de cuenta y limpieza al desmontar.
-- [ ] Integrar entregas F06–F08 y ejecutar regresión de identidad.
+- [x] Integrar entregas F06–F08 y ejecutar regresión de identidad.
 
 **Dependencias:** C17, F06, F07a–F07b. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/api/test/entrenamiento-carreras.e2e-spec.ts`,
@@ -426,17 +429,17 @@ exportación definitiva se completa en C13a sin crear una dependencia inversa.
 
 ### Checkpoint 4B — funciones completas
 
-- [ ] C17, C18 y F07b pasan; no quedan inconsistencias de contrato.
-- [ ] Revisión cruzada: cada responsable corrige los hallazgos de sus archivos.
-- [ ] F08 entrega evidencia de pantallas; no se declara prueba nativa por un mock.
+- [x] C17, C18 y F07b pasan; no quedan inconsistencias de contrato.
+- [x] Revisión cruzada: cada responsable corrige los hallazgos de sus archivos.
+- [x] F08 entrega evidencia de pantallas; no se declara prueba nativa por un mock.
 
 ### C19 — Verificar en dispositivo y cerrar la documentación
 
 - [ ] Recorrer todos los criterios de entrenamiento y agenda en dispositivo,
       incluyendo cierre/reapertura sin red y cambio de usuario.
-- [ ] Registrar comandos, resultados, plataforma y límites. Si no hay acceso
+- [x] Registrar comandos, resultados, plataforma y límites. Si no hay acceso
       a dispositivo, dejar explícitamente pendiente esa comprobación.
-- [ ] Actualizar el mapa y las reglas comunes para reflejar que el entrenador
+- [x] Actualizar el mapa y las reglas comunes para reflejar que el entrenador
       ve resultados solo después del envío, sin marcar el catálogo completo terminado.
 
 **Dependencias:** C18, F08. **Alcance:** M, cinco archivos.
@@ -448,9 +451,9 @@ recorrido en Expo Go desde `npm run dev --workspace apps/mobile`.
 
 ### Checkpoint final
 
-- [ ] Criterios de las dos specs trazados a pruebas y comprobaciones.
-- [ ] Histórico, privacidad de borradores e idempotencia demostrados.
-- [ ] Cobertura de servicios y guardas nuevos conforme al mínimo del proyecto.
+- [x] Criterios de las dos specs trazados a pruebas y comprobaciones.
+- [x] Histórico, privacidad de borradores e idempotencia demostrados.
+- [x] Cobertura de servicios y guardas nuevos conforme al mínimo del proyecto.
 - [ ] Revisión humana del resultado. Publicación y merge no se presuponen.
 
 ## Registro de entregas
@@ -468,5 +471,5 @@ recorrido en Expo Go desde `npm run dev --workspace apps/mobile`.
   pasan; typecheck, lint y compilación API correctos. Login, perfil y logout
   comprobados en web con API/PostgreSQL reales y cuenta temporal eliminada.
   La revisión independiente queda sin hallazgos pendientes. Android/iOS no probados.
-- Encargo actualizado en [fable.md](fable.md): F01 puede arrancar desde la base
-  común; C06 sigue pendiente y no hay renovación automática dentro del transporte.
+- La integración posterior y la renovación C06 están completadas. Véanse
+  [integracion.md](integracion.md) y [verificacion.md](verificacion.md).

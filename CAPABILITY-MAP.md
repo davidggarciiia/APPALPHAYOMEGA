@@ -40,8 +40,9 @@ Secuencia: `identity` → `catalogo-ejercicios` + `agenda` → `entrenamiento` �
   inicio del cliente ya muestra "Viernes 16, boxeo, 10:00", así que `agenda` es
   necesaria desde el primer día. El panel de horarios del entrenador es su cara
   de admin y sale casi gratis.
-- **El panel del entrenador vive en `entrenamiento`.** Lee los mismos registros
-  que escribe el cliente. Separarlo crearía dos modelos del mismo dato.
+- **El panel del entrenador vive en `entrenamiento`.** Lee únicamente el resultado
+  confirmado al enviar; el borrador del cliente es privado. Son DTOs diferentes
+  dentro del mismo módulo, sin duplicar la fuente de verdad.
 - **`fichajes` no depende de nada salvo el login.** Se puede cortar entero sin
   tocar el resto. Por eso es el último.
 
@@ -71,10 +72,15 @@ dibujadas por nadie y no son opcionales.
 
 ## Estado
 
-| Módulo     | Spec     | Plan     | Implementación                               |
-| ---------- | -------- | -------- | -------------------------------------------- |
-| `identity` | aprobada | aprobado | 17 de 21 tareas. Fases 0, 1, 2 y 4 completas |
-| resto      | —        | —        | —                                            |
+| Módulo              | Spec     | Plan                 | Implementación                                                                            |
+| ------------------- | -------- | -------------------- | ----------------------------------------------------------------------------------------- |
+| identity            | aprobada | aprobado             | 17 de 21 tareas; pendientes originales conservados                                        |
+| catalogo-ejercicios | definida | subconjunto aprobado | Catálogo textual integrado; figuras, vídeo y mapa pendientes                              |
+| agenda              | aprobada | aprobado             | Sesiones de entrenamiento por día y cambios auditados; clases/horas fuera de esta entrega |
+| entrenamiento       | aprobada | aprobado             | Iteración 2 integrada; validación web completa, dispositivo físico pendiente              |
+| resto               | —        | —                    | Pendiente                                                                                 |
+
+Evidencia, trazabilidad y límites en [verificación de la iteración 2](tasks/entrenamiento/verificacion.md).
 
 ### Detalle de `identity`
 

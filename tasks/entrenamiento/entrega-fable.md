@@ -1,5 +1,10 @@
 # Entrega de Fable — entrenamiento, segunda iteración
 
+> Cierre del encargo (2026-09-19): Codex integró los commits de Fable y terminó
+> F02c–F08 por petición de David. La entrega que sigue se conserva como registro
+> original; sus pendientes están resueltos salvo la validación física Android/iOS.
+> Estado vigente: [integracion.md](integracion.md) y [verificacion.md](verificacion.md).
+
 > Archivo de Fable según el [desglose](todo-fable.md). Codex actualiza el
 > seguimiento común a partir de estas entregas. Vive en la rama
 > `codex/fable-catalogo`, worktree `APP-ALPHA_OMEGA-fable`.

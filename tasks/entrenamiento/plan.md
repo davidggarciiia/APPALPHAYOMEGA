@@ -1,5 +1,10 @@
 # Plan: entrenamiento, segunda iteración
 
+> Estado vigente: implementación integrada por Codex tras el encargo de terminar
+> lo pendiente de Fable. El reparto que sigue se conserva como planificación original.
+> Consulta [integracion.md](integracion.md), [todo.md](todo.md) y [verificacion.md](verificacion.md).
+> Diseño actualizado a blanco y negro según el ZIP; prueba física Android/iOS pendiente.
+
 > Preparado el 2026-09-18 con `planning-and-task-breakdown` de Agent Skills.
 > **Estado: plan aprobado; David autoriza comenzar la parte de Codex el 2026-09-18.**
 > Especificaciones aprobadas: [entrenamiento](../../SPEC-entrenamiento.md) y

@@ -2,6 +2,102 @@
 
 Fecha: 2026-09-18. Rama: `codex/entrenamiento-iteracion-2`.
 
+## Entrega integrada — 2026-09-19
+
+Estado vigente: funcionalidad C00–C18 y F01–F08 integrada en
+`codex/entrenamiento-iteracion-2`. C19 queda pendiente únicamente en su
+comprobación física Android/iOS. El registro histórico posterior conserva
+los resultados de cada checkpoint; sus antiguos «pendientes» no describen
+el estado actual.
+
+### Comprobaciones finales
+
+| Comprobación                                           | Resultado                                                      |
+| ------------------------------------------------------ | -------------------------------------------------------------- |
+| `npm run test`                                         | 76 pruebas unitarias de API y 85 móviles                       |
+| `npm run test:e2e --workspace apps/api -- --runInBand` | 261 HTTP, incluidas las de identidad                           |
+| `npm run typecheck`                                    | Todos los workspaces                                           |
+| `npm run lint`                                         | ESLint y Prettier                                              |
+| `npm run build --workspace apps/api`                   | Compilación correcta                                           |
+| Cobertura de servicios nuevos                          | 97,71% líneas; 95,86% sentencias; 85,71% ramas; 100% funciones |
+
+Cobertura HTTP reproducible:
+
+```bash
+npm run test:e2e --workspace apps/api -- --runInBand --coverage --collectCoverageFrom="src/{entrenamiento,agenda,catalogo-ejercicios}/**/*.service.ts" --coverageReporters=text --coverageReporters=json-summary --coverageDirectory=coverage/iteracion-2
+```
+
+Cada servicio nuevo supera el 80% de líneas y ramas. Se reutilizan las guardas
+de identidad, con denegaciones HTTP por rol, propiedad y estado. La raíz de Jest
+E2E incluye `src` para que instrumente código real: la configuración anterior,
+limitada a `test`, producía un informe vacío. Los errores de proveedor de correo
+de la suite son simulaciones explícitas, sin enviar correos reales.
+
+### Trazabilidad de criterios
+
+| Criterios                                                      | Implementación y evidencia                                                                                                                    |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catálogo textual, roles, nombres únicos, retirada/reposición   | `catalogo-ejercicios/`, 37 HTTP, adaptador y componentes móviles                                                                              |
+| C04–C07: cifrado, colas, cambio de cuenta, renovación y salida | `almacen-local`, `clave-local`, `sesion-local`, `peticion-autenticada`, `sesion`; unitarios y recorrido web offline                           |
+| C08–C10/F04: asignación y prescripción por cliente             | `planes.service`, `sesiones.service`, `editor-plan`; HTTP de asignación/límites y dos tests de componente                                     |
+| C11–C12/F05: borrador privado y conservación de ediciones      | `registros.service`, `registro-control`, `registro-modelo`; revisiones, respuestas atrasadas, recuperación y privacidad                       |
+| C13: mover dentro de semana e historial                        | `agenda.service`, `fecha-sesion`; HTTP de agenda, contratos de fechas y recorrido real                                                        |
+| C14–C15: envío parcial, cierre atómico, idempotencia           | `registros.service`, `registro-cliente`, `resultado`; HTTP de registros y replay tras respuesta perdida                                       |
+| C16/F06–F07a: varias semanas y rutinas independientes          | `rutinas.service`, `editor-patron`, `cargar-rutina`; adaptación para otro cliente y conservación tras retirar ejercicios                      |
+| C17/F07b: ajuste seguro de una sesión                          | `ajustes.service`, ruta `entrenador/sesion/[id]/ajustar`; revisiones, inicio concurrente y segunda semana intacta                             |
+| C18: carreras                                                  | `entrenamiento-concurrencia.e2e-spec.ts`; mover/enviar, primer borrador/ajuste, doble envío y documento incompatible                          |
+| Diseño y navegación                                            | `tema`, `armazon`, `agenda-semanal`, formularios y rutas; filtro por fecha actual, cambio domingo/lunes, etiquetas accesibles y recorrido web |
+
+Los archivos propuestos originalmente se agruparon por responsabilidades durante
+la ejecución. No se crearon controladores o adaptadores vacíos solo para igualar
+los nombres del plan. El catálogo en memoria está en `pruebas/` y solo lo importan
+los tests. Todas las rutas nuevas acceden a la API autenticada o a su copia local.
+
+### Recorrido web con datos temporales
+
+1. Crear, buscar, abrir, retirar y reponer un ejercicio desde el catálogo.
+2. Preparar una sesión con carga/repeticiones y otra serie por segundos; asignarla
+   desde la ficha y abrirla como cliente.
+3. Crear una rutina de 15 kg × 12, copiarla al cliente cambiando a 17,5 kg y asignar
+   dos semanas. La semana existente se conserva. Ajustar solo la primera sesión
+   a 11 repeticiones; la plantilla sigue en 15 kg × 12 al volver a abrirla.
+4. Parar la API propia, registrar 22,5 kg × 9, marcar una serie y escribir notas.
+   Recargar la página sin servidor: se recupera la cuenta local y el documento
+   cifrado, incluidos los valores y la marca. Reconectar y sincronizar.
+5. Mover de lunes 14 a sábado 19. Enviar con una serie marcada y otra omitida.
+   El valor privado de la serie omitida no aparece en el resultado publicado.
+6. Entrar como entrenador y verificar sábado, fecha original, 22,5 kg × 9,
+   serie omitida y notas. Un segundo envío desde la interfaz nueva se confirma.
+7. Cerrar las cuentas temporales y eliminar exclusivamente sus datos de prueba.
+
+Se usaron API/Nest, PostgreSQL y AES-GCM web reales. Los tests Expo/Jest cubren
+los adaptadores mediante dobles; no demuestran SQLite ni SecureStore físicos.
+
+### Diseño y revisión
+
+Referencia: `Theme files review.zip`, HTML v2. Cabecera negra, tarjetas blancas,
+texto negro/gris, botones de alto contraste y navegación por rol. El logo del ZIP
+se representa con tinte monocromo. Barlow y Barlow Condensed se empaquetan junto
+con su licencia OFL; no dependen de descargar fuentes al abrir la app.
+
+Se comprobaron acceso, inicio, agenda, registro, confirmación, resultado, cartera
+y rutinas. Revisión responsive a 320/390 px y en tableta/escritorio. Sin desbordamiento
+horizontal de la página; el calendario permite desplazarse cuando hacen falta
+para mantener objetivos táctiles de 44 px. La revisión independiente no deja
+hallazgos Required. Se incorporaron sus mejoras de etiquetas con fecha/estado,
+actualización al cruzar de semana y contraste de la barra de estado.
+
+### Límites de la entrega
+
+- Falta ejecutar C04/C19 en Android/iOS físicos: cierre de proceso, SQLite,
+  SecureStore, teclado virtual y recuperación sin red. No se presenta como probado.
+- Figuras animadas, vídeos y mapa muscular están fuera del subconjunto aprobado.
+  Su investigación está en `docs/animaciones-ejercicios.md`; no se compró contenido.
+- El worktree de Fable se conserva. No hay push, merge a main ni publicación.
+- Los pendientes de producción e identidad anteriores mantienen su alcance.
+
+## Registro histórico de checkpoints
+
 ## Checkpoint 0A — C00–C02
 
 ### C00: contratos

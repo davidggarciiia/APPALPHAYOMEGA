@@ -1,5 +1,10 @@
 # Encargo para Fable — segunda iteración de Alpha & Omega
 
+> Cierre del encargo (2026-09-19): Codex integró los commits de Fable y terminó
+> F02c–F08 por petición de David. La entrega que sigue se conserva como registro
+> original; sus pendientes están resueltos salvo la validación física Android/iOS.
+> Estado vigente: [integracion.md](integracion.md) y [verificacion.md](verificacion.md).
+
 > Reparto aprobado el 2026-09-18. Dudas de lectura resueltas.
 > Base común de código C00–C03: `83177eb`. F01 puede comenzar.
 

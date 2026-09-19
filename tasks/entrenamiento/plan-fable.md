@@ -1,5 +1,10 @@
 # Plan de Fable — catálogo y pantallas del entrenador
 
+> Estado vigente: implementación integrada por Codex tras el encargo de terminar
+> lo pendiente de Fable. El reparto que sigue se conserva como planificación original.
+> Consulta [integracion.md](integracion.md), [todo.md](todo.md) y [verificacion.md](verificacion.md).
+> Diseño actualizado a blanco y negro según el ZIP; prueba física Android/iOS pendiente.
+
 > Preparado el 2026-09-18 siguiendo Agent Skills.
 > **Estado: plan aprobado; base común `83177eb` preparada para empezar F01.**
 > [Plan y coordinación general](plan.md) · [Encargo para Fable](fable.md).

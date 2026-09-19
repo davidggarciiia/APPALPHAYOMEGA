@@ -163,6 +163,20 @@ Convenciones:
 - **Los controladores no llevan lógica.** Validan la entrada, llaman al servicio
   y devuelven. Toda regla de negocio vive en un servicio y se testea sin HTTP.
 
+## Interfaz y privacidad de entrenamiento
+
+La referencia vigente es el HTML v2 del ZIP entregado por David, adaptado a blanco
+y negro: cabecera negra, superficies blancas, Barlow/Barlow Condensed empaquetadas
+y navegación por rol. El logo procede del ZIP y se representa con tinte monocromo.
+No se muestran módulos ficticios ni estadísticas del prototipo.
+
+La prescripción se copia al asignar. Cada serie conserva objetivos separados de
+los valores realizados; un peso vacío no es cero. El cliente confirma el envío,
+que publica solo las series marcadas y cierra la sesión de manera atómica.
+El borrador se cifra por cuenta (SQLite y SecureStore en nativo, adaptador de
+desarrollo web) y un cierre de sesión limpia datos locales y credenciales.
+Las renovaciones no repiten mutaciones sin un id de operación seguro.
+
 ## Testing Strategy
 
 Jest en los dos lados. Es lo que traen NestJS y Expo de fábrica, y una sola
@@ -209,8 +223,9 @@ los otros tres no pueden.
 
 ## Success Criteria del proyecto
 
-1. Un cliente registra una serie en su móvil y el entrenador la ve en su panel
-   sin recargar nada.
+1. Un cliente registra series en privado y envía el entrenamiento al terminar.
+   El entrenador ve el resultado confirmado y los cambios de día; su panel se
+   actualiza cada cinco segundos mientras está visible y la app está activa.
 2. Un nutricionista autenticado que pide datos de un cliente que no tiene
    asignado recibe una denegación, y existe un test que lo demuestra.
 3. La app está publicada y descargable en App Store y Google Play.
@@ -231,4 +246,6 @@ se resuelve sola.
 3. **Licencia de las figuras animadas.** Si salen de Symmetry, no son vuestras.
 4. **Política de privacidad y textos de consentimiento.** Alguien los redacta y
    no es el compilador.
-5. **Quién diseña la UI final.** Hay boceto de ocho pantallas. Faltan ocho.
+5. **Pantallas futuras.** Los módulos integrados usan la referencia de
+   `Theme files review.zip` en blanco y negro; los módulos pendientes deberán
+   mantener esa misma identidad visual.

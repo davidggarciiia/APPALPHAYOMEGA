@@ -8,25 +8,24 @@ Se publicará en App Store y Google Play.
 
 ## Estado
 
-El proyecto está en construcción. De los ocho módulos previstos hay uno casi
-terminado, `identity`, que es el que decide quién entra y qué puede tocar cada
-uno. El resto todavía no está empezado.
+La segunda iteración de entrenamiento está integrada y verificada en web con
+API y PostgreSQL reales. Las pantallas aplican la referencia de diseño en blanco
+y negro. La comprobación física Android/iOS sigue pendiente.
 
-| Módulo                 | Estado                    |
-| ---------------------- | ------------------------- |
-| `identity`             | 17 de 21 tareas           |
-| `catalogo-ejercicios`  | Especificado, sin empezar |
-| `agenda`               | Sin empezar               |
-| `entrenamiento`        | Sin empezar               |
-| `nutricion`            | Sin empezar               |
-| `seguimiento-corporal` | Sin empezar               |
-| `leads`                | Sin empezar               |
-| `fichajes`             | Sin empezar               |
+| Módulo                                           | Estado                                                                  |
+| ------------------------------------------------ | ----------------------------------------------------------------------- |
+| identity                                         | 17 de 21 tareas; sesión offline y renovación integradas                 |
+| catalogo-ejercicios                              | Catálogo textual, búsqueda, alta, edición, retirada y reposición        |
+| agenda                                           | Sesiones por día completo y cambios auditados dentro de su semana       |
+| entrenamiento                                    | Rutinas, planes de varias semanas, registro privado, envío y resultados |
+| nutricion, seguimiento-corporal, leads, fichajes | Pendientes                                                              |
 
-Pantallas que funcionan hoy: entrar, activar la cuenta desde el correo,
-recuperar la contraseña, perfil propio, la cartera del entrenador con búsqueda y
-filtros, la ficha de cada cliente con alta, edición, baja y reactivación, y el
-reparto de clientes al nutricionista.
+El entrenador prepara desde cero o adapta una rutina guardada, asigna varias
+semanas y consulta los resultados enviados. El cliente puede mover su sesión,
+escribir peso y repeticiones o segundos, marcar series y enviar al terminar.
+Sus borradores son privados; las sesiones descargadas admiten edición sin red.
+Las figuras animadas, vídeos y mapa muscular del catálogo quedan fuera de esta
+iteración. La investigación está en [docs/animaciones-ejercicios.md](docs/animaciones-ejercicios.md).
 
 ## Cómo arrancarlo
 
@@ -60,7 +59,8 @@ npm test                    # unitarios
 npm run test:e2e            # de extremo a extremo, necesita la base levantada
 ```
 
-Hoy son 247 pruebas. Los tests de extremo a extremo hablan con una base de datos
+La verificación de la segunda iteración registra 76 pruebas unitarias de API,
+85 móviles y 261 HTTP (422 en total). Los tests de extremo a extremo hablan con una base de datos
 de verdad y nunca salen a la red: el envío de correo se sustituye por un doble en
 memoria.
 
@@ -84,8 +84,9 @@ El proyecto se escribió antes de programarse, y esos documentos siguen vivos.
   pantallas y el orden de construcción
 - [SPEC.md](SPEC.md) — stack, estilo, estrategia de pruebas y fronteras
 - [SPEC-identity.md](SPEC-identity.md) — cuentas, sesión y permisos
-- [SPEC-catalogo-ejercicios.md](SPEC-catalogo-ejercicios.md) — el catálogo, en
-  borrador
+- [SPEC-catalogo-ejercicios.md](SPEC-catalogo-ejercicios.md) — alcance completo del catálogo
+- [SPEC-entrenamiento.md](SPEC-entrenamiento.md) y [SPEC-agenda.md](SPEC-agenda.md) — segunda iteración
+- [Verificación integrada](tasks/entrenamiento/verificacion.md) — pruebas, cobertura y límites
 - [tasks/](tasks/) — el plan y el estado de cada tarea
 - [docs/adr/](docs/adr/) — decisiones técnicas con su porqué
 - [docs/PENDIENTE-PARA-PRODUCCION.md](docs/PENDIENTE-PARA-PRODUCCION.md) — lo que

@@ -1,16 +1,16 @@
 # Tareas de Fable — catálogo y pantallas del entrenador
 
 > Preparado el 2026-09-18 con Agent Skills, `planning-and-task-breakdown`.
-> **Estado: reparto aprobado; C00–C03 listos en `83177eb`; F01 puede comenzar.**
+> **Estado: F01–F08 integrados; Codex terminó el trabajo pendiente por encargo de David.**
 > Véanse el [plan de Fable](plan-fable.md) y la [coordinación con Codex](plan.md).
-> No constan tareas implementadas por Fable; este archivo no inicia su sesión.
+> Fable aportó `9fc9003..e629673`; integración `f6abf08`. Evidencia actual en [verificacion.md](verificacion.md).
 > [Encargo y contexto de arranque](fable.md). No sustituye el plan de identidad.
 
 ## Resultado a entregar
 
 El entrenador crea y encuentra ejercicios, prepara una rutina desde cero o
 elige una guardada, la adapta al cliente, asigna varias semanas y consulta
-los resultados que el cliente ha enviado. Tus pantallas conservan negro y oro.
+los resultados que el cliente ha enviado. Las pantallas aplican la referencia del ZIP en blanco y negro, por indicación posterior de David.
 
 ## Dependencias que aporta Codex
 
@@ -28,7 +28,7 @@ Lee cada entrega integrada antes de conectarla. Puedes preparar componentes con
 datos de prueba que validen contra Zod, pero no marcar un flujo completo terminado
 hasta comprobarlo contra su endpoint real.
 
-## Archivos y trabajo simultáneo
+## Reparto original (finalizado)
 
 Trabaja en un worktree independiente desde el commit de documentación que acompaña
 a la base común `83177eb`, siguiendo las instrucciones de [fable.md](fable.md),
@@ -53,7 +53,8 @@ Revisa con `code-review-and-quality` antes de entregar.
 
 David ya ha validado el plan y las tareas de este reparto. La revisión cruzada
 de Codex no sustituye esa validación. En cada checkpoint se revisa con David
-la entrega del incremento antes de avanzar al siguiente.
+la entrega del incremento. El encargo posterior de integración completa permite
+continuar sin esperar a Fable; se conservan las comprobaciones y la revisión independiente.
 
 Antes de cada test enfocado: `npm run build:shared`.
 Antes de cada commit: `npm run test`, `npm run typecheck`, `npm run lint`.
@@ -63,11 +64,11 @@ de ejecutarla. Los patrones de tests se crean en la tarea correspondiente.
 
 ## F01 — Crear y consultar ejercicios desde la API
 
-- [ ] Alta, detalle, edición y búsqueda paginada por nombre/grupo; nombre
+- [x] Alta, detalle, edición y búsqueda paginada por nombre/grupo; nombre
       normalizado único, instrucciones de texto y figura/vídeo ausentes.
-- [ ] Cliente lee y entrenador escribe; nutricionista, empleado y petición
+- [x] Cliente lee y entrenador escribe; nutricionista, empleado y petición
       sin sesión reciben denegación. No se usa el acceso por cliente del nutricionista.
-- [ ] Devolver filas y total; validar entradas y conservar ids estables.
+- [x] Devolver filas y total; validar entradas y conservar ids estables.
 
 **Dependencias:** C00–C02 entregados e integrados. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/api/src/catalogo-ejercicios/catalogo-ejercicios.service.ts`,
@@ -79,10 +80,10 @@ de ejecutarla. Los patrones de tests se crean en la tarea correspondiente.
 
 ## F02 — Gestionar el catálogo desde el móvil
 
-- [ ] Lista con búsqueda, filtro, vacío/error/carga y acceso a alta/edición.
-- [ ] Campos accesibles con nombre, grupo principal/secundarios e instrucciones;
+- [x] Lista con búsqueda, filtro, vacío/error/carga y acceso a alta/edición.
+- [x] Campos accesibles con nombre, grupo principal/secundarios e instrucciones;
       el mismo formulario funciona sin figura ni vídeo.
-- [ ] Conectar la pantalla a la API de F01 y gestionar errores del contrato.
+- [x] Conectar la pantalla a la API de F01 y gestionar errores del contrato.
 
 **Dependencias:** F01, C03; C06 para la comprobación de sesión larga.
 **Alcance:** M, cuatro archivos.
@@ -94,16 +95,16 @@ de ejecutarla. Los patrones de tests se crean en la tarea correspondiente.
 
 ### Checkpoint F-A — catálogo utilizable
 
-- [ ] F01 y F02 probados con API real.
-- [ ] Roles negativos y formulario validado; no depender de una lista simulada.
-- [ ] Entregar commits y resultados para revisión de Codex.
+- [x] F01 y F02 probados con API real.
+- [x] Roles negativos y formulario validado; no depender de una lista simulada.
+- [x] Entregar commits y resultados para revisión de Codex.
 
 ## F03 — Retirar y reponer sin romper el histórico
 
-- [ ] Retirar/reponer desde API y UI, sin endpoint de borrado ni eliminación física.
-- [ ] Los retirados desaparecen del selector normal; el entrenador los puede
+- [x] Retirar/reponer desde API y UI, sin endpoint de borrado ni eliminación física.
+- [x] Los retirados desaparecen del selector normal; el entrenador los puede
       filtrar, y siguen abriéndose por id con la indicación de retirado.
-- [ ] El cliente no puede retirar/reponer y una repetición de la operación no
+- [x] El cliente no puede retirar/reponer y una repetición de la operación no
       provoca estados inconsistentes.
 
 **Dependencias:** F02. **Alcance:** M, cinco archivos.
@@ -117,11 +118,11 @@ retirar y reponer desde el móvil, comprobando la búsqueda tras cada operación
 
 ## F04 — Preparar y asignar una sesión sencilla
 
-- [ ] Pantalla para un cliente: nombre de sesión, día y selección de ejercicios;
+- [x] Pantalla para un cliente: nombre de sesión, día y selección de ejercicios;
       ordenar ejercicios, crear series y objetivos por repeticiones o segundos.
-- [ ] Peso opcional, unidades visibles, validación y revisión de la sesión antes
+- [x] Peso opcional, unidades visibles, validación y revisión de la sesión antes
       de asignar. Los objetivos no son valores ejecutados.
-- [ ] Conectar C09 conservando id de operación tras errores; el cliente puede
+- [x] Conectar C09 conservando id de operación tras errores; el cliente puede
       abrir la asignación desde C10.
 
 **Dependencias:** F03, C00, C03 y C09. **Alcance:** M, cinco archivos.
@@ -133,17 +134,17 @@ retirar y reponer desde el móvil, comprobando la búsqueda tras cada operación
 
 ### Checkpoint F-B — primera asignación
 
-- [ ] F03 y F04 funcionan sin editar archivos comunes.
-- [ ] Codex integra enlaces desde la ficha existente; Fable entrega la ruta exacta.
-- [ ] Demostración de sesión con un ejercicio y una serie, sin esperar al editor semanal.
+- [x] F03 y F04 funcionan sin editar archivos comunes.
+- [x] Codex integra enlaces desde la ficha existente; Fable entrega la ruta exacta.
+- [x] Demostración de sesión con un ejercicio y una serie, sin esperar al editor semanal.
 
 ## F05 — Consultar resultados enviados
 
-- [ ] Panel por cliente/semana con fecha original/actual y resultado enviado;
+- [x] Panel por cliente/semana con fecha original/actual y resultado enviado;
       abrir objetivo frente a ejecución, notas y series omitidas.
-- [ ] Actualizar cada cinco segundos solo en pantalla visible y app activa;
+- [x] Actualizar cada cinco segundos solo en pantalla visible y app activa;
       refrescar al volver, limpiar temporizador y peticiones al salir o cambiar cuenta.
-- [ ] No mostrar valores, notas ni indicios derivados del contenido del borrador.
+- [x] No mostrar valores, notas ni indicios derivados del contenido del borrador.
       Reutilizar el control de cambio de día de Codex cuando esté disponible.
 
 **Dependencias:** C09, C13b, C14. **Alcance:** M, cuatro archivos.
@@ -154,11 +155,11 @@ retirar y reponer desde el móvil, comprobando la búsqueda tras cada operación
 
 ## F06 — Ampliar el editor a varias semanas
 
-- [ ] Varias sesiones en el patrón semanal, elección de semana inicial y número
+- [x] Varias sesiones en el patrón semanal, elección de semana inicial y número
       de semanas, con resumen de las fechas que se crearán.
-- [ ] Avisar de sesiones ya existentes sin sustituirlas; cambiar una sesión
+- [x] Avisar de sesiones ya existentes sin sustituirlas; cambiar una sesión
       posteriormente no propaga el movimiento a otras semanas.
-- [ ] Asignación repetida/reintentada mantiene la misma operación y no duplica el plan.
+- [x] Asignación repetida/reintentada mantiene la misma operación y no duplica el plan.
 
 **Dependencias:** F04, C16a. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/mobile/src/entrenamiento-entrenador/editor-plan.tsx`,
@@ -169,16 +170,16 @@ retirar y reponer desde el móvil, comprobando la búsqueda tras cada operación
 
 ### Checkpoint F-C — plan y resultado
 
-- [ ] F05 y F06 conectados a API, con errores y reintentos probados.
-- [ ] Panel actualiza sin mostrar borradores; las fechas de varias semanas son correctas.
-- [ ] Entrega de commits, evidencia y contratos pendientes, si los hubiera.
+- [x] F05 y F06 conectados a API, con errores y reintentos probados.
+- [x] Panel actualiza sin mostrar borradores; las fechas de varias semanas son correctas.
+- [x] Entrega de commits, evidencia y contratos pendientes, si los hubiera.
 
 ## F07a — Elegir y adaptar una rutina guardada
 
-- [ ] Guardar la estructura de una rutina con nombre y elegir una existente.
-- [ ] Personalizar la copia sin editar otra asignación, ni arrastrar valores
+- [x] Guardar la estructura de una rutina con nombre y elegir una existente.
+- [x] Personalizar la copia sin editar otra asignación, ni arrastrar valores
       reales o notas del cliente.
-- [ ] Señalar ejercicios retirados y exigir corregir la copia antes de asignar.
+- [x] Señalar ejercicios retirados y exigir corregir la copia antes de asignar.
 
 **Dependencias:** F06, C16b. **Alcance:** M, cuatro archivos.
 **Archivos:** `apps/mobile/src/entrenamiento-entrenador/rutinas.tsx`,
@@ -188,11 +189,11 @@ retirar y reponer desde el móvil, comprobando la búsqueda tras cada operación
 
 ## F07b — Ajustar una sesión todavía no iniciada
 
-- [ ] Desde el panel abrir y editar objetivos de una sesión permitida usando
+- [x] Desde el panel abrir y editar objetivos de una sesión permitida usando
       el editor existente; enviar revisión de prescripción.
-- [ ] Una sesión iniciada o enviada queda en consulta. Si se inicia durante la
+- [x] Una sesión iniciada o enviada queda en consulta. Si se inicia durante la
       edición, el conflicto permite volver a leer sin afirmar que se guardó.
-- [ ] El ajuste afecta a esa sesión, conservando las demás semanas y resultados.
+- [x] El ajuste afecta a esa sesión, conservando las demás semanas y resultados.
 
 **Dependencias:** F05, F07a, C17. **Alcance:** M, cinco archivos.
 **Archivos:** `apps/mobile/app/entrenador/sesion/[id].tsx`,
@@ -203,17 +204,17 @@ retirar y reponer desde el móvil, comprobando la búsqueda tras cada operación
 
 ### Checkpoint F-D — rutinas y ajustes
 
-- [ ] F07a–F07b probados con dos clientes y varias semanas.
-- [ ] Editar plantillas o futuras sesiones no altera resultados ya enviados.
-- [ ] Revisión cruzada antes de la comprobación final.
+- [x] F07a–F07b probados con dos clientes y varias semanas.
+- [x] Editar plantillas o futuras sesiones no altera resultados ya enviados.
+- [x] Revisión cruzada antes de la comprobación final.
 
 ## F08 — Verificar y entregar las pantallas completas
 
-- [ ] Comprobar teclado, desplazamiento, tamaños táctiles, unidades, errores y
+- [x] Comprobar teclado, desplazamiento, tamaños táctiles, unidades, errores y
       navegación en las pantallas del entrenador y el catálogo.
-- [ ] Ejecutar el recorrido con la versión integrada de Codex; registrar qué
+- [x] Ejecutar el recorrido con la versión integrada de Codex; registrar qué
       se comprobó en Android/iOS/web y qué permanece pendiente.
-- [ ] Entregar hallazgos con archivo y reproducción; las correcciones que
+- [x] Entregar hallazgos con archivo y reproducción; las correcciones que
       excedan esta tarea se separan, sin invadir archivos de Codex.
 
 **Dependencias:** F07b y C18 integrado. **Alcance:** S para evidencias; los arreglos
@@ -224,9 +225,15 @@ componentes de Fable que reproduzcan fallos encontrados.
 `npm run test:e2e --workspace apps/api -- --runInBand catalogo-ejercicios`;
 `npm run typecheck`; `npm run lint`; recorrido en dispositivo con evidencia.
 
-## Formato de entrega a Codex
+## Formato original de entrega a Codex
 
 En `entrega-fable.md`, registra base, commits, tareas terminadas, comandos y
 resultado, pruebas en dispositivo y pendientes. Codex actualizará el seguimiento
 común a partir de esa entrega. Una tarea probada solo con datos simulados no
 consta como integrada. No hagas push, merge a main ni publicación por este encargo.
+
+## Límite de la comprobación F08
+
+El recorrido está verificado en web contra API/PostgreSQL reales, con anchos
+320 y 390 px y escritorio. El teclado virtual, SQLite y SecureStore físicos
+de Android/iOS siguen pendientes; las pruebas Expo/Jest no sustituyen esa evidencia.
