@@ -87,13 +87,7 @@ function Enrutador(): React.JSX.Element {
 
 function BarraDeEstado(): React.JSX.Element {
   const { estado, sinConexion } = useSesion()
-  return (
-    <StatusBar
-      style={
-        estado.fase === "comprobando" || (estado.fase === "fuera" && sinConexion) ? "dark" : "light"
-      }
-    />
-  )
+  return <StatusBar style={estado.fase === "fuera" && !sinConexion ? "light" : "dark"} />
 }
 
 export default function DisposicionRaiz(): React.JSX.Element {

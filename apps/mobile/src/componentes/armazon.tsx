@@ -1,7 +1,6 @@
-import marca from "../../assets/marca.png"
 import type { ReactNode } from "react"
 import { usePathname, useRouter, type Href } from "expo-router"
-import { Image, Pressable, StyleSheet, Text, View } from "react-native"
+import { Pressable, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useSesion } from "../sesion"
 import { tema } from "../tema"
@@ -62,23 +61,18 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   ].includes(ruta)
   return (
     <View style={s.raiz}>
-      <SafeAreaView edges={["top", "left", "right"]} style={s.negro}>
+      <SafeAreaView edges={["top", "left", "right"]} style={s.fondo}>
         <View style={s.cabecera}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Ir al inicio"
-            onPress={() => router.replace(estado.fase === "local" ? "/entrenamiento" : "/")}
-            style={s.marca}
-          >
-            <Image source={marca} style={s.logo} />
-          </Pressable>
           <View style={s.titulos}>
             <Text style={s.rol}>
-              {usuario.rol.toUpperCase()}
-              {estado.fase === "local" ? " · SIN CONEXIÓN" : " · ALPHA & OMEGA"}
+              {principal === ""
+                ? `Hola, ${usuario.nombre.split(" ")[0]}`
+                : "Alpha & Omega Training"}
+              {estado.fase === "local" ? " · Sin conexión" : ""}
             </Text>
             <Text accessibilityRole="header" style={s.titulo}>
-              {titulos[principal] ?? `Hola, ${usuario.nombre.split(" ")[0]}`}
+              {titulos[principal] ??
+                (usuario.rol === "cliente" ? "Tu entrenamiento" : "Tu espacio")}
             </Text>
           </View>
           {estado.fase === "dentro" && (
@@ -108,7 +102,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
                   onPress={() => router.replace(d.ruta)}
                   style={s.destino}
                 >
-                  <View style={[s.iconoMarco, activa && s.activo]}>
+                  <View style={s.iconoMarco}>
                     <Text style={[s.icono, activa && s.iconoActivo]}>{d.icono}</Text>
                   </View>
                   <Text style={[s.etiqueta, activa && s.etiquetaActiva]}>{d.nombre}</Text>
@@ -123,7 +117,6 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
 }
 const s = StyleSheet.create({
   raiz: { flex: 1, backgroundColor: tema.fondo },
-  negro: { backgroundColor: tema.cabecera },
   cabecera: {
     width: "100%",
     maxWidth: 820,
@@ -131,25 +124,30 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
   },
-  marca: { width: 44, height: 44, justifyContent: "center", alignItems: "center" },
-  logo: { width: 40, height: 40, resizeMode: "contain", tintColor: tema.sobreAcento },
   titulos: { flex: 1 },
-  rol: { color: "#BDBDBD", fontSize: 10, letterSpacing: 1.2, fontFamily: tema.fuenteTexto },
-  titulo: { color: tema.sobreAcento, fontFamily: tema.fuenteTitulo, fontSize: 28, lineHeight: 32 },
+  rol: { color: tema.textoTenue, fontSize: 13, fontFamily: tema.fuenteTexto },
+  titulo: {
+    color: tema.texto,
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 32,
+    lineHeight: 36,
+    textTransform: "uppercase",
+  },
   avatar: {
     width: 44,
     height: 44,
-    backgroundColor: "#292929",
+    backgroundColor: tema.borde,
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#454545",
+    borderColor: tema.borde,
   },
-  inicial: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 18 },
+  inicial: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
   contenido: { flex: 1, minHeight: 0, width: "100%", maxWidth: 820, alignSelf: "center" },
   pie: { backgroundColor: tema.superficie, borderTopColor: tema.borde, borderTopWidth: 1 },
   fondo: { backgroundColor: tema.fondo },
@@ -168,9 +166,8 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  activo: { backgroundColor: tema.acento },
   icono: { fontSize: 23, lineHeight: 26, color: tema.textoTenue },
-  iconoActivo: { color: tema.sobreAcento },
+  iconoActivo: { color: tema.texto, fontWeight: "800" },
   etiqueta: { fontSize: 11, color: tema.textoTenue, fontFamily: tema.fuenteTexto },
   etiquetaActiva: { color: tema.texto, fontFamily: tema.fuenteBoton },
 })
