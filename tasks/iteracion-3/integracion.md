@@ -6,8 +6,8 @@ Registro iniciado el 2026-09-23 por Codex (C00).
 
 | Copia                                             | Rama y SHA registrado                         | Uso                                                |
 | ------------------------------------------------- | --------------------------------------------- | -------------------------------------------------- |
-| `C:/Users/david/Desktop/APP-ALPHA_OMEGA`          | `codex/entrenamiento-iteracion-2` · `da1cc85` | Codex; tema, acceso/perfil y sesión web            |
-| `C:/Users/david/Desktop/APP-ALPHA_OMEGA-fable-i3` | `codex/fable-iteracion-3` · `db477bf`         | Fable / Opus; copia limpia con tema y planes       |
+| `C:/Users/david/Desktop/APP-ALPHA_OMEGA`          | `codex/entrenamiento-iteracion-2` · `fadfe1e` | Codex; tema, acceso/perfil y sesión web            |
+| `C:/Users/david/Desktop/APP-ALPHA_OMEGA-fable-i3` | `codex/fable-iteracion-3` · `bd68541`         | Fable / Opus; trabajo de entrenamiento en curso    |
 | `C:/Users/david/Desktop/APP-ALPHA_OMEGA-fable`    | `codex/fable-catalogo` · `e629673`            | Copia anterior limpia; conservar sin mover su rama |
 
 La rama de Fable nació del commit **solo documental** `2ab7b92` y avanzó a
@@ -68,11 +68,17 @@ real, su licencia y el modo en que se representa el movimiento.
   avatar/confirmación del perfil. La revisión visual a 320 px y del recorrido
   login → perfil sigue pendiente: la sesión web conservada redirige a la vista de
   entrenamiento y la API local está apagada. No se cerró ni borró esa sesión.
-- `0de9f44`, `d120256`, `da1cc85`: renovación, cambio de cuenta y cierre web
+- `0de9f44`, `d120256`, `da1cc85`, `fadfe1e`: renovación, cambio de cuenta,
+  cierre y respuestas tardías de 401 en la web
   coordinados mediante Web Locks. La regresión reprodujo primero la escritura
-  tardía de un token ya revocado. Pasan 17 suites y 95 pruebas móviles, typecheck
+  tardía de un token ya revocado y después la revocación de otra cuenta. Pasan
+  17 suites y 97 pruebas móviles, typecheck
   y lint. La comprobación real con dos pestañas y la recuperación al cerrar una
   durante el canje siguen pendientes de la API y base de pruebas disponibles.
 - Ningún cambio de Codex ha editado las vistas de entrenamiento o animaciones de
-  Fable. `PDF/`, el informe `compass_artifact_*.md` y `entrega-fable.md` siguen
-  ajenos a los commits de Codex.
+  Fable. `PDF/` y el informe `compass_artifact_*.md` siguen ajenos a los commits
+  de Codex; las entregas de Fable se gestionan en su copia.
+- En la revisión de esta copia, Fable tenía cambios sin confirmar en
+  `agenda-semanal.tsx`, `registro-cliente.tsx` y `tabla-series.tsx`; Codex no ha
+  modificado esos archivos ni avanzado su rama. Docker sigue sin daemon local,
+  por lo que no se ha ejecutado el recorrido HTTP con dos pestañas.
