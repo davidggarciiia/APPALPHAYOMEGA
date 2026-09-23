@@ -7,6 +7,27 @@ compra ni selección definitiva de proveedor.
 Actualización: David pidió una búsqueda gratuita con un agente mientras Codex
 seguía el plan. Se contrastaron las opciones siguientes con fuentes del proveedor.
 
+## Decisión vigente (2026-09-24, iteración 3)
+
+David fijó tres criterios: **solo material gratuito**, prima la calidad visual y
+da igual que una comparativa la publique un competidor. Con esos criterios:
+
+| Fuente                    | Uso en la app                                                                                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Vital, paquete Free50** | Las 50 animaciones 3D de gimnasio. El EULA 2026.1 permite usarlas en apps móviles, alojarlas nosotros, «Store the Assets offline inside your application» y transcodificarlas |
+| **MoveKit, muestra**      | Dominadas y aperturas con mancuernas. Solo por streaming: su licencia no menciona copias en el dispositivo                                                                    |
+| **Vídeos del entrenador** | El resto de ejercicios, más adelante, en el hueco de vídeo de la ficha                                                                                                        |
+| RepDB Free                | Descartado: a David no le gusta su estilo plano. El muñeco «classic» y la animación son de pago, y `premium-samples/` es solo para evaluación                                 |
+
+- Quedan sin figura gratuita el press de banca, los remos, el curl de bíceps y
+  los abdominales.
+- La verificación completa está en `tasks/iteracion-3/entrega-fable.md`, tarea F01:
+  citas de las licencias, SHA-256 de las descargas, formatos, pruebas de
+  codificación a 720p y propuesta de contrato para C05.
+- El informe externo `compass_artifact_*.md` recomendaba RepDB Free; esta decisión
+  lo sustituye por el criterio de calidad.
+- Las secciones siguientes conservan la investigación del 18-09 como histórico.
+
 ## Opciones gratuitas
 
 | Opción                                                                               | Qué permite probar                                                                                                                                                    | Límites para esta app                                                                                                                                                                                                                                                  |
