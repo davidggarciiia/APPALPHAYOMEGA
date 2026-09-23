@@ -57,6 +57,7 @@ type Contexto = {
   pedir: PeticionAutenticada
 }
 const ContextoSesion = createContext<Contexto | null>(null)
+class CuentaCambiadaEnOtraPestana extends ErrorDeSesion {}
 
 export function ProveedorDeSesion({ children }: { children: ReactNode }): React.JSX.Element {
   const [estado, setEstado] = useState<EstadoSesion>({ fase: "comprobando" })
@@ -76,6 +77,15 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     actual.current = nuevo
     setEstado(nuevo)
   }, [])
+  const abandonarCuentaCompartida = useCallback((): void => {
+    epoca.current++
+    refresco.current = null
+    renovacion.current = null
+    setConfirmandoSalida(false)
+    setSesionCaducada(false)
+    setSinConexion(false)
+    actualizar({ fase: "fuera" })
+  }, [actualizar])
   const enCola = useCallback((accion: () => Promise<void>): Promise<void> => {
     const siguiente = colaCredenciales.current.then(accion)
     colaCredenciales.current = siguiente.catch(() => undefined)
@@ -113,12 +123,17 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     if (!fallo) cuentaPorLimpiar.current = null
   }, [enCola])
 
-  const revocar = useCallback(async (): Promise<void> => {
+  const revocarBajoCandado = useCallback(async (): Promise<void> => {
     const version = epoca.current
     const anterior = actual.current
     const cuenta =
       "usuario" in anterior ? anterior.usuario.id : await leerCuentaLocal().catch(() => null)
     if (version !== epoca.current) return
+    const cuentaCompartida = leerCuentaWeb()
+    if (cuentaCompartida !== null && cuentaCompartida !== cuenta) {
+      abandonarCuentaCompartida()
+      return
+    }
     epoca.current++
     refresco.current = null
     cuentaPorLimpiar.current = cuenta
@@ -126,7 +141,11 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     setSesionCaducada(true)
     setSinConexion(false)
     await limpiarAcceso()
-  }, [actualizar, limpiarAcceso])
+  }, [abandonarCuentaCompartida, actualizar, limpiarAcceso])
+  const revocar = useCallback(
+    (): Promise<void> => conCredencialesExclusivas(revocarBajoCandado),
+    [revocarBajoCandado],
+  )
 
   const asentar = useCallback(
     async (sesion: Sesion, version: number): Promise<string> => {
@@ -161,13 +180,26 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
             ? await leerTokenRefresco()
             : (refresco.current ?? (await leerTokenRefresco()))
         if (version !== epoca.current) throw new ErrorDeSesion("La sesión ha cambiado")
+        const anterior = actual.current
+        const cuentaCompartida = leerCuentaWeb()
+        if (
+          cuentaCompartida !== null &&
+          "usuario" in anterior &&
+          cuentaCompartida !== anterior.usuario.id
+        )
+          throw new CuentaCambiadaEnOtraPestana("La cuenta ha cambiado en otra pestaña")
         if (!token) throw new ErrorDeSesion("Sin sesión guardada")
         refresco.current = token
         teniaCredencial = true
-        return await asentar(await refrescarSesion(token), version)
+        const sesion = await refrescarSesion(token)
+        if ("usuario" in anterior && sesion.usuario.id !== anterior.usuario.id)
+          throw new CuentaCambiadaEnOtraPestana("La cuenta ha cambiado en otra pestaña")
+        return await asentar(sesion, version)
       } catch (error) {
         if (version === epoca.current) {
-          if (error instanceof ErrorDeSesion && teniaCredencial) await revocar()
+          if (error instanceof CuentaCambiadaEnOtraPestana) {
+            abandonarCuentaCompartida()
+          } else if (error instanceof ErrorDeSesion && teniaCredencial) await revocarBajoCandado()
           else if (error instanceof ErrorDeSesion) {
             actualizar({ fase: "fuera" })
             setSesionCaducada(false)
@@ -180,7 +212,7 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     })
     renovacion.current = { epoca: version, promesa }
     return promesa
-  }, [asentar, revocar, actualizar])
+  }, [abandonarCuentaCompartida, asentar, revocarBajoCandado, actualizar])
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof globalThis.addEventListener !== "function") return
@@ -188,17 +220,12 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
       if (evento.key !== CLAVE_CUENTA_WEB) return
       const vigente = actual.current
       if (!("usuario" in vigente) || evento.newValue === vigente.usuario.id) return
-      epoca.current++
-      refresco.current = null
-      renovacion.current = null
-      actualizar({ fase: "fuera" })
-      setSesionCaducada(false)
-      setSinConexion(false)
+      abandonarCuentaCompartida()
     }
     globalThis.addEventListener("storage", recibir)
     const quitar = globalThis.removeEventListener?.bind(globalThis)
     return () => quitar?.("storage", recibir)
-  }, [actualizar])
+  }, [abandonarCuentaCompartida])
 
   useEffect(() => {
     let vigente = true
@@ -254,12 +281,7 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
         const cuenta = "usuario" in anterior ? anterior.usuario.id : null
         const compartida = leerCuentaWeb()
         if (compartida !== null && compartida !== cuenta) {
-          epoca.current++
-          refresco.current = null
-          setConfirmandoSalida(false)
-          setSesionCaducada(false)
-          setSinConexion(false)
-          actualizar({ fase: "fuera" })
+          abandonarCuentaCompartida()
           cambiando.current = false
           return
         }
@@ -281,7 +303,7 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
       cambiando.current = false
       setAvisoSalida("No se pudo iniciar el cierre. Vuelve a pulsar Cerrar sesión.")
     }
-  }, [actualizar, limpiarAcceso])
+  }, [abandonarCuentaCompartida, actualizar, limpiarAcceso])
 
   const salir = useCallback(async (): Promise<void> => {
     const version = epoca.current

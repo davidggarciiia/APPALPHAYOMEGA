@@ -1,4 +1,5 @@
 import { Platform, Text, Pressable } from "react-native"
+import { z } from "zod"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import { ProveedorDeSesion, useSesion } from "./sesion"
 import { ErrorDeRed, ErrorDeSesion, iniciarSesion, refrescarSesion } from "./lib/api"
@@ -60,8 +61,28 @@ function VisorEntrada(): React.JSX.Element {
     </Pressable>
   )
 }
+function VisorPeticion({ alTerminar }: { alTerminar?: () => void } = {}): React.JSX.Element {
+  const { estado, pedir } = useSesion()
+  return (
+    <>
+      <Text>{estado.fase}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() =>
+          void pedir("/prueba", z.string())
+            .catch(() => undefined)
+            .finally(alTerminar)
+        }
+      >
+        <Text>Pedir</Text>
+      </Pressable>
+    </>
+  )
+}
 beforeEach(() => {
   jest.clearAllMocks()
+  jest.mocked(refrescarSesion).mockReset()
+  jest.mocked(iniciarSesion).mockReset()
   jest.mocked(leerTokenRefresco).mockResolvedValue("refresco")
   jest.mocked(leerIdentidadLocal).mockResolvedValue(local)
   jest.mocked(hayCambiosLocales).mockResolvedValue(false)
@@ -376,5 +397,152 @@ it("el cierre de sesión espera a una renovación en curso antes de borrar la cr
   } finally {
     Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
     Reflect.deleteProperty(globalThis.navigator, "locks")
+  }
+})
+
+it("una pestaña atrasada no adopta ni borra la cuenta nueva aunque no reciba el evento storage", async () => {
+  const plataformaAnterior = Platform.OS
+  const almacenamientoAnterior = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  const valores = new Map<string, string>()
+  Object.defineProperty(Platform, "OS", { value: "web", configurable: true })
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (clave: string) => valores.get(clave) ?? null,
+      setItem: (clave: string, valor: string) => {
+        valores.set(clave, valor)
+      },
+      removeItem: (clave: string) => {
+        valores.delete(clave)
+      },
+    },
+  })
+  Object.defineProperty(globalThis.navigator, "locks", {
+    configurable: true,
+    value: {
+      request: (_nombre: string, _opciones: unknown, accion: () => Promise<unknown>) => accion(),
+    },
+  })
+  let guardado = "refresco-viejo"
+  jest.mocked(leerTokenRefresco).mockImplementation(async () => guardado)
+  jest.mocked(guardarTokenRefresco).mockImplementation(async (token) => {
+    guardado = token
+  })
+  jest
+    .mocked(refrescarSesion)
+    .mockResolvedValueOnce({
+      usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+      tokenAcceso: "acceso-viejo",
+      tokenRefresco: "refresco-vigente",
+    })
+    .mockResolvedValueOnce({
+      usuario: {
+        ...local,
+        id: "20000000-0000-4000-8000-000000000000",
+        email: "otro@example.test",
+        apellidos: null,
+        estado: "activo",
+      },
+      tokenAcceso: "acceso-otro",
+      tokenRefresco: "refresco-otro-rotado",
+    })
+  const fetchMock = jest.spyOn(globalThis, "fetch")
+  fetchMock.mockResolvedValue(new Response(null, { status: 401 }))
+  try {
+    await render(
+      <ProveedorDeSesion>
+        <VisorPeticion />
+      </ProveedorDeSesion>,
+    )
+    await screen.findByText("dentro")
+    valores.set("alpha_omega_cuenta", "20000000-0000-4000-8000-000000000000")
+    guardado = "refresco-otro"
+    await fireEvent.press(screen.getByRole("button", { name: "Pedir" }))
+    await screen.findByText("fuera")
+    expect(refrescarSesion).toHaveBeenCalledTimes(1)
+    expect(borrarTokenRefresco).not.toHaveBeenCalled()
+    expect(guardado).toBe("refresco-otro")
+  } finally {
+    cleanup()
+    fetchMock.mockRestore()
+    Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
+    Reflect.deleteProperty(globalThis.navigator, "locks")
+    if (almacenamientoAnterior)
+      Object.defineProperty(globalThis, "localStorage", almacenamientoAnterior)
+    else Reflect.deleteProperty(globalThis, "localStorage")
+  }
+})
+
+it("un segundo 401 tardío no limpia la cuenta abierta por otra pestaña", async () => {
+  const plataformaAnterior = Platform.OS
+  const almacenamientoAnterior = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+  const valores = new Map<string, string>()
+  Object.defineProperty(Platform, "OS", { value: "web", configurable: true })
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (clave: string) => valores.get(clave) ?? null,
+      setItem: (clave: string, valor: string) => {
+        valores.set(clave, valor)
+      },
+      removeItem: (clave: string) => {
+        valores.delete(clave)
+      },
+    },
+  })
+  Object.defineProperty(globalThis.navigator, "locks", {
+    configurable: true,
+    value: {
+      request: (_nombre: string, _opciones: unknown, accion: () => Promise<unknown>) => accion(),
+    },
+  })
+  let guardado = "refresco-viejo"
+  jest.mocked(leerTokenRefresco).mockImplementation(async () => guardado)
+  jest.mocked(guardarTokenRefresco).mockImplementation(async (token) => {
+    guardado = token
+  })
+  jest.mocked(refrescarSesion).mockResolvedValue({
+    usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+    tokenAcceso: "acceso",
+    tokenRefresco: "refresco-vigente",
+  })
+  let resolverRespuesta: (respuesta: Response) => void = () => undefined
+  const fetchMock = jest.spyOn(globalThis, "fetch")
+  fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 })).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolverRespuesta = resolve
+      }),
+  )
+  let terminar: () => void = () => undefined
+  const terminada = new Promise<void>((resolve) => {
+    terminar = resolve
+  })
+  try {
+    await render(
+      <ProveedorDeSesion>
+        <VisorPeticion alTerminar={terminar} />
+      </ProveedorDeSesion>,
+    )
+    await screen.findByText("dentro")
+    expect(valores.get("alpha_omega_cuenta")).toBe(local.id)
+    await fireEvent.press(screen.getByRole("button", { name: "Pedir" }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    valores.set("alpha_omega_cuenta", "20000000-0000-4000-8000-000000000000")
+    guardado = "refresco-otro"
+    await act(async () => {
+      resolverRespuesta(new Response(null, { status: 401 }))
+      await terminada
+    })
+    expect(borrarTokenRefresco).not.toHaveBeenCalled()
+    expect(guardado).toBe("refresco-otro")
+  } finally {
+    cleanup()
+    fetchMock.mockRestore()
+    Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
+    Reflect.deleteProperty(globalThis.navigator, "locks")
+    if (almacenamientoAnterior)
+      Object.defineProperty(globalThis, "localStorage", almacenamientoAnterior)
+    else Reflect.deleteProperty(globalThis, "localStorage")
   }
 })
