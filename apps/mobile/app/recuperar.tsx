@@ -124,8 +124,8 @@ export default function Recuperar(): React.JSX.Element {
 }
 
 const estilos = StyleSheet.create({
-  titulo: { color: tema.texto, fontSize: 18, fontWeight: "600" },
-  detalle: { color: tema.textoTenue, fontSize: 12, marginTop: 8, lineHeight: 17 },
+  titulo: { color: tema.sobreOscuro, fontSize: 18, fontWeight: "600" },
+  detalle: { color: tema.tenueSobreOscuro, fontSize: 12, marginTop: 8, lineHeight: 17 },
   volver: { alignItems: "center", marginTop: 16, paddingVertical: 12 },
-  textoVolver: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
+  textoVolver: { color: tema.acentoClaro, fontSize: 12, letterSpacing: 2 },
 })

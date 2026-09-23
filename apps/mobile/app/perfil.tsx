@@ -247,11 +247,11 @@ const s = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: tema.fondo,
+    backgroundColor: tema.acentoSuave,
     alignItems: "center",
     justifyContent: "center",
   },
-  iniciales: { fontSize: 20, fontFamily: tema.fuenteBoton, color: tema.texto },
+  iniciales: { fontSize: 20, fontFamily: tema.fuenteBoton, color: tema.acento },
   textos: { flex: 1, gap: 4 },
   nombre: { fontSize: 20, fontFamily: tema.fuenteBoton, color: tema.texto },
   rol: {
@@ -271,7 +271,7 @@ const s = StyleSheet.create({
   ayuda: { color: tema.textoTenue, fontSize: 13, lineHeight: 18, fontFamily: tema.fuenteTexto },
   titulo: { color: tema.texto, fontSize: 15, fontFamily: tema.fuenteBoton },
   separador: { height: 1, backgroundColor: tema.borde, marginVertical: 6 },
-  confirmacion: { color: tema.texto, fontFamily: tema.fuenteBoton, textAlign: "center" },
+  confirmacion: { color: tema.exito, fontFamily: tema.fuenteBoton, textAlign: "center" },
   enlace: {
     flexDirection: "row",
     justifyContent: "space-between",
