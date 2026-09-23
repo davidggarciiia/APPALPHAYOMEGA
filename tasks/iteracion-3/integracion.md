@@ -4,10 +4,10 @@ Registro iniciado el 2026-09-23 por Codex (C00).
 
 ## Copias y propiedad
 
-| Copia                                             | Rama y base al crear                          | Uso                                                |
+| Copia                                             | Rama y SHA registrado                         | Uso                                                |
 | ------------------------------------------------- | --------------------------------------------- | -------------------------------------------------- |
-| `C:/Users/david/Desktop/APP-ALPHA_OMEGA`          | `codex/entrenamiento-iteracion-2` · `ce5962d` | Codex; tema común entregado                        |
-| `C:/Users/david/Desktop/APP-ALPHA_OMEGA-fable-i3` | `codex/fable-iteracion-3` · `ce5962d`         | Fable / Opus; creada limpia con el tema común      |
+| `C:/Users/david/Desktop/APP-ALPHA_OMEGA`          | `codex/entrenamiento-iteracion-2` · `da1cc85` | Codex; tema, acceso/perfil y sesión web            |
+| `C:/Users/david/Desktop/APP-ALPHA_OMEGA-fable-i3` | `codex/fable-iteracion-3` · `db477bf`         | Fable / Opus; copia limpia con tema y planes       |
 | `C:/Users/david/Desktop/APP-ALPHA_OMEGA-fable`    | `codex/fable-catalogo` · `e629673`            | Copia anterior limpia; conservar sin mover su rama |
 
 La rama de Fable nació del commit **solo documental** `2ab7b92` y avanzó a
@@ -61,3 +61,18 @@ Fable y no se ha editado. La comprobación visual de acceso/perfil sigue pendien
 David confirmó asimismo que los medios de esta iteración serán solo gratuitos.
 Fable evalúa RepDB Free; C05 no fijará un contrato de vídeo MP4 hasta ver la muestra
 real, su licencia y el modo en que se representa el movimiento.
+
+### Avance de Codex
+
+- `ce5962d`: tema común cotejado con el HTML. `13810bf`: contraste de acceso y
+  avatar/confirmación del perfil. La revisión visual a 320 px y del recorrido
+  login → perfil sigue pendiente: la sesión web conservada redirige a la vista de
+  entrenamiento y la API local está apagada. No se cerró ni borró esa sesión.
+- `0de9f44`, `d120256`, `da1cc85`: renovación, cambio de cuenta y cierre web
+  coordinados mediante Web Locks. La regresión reprodujo primero la escritura
+  tardía de un token ya revocado. Pasan 17 suites y 95 pruebas móviles, typecheck
+  y lint. La comprobación real con dos pestañas y la recuperación al cerrar una
+  durante el canje siguen pendientes de la API y base de pruebas disponibles.
+- Ningún cambio de Codex ha editado las vistas de entrenamiento o animaciones de
+  Fable. `PDF/`, el informe `compass_artifact_*.md` y `entrega-fable.md` siguen
+  ajenos a los commits de Codex.

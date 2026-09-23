@@ -97,7 +97,7 @@ entrenador en la versión integrada. El recorrido de registro se comprueba en F0
 
 - [ ] Reproducir dos instancias con la misma sesión persistida y renovación a la
       vez, incluida una respuesta atrasada y el cierre de una pestaña.
-- [ ] Añadir regresión que demuestre el fallo y describa el resultado correcto.
+- [x] Añadir regresión que demuestre el fallo y describa el resultado correcto.
 - [ ] Separar el caso de dos pestañas del de dos dispositivos con sesiones propias.
 
 **Verificar:** prueba enfocada falla por la carrera esperada, no por configuración;
