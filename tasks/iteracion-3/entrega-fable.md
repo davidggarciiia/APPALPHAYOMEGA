@@ -245,3 +245,32 @@ copió al repositorio y los ejemplos de la especificación son inventados.
 - el modelo y la migración aditiva;
 - registrar `NutricionModule` en `app.module.ts`;
 - los accesos: pestaña del cliente, botón en la ficha y fila en «Mis clientes».
+
+## F07 — Plan y tareas de nutrición
+
+**Estado:** plan escrito en [tasks/nutricion/plan.md](../nutricion/plan.md) y
+tareas en [tasks/nutricion/todo.md](../nutricion/todo.md). **Pendiente de
+revisión de David y de Codex** antes de escribir código.
+
+**Cómo se hizo:** con `planning-and-task-breakdown`. Hay 13 tareas (N00–N12) en
+tramos verticales:
+
+1. API completa: N01–N03.
+2. Dieta solo de objetivos de principio a fin: N04–N05b.
+3. Alternativas, intercambio e indicaciones: N06–N08.
+4. Histórico y uso sin conexión: N09–N10.
+5. Recorrido final: N12.
+
+**Qué pido a Codex (C09 y N11):**
+
+- **N00:** el contrato Zod, el modelo `Dieta`, la migración con dos índices únicos
+  parciales y el esqueleto `nutricion.module.ts` registrado en `AppModule`. La
+  propuesta completa está en `plan.md`.
+- **N11:** que `_layout.tsx` deje abrir `/nutricion` sin conexión (`fase: "local"`),
+  que hoy solo permite `/entrenamiento`. Además, la pestaña «Dieta» del cliente, el
+  botón en la ficha y las filas de «Mis clientes».
+
+**Preguntas para la revisión de David:**
+
+1. ¿Añadimos botones para duplicar dentro de la misma dieta?
+2. ¿Puede el entrenador preparar dietas a clientes que tienen nutricionista?
