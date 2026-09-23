@@ -201,7 +201,44 @@ Con Vital es `true`; con MoveKit, `false`.
   comprobar en la base demo los ids de Sentadilla con barra y Dominadas.
 - Guardar copia con fecha de la página del paquete gratuito y del EULA de Vital
   junto a los archivos, cuando exista el almacenamiento.
-- Actualizar `docs/animaciones-ejercicios.md` con esta verificación y con el
-  informe `compass_...`, en mi worktree después de C00.
-- Siguiente tarea mientras espero a C00, C01 y C05: preparar F06 (entrevista de
-  nutrición), que no toca código.
+- Hecho en `1865449`: `docs/animaciones-ejercicios.md` recoge la decisión vigente.
+
+## F06 — Especificación de nutrición
+
+**Estado:** borrador redactado en [SPEC-nutricion.md](../../SPEC-nutricion.md);
+**pendiente de revisión de David**. No se pasa a F07 (plan y tareas) sin esa revisión.
+
+**Cómo se hizo:** con `spec-driven-development`, en dos rondas de preguntas a
+David el 24-09. Las referencias fueron el prototipo v2 (tipos de día, comidas
+con alternativas y anillo de macros) y una dieta real en PDF que aportó David.
+Esa dieta es de una clienta real: solo se usó para entender el formato, no se
+copió al repositorio y los ejemplos de la especificación son inventados.
+
+**Decisiones de David:**
+
+1. La semana se organiza por tipos de día.
+2. Cada comida tiene alternativas agrupadas o una tabla de intercambio, como en el PDF.
+3. Las kcal y los macros los escribe el profesional.
+4. Las cantidades son texto libre.
+5. El profesional trabaja en borrador y el cliente ve la dieta al publicarla.
+6. Las dietas anteriores solo las ve el profesional.
+7. Cada dieta se prepara desde cero.
+8. El cliente la lee sin conexión.
+
+**Supuestos que David debe confirmar en la revisión:**
+
+- los números son opcionales;
+- con un solo tipo de día, todos los días son iguales;
+- la hora de cada comida es opcional;
+- el borrador pertenece al cliente, no a quien lo empezó;
+- cada alternativa puede llevar una nota y, si se quiere, sus macros.
+
+**Qué necesitará de Codex en F07/C09:**
+
+- el contrato Zod `packages/shared/src/nutricion.ts` (la especificación incluye una propuesta);
+- el modelo y la migración aditiva;
+- registrar `NutricionModule` en `app.module.ts`;
+- los accesos: pestaña del cliente, botón en la ficha y fila en «Mis clientes».
+
+**Pregunta abierta para David:** si una dieta cuenta como dato de salud a efectos
+del consentimiento aplazado. Hasta decidirlo, se desarrolla con datos sintéticos.
