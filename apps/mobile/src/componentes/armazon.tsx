@@ -14,6 +14,7 @@ const entrenador: Destino[] = [
 const cliente: Destino[] = [
   { ruta: "/", nombre: "Inicio", icono: "⌂" },
   { ruta: "/entrenamiento", nombre: "Entrenos", icono: "▦" },
+  { ruta: "/nutricion", nombre: "Dieta", icono: "◔" },
   { ruta: "/perfil", nombre: "Perfil", icono: "◎" },
 ]
 const titulos: Record<string, string> = {
@@ -21,6 +22,7 @@ const titulos: Record<string, string> = {
   rutinas: "Mis rutinas",
   catalogo: "Ejercicios",
   entrenamiento: "Entrenamiento",
+  nutricion: "Nutrición",
   entrenador: "Plan de entrenamiento",
   cliente: "Ficha de cliente",
   perfil: "Mi perfil",
@@ -38,7 +40,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const principal = ruta.split("/").filter(Boolean)[0] ?? ""
   const destinos: Destino[] =
     estado.fase === "local"
-      ? cliente.slice(1, 2)
+      ? cliente.slice(1, 3)
       : usuario.rol === "entrenador"
         ? entrenador
         : usuario.rol === "cliente"
@@ -56,6 +58,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
     "/rutinas",
     "/catalogo",
     "/entrenamiento",
+    "/nutricion",
     "/perfil",
     "/mis-clientes",
   ].includes(ruta)

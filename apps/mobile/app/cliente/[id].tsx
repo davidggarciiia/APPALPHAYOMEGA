@@ -335,15 +335,24 @@ export default function FichaDeCliente(): React.JSX.Element {
       {ficha.rol === "cliente" &&
         sesion.fase === "dentro" &&
         sesion.usuario.rol === "entrenador" && (
-          <BotonPrincipal
-            texto="Entrenamientos"
-            onPress={() =>
-              router.push({
-                pathname: "/entrenador/cliente/[id]/entrenos",
-                params: { id: ficha.id },
-              })
-            }
-          />
+          <>
+            <BotonPrincipal
+              texto="Entrenamientos"
+              onPress={() =>
+                router.push({
+                  pathname: "/entrenador/cliente/[id]/entrenos",
+                  params: { id: ficha.id },
+                })
+              }
+            />
+            <BotonSecundario
+              texto="Dieta"
+              etiquetaAccesible={`Dieta de ${nombreCompleto}`}
+              onPress={() =>
+                router.push({ pathname: "/nutricion/cliente/[id]", params: { id: ficha.id } })
+              }
+            />
+          </>
         )}
 
       <Text style={estilos.etiquetaFija}>CORREO</Text>

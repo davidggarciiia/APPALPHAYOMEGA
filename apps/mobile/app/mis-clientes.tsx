@@ -117,7 +117,15 @@ export default function MisClientes(): React.JSX.Element {
           const nombre = [item.nombre, item.apellidos].filter(Boolean).join(" ")
 
           return (
-            <View style={estilos.fila} accessible accessibilityLabel={`${nombre}. ${item.email}`}>
+            <Pressable
+              style={({ pressed }) => [estilos.fila, pressed && estilos.filaPulsada]}
+              accessibilityRole="button"
+              accessibilityLabel={`${nombre}. ${item.email}`}
+              accessibilityHint="Abre su dieta"
+              onPress={() =>
+                router.push({ pathname: "/nutricion/cliente/[id]", params: { id: item.id } })
+              }
+            >
               <View style={estilos.datos}>
                 <Text style={estilos.nombre} numberOfLines={1}>
                   {nombre}
@@ -127,7 +135,7 @@ export default function MisClientes(): React.JSX.Element {
                 </Text>
               </View>
               <InsigniaDeEstado estado={item.estado} />
-            </View>
+            </Pressable>
           )
         }}
         ListEmptyComponent={
@@ -172,6 +180,7 @@ const estilos = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
+  filaPulsada: { borderColor: tema.acento },
   datos: { flex: 1, gap: 3 },
   nombre: { color: tema.texto, fontSize: 16 },
   correo: { color: tema.textoTenue, fontSize: 12 },
