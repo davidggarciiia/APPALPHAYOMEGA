@@ -9,7 +9,7 @@ import {
   Fragment,
   type ReactNode,
 } from "react"
-import { Modal, Text, View } from "react-native"
+import { Modal, Platform, Text, View } from "react-native"
 import type { Credenciales, Sesion, UsuarioPublico } from "@alpha-omega/shared"
 import { borrarTokenRefresco, guardarTokenRefresco, leerTokenRefresco } from "./lib/almacen-seguro"
 import {
@@ -30,6 +30,7 @@ import {
   type IdentidadLocal,
 } from "./lib/sesion-local"
 import { crearPeticionAutenticada, type PeticionAutenticada } from "./lib/peticion-autenticada"
+import { conCredencialesExclusivas } from "./lib/coordinador-sesion-web"
 import { almacenDispositivo } from "./entrenamiento/almacen-dispositivo"
 import { hayCambiosLocales } from "./entrenamiento/documento-local"
 import { BotonPrincipal, BotonSecundario } from "./componentes/formulario"
@@ -144,10 +145,13 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
   const renovar = useCallback((): Promise<string> => {
     const version = epoca.current
     if (renovacion.current?.epoca === version) return renovacion.current.promesa
-    const promesa = (async () => {
+    const promesa = conCredencialesExclusivas(async () => {
       let teniaCredencial = false
       try {
-        const token = refresco.current ?? (await leerTokenRefresco())
+        const token =
+          Platform.OS === "web"
+            ? await leerTokenRefresco()
+            : (refresco.current ?? (await leerTokenRefresco()))
         if (version !== epoca.current) throw new ErrorDeSesion("La sesión ha cambiado")
         if (!token) throw new ErrorDeSesion("Sin sesión guardada")
         refresco.current = token
@@ -163,7 +167,7 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
         }
         throw error
       }
-    })().finally(() => {
+    }).finally(() => {
       if (renovacion.current?.promesa === promesa) renovacion.current = null
     })
     renovacion.current = { epoca: version, promesa }

@@ -1,8 +1,8 @@
-import { Text, Pressable } from "react-native"
-import { fireEvent, render, screen } from "@testing-library/react-native"
+import { Platform, Text, Pressable } from "react-native"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import { ProveedorDeSesion, useSesion } from "./sesion"
 import { ErrorDeRed, ErrorDeSesion, refrescarSesion } from "./lib/api"
-import { borrarTokenRefresco, leerTokenRefresco } from "./lib/almacen-seguro"
+import { borrarTokenRefresco, guardarTokenRefresco, leerTokenRefresco } from "./lib/almacen-seguro"
 import { leerIdentidadLocal, leerLimpieza } from "./lib/sesion-local"
 import { hayCambiosLocales } from "./entrenamiento/documento-local"
 import { almacenDispositivo } from "./entrenamiento/almacen-dispositivo"
@@ -108,4 +108,73 @@ it("permite cancelar la salida con cambios pendientes y limpia la cuenta al conf
   await fireEvent.press(await screen.findByRole("button", { name: "Descartar y cerrar sesión" }))
   await screen.findByText("fuera")
   expect(almacenDispositivo.limpiar).toHaveBeenCalledWith(local.id)
+})
+
+it("dos pestañas no reemplazan el refresco vigente con una respuesta anterior", async () => {
+  const plataformaAnterior = Platform.OS
+  Object.defineProperty(Platform, "OS", { value: "web", configurable: true })
+  let cola = Promise.resolve()
+  Object.defineProperty(globalThis.navigator, "locks", {
+    configurable: true,
+    value: {
+      request: (_nombre: string, _opciones: unknown, accion: () => Promise<unknown>) => {
+        const siguiente = cola.then(accion)
+        cola = siguiente.then(
+          () => undefined,
+          () => undefined,
+        )
+        return siguiente
+      },
+    },
+  })
+  try {
+    let guardado = "refresco"
+    let resolverPrimera: (sesion: Awaited<ReturnType<typeof refrescarSesion>>) => void = () =>
+      undefined
+    jest.mocked(leerTokenRefresco).mockImplementation(async () => guardado)
+    jest
+      .mocked(refrescarSesion)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolverPrimera = resolve
+          }),
+      )
+      .mockImplementationOnce(async (token) => {
+        expect(token).toBe("refresco-A")
+        return {
+          usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+          tokenAcceso: "acceso-B",
+          tokenRefresco: "refresco-B",
+        }
+      })
+    jest.mocked(guardarTokenRefresco).mockImplementation(async (token) => {
+      guardado = token
+    })
+
+    await render(
+      <ProveedorDeSesion>
+        <Visor />
+      </ProveedorDeSesion>,
+    )
+    await waitFor(() => expect(refrescarSesion).toHaveBeenCalledTimes(1))
+    await render(
+      <ProveedorDeSesion>
+        <Visor />
+      </ProveedorDeSesion>,
+    )
+    expect(refrescarSesion).toHaveBeenCalledTimes(1)
+
+    resolverPrimera({
+      usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+      tokenAcceso: "acceso-A",
+      tokenRefresco: "refresco-A",
+    })
+    await waitFor(() => expect(refrescarSesion).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(guardarTokenRefresco).toHaveBeenCalledTimes(2))
+    expect(guardado).toBe("refresco-B")
+  } finally {
+    Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
+    Reflect.deleteProperty(globalThis.navigator, "locks")
+  }
 })
