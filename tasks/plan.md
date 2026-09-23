@@ -1,5 +1,8 @@
 # Plan de implementación: `identity`
 
+> Coordinación posterior: [iteración 3 — planes de Codex y Fable](iteracion-3/plan.md).
+> Amplía el trabajo de la app; no sustituye este plan ni cierra sus pendientes.
+
 > Módulo 1 de 8. Spec: [SPEC-identity.md](../SPEC-identity.md) ·
 > Fundamentos: [SPEC.md](../SPEC.md) · Mapa: [CAPABILITY-MAP.md](../CAPABILITY-MAP.md)
 >
