@@ -3,8 +3,8 @@
 > Tarea F07 de la [iteración 3](../iteracion-3/plan-fable.md). Parte de
 > [SPEC-nutricion.md](../../SPEC-nutricion.md), aprobada por David el 2026-09-24.
 > Preparado con `planning-and-task-breakdown` de Agent Skills.
-> Tareas y casillas: [todo.md](todo.md). **Pendiente de revisión de David y de
-> Codex (C09) antes de escribir código.**
+> Tareas y casillas: [todo.md](todo.md). **Aprobado por David el 2026-09-24.** El código
+> empieza cuando Codex publique N00 (C09).
 
 ## Resumen
 
@@ -285,19 +285,17 @@ N00 contrato + Prisma + migración + esqueleto (Codex, C09)
 
 | Riesgo                                                                                  | Impacto | Mitigación                                                                                            |
 | --------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| El editor en el móvil resulta pesado: la dieta de referencia tiene unas 20 alternativas | Alto    | Secciones plegables. Botones para duplicar dentro de la misma dieta, si David lo aprueba (pregunta 1) |
+| El editor en el móvil resulta pesado: la dieta de referencia tiene unas 20 alternativas | Alto    | Secciones plegables. Botones para duplicar dentro de la misma dieta (aprobado)                        |
 | Dos publicaciones o guardados a la vez dejan dos borradores o dos publicadas            | Alto    | Índices únicos parciales, bloqueo de la fila del cliente y tests HTTP de carrera                      |
 | Sin N11, la dieta no se abre sin conexión aunque exista la copia                        | Medio   | N11 está pedida a Codex con la ruta exacta; N10 no se da por cerrada sin ella                         |
 | Datos reales de salud en un entorno sin consentimiento                                  | Medio   | Decisión de David registrada; nada del documento en logs; cifrado en el dispositivo; tests sintéticos |
 | Crece el tamaño del documento                                                           | Bajo    | Límites del contrato; el cuerpo HTTP ya admite hasta 8 MB                                             |
 
-## Preguntas abiertas para la revisión del plan
+## Decisiones de la revisión del plan (David, 2026-09-24)
 
-1. **¿Botones de duplicar dentro de la misma dieta?** Duplicar un tipo de día
-   (por ejemplo «Entreno» → «Descanso»), una comida o una alternativa.
-   - No es copiar entre clientes, que David descartó.
-   - Ahorra mucho tecleo con dietas como la de referencia.
-   - Recomendación: sí, en N06–N07.
-2. **¿Puede el entrenador preparar dietas para un cliente que tiene
-   nutricionista asignado?** La matriz de identidad lo permite, y el plan lo
-   mantiene salvo que David diga lo contrario.
+1. **Duplicar dentro de la misma dieta: sí.** Se podrá duplicar un tipo de día,
+   una comida y una alternativa. Entra en N06 y N07. No incluye copiar entre
+   clientes, que sigue descartado.
+2. **El entrenador y el nutricionista asignado** pueden preparar y publicar la
+   dieta del mismo cliente. Si guardan a la vez, el conflicto de revisión evita
+   que uno pise al otro.

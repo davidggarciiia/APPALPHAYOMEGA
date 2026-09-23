@@ -182,7 +182,8 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
   **Aceptación**
   - La estructura del PDF de referencia se reproduce con datos inventados: tres
-    grupos de alternativas en el desayuno.
+    grupos de alternativas en el desayuno. Se puede duplicar un tipo de día, una
+    comida y una alternativa sin reutilizar sus ids.
   - Las cantidades libres («1 ud», «al gusto») y los alimentos sin cantidad se
     muestran sin cambios.
   - Los límites del contrato se avisan en el campo afectado, no con un error

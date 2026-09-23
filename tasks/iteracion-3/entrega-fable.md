@@ -249,8 +249,8 @@ copió al repositorio y los ejemplos de la especificación son inventados.
 ## F07 — Plan y tareas de nutrición
 
 **Estado:** plan escrito en [tasks/nutricion/plan.md](../nutricion/plan.md) y
-tareas en [tasks/nutricion/todo.md](../nutricion/todo.md). **Pendiente de
-revisión de David y de Codex** antes de escribir código.
+tareas en [tasks/nutricion/todo.md](../nutricion/todo.md). **Aprobado por David el
+24-09.** Pendiente de que Codex publique N00.
 
 **Cómo se hizo:** con `planning-and-task-breakdown`. Hay 13 tareas (N00–N12) en
 tramos verticales:
@@ -270,7 +270,9 @@ tramos verticales:
   que hoy solo permite `/entrenamiento`. Además, la pestaña «Dieta» del cliente, el
   botón en la ficha y las filas de «Mis clientes».
 
-**Preguntas para la revisión de David:**
+**Decisiones de David en la revisión:**
 
-1. ¿Añadimos botones para duplicar dentro de la misma dieta?
-2. ¿Puede el entrenador preparar dietas a clientes que tienen nutricionista?
+1. Habrá botones para duplicar dentro de la misma dieta (tipo de día, comida y
+   alternativa).
+2. El entrenador y el nutricionista pueden preparar y publicar la dieta del
+   mismo cliente.
