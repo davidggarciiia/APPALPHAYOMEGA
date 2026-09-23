@@ -30,7 +30,12 @@ import {
   type IdentidadLocal,
 } from "./lib/sesion-local"
 import { crearPeticionAutenticada, type PeticionAutenticada } from "./lib/peticion-autenticada"
-import { conCredencialesExclusivas } from "./lib/coordinador-sesion-web"
+import {
+  borrarCuentaWeb,
+  CLAVE_CUENTA_WEB,
+  conCredencialesExclusivas,
+  guardarCuentaWeb,
+} from "./lib/coordinador-sesion-web"
 import { almacenDispositivo } from "./entrenamiento/almacen-dispositivo"
 import { hayCambiosLocales } from "./entrenamiento/documento-local"
 import { BotonPrincipal, BotonSecundario } from "./componentes/formulario"
@@ -88,6 +93,7 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     const resultados = await Promise.allSettled([
       enCola(async () => {
         await Promise.all([borrarIdentidadLocal(), borrarTokenRefresco()])
+        borrarCuentaWeb()
       }),
       cuenta ? almacenDispositivo.limpiar(cuenta) : Promise.resolve(),
     ])
@@ -128,6 +134,7 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
         // Persistir la credencial rotada antes de utilizar el acceso nuevo.
         await guardarTokenRefresco(sesion.tokenRefresco)
         await guardarIdentidadLocal(sesion.usuario, sesion.tokenRefresco)
+        guardarCuentaWeb(sesion.usuario.id)
       })
       if (version !== epoca.current) throw new ErrorDeSesion("La sesión ha cambiado")
       const anterior = actual.current
@@ -175,6 +182,24 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
   }, [asentar, revocar, actualizar])
 
   useEffect(() => {
+    if (Platform.OS !== "web" || typeof globalThis.addEventListener !== "function") return
+    const recibir = (evento: StorageEvent): void => {
+      if (evento.key !== CLAVE_CUENTA_WEB) return
+      const vigente = actual.current
+      if (!("usuario" in vigente) || evento.newValue === vigente.usuario.id) return
+      epoca.current++
+      refresco.current = null
+      renovacion.current = null
+      actualizar({ fase: "fuera" })
+      setSesionCaducada(false)
+      setSinConexion(false)
+    }
+    globalThis.addEventListener("storage", recibir)
+    const quitar = globalThis.removeEventListener?.bind(globalThis)
+    return () => quitar?.("storage", recibir)
+  }, [actualizar])
+
+  useEffect(() => {
     let vigente = true
     const version = epoca.current
     void (async () => {
@@ -210,8 +235,11 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     async (credenciales: Credenciales): Promise<void> => {
       if (cambiando.current) throw new Error("Espera a que termine la limpieza local.")
       const version = ++epoca.current
-      const sesion = await pedirSesion(credenciales)
-      await asentar(sesion, version)
+      await conCredencialesExclusivas(async () => {
+        if (version !== epoca.current) throw new ErrorDeSesion("La sesión ha cambiado")
+        const sesion = await pedirSesion(credenciales)
+        await asentar(sesion, version)
+      })
     },
     [asentar],
   )

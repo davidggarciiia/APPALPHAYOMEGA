@@ -1,7 +1,7 @@
 import { Platform, Text, Pressable } from "react-native"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import { ProveedorDeSesion, useSesion } from "./sesion"
-import { ErrorDeRed, ErrorDeSesion, refrescarSesion } from "./lib/api"
+import { ErrorDeRed, ErrorDeSesion, iniciarSesion, refrescarSesion } from "./lib/api"
 import { borrarTokenRefresco, guardarTokenRefresco, leerTokenRefresco } from "./lib/almacen-seguro"
 import { leerIdentidadLocal, leerLimpieza } from "./lib/sesion-local"
 import { hayCambiosLocales } from "./entrenamiento/documento-local"
@@ -11,6 +11,7 @@ jest.mock("./lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localh
 jest.mock("./lib/api", () => ({
   ...jest.requireActual("./lib/api"),
   refrescarSesion: jest.fn(),
+  iniciarSesion: jest.fn(),
   cerrarSesionEnServidor: jest.fn(async () => undefined),
 }))
 jest.mock("./lib/almacen-seguro", () => ({
@@ -46,6 +47,17 @@ function Visor(): React.JSX.Element {
         <Text>Salir</Text>
       </Pressable>
     </>
+  )
+}
+function VisorEntrada(): React.JSX.Element {
+  const { entrar } = useSesion()
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => void entrar({ email: "otro@example.test", contrasena: "clave-de-prueba" })}
+    >
+      <Text>Entrar</Text>
+    </Pressable>
   )
 }
 beforeEach(() => {
@@ -173,6 +185,124 @@ it("dos pestañas no reemplazan el refresco vigente con una respuesta anterior",
     await waitFor(() => expect(refrescarSesion).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(guardarTokenRefresco).toHaveBeenCalledTimes(2))
     expect(guardado).toBe("refresco-B")
+  } finally {
+    Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
+    Reflect.deleteProperty(globalThis.navigator, "locks")
+  }
+})
+
+it("un cambio de cuenta en otra pestaña invalida el acceso local sin borrar la nueva sesión", async () => {
+  const plataformaAnterior = Platform.OS
+  Object.defineProperty(Platform, "OS", { value: "web", configurable: true })
+  let avisar: ((evento: { key: string; newValue: string | null }) => void) | null = null
+  const agregarAnterior = globalThis.addEventListener
+  const quitarAnterior = globalThis.removeEventListener
+  Object.defineProperty(globalThis, "addEventListener", {
+    configurable: true,
+    value: (tipo: string, receptor: typeof avisar) => {
+      if (tipo === "storage") avisar = receptor
+    },
+  })
+  Object.defineProperty(globalThis, "removeEventListener", {
+    configurable: true,
+    value: () => undefined,
+  })
+  Object.defineProperty(globalThis.navigator, "locks", {
+    configurable: true,
+    value: {
+      request: (_nombre: string, _opciones: unknown, accion: () => Promise<unknown>) => accion(),
+    },
+  })
+  jest.mocked(refrescarSesion).mockResolvedValue({
+    usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+    tokenAcceso: "acceso",
+    tokenRefresco: "nuevo",
+  })
+  try {
+    await render(
+      <ProveedorDeSesion>
+        <Visor />
+      </ProveedorDeSesion>,
+    )
+    await screen.findByText("dentro")
+    expect(avisar).not.toBeNull()
+    await act(async () => {
+      avisar?.({ key: "alpha_omega_cuenta", newValue: "20000000-0000-4000-8000-000000000000" })
+    })
+    await screen.findByText("fuera")
+    expect(borrarTokenRefresco).not.toHaveBeenCalled()
+  } finally {
+    cleanup()
+    Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
+    Reflect.deleteProperty(globalThis.navigator, "locks")
+    Object.defineProperty(globalThis, "addEventListener", {
+      value: agregarAnterior,
+      configurable: true,
+    })
+    Object.defineProperty(globalThis, "removeEventListener", {
+      value: quitarAnterior,
+      configurable: true,
+    })
+  }
+})
+
+it("el inicio de sesión espera a la renovación de otra pestaña", async () => {
+  const plataformaAnterior = Platform.OS
+  Object.defineProperty(Platform, "OS", { value: "web", configurable: true })
+  let cola = Promise.resolve()
+  Object.defineProperty(globalThis.navigator, "locks", {
+    configurable: true,
+    value: {
+      request: (_nombre: string, _opciones: unknown, accion: () => Promise<unknown>) => {
+        const siguiente = cola.then(accion)
+        cola = siguiente.then(
+          () => undefined,
+          () => undefined,
+        )
+        return siguiente
+      },
+    },
+  })
+  let resolverPrimera: (sesion: Awaited<ReturnType<typeof refrescarSesion>>) => void = () =>
+    undefined
+  jest.mocked(refrescarSesion).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolverPrimera = resolve
+      }),
+  )
+  jest.mocked(iniciarSesion).mockResolvedValue({
+    usuario: {
+      ...local,
+      id: "20000000-0000-4000-8000-000000000000",
+      email: "otro@example.test",
+      apellidos: null,
+      estado: "activo",
+    },
+    tokenAcceso: "acceso-otro",
+    tokenRefresco: "refresco-otro",
+  })
+  try {
+    await render(
+      <ProveedorDeSesion>
+        <Visor />
+      </ProveedorDeSesion>,
+    )
+    await waitFor(() => expect(refrescarSesion).toHaveBeenCalledTimes(1))
+    await render(
+      <ProveedorDeSesion>
+        <VisorEntrada />
+      </ProveedorDeSesion>,
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Entrar" }))
+    expect(iniciarSesion).not.toHaveBeenCalled()
+
+    resolverPrimera({
+      usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+      tokenAcceso: "acceso",
+      tokenRefresco: "refresco-nuevo",
+    })
+    await waitFor(() => expect(iniciarSesion).toHaveBeenCalledTimes(1))
   } finally {
     Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
     Reflect.deleteProperty(globalThis.navigator, "locks")
