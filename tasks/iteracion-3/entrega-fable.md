@@ -205,8 +205,14 @@ Con Vital es `true`; con MoveKit, `false`.
 
 ## F06 — Especificación de nutrición
 
-**Estado:** borrador redactado en [SPEC-nutricion.md](../../SPEC-nutricion.md);
-**pendiente de revisión de David**. No se pasa a F07 (plan y tareas) sin esa revisión.
+**Estado:** hecha. [SPEC-nutricion.md](../../SPEC-nutricion.md) fue **aprobada por David el 24-09**
+junto con los cinco supuestos. En la revisión se añadieron dos decisiones:
+
+- **Solo objetivos:** un cliente sin dieta contratada recibe únicamente kcal y
+  macros, sin comidas.
+- **Datos reales:** se usan los datos que escriba el profesional. David asume el
+  riesgo de que el consentimiento siga aplazado; la dieta se trata igualmente
+  como sensible.
 
 **Cómo se hizo:** con `spec-driven-development`, en dos rondas de preguntas a
 David el 24-09. Las referencias fueron el prototipo v2 (tipos de día, comidas
@@ -225,7 +231,7 @@ copió al repositorio y los ejemplos de la especificación son inventados.
 7. Cada dieta se prepara desde cero.
 8. El cliente la lee sin conexión.
 
-**Supuestos que David debe confirmar en la revisión:**
+**Supuestos confirmados:**
 
 - los números son opcionales;
 - con un solo tipo de día, todos los días son iguales;
@@ -239,6 +245,3 @@ copió al repositorio y los ejemplos de la especificación son inventados.
 - el modelo y la migración aditiva;
 - registrar `NutricionModule` en `app.module.ts`;
 - los accesos: pestaña del cliente, botón en la ficha y fila en «Mis clientes».
-
-**Pregunta abierta para David:** si una dieta cuenta como dato de salud a efectos
-del consentimiento aplazado. Hasta decidirlo, se desarrolla con datos sintéticos.

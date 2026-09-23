@@ -1,7 +1,7 @@
 # Spec: `nutricion` — dietas por cliente
 
-> Estado: **borrador pendiente de revisión por David**. Redactada por Fable el
-> 2026-09-24, tarea F06 de la [iteración 3](tasks/iteracion-3/plan-fable.md).
+> Estado: **aprobada por David el 2026-09-24**. Redactada por Fable ese mismo
+> día, tarea F06 de la [iteración 3](tasks/iteracion-3/plan-fable.md).
 > Módulo del [mapa aprobado](CAPABILITY-MAP.md). Solo depende de `identity`.
 > Stack, estilo y reglas comunes: [SPEC.md](SPEC.md). Permisos de partida:
 > [SPEC-identity.md](SPEC-identity.md).
@@ -46,13 +46,22 @@ ejemplos de este documento son inventados.
    cliente.
 8. **El cliente lee su dieta sin conexión.** Queda cifrada en su móvil por cuenta
    y se actualiza al volver la red.
+9. **Un cliente sin dieta contratada recibe solo sus objetivos.** El
+   profesional publica únicamente las kcal y los macros diarios, sin comidas.
+   Puede poner un objetivo para todos los días o uno por tipo de día, por ejemplo
+   uno para días de entreno y otro para días de descanso. Usa el mismo flujo de
+   borrador y publicación.
+10. **Datos reales.** Se usan los datos que escriba el profesional en cada dieta.
+    David asume que el consentimiento (tarea 19) sigue aplazado. Aun así, la dieta
+    se trata como dato sensible: cifrada en el dispositivo y nunca en los logs.
+    Los tests, la base demo y la documentación usan datos inventados.
 
 Ya estaban aprobadas antes: el cliente solo lee y no registra lo que come; el
 entrenador edita todas las dietas y el nutricionista solo las de sus clientes
 asignados y activos; el empleado no accede; y un perfil pendiente ya puede
 recibir dietas ([SPEC-identity.md](SPEC-identity.md), requisito 2).
 
-### Supuestos a confirmar en la revisión
+### Supuestos confirmados en la revisión
 
 - **Números opcionales.** Las kcal y los macros no son obligatorios en ningún
   nivel. La dieta real de referencia no lleva ninguno.
@@ -147,19 +156,19 @@ Plan de octubre
 
 **Límites de validación:**
 
-| Elemento                | Límite                                                                             |
-| ----------------------- | ---------------------------------------------------------------------------------- |
-| Nombre de la dieta      | 1–120 caracteres                                                                   |
-| Tipos de día            | 1–7; nombre de 1–40                                                                |
-| Semana                  | Exactamente 7 entradas, cada una apuntando a un tipo existente                     |
-| Comidas por tipo        | 1–10; nombre de 1–40; hora `HH:MM` opcional; indicación de hasta 500               |
-| Grupos de alternativas  | 1–6 por comida, nombre opcional de hasta 40; como mucho 20 alternativas por comida |
-| Alternativa             | Título de 1–80; 1–20 alimentos; nota de hasta 300; macros opcionales               |
-| Columnas de intercambio | 1–6 por comida; nombre de 1–40; 1–40 alimentos por columna                         |
-| Alimento                | Nombre de 1–80; cantidad opcional de hasta 40 («Pieza de fruta» no la lleva)       |
-| Objetivo o macros       | Enteros no negativos: kcal ≤ 10.000; gramos ≤ 2.000; todos opcionales              |
-| Indicaciones generales  | 0–10 secciones; título de 1–60; texto de hasta 3.000                               |
-| Documento               | Estricto: se rechazan los campos desconocidos                                      |
+| Elemento                | Límite                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Nombre de la dieta      | 1–120 caracteres                                                                                                                      |
+| Tipos de día            | 1–7; nombre de 1–40                                                                                                                   |
+| Semana                  | Exactamente 7 entradas, cada una apuntando a un tipo existente                                                                        |
+| Comidas por tipo        | 0–10; nombre de 1–40; hora `HH:MM` opcional; indicación de hasta 500. Un tipo sin comidas necesita un objetivo con al menos un número |
+| Grupos de alternativas  | 1–6 por comida, nombre opcional de hasta 40; como mucho 20 alternativas por comida                                                    |
+| Alternativa             | Título de 1–80; 1–20 alimentos; nota de hasta 300; macros opcionales                                                                  |
+| Columnas de intercambio | 1–6 por comida; nombre de 1–40; 1–40 alimentos por columna                                                                            |
+| Alimento                | Nombre de 1–80; cantidad opcional de hasta 40 («Pieza de fruta» no la lleva)                                                          |
+| Objetivo o macros       | Enteros no negativos: kcal ≤ 10.000; gramos ≤ 2.000; todos opcionales                                                                 |
+| Indicaciones generales  | 0–10 secciones; título de 1–60; texto de hasta 3.000                                                                                  |
+| Documento               | Estricto: se rechazan los campos desconocidos                                                                                         |
 
 ## Flujo del profesional
 
@@ -188,12 +197,14 @@ Plan de octubre
 3. Cada comida con alternativas muestra sus grupos y opciones, con alimentos,
    cantidades y nota. Cada comida con tabla de intercambio muestra sus columnas
    y la indicación de combinar una de cada una.
-4. Sin dieta publicada, la pantalla lo dice («Tu dieta aún no está publicada»)
+4. Si la dieta solo trae objetivos (cliente sin dieta contratada), «Hoy» y
+   «Semana» muestran las kcal y los macros de cada día, sin apartado de comidas.
+5. Sin dieta publicada, la pantalla lo dice («Tu dieta aún no está publicada»)
    en vez de enseñar un ejemplo.
-5. **Sin conexión:** muestra la última dieta descargada, con la fecha de la
+6. **Sin conexión:** muestra la última dieta descargada, con la fecha de la
    última actualización. Si nunca se descargó, dice que hace falta conexión la
    primera vez.
-6. Al cerrar sesión se borra la copia local, igual que el entrenamiento. Otra
+7. Al cerrar sesión se borra la copia local, igual que el entrenamiento. Otra
    cuenta en el mismo dispositivo no la ve.
 
 ## Estructura del código
@@ -382,14 +393,11 @@ denegaciones son obligatorias sea cual sea la cobertura.
 13. A un cliente dado de baja no se le puede guardar ni publicar dieta, y su
     histórico se conserva. A un cliente pendiente sí se le puede publicar.
 14. Ninguna traza del servidor contiene texto del documento de una dieta.
+15. Una dieta con un tipo de día sin comidas y con objetivo (por ejemplo 2.100
+    kcal y 150 g de proteína) se publica y el cliente ve solo esos números. Un
+    tipo sin comidas y sin ningún número se rechaza con `solicitud_invalida`.
 
 ## Preguntas abiertas
 
-1. **¿Una dieta cuenta como dato de salud a efectos del consentimiento (tarea
-   19)?** Una pauta alimentaria puede revelar información de salud.
-   - Mientras David y la revisión legal no lo decidan, se desarrolla con datos
-     sintéticos.
-   - Técnicamente se trata como sensible: cifrada en el dispositivo y fuera de
-     los logs.
-2. **¿Hace falta adjuntar el PDF original de una dieta?** No está incluido;
+1. **¿Hace falta adjuntar el PDF original de una dieta?** No está incluido;
    necesitaría el almacenamiento de objetos del ADR 0005.
