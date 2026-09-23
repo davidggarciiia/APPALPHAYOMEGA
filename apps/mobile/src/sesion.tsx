@@ -35,6 +35,7 @@ import {
   CLAVE_CUENTA_WEB,
   conCredencialesExclusivas,
   guardarCuentaWeb,
+  leerCuentaWeb,
 } from "./lib/coordinador-sesion-web"
 import { almacenDispositivo } from "./entrenamiento/almacen-dispositivo"
 import { hayCambiosLocales } from "./entrenamiento/documento-local"
@@ -247,27 +248,39 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
   const salirDefinitivamente = useCallback(async (): Promise<void> => {
     if (cambiando.current) return
     cambiando.current = true
-    const anterior = actual.current
-    const cuenta = "usuario" in anterior ? anterior.usuario.id : null
-    const token = refresco.current
-    cuentaPorLimpiar.current = cuenta
     try {
-      await marcarLimpieza(cuenta)
+      await conCredencialesExclusivas(async () => {
+        const anterior = actual.current
+        const cuenta = "usuario" in anterior ? anterior.usuario.id : null
+        const compartida = leerCuentaWeb()
+        if (compartida !== null && compartida !== cuenta) {
+          epoca.current++
+          refresco.current = null
+          setConfirmandoSalida(false)
+          setSesionCaducada(false)
+          setSinConexion(false)
+          actualizar({ fase: "fuera" })
+          cambiando.current = false
+          return
+        }
+        const token = Platform.OS === "web" ? await leerTokenRefresco() : refresco.current
+        cuentaPorLimpiar.current = cuenta
+        await marcarLimpieza(cuenta)
+        epoca.current++
+        refresco.current = null
+        setConfirmandoSalida(false)
+        setSesionCaducada(false)
+        setSinConexion(false)
+        actualizar({ fase: "fuera" })
+        await Promise.all([
+          limpiarAcceso(),
+          token ? cerrarSesionEnServidor(token).catch(() => undefined) : Promise.resolve(),
+        ])
+      })
     } catch {
       cambiando.current = false
       setAvisoSalida("No se pudo iniciar el cierre. Vuelve a pulsar Cerrar sesión.")
-      return
     }
-    epoca.current++
-    refresco.current = null
-    setConfirmandoSalida(false)
-    setSesionCaducada(false)
-    setSinConexion(false)
-    actualizar({ fase: "fuera" })
-    await Promise.all([
-      limpiarAcceso(),
-      token ? cerrarSesionEnServidor(token).catch(() => undefined) : Promise.resolve(),
-    ])
   }, [actualizar, limpiarAcceso])
 
   const salir = useCallback(async (): Promise<void> => {

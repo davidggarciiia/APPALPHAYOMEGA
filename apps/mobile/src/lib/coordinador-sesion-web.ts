@@ -14,6 +14,10 @@ export function guardarCuentaWeb(cuenta: string): void {
   if (Platform.OS === "web") globalThis.localStorage?.setItem(CLAVE_CUENTA_WEB, cuenta)
 }
 
+export function leerCuentaWeb(): string | null {
+  return Platform.OS === "web" ? (globalThis.localStorage?.getItem(CLAVE_CUENTA_WEB) ?? null) : null
+}
+
 export function borrarCuentaWeb(): void {
   if (Platform.OS === "web") globalThis.localStorage?.removeItem(CLAVE_CUENTA_WEB)
 }

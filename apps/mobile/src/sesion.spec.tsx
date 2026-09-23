@@ -165,17 +165,16 @@ it("dos pestañas no reemplazan el refresco vigente con una respuesta anterior",
     })
 
     await render(
-      <ProveedorDeSesion>
-        <Visor />
-      </ProveedorDeSesion>,
+      <>
+        <ProveedorDeSesion>
+          <Visor />
+        </ProveedorDeSesion>
+        <ProveedorDeSesion>
+          <Visor />
+        </ProveedorDeSesion>
+      </>,
     )
     await waitFor(() => expect(refrescarSesion).toHaveBeenCalledTimes(1))
-    await render(
-      <ProveedorDeSesion>
-        <Visor />
-      </ProveedorDeSesion>,
-    )
-    expect(refrescarSesion).toHaveBeenCalledTimes(1)
 
     resolverPrimera({
       usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
@@ -284,16 +283,16 @@ it("el inicio de sesión espera a la renovación de otra pestaña", async () => 
   })
   try {
     await render(
-      <ProveedorDeSesion>
-        <Visor />
-      </ProveedorDeSesion>,
+      <>
+        <ProveedorDeSesion>
+          <Visor />
+        </ProveedorDeSesion>
+        <ProveedorDeSesion>
+          <VisorEntrada />
+        </ProveedorDeSesion>
+      </>,
     )
     await waitFor(() => expect(refrescarSesion).toHaveBeenCalledTimes(1))
-    await render(
-      <ProveedorDeSesion>
-        <VisorEntrada />
-      </ProveedorDeSesion>,
-    )
     await fireEvent.press(screen.getByRole("button", { name: "Entrar" }))
     expect(iniciarSesion).not.toHaveBeenCalled()
 
@@ -303,6 +302,77 @@ it("el inicio de sesión espera a la renovación de otra pestaña", async () => 
       tokenRefresco: "refresco-nuevo",
     })
     await waitFor(() => expect(iniciarSesion).toHaveBeenCalledTimes(1))
+  } finally {
+    Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
+    Reflect.deleteProperty(globalThis.navigator, "locks")
+  }
+})
+
+it("el cierre de sesión espera a una renovación en curso antes de borrar la credencial", async () => {
+  const plataformaAnterior = Platform.OS
+  Object.defineProperty(Platform, "OS", { value: "web", configurable: true })
+  let cola = Promise.resolve()
+  Object.defineProperty(globalThis.navigator, "locks", {
+    configurable: true,
+    value: {
+      request: (_nombre: string, _opciones: unknown, accion: () => Promise<unknown>) => {
+        const siguiente = cola.then(accion)
+        cola = siguiente.then(
+          () => undefined,
+          () => undefined,
+        )
+        return siguiente
+      },
+    },
+  })
+  let guardado: string | null = "refresco"
+  jest.mocked(leerTokenRefresco).mockImplementation(async () => guardado)
+  jest.mocked(guardarTokenRefresco).mockImplementation(async (token) => {
+    guardado = token
+  })
+  jest.mocked(borrarTokenRefresco).mockImplementation(async () => {
+    guardado = null
+  })
+  let resolverSegunda: (sesion: Awaited<ReturnType<typeof refrescarSesion>>) => void = () =>
+    undefined
+  jest
+    .mocked(refrescarSesion)
+    .mockResolvedValueOnce({
+      usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+      tokenAcceso: "acceso-A",
+      tokenRefresco: "refresco-A",
+    })
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolverSegunda = resolve
+        }),
+    )
+  try {
+    await render(
+      <>
+        <ProveedorDeSesion>
+          <Visor />
+        </ProveedorDeSesion>
+        <ProveedorDeSesion>
+          <Visor />
+        </ProveedorDeSesion>
+      </>,
+    )
+    await screen.findByText("dentro")
+    await waitFor(() => expect(refrescarSesion).toHaveBeenCalledTimes(2))
+    const salirPrimera = screen.getAllByRole("button", { name: "Salir" })[0]
+    if (!salirPrimera) throw new Error("Falta el botón de la primera pestaña")
+    await fireEvent.press(salirPrimera)
+    expect(borrarTokenRefresco).not.toHaveBeenCalled()
+
+    resolverSegunda({
+      usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+      tokenAcceso: "acceso-B",
+      tokenRefresco: "refresco-B",
+    })
+    await waitFor(() => expect(borrarTokenRefresco).toHaveBeenCalledTimes(1))
+    expect(guardado).toBeNull()
   } finally {
     Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
     Reflect.deleteProperty(globalThis.navigator, "locks")
