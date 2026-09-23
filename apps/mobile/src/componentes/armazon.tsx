@@ -3,7 +3,7 @@ import { usePathname, useRouter, type Href } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useSesion } from "../sesion"
-import { tema } from "../tema"
+import { fondoDeMarca, tema } from "../tema"
 
 type Destino = { ruta: Href; nombre: string; icono: string }
 const entrenador: Destino[] = [
@@ -119,7 +119,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   )
 }
 const s = StyleSheet.create({
-  raiz: { flex: 1, backgroundColor: tema.fondo },
+  raiz: { flex: 1, ...fondoDeMarca },
   cabecera: {
     width: "100%",
     maxWidth: 820,
@@ -143,17 +143,17 @@ const s = StyleSheet.create({
   avatar: {
     width: 44,
     height: 44,
-    backgroundColor: tema.borde,
+    backgroundColor: tema.acentoSuave,
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: tema.borde,
+    borderColor: tema.bordeFuerte,
   },
-  inicial: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
+  inicial: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 18 },
   contenido: { flex: 1, minHeight: 0, width: "100%", maxWidth: 820, alignSelf: "center" },
   pie: { backgroundColor: tema.superficie, borderTopColor: tema.borde, borderTopWidth: 1 },
-  fondo: { backgroundColor: tema.fondo },
+  fondo: { backgroundColor: "transparent" },
   navegacion: {
     flexDirection: "row",
     maxWidth: 820,

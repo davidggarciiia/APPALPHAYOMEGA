@@ -78,7 +78,7 @@ function Enrutador(): React.JSX.Element {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: tema.fondo },
+          contentStyle: { backgroundColor: "transparent" },
         }}
       />
     </Armazon>
