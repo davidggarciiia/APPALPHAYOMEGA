@@ -276,3 +276,40 @@ tramos verticales:
    alternativa).
 2. El entrenador y el nutricionista pueden preparar y publicar la dieta del
    mismo cliente.
+
+## F08 — Diseño de las vistas de entrenamiento
+
+**Estado:** código hecho en `dc2b428`; **falta la comprobación visual con la API
+real**, porque Docker está apagado y no hay base de datos.
+
+**Qué cambia:** solo `agenda-semanal.tsx`, `tabla-series.tsx`,
+`registro-cliente.tsx` y `resultado.tsx`, con los tokens de C01 y siguiendo
+`Alpha Omega App v2.dc.html`:
+
+| Elemento          | Antes (monocromo)            | Ahora (referencia v2)                                                                                                                                |
+| ----------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Día elegido       | Fondo `acento`               | Fondo `texto` (negro) y letra clara                                                                                                                  |
+| Punto del día     | Carácter «●»                 | Barra de 22×4: `exito` si todo está enviado, `boton` si queda algo pendiente                                                                         |
+| Foto de la sesión | Filtro de escala de grises   | En color                                                                                                                                             |
+| «Hoy · …»         | Gris                         | `acento` en mayúsculas                                                                                                                               |
+| Botón principal   | `acento`, 17 px              | `boton`, 19 px en negrita: texto grande WCAG, por encima de 3:1 como `BotonPrincipal`                                                                |
+| Serie hecha       | Fila `fondo`                 | Fila `exitoSuave`; la marca pasa a `exito`; los campos a `suave`                                                                                     |
+| Progreso          | Negro                        | `boton`                                                                                                                                              |
+| Resultado enviado | Círculo de 72 px en `acento` | Círculo de 90 px en `boton`, título en mayúsculas y dos cifras reales: series hechas y fecha y hora de envío. «Hecho» en `exito` y «Omitida» en gris |
+
+**Qué no cambia:** comportamiento, datos, etiquetas accesibles ni la lógica de
+registro de Codex. No se ha inventado ninguna cifra; la duración que muestra el
+prototipo se omite porque la API no la tiene.
+
+**Verificación:** `npm run typecheck`, `npm run lint` y
+`npm run test --workspace apps/mobile -- --runInBand` (17 suites, 91 tests) pasan
+en la copia de Fable.
+
+**Pendiente:**
+
+- Revisión visual a 320, 390, 768 y 1440 px con la API real.
+- Guardar y reabrir un borrador sintético.
+- Consultar un resultado ya enviado.
+
+Todo eso necesita Docker encendido, una base de pruebas propia de Fable y la API
+en el puerto 3100 con Metro en el 8181.
