@@ -40,7 +40,9 @@ sus medios, el editor de rutinas y las pantallas del entrenador. Recibe primero
 el tema de C01 y después trabaja esas vistas sin que Codex las edite en paralelo.
 F03b sustituye la anterior C06; F08 absorbe las vistas de C03 y F10 las pruebas
 físicas de C07b. El plan de coordinación delimita archivos y dependencias.
-No compres animaciones: primero una muestra gratuita con permiso comprobado.
+David confirmó que esta iteración usa exclusivamente contenido gratuito. Evalúa
+la muestra de RepDB Free con permiso comprobado y demuestra el movimiento real
+que verá el cliente antes de cerrar el contrato. No compres animaciones.
 No implementes nutrición sobre suposiciones: F06 especifica y F07 desglosa antes.
 
 Entrega por incrementos en `tasks/iteracion-3/entrega-fable.md`, con commits,

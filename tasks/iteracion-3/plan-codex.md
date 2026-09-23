@@ -31,8 +31,8 @@ hace en checkpoints, sin repetirla después de cada edición puramente documenta
 **Dependencias:** revisión del reparto. **Tamaño:** S, documentación/aislamiento.
 **Archivos:** este plan y `tasks/iteracion-3/integracion.md` (nuevo).
 
-- [ ] Registrar ramas, SHA base, trabajo previo de Fable si existe y rutas asignadas.
-- [ ] Preparar worktree de Fable sin mover los cuatro cambios de diseño de Codex;
+- [x] Registrar ramas, SHA base, trabajo previo de Fable si existe y rutas asignadas.
+- [x] Preparar worktree de Fable sin mover los cuatro cambios de diseño de Codex;
       facilitar los documentos vigentes si aún no están en el SHA de su copia.
 - [ ] Acordar bases/puertos y registrar la línea base de verificación y sus límites.
 
@@ -45,9 +45,9 @@ copia; comprobar que el trabajo pendiente y `PDF/` siguen intactos.
 **Archivos:** `apps/mobile/src/tema.ts`, `src/componentes/armazon.tsx`,
 `src/componentes/formulario.tsx`, `apps/mobile/app/_layout.tsx`.
 
-- [ ] Contrastar los cambios pendientes con el HTML del ZIP: fondo crema, tarjetas
+- [x] Contrastar los cambios pendientes con el HTML del ZIP: fondo crema, tarjetas
       blancas, botones dorados y estado completado verde, con textos legibles.
-- [ ] Mantener contraste en formularios claros y acceso oscuro, incluidos errores,
+- [x] Mantener contraste en formularios claros y acceso oscuro, incluidos errores,
       foco, deshabilitados y el estado seleccionado de navegación.
 - [ ] Comprobar en web y separar cualquier limitación de gradientes nativos;
       no cambiar sesión ni datos para resolver un estilo.
@@ -61,7 +61,7 @@ copia; comprobar que el trabajo pendiente y `PDF/` siguen intactos.
 **Archivos:** `apps/mobile/app/login.tsx`, `activar.tsx`, `recuperar.tsx`,
 `restablecer.tsx`, `perfil.tsx`.
 
-- [ ] Enlaces y mensajes visibles sobre el fondo oscuro; avatar y acciones del
+- [x] Enlaces y mensajes visibles sobre el fondo oscuro; avatar y acciones del
       perfil con el color de su función en el ZIP.
 - [ ] Editar, guardar y cancelar siguen funcionando; renovar acceso no borra el
       formulario. No alterar credenciales ni repoblar datos editados por David.

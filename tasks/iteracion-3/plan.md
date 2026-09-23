@@ -157,9 +157,10 @@ común; no se vuelven a repartir las mismas comprobaciones como dos implementaci
 - La referencia visual vigente es `C:/Users/david/Downloads/Theme files review (1).zip`:
   crema, blanco, dorado y verde de completado. La corrección posterior sustituye
   el anterior blanco y negro; comparar roles del color, no recolorear todo de oro.
-- Animaciones: probar una muestra antes de comprar. No se aprueba un proveedor,
-  pago, dependencia ni cobertura de todo el catálogo por escribir este plan.
-  Si no existe permiso offline, no se promete ni se implementa esa descarga.
+- Animaciones: David confirmó que esta iteración usa únicamente
+  opciones gratuitas. Fable evalúa RepDB Free y presenta una muestra real para
+  verificar calidad, derechos y tipo de movimiento; el contrato no presume MP4.
+  No se promete cobertura de todo el catálogo ni descarga offline sin licencia.
 - Este cierre incluye la prueba integrada de animaciones, no el mapa muscular,
   una biblioteca completa de medios, subida de vídeos propios ni agenda mensual,
   clases y horarios. Son ampliaciones pendientes conservadas en el mapa general.

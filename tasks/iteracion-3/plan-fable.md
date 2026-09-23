@@ -69,8 +69,9 @@ de esa frontera se solicitan con reproducción/contrato, sin refactor cruzado.
 **Archivos:** `docs/animaciones-ejercicios.md`, `tasks/iteracion-3/entrega-fable.md`.
 
 - [ ] Partir de la investigación existente y verificar en fuentes oficiales los
-      archivos y permisos concretos. Preferencia: muestra gratuita; pago único solo
-      si posteriormente encaja y David lo autoriza. No comprar ni abrir cuentas.
+      archivos y permisos concretos. David confirmó que esta iteración usa solo
+      material gratuito. Evaluar RepDB Free sin asumir que sus imágenes estáticas
+      equivalen por sí solas al movimiento que el cliente debe ver; no comprar.
 - [ ] Proponer uno o dos ejercicios reales, mapeo inequívoco al catálogo, formato,
       tamaño y evidencia de licencia para app, distribución y uso offline. Registrar
       limitaciones; no confundir una preview pública con permiso de integración.
