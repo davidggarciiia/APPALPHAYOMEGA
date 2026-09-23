@@ -56,7 +56,7 @@ export async function entornoNutricion(nombre: string): Promise<{
     const usuario = await prisma.usuario.create({
       data: {
         nombre: clave,
-        email: `${clave}${sufijo}`,
+        email: `${clave.toLowerCase()}${sufijo}`,
         passwordHash,
         rol: datos.rol,
         estado: datos.estado,
