@@ -70,6 +70,10 @@ model Usuario {
   cambiosDeFecha CambioDeFecha[]
   rutinasGuardadas RutinaGuardada[]
 
+  dietas           Dieta[] @relation("DietasCliente")
+  dietasCreadas    Dieta[] @relation("DietasCreadas")
+  dietasPublicadas Dieta[] @relation("DietasPublicadas")
+
   @@map("usuarios")
 }
 
@@ -360,4 +364,42 @@ model OperacionEntrenamiento {
   creadoEn DateTime @default(now())
   @@id([sesionId, operacionId])
   @@map("operaciones_entrenamiento")
+}
+
+enum EstadoDieta {
+  borrador
+  publicada
+  archivada
+}
+
+/// Dieta de un cliente (SPEC-nutricion.md). El documento completo va en JSON,
+/// validado con Zod en cada escritura y lectura, como la prescripción.
+///
+/// Un cliente tiene como mucho un borrador y una publicada: lo garantizan dos
+/// índices únicos parciales escritos en la migración, porque Prisma no los
+/// expresa en el esquema. Una publicada o archivada no se modifica nunca.
+model Dieta {
+  id                   String      @id @default(uuid())
+  clienteId            String
+  cliente              Usuario     @relation("DietasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  estado               EstadoDieta
+  /// Versión del formato del documento, para poder migrarlo sin reescribir filas.
+  version              Int         @default(1)
+  documento            Json
+  revision             Int         @default(0)
+  /// Idempotencia de la publicación: el mismo id devuelve el mismo resultado.
+  operacionPublicacion String?
+  hashPublicacion      String?
+  creadaPorId          String
+  creadaPor            Usuario     @relation("DietasCreadas", fields: [creadaPorId], references: [id], onDelete: Restrict)
+  publicadaPorId       String?
+  publicadaPor         Usuario?    @relation("DietasPublicadas", fields: [publicadaPorId], references: [id], onDelete: Restrict)
+  creadaEn             DateTime    @default(now())
+  actualizadaEn        DateTime    @updatedAt
+  publicadaEn          DateTime?
+  archivadaEn          DateTime?
+
+  @@unique([clienteId, operacionPublicacion])
+  @@index([clienteId, estado])
+  @@map("dietas")
 }
