@@ -26,8 +26,13 @@ const RANGOS_PRIVADOS = [
   /^172\.(1[6-9]|2\d|3[01])\./,
 ]
 
-/** Puerto en el que escucha la API durante el desarrollo. */
-const PUERTO_DE_DESARROLLO = 3000
+/**
+ * Puerto en el que escucha la API durante el desarrollo. Por defecto 3000; otra
+ * copia de trabajo que arranque su propia API puede fijar EXPO_PUBLIC_API_PUERTO.
+ */
+const PUERTO_DE_DESARROLLO = /^\d{2,5}$/.test(process.env.EXPO_PUBLIC_API_PUERTO ?? "")
+  ? Number(process.env.EXPO_PUBLIC_API_PUERTO)
+  : 3000
 
 export function direccionDeLaApi(): string {
   const configurada = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, "")
