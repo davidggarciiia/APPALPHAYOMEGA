@@ -4,6 +4,7 @@ import { CatalogoEjerciciosModule } from "./catalogo-ejercicios/catalogo-ejercic
 import { EntrenamientoModule } from "./entrenamiento/entrenamiento.module.js"
 import { CorreoModule } from "./correo/correo.module.js"
 import { IdentityModule } from "./identity/identity.module.js"
+import { NutricionModule } from "./nutricion/nutricion.module.js"
 import { PrismaModule } from "./prisma/prisma.module.js"
 import { SaludModule } from "./salud/salud.module.js"
 
@@ -18,6 +19,7 @@ import { SaludModule } from "./salud/salud.module.js"
     SaludModule,
     CatalogoEjerciciosModule,
     EntrenamientoModule,
+    NutricionModule,
   ],
 })
 export class AppModule {}
