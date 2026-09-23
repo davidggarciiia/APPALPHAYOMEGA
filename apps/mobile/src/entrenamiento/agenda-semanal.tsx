@@ -105,8 +105,17 @@ export function AgendaSemanal({
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dias}>
         {["L", "M", "X", "J", "V", "S", "D"].map((nombre, n) => {
           const fecha = sumarDias(semana, n)
-          const cantidad = sesiones.filter((s) => s.agenda.fechaActual === fecha).length
+          const delDia = sesiones.filter((sesion) => sesion.agenda.fechaActual === fecha)
+          const cantidad = delDia.length
           const seleccionado = dia === fecha
+          // Como en la referencia: verde si todo está enviado, dorado si queda algo.
+          // La etiqueta accesible ya dice cuántas sesiones hay; el color no es la única pista.
+          const marca =
+            cantidad === 0
+              ? null
+              : delDia.every((sesion) => sesion.enviadoEn !== null)
+                ? s.marcaHecha
+                : s.marcaPendiente
           return (
             <Pressable
               key={fecha}
@@ -116,9 +125,9 @@ export function AgendaSemanal({
               accessibilityLabel={`${fechaLegible(fecha)} · ${cantidad} sesiones`}
               onPress={() => setDia(seleccionado ? null : fecha)}
             >
-              <Text style={[s.diaNombre, seleccionado && s.claro]}>{nombre}</Text>
+              <Text style={[s.diaNombre, seleccionado && s.claroTenue]}>{nombre}</Text>
               <Text style={[s.numero, seleccionado && s.claro]}>{Number(fecha.slice(-2))}</Text>
-              <Text style={[s.punto, seleccionado && s.claro]}>{cantidad > 0 ? "●" : "·"}</Text>
+              <View style={[s.marca, marca]} />
             </Pressable>
           )
         })}
@@ -163,7 +172,9 @@ export function AgendaSemanal({
                     </Text>
                   )}
                 </View>
-                <Text style={s.flechaTarjeta}>{sesion.enviadoEn === null ? "›" : "✓"}</Text>
+                <Text style={[s.flechaTarjeta, sesion.enviadoEn !== null && s.enviado]}>
+                  {sesion.enviadoEn === null ? "›" : "✓"}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -201,11 +212,14 @@ const s = StyleSheet.create({
     gap: 5,
   },
   hoy: { borderColor: tema.texto },
-  seleccionado: { backgroundColor: tema.acento },
+  seleccionado: { backgroundColor: tema.texto, borderColor: tema.texto },
   diaNombre: { fontSize: 11, color: tema.textoTenue, fontFamily: tema.fuenteBoton },
   numero: { fontSize: 18, color: tema.texto, fontFamily: tema.fuenteBoton },
-  punto: { color: tema.texto, fontSize: 10, height: 12 },
+  marca: { width: 22, height: 4, borderRadius: 2 },
+  marcaHecha: { backgroundColor: tema.exito },
+  marcaPendiente: { backgroundColor: tema.boton },
   claro: { color: tema.sobreAcento },
+  claroTenue: { color: tema.tenueSobreOscuro },
   tarjeta: {
     backgroundColor: tema.superficie,
     borderColor: tema.borde,
@@ -220,6 +234,7 @@ const s = StyleSheet.create({
   fecha: { color: tema.textoTenue, fontSize: 13, fontFamily: tema.fuenteTexto },
   nombre: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
   flechaTarjeta: { color: tema.textoTenue, fontSize: 24 },
+  enviado: { color: tema.exito },
   vacio: {
     color: tema.textoTenue,
     fontFamily: tema.fuenteTexto,
@@ -242,12 +257,12 @@ const s = StyleSheet.create({
     maxHeight: 280,
     borderRadius: 14,
     resizeMode: "cover",
-    filter: "grayscale(100%)",
   },
   leyendaClara: {
-    color: tema.textoTenue,
+    color: tema.acento,
     fontSize: 12,
-    letterSpacing: 1.5,
+    letterSpacing: 2.4,
+    textTransform: "uppercase",
     fontFamily: tema.fuenteBoton,
   },
   tituloClaro: {
@@ -266,14 +281,16 @@ const s = StyleSheet.create({
   accionClara: {
     minHeight: 56,
     borderRadius: 14,
-    backgroundColor: tema.acento,
+    backgroundColor: tema.boton,
     alignItems: "center",
     justifyContent: "center",
     padding: 12,
   },
+  // 19 px en negrita cuenta como texto grande (WCAG): el blanco sobre el dorado
+  // del botón supera 3:1, igual que en BotonPrincipal.
   textoAccion: {
     color: tema.sobreAcento,
     fontFamily: tema.fuenteBoton,
-    fontSize: 17,
+    fontSize: 19,
   },
 })

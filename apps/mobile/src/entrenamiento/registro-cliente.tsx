@@ -232,7 +232,7 @@ export function RegistroCliente({
           style={{
             height: 6,
             borderRadius: 3,
-            backgroundColor: tema.texto,
+            backgroundColor: tema.boton,
             width: `${(hechas / documento.edicion.series.length) * 100}%`,
           }}
         />

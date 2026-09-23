@@ -1,4 +1,4 @@
-import { Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   Prescripcion,
   ResultadoEntrenamiento,
@@ -20,36 +20,36 @@ export function PrescripcionVisible({
   return (
     <View style={{ gap: 18 }}>
       {resultado && (
-        <View style={{ gap: 10, alignItems: "center", paddingVertical: 24 }}>
-          <View
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: 36,
-              backgroundColor: tema.acento,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Text style={{ color: tema.sobreAcento, fontSize: 36 }}>✓</Text>
+        <View style={estilos.cabecera}>
+          <View style={estilos.circulo}>
+            <Text style={estilos.marca}>✓</Text>
           </View>
-          <Text
-            style={{
-              color: tema.texto,
-              fontSize: 34,
-              fontFamily: tema.fuenteTitulo,
-              textAlign: "center",
-            }}
-          >
+          <Text style={estilos.titulo} accessibilityRole="header">
             Entrenamiento enviado
           </Text>
-          <Text style={{ color: tema.textoTenue }}>
-            {resultado.series.filter((s) => s.hecha).length} de {resultado.series.length} series
-            completadas
-          </Text>
-          <Text style={{ color: tema.textoTenue }}>
-            Enviado el {new Date(resultado.enviadoEn).toLocaleString("es-ES")}
-          </Text>
+          <View style={estilos.datos}>
+            <View style={estilos.dato}>
+              <Text style={estilos.cifra}>
+                {resultado.series.filter((serie) => serie.hecha).length}/{resultado.series.length}
+              </Text>
+              <Text style={estilos.leyenda}>series completadas</Text>
+            </View>
+            <View style={estilos.dato}>
+              <Text style={estilos.cifra}>
+                {new Date(resultado.enviadoEn).toLocaleDateString("es-ES", {
+                  day: "numeric",
+                  month: "short",
+                })}
+              </Text>
+              <Text style={estilos.leyenda}>
+                enviado a las{" "}
+                {new Date(resultado.enviadoEn).toLocaleTimeString("es-ES", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Text>
+            </View>
+          </View>
         </View>
       )}
       {prescripcion.ejercicios.map((e) => (
@@ -76,7 +76,7 @@ export function PrescripcionVisible({
                   Serie {n + 1} · Objetivo: {valoresLegibles(s)}
                 </Text>
                 {real && (
-                  <Text style={{ color: tema.texto, fontWeight: "600" }}>
+                  <Text style={real.hecha ? estilos.hecha : estilos.omitida}>
                     {real.hecha ? `Hecho: ${valoresLegibles(real.valores)}` : "Omitida"}
                   </Text>
                 )}
@@ -94,3 +94,37 @@ export function PrescripcionVisible({
     </View>
   )
 }
+
+const estilos = StyleSheet.create({
+  cabecera: { gap: 14, alignItems: "center", paddingVertical: 24 },
+  circulo: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: tema.boton,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  marca: { color: tema.sobreAcento, fontSize: 44, fontFamily: tema.fuenteBoton },
+  titulo: {
+    color: tema.texto,
+    fontSize: 40,
+    lineHeight: 40,
+    fontFamily: tema.fuenteTitulo,
+    textTransform: "uppercase",
+    textAlign: "center",
+  },
+  datos: { flexDirection: "row", gap: 10, alignSelf: "stretch" },
+  dato: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: tema.superficie,
+    borderWidth: 1,
+    borderColor: tema.borde,
+  },
+  cifra: { color: tema.texto, fontSize: 28, fontFamily: tema.fuenteTitulo },
+  leyenda: { color: tema.textoTenue, fontSize: 12, fontFamily: tema.fuenteTexto },
+  hecha: { color: tema.exito, fontFamily: tema.fuenteBoton },
+  omitida: { color: tema.textoTenue, fontFamily: tema.fuenteTexto },
+})
