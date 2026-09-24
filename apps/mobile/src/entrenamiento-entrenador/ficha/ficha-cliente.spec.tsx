@@ -4,6 +4,7 @@ import type { FichaDeUsuario } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import type { ApiNutricion } from "../../nutricion/api"
 import type { ApiSeguimiento } from "../../seguimiento/api"
+import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { FichaCliente } from "./ficha-cliente"
 
 const mockPush = jest.fn()
@@ -52,6 +53,7 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
       leerFicha={async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario}
       api={api}
       seguimiento={seguimiento}
+      valoraciones={{} as ApiValoraciones}
       nutricion={nutricion}
       nuevoId={() => "50000000-0000-4000-8000-000000000000"}
       editarPlan={jest.fn()}
