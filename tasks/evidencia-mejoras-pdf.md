@@ -106,3 +106,96 @@ actualizan con su subtarea): API `contratos.spec.ts`, `test/entrenamiento-ayuda.
   `SeriePrescritaDistanciaSchema` y `ValoresEjecutadosDistanciaSchema` a sus uniones.
 - Sin recorrido autenticado ni prueba en móvil físico: D01.a no cambia nada
   visible y la distancia aún no se puede elegir ni enviar.
+
+## D01.b
+
+**Cambio realizado.** Los modelos profesionales dejan de asumir dos unidades y
+representan la distancia con el contrato auxiliar de D01.a, sin ofrecerla aún
+en la interfaz ni publicarla:
+
+- `editor-modelo.ts`: tipos `SerieConDistancia` (prescrita o de distancia),
+  `TipoMedicion` y `SesionConDistancia` (una `SesionEnRutina` cuyas series
+  pueden ir en metros). `SerieEditable.tipoMedicion`
+  admite las tres unidades. Nuevas `desdeSerie` y `convertirSerie` (con
+  `switch` exhaustivo; la segunda aplica la regla de carga de siempre: sin
+  kilos si el ejercicio va sin carga externa o se calibra) y `unidadCorta`
+  («rep», «s», «m»). `desdeSesion` acepta `SesionConDistancia` y
+  `convertirSesion` usa `convertirSerie`, pero sigue validando con
+  `SesionEnRutinaSchema`: una serie en metros lanza hasta D01.g.
+- `constructor/modelo.ts`: `EjercicioDelConstructor.tipo` usa `TipoMedicion`.
+  `desdeSesionEnRutina` acepta `SesionConDistancia` y lee el objetivo con un
+  `switch` (`objetivoDeFila`). La construcción de series pasa a `seriesDeFila`
+  (exportada, sin validar, conserva `idsSeries`); `aSesionEnRutina` la usa y
+  sigue validando con el contrato público. `faltaEnDia` rechaza un rango en
+  metros («escribe los metros, como 20.») para que «8–10» no quede en 8 m.
+- `editor-plan.tsx`: la revisión del plan usa `unidadCorta` en vez de
+  `tiempo ? "s" : "rep"`.
+- Interfaz sin cambios: `editor-sesion.tsx` y `constructor/tabla.tsx` siguen
+  ofreciendo solo repeticiones y segundos; `nuevaSerie` y `nuevoEjercicio`
+  nacen en repeticiones (comprobado en pruebas y con
+  `grep -i "distancia\|metros"` sobre `editor-sesion.tsx`, `constructor/tabla.tsx`,
+  `constructor/partes.tsx` y `constructor/constructor.tsx`: sin resultados).
+
+No hay migración ni cambios en `packages/shared`.
+
+**Archivos:** `apps/mobile/src/entrenamiento-entrenador/editor-modelo.ts`,
+`editor-modelo.spec.ts`, `editor-plan.tsx` (mismo directorio),
+`apps/mobile/src/entrenamiento-entrenador/constructor/modelo.ts`,
+`constructor/modelo.spec.ts`, `tasks/evidencia-mejoras-pdf.md`.
+
+**Pruebas nuevas** (datos sintéticos):
+
+- `editor-modelo.spec.ts`, bloque «Distancia en metros (D01, aún sin
+  publicar)»: serie en metros con carga que se carga y se reescribe igual
+  (validada con `SeriePrescritaDistanciaSchema`), sin kilos si va sin carga o
+  calibrando; reabrir y volver a guardar una sesión con metros y repeticiones
+  conserva unidad, carga e ids; una sesión existente en repeticiones y segundos
+  produce el mismo documento; cambiar la unidad conserva id y carga sin dejar la
+  cantidad de la otra; `unidadCorta`; y el cierre «no se publica hasta D01.g»
+  (`convertirSesion` lanza) con las series nuevas en repeticiones.
+- `constructor/modelo.spec.ts`, bloque «distancia en metros en el constructor»:
+  reabrir/duplicar una fila en metros conserva unidad, carga, RIR e ids, y una
+  serie añadida recibe id nuevo con la misma unidad; sin carga o calibrando no
+  hay kilos; los metros no admiten rango mientras el mismo «8–10» sigue siendo
+  válido en repeticiones (con `repeticionesMax`), y pasar a metros conserva el
+  id sin arrastrar campos; y el cierre «no se publica hasta D01.g»
+  (`aSesionEnRutina` lanza) con las filas nuevas en repeticiones.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                             | Resultado                                                                                                        |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/mobile -- --runInBand editor-modelo.spec.ts modelo.spec.ts` (línea base) | 9 suites, 54 pruebas en verde                                                                                    |
+| Mismo comando con las pruebas nuevas y sin implementación                                           | 2 suites fallidas: 8 fallidas, 56 correctas (rojo esperado; ya pasaban el documento existente y los dos cierres) |
+| `npm test --workspace apps/mobile -- --runInBand editor-modelo.spec.ts modelo.spec.ts`              | 9 suites, 64 pruebas en verde                                                                                    |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                        | 51 suites, 304 pruebas en verde                                                                                  |
+| `npm run typecheck`                                                                                 | Correcto (shared, api y mobile)                                                                                  |
+| `npx eslint` sobre los cinco archivos de código                                                     | Sin avisos                                                                                                       |
+| `npx prettier --write` y `--check` sobre los cinco archivos de código y esta evidencia              | Aplicado; todos con el estilo de Prettier                                                                        |
+
+**Pendiente:**
+
+- D01.g debe invertir los dos cierres «no se publica hasta D01.g» de
+  `editor-modelo.spec.ts` y `constructor/modelo.spec.ts` (ahora esperan que
+  `convertirSesion`/`aSesionEnRutina` lancen con metros). Esos archivos no
+  figuran en la lista de D01.g: sumarlos a los ya señalados en D01.a
+  (`contratos.spec.ts`) o hacerlo en una subtarea propia. Tras activar, los
+  tipos `SerieConDistancia`/`SesionConDistancia` equivalen a los públicos y
+  pueden simplificarse.
+- Consumidor no incluido en el inventario de D01.a:
+  `constructor/partes.tsx:46,50` (etiqueta y marcador del objetivo con
+  `e.tipo === "tiempo" ? … : …`). Añadirlo a D01.e junto a
+  `constructor/tabla.tsx:283-284` (interruptor «Se mide en segundos», que con
+  una fila en metros mostraría «apagado» y la pasaría a segundos).
+- Para D01.e: en `faltaEnDia`, una fila en segundos sigue aceptando «30–40» y
+  publica 30 s, y su mensaje habla de repeticiones. No se ha cambiado aquí para
+  no alterar el comportamiento de segundos fuera de la subtarea.
+- Observación ajena a D01, sin cambiar: `convertirSesion` solo reescribe id,
+  ejercicio, indicaciones, `modoRir`, `tipoCarga`, `calibrar` y las series, y
+  `convertirSerie` no emite `repeticionesMax`. Al «Ajustar esta sesión»
+  (`app/entrenador/sesion/[id]/ajustar.tsx`) una prescripción hecha con el
+  constructor pierde sección, RIR, descanso, dosis, nota, alternativas, subida,
+  compuesto y el tope del rango. Conviene revisarlo en una tarea propia.
+- Sin recorrido autenticado ni prueba en móvil físico: D01.b no cambia nada
+  visible salvo el texto de unidad de la revisión del plan, que para
+  repeticiones y segundos es idéntico.
