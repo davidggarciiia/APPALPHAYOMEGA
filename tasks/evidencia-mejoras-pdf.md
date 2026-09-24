@@ -651,3 +651,161 @@ de la mejor serie de la API (D01.f).
 - Sin recorrido autenticado ni prueba en móvil físico o navegador: la tabla,
   el panel con sus opciones de unidad y la etiqueta «En segundos» no se han
   revisado en pantalla real, en ancha ni en estrecha.
+
+## D01.f
+
+**Origen.** Un intento anterior se cortó por el límite de uso y dejó sin commit
+los dos servicios y las tres pruebas de esta sección. Se ha revisado entero, se
+ha comprobado el rojo con la lógica anterior y se ha ejecutado de nuevo; no ha
+hecho falta corregir el código.
+
+**Cambio realizado.** La entrega y la lectura de la API ya distinguen los
+metros, sin publicarlos: las uniones públicas siguen con dos unidades hasta
+D01.g, así que hoy nadie puede pautar, guardar ni enviar una serie en metros.
+
+- `registros.service.ts`: nueva `valoresHechos(real)`, exportada, con un
+  `switch` exhaustivo que escribe `repeticiones`, `segundos` o `metros` en lo
+  ejecutado. Antes, cualquier unidad distinta de tiempo acababa en
+  `repeticiones`: una serie en metros se habría guardado como
+  `repeticiones: undefined`. `enviar` la usa; el resto no cambia.
+  - La validación de entrega sigue siendo `crearRegistroDeSesionSchema` con
+    la prescripción del servidor, que desde D01.a aplica
+    `mantieneUnidadYCarga`: misma unidad que la pautada y la carga que pide el
+    ejercicio.
+  - Idempotencia y conflictos sin cambios: el reintento con el mismo
+    `operacionId` y el mismo contenido devuelve la misma respuesta; con otro
+    contenido, 409 `operacion_incompatible`, antes de validar.
+- `sesiones.service.ts`:
+  - `cantidad` pasa a un `switch` exhaustivo que incluye `metros`.
+  - `mejorSerie` («Anterior»), exportada: más carga y, a igual carga, más
+    cantidad, **pero solo en la misma unidad**. 20 m no superan 10
+    repeticiones, ni 40 s superan 6 repeticiones. Con unidades distintas e
+    igual carga se queda la primera serie, en el orden de la prescripción.
+  - `fuerzaEstimada`, exportada: la estimación de Epley que antes estaba en
+    línea en `fuerza`, con la misma lógica. Solo repeticiones con kilos;
+    tiempo y distancia devuelven `null` y no entran en «Fuerza».
+- `detalle.tsx` (prevista): **sin cambios.** La lectura del entrenador delega
+  en `PrescripcionVisible` (`resultado.tsx`, D01.d), que ya escribe «Hecho:
+  18 m · 34 kg». La nueva prueba de `detalle.spec.tsx` lo comprueba con el
+  resumen real. `api.resultado` usa el contrato público, así que hasta D01.g
+  no puede llegar un resultado en metros.
+- `seguimiento/progreso.tsx:368,377` (inventario de D01.a, «revisar»): sin
+  cambios. Lee `/fuerza`, que solo contiene repeticiones con kilos.
+
+No hay migración ni cambios en `packages/shared` ni en pantallas.
+
+**Archivos:** `apps/api/src/entrenamiento/registros.service.ts`,
+`sesiones.service.ts` (mismo directorio),
+`apps/api/test/entrenamiento-distancia.e2e-spec.ts` (nuevo),
+`apps/mobile/src/entrenamiento-entrenador/contratos.spec.ts`,
+`detalle.spec.tsx` (mismo directorio) y `tasks/evidencia-mejoras-pdf.md`. Son
+cinco archivos de código: `detalle.spec.tsx` ocupa el lugar de `detalle.tsx`,
+que no necesita cambios.
+
+**Pruebas nuevas** (datos sintéticos, sin datos personales):
+
+- `entrenamiento-distancia.e2e-spec.ts`:
+  - Bloque «Lo hecho y las métricas en metros (D01.f, sin publicar)», sin
+    base de datos, con valores validados con los contratos auxiliares:
+    - `valoresHechos`: metros con y sin carga, con RIR, sin `repeticiones` ni
+      `segundos`, y cumple `ValoresEjecutadosDistanciaSchema`. Repeticiones y
+      segundos se guardan igual que antes.
+    - `mejorSerie`: metros entre sí (más metros o más carga), repeticiones
+      contra metros y segundos contra repeticiones con la misma carga, y los
+      casos de siempre en la misma unidad.
+    - `fuerzaEstimada`: 20 kg × 10 → 26,7; metros con o sin carga, segundos
+      con carga, repeticiones sin kilos y ausencia dan `null`.
+  - Bloque HTTP «Entrega e histórico con la tercera unidad preparada (D01.f)»,
+    con las unidades actuales:
+    - cierre «hasta D01.g no se pueden pautar metros»: un plan con una serie
+      en metros recibe 400.
+    - otra unidad (`tiempo`/`distancia` en una serie de repeticiones,
+      `repeticiones`/`distancia` en una de segundos), una cantidad ajena
+      añadida, hecha sin peso cuando el objetivo lleva kilos y hecha sin
+      cantidad: 400 al guardar y al enviar. No se guarda borrador, resultado ni
+      operación y la agenda sigue abierta.
+    - reintento del envío: misma respuesta. Misma operación con otra unidad:
+      409 `operacion_incompatible` y el resultado guardado no cambia.
+    - histórico: un resultado anterior al RIR, al check-in y al cronómetro,
+      escrito directamente en la base, se lee igual en `/resultado` y en la
+      ficha. «Fuerza» solo cuenta 20 kg × 10 (los 5 kg de la plancha no) y
+      «Anterior» da esa serie. Después de leerlo, el documento guardado es el
+      mismo.
+  - Bloque `describe.skip` «metros de la pauta al resultado (preparado para
+    D01.g)», tres casos que **no cuentan como pasados**:
+    - pautar un transporte con carga (2 × 20 m, 32 kg) y zancadas sin carga
+      (30 m), guardar, reintentar, enviar con una omitida y leer resultado,
+      ficha, «Fuerza» (sin los ejercicios de metros) y «Anterior» en metros.
+    - rechazar otra unidad, `repeticiones` añadidas, 0, 12,5, vacío, falta de
+      peso con carga externa y kilos sin carga.
+    - tras cambiar la pauta a metros, la copia vieja choca
+      (`revision_obsoleta`) y las repeticiones ya no entran.
+- `contratos.spec.ts` (móvil), bloque «Distancia en metros en la lectura del
+  entrenador (D01, aún sin publicar)»:
+  - un resultado histórico se lee igual en la sesión y en la ficha
+    (`ListadoResultadosSchema`), sin campos añadidos. Otra unidad o una
+    cantidad ajena lo invalidan.
+  - `mantieneUnidadYCarga` con metros: carga externa, sin carga, repeticiones
+    contra metros y metros contra una serie de repeticiones.
+  - cierre «no se publica hasta D01.g»: resultado, ficha y «Anterior» aún
+    rechazan los metros.
+- `detalle.spec.tsx`: el detalle del entrenador, con el resumen real, lee
+  «Serie 1 · Objetivo: 20 m · 32 kg», «Hecho: 18 m · 34 kg», «Omitida» y
+  «1/2», sin ningún «rep». La prueba anterior sigue usando el resumen simulado.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                                                                                                  | Resultado                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run test:e2e --workspace apps/api -- --runTestsByPath test/entrenamiento-distancia.e2e-spec.ts test/entrenamiento-registro.e2e-spec.ts` con los servicios de `HEAD` | 1 suite fallida y 1 correcta, 8 pruebas en verde: la de distancia no compila porque faltan las exportaciones (rojo esperado)                                      |
+| `npm run test:e2e … entrenamiento-distancia.e2e-spec.ts` con la lógica de `HEAD` solo exportada (copia temporal, restaurada)                                             | 2 fallidas (`valoresHechos` y `mejorSerie`), 5 correctas y 3 omitidas. `fuerzaEstimada` ya dejaba fuera la distancia; las HTTP describen el comportamiento actual |
+| `npm run test:e2e --workspace apps/api -- --runTestsByPath test/entrenamiento-distancia.e2e-spec.ts test/entrenamiento-registro.e2e-spec.ts`                             | 2 suites en verde: 15 pruebas correctas y 3 omitidas (las preparadas para D01.g). Base desechable `alpha_omega_e2e_claude_d`                                      |
+| `npm run test:e2e … entrenamiento-concurrencia entrenamiento-novedades ficha-entrenador seguimiento` (regresión de envío, ficha y «Fuerza»)                              | 4 suites, 16 pruebas en verde                                                                                                                                     |
+| `npm test --workspace apps/api -- --runInBand` (regresión unitaria API)                                                                                                  | 17 suites, 104 pruebas en verde                                                                                                                                   |
+| `npm test --workspace apps/mobile -- --runInBand contratos.spec.ts`                                                                                                      | 1 suite, 9 pruebas en verde                                                                                                                                       |
+| `npm test --workspace apps/mobile -- --runInBand detalle.spec.tsx`                                                                                                       | 1 suite, 2 pruebas en verde                                                                                                                                       |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                                                                                             | 51 suites, 348 pruebas en verde                                                                                                                                   |
+| `npm run typecheck`                                                                                                                                                      | Correcto (shared, api y mobile)                                                                                                                                   |
+| `npx eslint` sobre los cinco archivos de código                                                                                                                          | Sin avisos                                                                                                                                                        |
+| `npx prettier --write` sobre los cinco archivos de código y esta evidencia                                                                                               | Aplicado                                                                                                                                                          |
+
+Las pruebas del móvil pasaban desde el principio: fijan lo que D01.a y D01.d
+ya hacían, porque `detalle.tsx` no cambia.
+
+**Ensayo de los casos preparados (no cuenta como pasado).** Para no dejar a
+D01.g casos mal escritos, se añadieron temporalmente las tres variantes de
+metros a las uniones públicas de `packages/shared/src/entrenamiento.ts`, se
+compiló `shared` y se quitó el `.skip`. Resultado: 9 correctas y 1 fallida, el
+cierre «hasta D01.g no se pueden pautar metros» (201 en vez de 400), como se
+espera al activar. Después se restauraron el contrato y la prueba, se volvió a
+compilar `shared` y se repitió la verificación de arriba. `git status` no
+muestra cambios en `packages/shared`. D01.g debe ejecutarlos de verdad.
+
+Inventario tras D01.f:
+`rg '=== "tiempo"|!== "tiempo"|"tiempo" \?|tipo: v \?'` sobre `apps/api/src`,
+`apps/mobile/src`, `apps/mobile/app` y `packages/shared/src`, fuera de las
+pruebas, no encuentra nada. En la API, `tipoMedicion` solo se lee en los
+`switch` de estos dos servicios.
+
+**Pendiente:**
+
+- D01.g, en `entrenamiento-distancia.e2e-spec.ts` (ya en su lista): quitar el
+  `.skip`, invertir el cierre «hasta D01.g no se pueden pautar metros» y
+  ejecutar los tres casos.
+- D01.g, fuera de su lista: invertir el cierre «no se publica hasta D01.g» de
+  `apps/mobile/src/entrenamiento-entrenador/contratos.spec.ts`. Se suma a los
+  ya señalados en D01.a, D01.b y D01.c. Tras activar, `ValoresEnUnidad`
+  (`sesiones.service.ts`) equivale a `ValoresEjecutados` y el parámetro de
+  `valoresHechos` puede ser solo `SerieRegistrada`.
+- **Cambio de comportamiento para repeticiones y segundos:** en «Anterior»,
+  con series de repeticiones y de segundos en el mismo ejercicio e igual
+  carga, antes ganaba la cifra mayor (40 s frente a 6 repeticiones) y ahora se
+  queda la primera. No cambia ningún documento guardado: solo lo que se
+  calcula al leer.
+- **Decisión para confirmar con David:** la carga se sigue comparando entre
+  unidades. En un ejercicio que mezcle series, 34 kg × 18 m gana a
+  32 kg × 10 repeticiones como «Anterior». Es la regla de siempre («más
+  carga»), pero no se ha consultado.
+- Sin recorrido autenticado ni prueba en móvil físico. El detalle del
+  entrenador en metros solo se ha comprobado con una API simulada; el
+  recorrido real depende de D01.g.
