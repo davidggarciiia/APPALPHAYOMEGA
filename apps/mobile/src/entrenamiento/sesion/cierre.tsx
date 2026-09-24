@@ -12,33 +12,58 @@ const CONTAR = [
   { valor: "incomodo", texto: "Algo incómodo" },
 ] as const
 
-/** «¿Cómo ha ido?»: el cierre del diseño, antes de enviar al entrenador. */
+/**
+ * «¿Cómo ha ido?»: el cierre del diseño, antes de enviar al entrenador. Con un
+ * envío en curso o pendiente se enseña lo enviado, sin controles: una edición
+ * posterior no viajaría.
+ */
 export function CierreDeSesion({
   subtitulo,
   resumen,
+  cierreInicial,
   notas,
   enviando,
   pendiente = false,
   error,
   enviar,
+  reintentar,
   volver,
 }: {
   /** «Empuje · 1 h 38 min». */
   subtitulo: string
   resumen: { hechas: number; omitidas: number; pendientes: number }
+  /** El cierre guardado: el del envío pendiente o, si no lo hay, el de la edición. */
+  cierreInicial: Cierre | null
   notas: string
   enviando: boolean
+  /** Hay un envío guardado: se muestra tal cual y solo se puede reintentar. */
   pendiente?: boolean
   error: string
   enviar: (cierre: Cierre, notas: string) => void
+  /** Reintenta el envío pendiente con su contenido original. */
+  reintentar: () => void
   volver: () => void
 }): React.JSX.Element {
-  const [esfuerzo, setEsfuerzo] = useState(5)
-  const [energia, setEnergia] = useState<number | null>(null)
-  const [contar, setContar] = useState<"bien" | "incomodo" | null>(null)
+  const [esfuerzo, setEsfuerzo] = useState(cierreInicial?.esfuerzo ?? 5)
+  const [energia, setEnergia] = useState<number | null>(cierreInicial?.energia ?? null)
+  const [contar, setContar] = useState<"bien" | "incomodo" | null>(
+    cierreInicial === null ? null : cierreInicial.incomodo ? "incomodo" : "bien",
+  )
   const [nota, setNota] = useState(notas)
   const [escribiendo, setEscribiendo] = useState(notas !== "")
   const [aviso, setAviso] = useState("")
+  // Lo que se pulsó al enviar. Sin pulsar, una operación ajena no congela nada.
+  const [enviado, setEnviado] = useState<{ cierre: Cierre; nota: string } | null>(null)
+  const elegido: Cierre | null =
+    energia === null || contar === null
+      ? null
+      : { esfuerzo, energia, incomodo: contar === "incomodo" }
+  // Pendiente: manda lo guardado. Primer envío: lo que se acaba de enviar.
+  const congelado: { cierre: Cierre | null; nota: string } | null = pendiente
+    ? { cierre: cierreInicial, nota: notas }
+    : enviando
+      ? enviado
+      : null
 
   return (
     <ScrollView contentContainerStyle={s.contenido} keyboardShouldPersistTaps="handled">
@@ -57,62 +82,119 @@ export function CierreDeSesion({
           {resumen.hechas} hechas · {resumen.omitidas} omitidas · {resumen.pendientes} pendientes
         </Text>
       </View>
-      <View style={s.grupo}>
-        <Pregunta valor={`${esfuerzo} de 10`}>¿Cuánto te ha costado?</Pregunta>
-        <Deslizador
-          valor={esfuerzo}
-          cambiar={setEsfuerzo}
-          maximo={10}
-          etiqueta="Cuánto te ha costado, de 0 a 10"
+      {congelado !== null ? (
+        <CierreEnviado
+          cierre={congelado.cierre}
+          nota={congelado.nota.trim()}
+          pendiente={pendiente}
         />
-      </View>
-      <View style={s.grupo}>
-        <Pregunta>¿Cómo terminas?</Pregunta>
-        <Opciones
-          etiqueta="Cómo terminas, de 1, vacío, a 5, con energía"
-          opciones={ENERGIA}
-          valor={energia}
-          cambiar={setEnergia}
-          extremos={["Vacío", "Con energía"]}
-        />
-      </View>
-      <View style={s.grupo}>
-        <Pregunta>¿Algo que contar?</Pregunta>
-        <Chips
-          etiqueta="Algo que contar"
-          opciones={CONTAR}
-          elegidas={contar === null ? [] : [contar]}
-          cambiar={(elegidas) => setContar(elegidas[0] ?? null)}
-        />
-        {escribiendo ? (
-          <TextInput
-            value={nota}
-            onChangeText={setNota}
-            accessibilityLabel="Nota para tu entrenador"
-            placeholder="Cuéntale a tu entrenador lo que quieras"
-            placeholderTextColor={tema.marcador}
-            multiline
-            maxLength={2000}
-            style={s.nota}
-          />
-        ) : (
-          <Enlace texto="Añadir nota" onPress={() => setEscribiendo(true)} />
-        )}
-      </View>
+      ) : (
+        <>
+          <View style={s.grupo}>
+            <Pregunta valor={`${esfuerzo} de 10`}>¿Cuánto te ha costado?</Pregunta>
+            <Deslizador
+              valor={esfuerzo}
+              cambiar={setEsfuerzo}
+              maximo={10}
+              etiqueta="Cuánto te ha costado, de 0 a 10"
+            />
+          </View>
+          <View style={s.grupo}>
+            <Pregunta>¿Cómo terminas?</Pregunta>
+            <Opciones
+              etiqueta="Cómo terminas, de 1, vacío, a 5, con energía"
+              opciones={ENERGIA}
+              valor={energia}
+              cambiar={setEnergia}
+              extremos={["Vacío", "Con energía"]}
+            />
+          </View>
+          <View style={s.grupo}>
+            <Pregunta>¿Algo que contar?</Pregunta>
+            <Chips
+              etiqueta="Algo que contar"
+              opciones={CONTAR}
+              elegidas={contar === null ? [] : [contar]}
+              cambiar={(elegidas) => setContar(elegidas[0] ?? null)}
+            />
+            {escribiendo ? (
+              <TextInput
+                value={nota}
+                onChangeText={setNota}
+                accessibilityLabel="Nota para tu entrenador"
+                placeholder="Cuéntale a tu entrenador lo que quieras"
+                placeholderTextColor={tema.marcador}
+                multiline
+                maxLength={2000}
+                style={s.nota}
+              />
+            ) : (
+              <Enlace texto="Añadir nota" onPress={() => setEscribiendo(true)} />
+            )}
+          </View>
+        </>
+      )}
       {(aviso !== "" || error !== "") && <AvisoDeError mensaje={aviso || error} />}
       <BotonDorado
         texto={pendiente ? "Reintentar envío pendiente" : "Enviar a tu entrenador"}
         ocupado={enviando}
         onPress={() => {
-          if (energia === null || contar === null) {
+          setAviso("")
+          // El reintento repite la intención guardada: no vuelve a preguntar.
+          if (pendiente) {
+            reintentar()
+            return
+          }
+          if (elegido === null) {
             setAviso("Dinos cómo terminas y si hay algo que contar.")
             return
           }
-          setAviso("")
-          enviar({ esfuerzo, energia, incomodo: contar === "incomodo" }, nota)
+          setEnviado({ cierre: elegido, nota })
+          enviar(elegido, nota)
         }}
       />
     </ScrollView>
+  )
+}
+
+/** Resumen de solo consulta de lo que se envía al entrenador. */
+function CierreEnviado({
+  cierre,
+  nota,
+  pendiente,
+}: {
+  cierre: Cierre | null
+  nota: string
+  pendiente: boolean
+}): React.JSX.Element {
+  return (
+    <View style={s.grupo}>
+      <Text style={s.seccion} accessibilityRole="header">
+        Tu feedback
+      </Text>
+      <Text style={s.resumen} accessibilityLiveRegion="polite">
+        {pendiente
+          ? "Tu envío está guardado en este dispositivo y se enviará tal cual. Ya no se puede cambiar."
+          : "Se está enviando tal cual. Ya no se puede cambiar."}
+      </Text>
+      {cierre === null ? (
+        <Text style={s.resumen}>Sin feedback registrado</Text>
+      ) : (
+        <>
+          <Pregunta valor={`${cierre.esfuerzo} de 10`}>¿Cuánto te ha costado?</Pregunta>
+          <Pregunta valor={`${cierre.energia} de 5`}>¿Cómo terminas?</Pregunta>
+          <Pregunta valor={cierre.incomodo ? "Algo incómodo" : "Todo bien"}>
+            ¿Algo que contar?
+          </Pregunta>
+        </>
+      )}
+      {nota !== "" && (
+        <View style={s.notaEnviada}>
+          <Text style={s.etiqueta}>Nota para tu entrenador</Text>
+          <Text style={s.textoNota}>{nota}</Text>
+        </View>
+      )}
+    </View>
   )
 }
 
@@ -142,4 +224,14 @@ const s = StyleSheet.create({
     padding: 12,
     textAlignVertical: "top",
   },
+  notaEnviada: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: tema.borde,
+    backgroundColor: tema.superficie,
+    padding: 12,
+    gap: 4,
+  },
+  etiqueta: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
+  textoNota: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
 })

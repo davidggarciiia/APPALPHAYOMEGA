@@ -109,10 +109,12 @@ describe("CierreDeSesion", () => {
       <CierreDeSesion
         subtitulo="Empuje · 1 h 38 min"
         resumen={{ hechas: 5, omitidas: 1, pendientes: 2 }}
+        cierreInicial={null}
         notas=""
         enviando={false}
         error=""
         enviar={enviar}
+        reintentar={() => undefined}
         volver={() => undefined}
       />,
     )
@@ -134,5 +136,146 @@ describe("CierreDeSesion", () => {
       { esfuerzo: 5, energia: 3, incomodo: true },
       "Hombro cargado",
     )
+  })
+
+  const comun = {
+    subtitulo: "Empuje · 1 h 38 min",
+    resumen: { hechas: 5, omitidas: 1, pendientes: 2 },
+    error: "",
+    volver: () => undefined,
+  }
+  const sinControles = (): void => {
+    expect(screen.queryAllByRole("radio")).toHaveLength(0)
+    expect(screen.queryByRole("adjustable")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Añadir nota" })).toBeNull()
+    expect(screen.queryByDisplayValue(/./)).toBeNull()
+  }
+
+  it("con el envío pendiente muestra lo comprometido sin controles y reintenta sin preguntar", async () => {
+    const enviar = jest.fn<(c: Cierre, notas: string) => void>()
+    const reintentar = jest.fn<() => void>()
+    await render(
+      <CierreDeSesion
+        {...comun}
+        cierreInicial={{ esfuerzo: 8, energia: 2, incomodo: true }}
+        notas="Me cansé"
+        enviando={false}
+        pendiente
+        enviar={enviar}
+        reintentar={reintentar}
+      />,
+    )
+    expect(screen.getByText("8 de 10")).toBeTruthy()
+    expect(screen.getByText("2 de 5")).toBeTruthy()
+    expect(screen.getByText("Algo incómodo")).toBeTruthy()
+    expect(screen.getByText("Me cansé")).toBeTruthy()
+    sinControles()
+
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar envío pendiente" }))
+    expect(reintentar).toHaveBeenCalledTimes(1)
+    expect(enviar).not.toHaveBeenCalled()
+    expect(screen.queryByText("Dinos cómo terminas y si hay algo que contar.")).toBeNull()
+  })
+
+  it("mientras se envía muestra lo elegido y no deja cambiarlo", async () => {
+    const enviar = jest.fn<(c: Cierre, notas: string) => void>()
+    const props = {
+      ...comun,
+      cierreInicial: null,
+      notas: "",
+      pendiente: false,
+      enviar,
+      reintentar: () => undefined,
+    }
+    await render(<CierreDeSesion {...props} enviando={false} />)
+    const deslizador = screen.getByRole("adjustable", { name: "Cuánto te ha costado, de 0 a 10" })
+    for (let i = 0; i < 3; i++)
+      await fireEvent(deslizador, "accessibilityAction", {
+        nativeEvent: { actionName: "increment" },
+      })
+    await fireEvent.press(screen.getByRole("radio", { name: "2" }))
+    await fireEvent.press(screen.getByRole("radio", { name: "Algo incómodo" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
+    await fireEvent.changeText(screen.getByLabelText("Nota para tu entrenador"), "Me cansé")
+    await fireEvent.press(screen.getByRole("button", { name: "Enviar a tu entrenador" }))
+    expect(enviar).toHaveBeenCalledWith({ esfuerzo: 8, energia: 2, incomodo: true }, "Me cansé")
+
+    await screen.rerender(<CierreDeSesion {...props} enviando />)
+    expect(screen.getByText("8 de 10")).toBeTruthy()
+    expect(screen.getByText("2 de 5")).toBeTruthy()
+    expect(screen.getByText("Algo incómodo")).toBeTruthy()
+    expect(screen.getByText("Me cansé")).toBeTruthy()
+    sinControles()
+
+    // Si falla antes de guardar la intención, vuelven los controles con lo elegido.
+    await screen.rerender(
+      <CierreDeSesion {...props} enviando={false} error="No se pudo confirmar la operación." />,
+    )
+    expect(screen.getByText("8 de 10")).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "2", checked: true })).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "Algo incómodo", checked: true })).toBeTruthy()
+    expect(screen.getByDisplayValue("Me cansé")).toBeTruthy()
+  })
+
+  it("una operación ajena en curso no presenta como enviado lo que no se ha enviado", async () => {
+    await render(
+      <CierreDeSesion
+        {...comun}
+        cierreInicial={null}
+        notas=""
+        enviando
+        enviar={() => undefined}
+        reintentar={() => undefined}
+      />,
+    )
+    expect(screen.queryByText(/Se está enviando/)).toBeNull()
+    expect(screen.queryByText("Sin feedback registrado")).toBeNull()
+    expect(screen.getByRole("radio", { name: "2" })).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Enviar a tu entrenador", busy: true, disabled: true }),
+    ).toBeTruthy()
+  })
+
+  it("un envío pendiente sin cierre registrado no inventa respuestas y se puede reintentar", async () => {
+    const reintentar = jest.fn<() => void>()
+    await render(
+      <CierreDeSesion
+        {...comun}
+        cierreInicial={null}
+        notas=""
+        enviando={false}
+        pendiente
+        enviar={() => undefined}
+        reintentar={reintentar}
+      />,
+    )
+    expect(screen.getByText("Sin feedback registrado")).toBeTruthy()
+    expect(screen.queryByText(/de 10/)).toBeNull()
+    expect(screen.queryByText(/de 5/)).toBeNull()
+    sinControles()
+
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar envío pendiente" }))
+    expect(reintentar).toHaveBeenCalledTimes(1)
+  })
+
+  it("al reabrir antes de enviar parte del cierre ya guardado", async () => {
+    const enviar = jest.fn<(c: Cierre, notas: string) => void>()
+    await render(
+      <CierreDeSesion
+        {...comun}
+        cierreInicial={{ esfuerzo: 8, energia: 2, incomodo: false }}
+        notas="Me cansé"
+        enviando={false}
+        enviar={enviar}
+        reintentar={() => undefined}
+      />,
+    )
+    expect(screen.getByText("8 de 10")).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "2", checked: true })).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "Todo bien", checked: true })).toBeTruthy()
+    expect(screen.getByDisplayValue("Me cansé")).toBeTruthy()
+
+    await fireEvent.press(screen.getByRole("button", { name: "Enviar a tu entrenador" }))
+    expect(enviar).toHaveBeenCalledWith({ esfuerzo: 8, energia: 2, incomodo: false }, "Me cansé")
   })
 })

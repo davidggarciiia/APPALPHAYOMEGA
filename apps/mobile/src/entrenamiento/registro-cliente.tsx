@@ -361,7 +361,11 @@ export function RegistroCliente({
     )
   }
 
-  if (fase === "cierre")
+  if (fase === "cierre") {
+    // Con un envío guardado se enseña exactamente su contenido: la edición ya no viajaría.
+    const comprometido = documento.envioPendiente?.registro ?? documento.intencionEnvio?.registro
+    const series: ReadonlyArray<{ hecha: boolean; omitida?: true }> =
+      comprometido?.series ?? edicion.series
     return (
       <CierreDeSesion
         subtitulo={[
@@ -375,13 +379,14 @@ export function RegistroCliente({
           .filter(Boolean)
           .join(" · ")}
         resumen={{
-          hechas: edicion.series.filter((s) => s.hecha).length,
-          omitidas: edicion.series.filter((s) => s.omitida).length,
-          pendientes: edicion.series.filter((s) => !s.hecha && !s.omitida).length,
+          hechas: series.filter((s) => s.hecha).length,
+          omitidas: series.filter((s) => s.omitida).length,
+          pendientes: series.filter((s) => !s.hecha && !s.omitida).length,
         }}
-        notas={edicion.notas}
+        cierreInicial={comprometido ? (comprometido.cierre ?? null) : (edicion.cierre ?? null)}
+        notas={comprometido ? (comprometido.notas ?? "") : edicion.notas}
         enviando={ocupado}
-        pendiente={!!(documento.intencionEnvio || documento.envioPendiente)}
+        pendiente={comprometido !== undefined}
         error={error}
         volver={() => setFase("sesion")}
         enviar={(cierre, notas) =>
@@ -391,8 +396,11 @@ export function RegistroCliente({
             await control.enviar()
           })
         }
+        // Mismo UUID y mismo contenido: el controlador reenvía la intención guardada.
+        reintentar={() => void accion(() => control.enviar())}
       />
     )
+  }
 
   const figura = idActual === undefined ? null : (fichas.get(idActual)?.figura ?? null)
   const terminar = (): void => {
