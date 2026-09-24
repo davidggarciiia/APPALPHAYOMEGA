@@ -28,9 +28,9 @@ import type { ApiMedios } from "./medios-api"
 import { ValoracionesCliente } from "./resumen-valoracion"
 import { SolicitudesFotos } from "./solicitudes-fotos"
 import type { ApiEvolucionAvisos, ApiValoracionesCliente } from "./valoraciones-api"
+import { puntoDePartida, type ValorDeToma } from "./punto-de-partida"
 import {
   edadEn,
-  masaLibre,
   mediaMovil,
   miles,
   pesoLegible,
@@ -543,6 +543,7 @@ function Semana({ datos, lunes }: { datos: Datos; lunes: string }): React.JSX.El
   )
 }
 
+/** Punto de partida: la primera toma, sin combinar valores de tomas distintas. */
 function Inicio({
   datos,
   hoy,
@@ -552,42 +553,59 @@ function Inicio({
   hoy: string
   anadir: () => void
 }): React.JSX.Element {
-  const medidas = datos.medidas.medidas
-  const primera = medidas[0]
-  const buscar = <K extends "pesoKg" | "grasaPct" | "alturaCm">(clave: K) =>
-    medidas.find((m) => m[clave] !== null)?.[clave] ?? null
-  const peso = buscar("pesoKg")
-  const grasa = buscar("grasaPct")
-  const altura = buscar("alturaCm")
+  const inicio = puntoDePartida(datos.medidas.medidas)
   const nacimiento = datos.medidas.fechaNacimiento
-  const filas: Array<[string, string]> = []
-  if (peso !== null) filas.push(["Peso", pesoLegible(peso)])
-  if (grasa !== null) filas.push(["Grasa corporal", `${decimal(grasa)} %`])
-  if (peso !== null && grasa !== null)
-    filas.push(["Masa libre de grasa", pesoLegible(masaLibre(peso, grasa))])
+  // Un dato de otra fecha lleva la suya: no se presenta como parte de la primera toma.
+  const nota = (dato: ValorDeToma, prefijo: string): string | null =>
+    dato.fecha === inicio?.toma.fecha ? null : `${prefijo} ${fechaCorta(dato.fecha)}`
+  const filas: Array<{ nombre: string; valor: string; nota: string | null }> = []
+  if (inicio?.peso)
+    filas.push({
+      nombre: "Peso",
+      valor: pesoLegible(inicio.peso.valor),
+      nota: nota(inicio.peso, "Medida del"),
+    })
+  if (inicio?.grasa)
+    filas.push({
+      nombre: "Grasa corporal",
+      valor: `${decimal(inicio.grasa.valor)} %`,
+      nota: nota(inicio.grasa, "Medida del"),
+    })
+  if (inicio?.masaLibre)
+    filas.push({
+      nombre: "Masa libre de grasa",
+      valor: pesoLegible(inicio.masaLibre.valor),
+      nota: nota(inicio.masaLibre, "Medida del"),
+    })
+  const altura = inicio?.altura ?? null
   if (altura !== null || nacimiento !== null)
-    filas.push([
-      "Altura y edad",
-      [
-        altura !== null ? `${altura} cm` : null,
-        nacimiento !== null ? `${edadEn(nacimiento, primera?.fecha ?? hoy)} años` : null,
+    filas.push({
+      nombre: "Altura y edad",
+      valor: [
+        altura !== null ? `${altura.valor} cm` : null,
+        // La edad que tenía en la primera toma.
+        nacimiento !== null ? `${edadEn(nacimiento, inicio?.toma.fecha ?? hoy)} años` : null,
       ]
         .filter(Boolean)
         .join(" · "),
-    ])
+      nota: altura !== null ? nota(altura, "Altura del") : null,
+    })
   return (
     <View style={s.grupo}>
       <View style={s.cabecera}>
-        <Titulo>{primera ? `Inicio · ${fechaCorta(primera.fecha)}` : "Inicio"}</Titulo>
+        <Titulo>{inicio ? `Inicio · ${fechaCorta(inicio.toma.fecha)}` : "Inicio"}</Titulo>
         <Enlace texto="Añadir medida" onPress={anadir} />
       </View>
       {filas.length === 0 ? (
         <Text style={s.vacio}>Añade tus primeras medidas: serán tu punto de partida.</Text>
       ) : (
         <Tarjeta>
-          {filas.map(([nombre, valor], n) => (
+          {filas.map(({ nombre, valor, nota }, n) => (
             <Fila key={nombre} primera={n === 0}>
-              <Text style={[s.texto, s.textos]}>{nombre}</Text>
+              <View style={s.textos}>
+                <Text style={s.texto}>{nombre}</Text>
+                {nota !== null && <Text style={s.tenue}>{nota}</Text>}
+              </View>
               <Text style={s.valor}>{valor}</Text>
             </Fila>
           ))}

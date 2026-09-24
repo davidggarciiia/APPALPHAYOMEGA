@@ -2,10 +2,12 @@ import { describe, expect, it, jest } from "@jest/globals"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import {
   CONFIGURACION_SEGUIMIENTO_INICIAL,
+  SerieEvolucionSchema,
   type CambiarDia,
   type ConfiguracionSeguimiento,
   type DiaDeSeguimiento,
   type GuardarConfiguracionSeguimiento,
+  type ListadoMedidas,
   type RegistrarPrueba,
 } from "@alpha-omega/shared"
 
@@ -419,10 +421,188 @@ describe("ProgresoCliente", () => {
     expect(screen.getByText("Masa libre de grasa")).toBeTruthy()
     expect(screen.getByText("79,4 kg")).toBeTruthy()
     expect(screen.getByText(/196 cm · \d+ años/)).toBeTruthy()
+    // Todo sale de la misma toma: no hace falta fechar cada valor.
+    expect(screen.queryByText(/^Medida del /)).toBeNull()
     expect(entrenamiento.plan).toHaveBeenCalledWith(CLIENTE, lunes)
 
     await fireEvent.press(screen.getByRole("tab", { name: "Fuerza" }))
     expect(screen.getByText(/Cuando envíes sesiones con carga/)).toBeTruthy()
+  })
+
+  describe("punto de partida", () => {
+    // Datos sintéticos, con fechas fijas: la edad se calcula a la fecha de la toma, no a hoy.
+    const ENERO = "2026-01-10"
+    const SEPTIEMBRE = "2026-09-15"
+    const medidasEneroSeptiembre = async (): Promise<ListadoMedidas> => ({
+      medidas: [
+        {
+          id: "40000000-0000-4000-8000-000000000010",
+          fecha: ENERO,
+          pesoKg: 80,
+          cinturaCm: null,
+          grasaPct: null,
+          alturaCm: 180,
+          creadoEn: `${ENERO}T08:00:00.000Z`,
+        },
+        {
+          id: "40000000-0000-4000-8000-000000000011",
+          fecha: SEPTIEMBRE,
+          pesoKg: null,
+          cinturaCm: null,
+          grasaPct: 20,
+          alturaCm: null,
+          creadoEn: `${SEPTIEMBRE}T08:00:00.000Z`,
+        },
+      ],
+      fechaNacimiento: "2000-06-01",
+    })
+
+    it("no atribuye a enero una masa libre calculada con la grasa de septiembre", async () => {
+      const seguimiento = api()
+      seguimiento.medidas = jest.fn(medidasEneroSeptiembre)
+      await render(
+        <ProgresoCliente
+          clienteId={CLIENTE}
+          seguimiento={seguimiento}
+          entrenamiento={entrenamiento}
+        />,
+      )
+
+      expect(await screen.findByRole("header", { name: "Inicio · 10 ene" })).toBeTruthy()
+      expect(screen.getByText("80,0 kg")).toBeTruthy()
+      expect(screen.getByText("180 cm · 25 años")).toBeTruthy()
+      // La grasa se muestra con su propia fecha y no se combina con el peso de enero.
+      expect(screen.getByText("20,0 %")).toBeTruthy()
+      expect(screen.getByText("Medida del 15 sep")).toBeTruthy()
+      expect(screen.queryByText("Masa libre de grasa")).toBeNull()
+      expect(screen.queryByText("64,0 kg")).toBeNull()
+    })
+
+    it("fecha la altura posterior y calcula la edad en la primera toma", async () => {
+      const MARZO = "2026-03-05"
+      const seguimiento = api()
+      seguimiento.medidas = jest.fn(async (): Promise<ListadoMedidas> => ({
+        medidas: [
+          // Solo cintura: tiene su propia pestaña y no fecha el punto de partida.
+          {
+            id: "40000000-0000-4000-8000-000000000012",
+            fecha: ENERO,
+            pesoKg: null,
+            cinturaCm: 94,
+            grasaPct: null,
+            alturaCm: null,
+            creadoEn: `${ENERO}T08:00:00.000Z`,
+          },
+          {
+            id: "40000000-0000-4000-8000-000000000013",
+            fecha: MARZO,
+            pesoKg: 80,
+            cinturaCm: null,
+            grasaPct: 20,
+            alturaCm: null,
+            creadoEn: `${MARZO}T08:00:00.000Z`,
+          },
+          {
+            id: "40000000-0000-4000-8000-000000000014",
+            fecha: SEPTIEMBRE,
+            pesoKg: null,
+            cinturaCm: null,
+            grasaPct: null,
+            alturaCm: 180,
+            creadoEn: `${SEPTIEMBRE}T08:00:00.000Z`,
+          },
+        ],
+        fechaNacimiento: "2000-04-01",
+      }))
+      await render(
+        <ProgresoCliente
+          clienteId={CLIENTE}
+          seguimiento={seguimiento}
+          entrenamiento={entrenamiento}
+        />,
+      )
+
+      expect(await screen.findByRole("header", { name: "Inicio · 5 mar" })).toBeTruthy()
+      expect(screen.getByText("64,0 kg")).toBeTruthy()
+      // 25 años el 5 de marzo; con la fecha de la altura o la de hoy serían 26.
+      expect(screen.getByText("180 cm · 25 años")).toBeTruthy()
+      expect(screen.getByText("Altura del 15 sep")).toBeTruthy()
+      expect(screen.queryByText(/^Medida del /)).toBeNull()
+    })
+
+    it("una corrección publicada no añade otro punto de partida", async () => {
+      const PUBLICACION = "21000000-0000-4000-8000-000000000002"
+      const VISITA = "20000000-0000-4000-8000-000000000003"
+      const corregido = (valor: number) => ({
+        fecha: "2025-12-01",
+        valor,
+        publicacionId: PUBLICACION,
+        valoracionId: VISITA,
+        corregido: true,
+      })
+      const evolucion = jest.fn(async (_clienteId: string) => ({
+        series: [
+          SerieEvolucionSchema.parse({
+            clave: "c:60000000-0000-4000-8000-000000000001:1",
+            nombre: "Peso de la visita",
+            unidad: "kg",
+            bloque: "medidas",
+            origen: "valoracion",
+            metodo: "Báscula de la sala",
+            clasificada: true,
+            puntos: [corregido(90)],
+          }),
+          SerieEvolucionSchema.parse({
+            clave: "g:pliegues:Siete pliegues",
+            nombre: "Grasa por pliegues",
+            unidad: "%",
+            bloque: "pliegues",
+            origen: "valoracion",
+            metodo: "Siete pliegues",
+            clasificada: true,
+            puntos: [corregido(25)],
+          }),
+        ],
+      }))
+      const valoraciones = {
+        listarPublicadas: jest.fn(async () => ({ valoraciones: [], total: 0 })),
+        leerPublicada: jest.fn(async () => {
+          throw new Error("no usado")
+        }),
+        proximaRevision: jest.fn(async () => ({
+          revision: 0,
+          pauta: null,
+          cumplidaPorId: null,
+          actualizadaEn: null,
+        })),
+        evolucion,
+      } as unknown as ApiValoracionesCliente & Pick<ApiEvolucionAvisos, "evolucion">
+      const seguimiento = api()
+      seguimiento.medidas = jest.fn(async () => {
+        const datos = await medidasEneroSeptiembre()
+        // Enero con peso y grasa en la misma toma: aquí sí hay masa libre.
+        datos.medidas[0] = { ...datos.medidas[0]!, grasaPct: 20 }
+        return datos
+      })
+      await render(
+        <ProgresoCliente
+          clienteId={CLIENTE}
+          seguimiento={seguimiento}
+          entrenamiento={entrenamiento}
+          valoraciones={valoraciones}
+        />,
+      )
+
+      await fireEvent.press(await screen.findByRole("button", { name: "Ver mi evolución" }))
+      await waitFor(() => expect(screen.getByText("Grasa por pliegues")).toBeTruthy())
+      // Un único bloque de inicio, fechado por las medidas; la visita corregida no lo sustituye.
+      expect(screen.getAllByRole("header", { name: /^Inicio/ })).toHaveLength(1)
+      expect(screen.getByRole("header", { name: "Inicio · 10 ene" })).toBeTruthy()
+      expect(screen.getAllByText("Masa libre de grasa")).toHaveLength(1)
+      expect(screen.getByText("64,0 kg")).toBeTruthy()
+      expect(screen.queryByText("67,5 kg")).toBeNull()
+      expect(seguimiento.medidas).toHaveBeenCalledTimes(1)
+    })
   })
 
   it("la cintura apuntada hoy desde Inicio se consulta en Progreso", async () => {
