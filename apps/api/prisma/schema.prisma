@@ -236,6 +236,7 @@ model Ejercicio {
 
   gruposSecundarios GrupoSecundarioDeEjercicio[]
   referencias ReferenciaEjercicio[]
+  contenidos  ContenidoDeEjercicio[]
 
   @@index([estado, grupoPrincipal])
   @@map("ejercicios")
@@ -402,4 +403,33 @@ model Dieta {
   @@unique([clienteId, operacionPublicacion])
   @@index([clienteId, estado])
   @@map("dietas")
+}
+
+enum TipoDeContenido {
+  figura
+  video
+}
+
+enum OrigenDeContenido {
+  propio
+  licenciado
+  provisional
+}
+
+/// Figura o vídeo de un ejercicio (SPEC-catalogo-ejercicios.md). La clave apunta
+/// al índice de medios del servidor y nunca sale en una respuesta. Un ejercicio
+/// tiene como mucho una figura y un vídeo. Ninguna columna apunta a un usuario.
+model ContenidoDeEjercicio {
+  id            String            @id @default(uuid())
+  ejercicioId   String
+  ejercicio     Ejercicio         @relation(fields: [ejercicioId], references: [id], onDelete: Restrict)
+  tipo          TipoDeContenido
+  claveDeObjeto String            @db.VarChar(120)
+  origen        OrigenDeContenido
+  licencia      String?           @db.VarChar(200)
+  atribucion    String?           @db.VarChar(200)
+  subidoEn      DateTime          @default(now())
+
+  @@unique([ejercicioId, tipo])
+  @@map("contenidos_de_ejercicio")
 }
