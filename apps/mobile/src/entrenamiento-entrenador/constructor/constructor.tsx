@@ -1,0 +1,832 @@
+import { useEffect, useRef, useState } from "react"
+import {
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native"
+import { z } from "zod"
+import {
+  AsignarPlanSchema,
+  type AsignarPlan,
+  type Bloque,
+  type PatronRutina,
+  type Prescripcion,
+  type RutinaGuardada,
+  type SeccionDeSesion,
+} from "@alpha-omega/shared"
+
+import type { ApiDeCatalogo } from "../../catalogo-ejercicios/api"
+import { useAccesoAFiguras } from "../../catalogo-ejercicios/figura-ejercicio"
+import { AvisoDeError, BotonSecundario } from "../../componentes/formulario"
+import type { AlmacenLocal } from "../../entrenamiento/almacen-local"
+import { almacenDispositivo } from "../../entrenamiento/almacen-dispositivo"
+import type { ApiEntrenamiento } from "../../entrenamiento/api"
+import { lunesDeSemana, sumarDias } from "../../entrenamiento/fechas"
+import { fechaCorta, INICIALES_DE_DIA, NOMBRES_DE_DIA } from "../../entrenamiento/plan/modelo"
+import { Pestanas, Titulo } from "../../entrenamiento/plan/piezas"
+import { RutinaDeLaSemana, type DiaDelPlan } from "../../entrenamiento/plan/rutina"
+import { BotonAtras, Dialogo, Enlace } from "../../entrenamiento/sesion/controles"
+import { VerTecnica } from "../../entrenamiento/ver-tecnica"
+import { ErrorDePeticion, ErrorDePermiso, ErrorDelServidor } from "../../lib/http"
+import { degradadoOro, tema } from "../../tema"
+import type { ApiRutinas } from "../api-rutinas"
+import { ListadoDeRutinas } from "../listado-rutinas"
+import { SelectorEjercicios } from "../selector-ejercicios"
+import {
+  aSesionEnRutina,
+  desdeSesionEnRutina,
+  faltaEnDia,
+  nuevoDia,
+  nuevoEjercicio,
+  resumenDeSeccion,
+  type DiaDelConstructor,
+  type EjercicioDelConstructor,
+} from "./modelo"
+import { EditorDeBloque, ListaDeSeccion } from "./partes"
+import { PanelEjercicio, TablaPrincipal } from "./tabla"
+
+/** La misma clave que el editor anterior: una asignación pendiente se recupera en ambos. */
+const PendienteSchema = z.strictObject({
+  solicitud: AsignarPlanSchema,
+  nombres: z.record(z.string(), z.string()),
+})
+
+const SECCIONES: Array<{ seccion: SeccionDeSesion; titulo: string }> = [
+  { seccion: "calentamiento", titulo: "Calentamiento" },
+  { seccion: "principal", titulo: "Parte principal" },
+  { seccion: "circuito", titulo: "Circuito" },
+  { seccion: "final", titulo: "Vuelta a la calma" },
+]
+
+const BLOQUE_VACIO: Bloque = { objetivos: [], fases: [], deportes: [], notas: [] }
+
+function tieneBloque(bloque: Bloque): boolean {
+  return (
+    bloque.objetivos.length + bloque.fases.length + bloque.deportes.length + bloque.notas.length >
+      0 || bloque.pasosDiarios !== undefined
+  )
+}
+
+async function cargarPatron(
+  patron: PatronRutina,
+  catalogo: ApiDeCatalogo,
+): Promise<{ dias: DiaDelConstructor[]; retirados: string[] }> {
+  const ids = [...new Set(patron.sesiones.flatMap((s) => s.ejercicios.map((e) => e.ejercicioId)))]
+  const fichas = []
+  for (let n = 0; n < ids.length; n += 10)
+    fichas.push(...(await Promise.all(ids.slice(n, n + 10).map((id) => catalogo.leer(id)))))
+  const nombres = Object.fromEntries(fichas.map((e) => [e.id, e.nombre]))
+  return {
+    dias: patron.sesiones.map((s) => desdeSesionEnRutina(s, nombres)),
+    retirados: fichas.filter((e) => e.estado === "retirado").map((e) => e.nombre),
+  }
+}
+
+/** El plan como lo verá el cliente en «Tu plan», para «Ver como cliente». */
+function vistaDelCliente(
+  dias: DiaDelConstructor[],
+  semanaInicial: string,
+  clienteId: string,
+  nuevoId: () => string,
+): DiaDelPlan[] {
+  return [...dias]
+    .sort((a, b) => a.diaSemana - b.diaSemana)
+    .flatMap((dia): DiaDelPlan[] => {
+      if (faltaEnDia(dia)) return []
+      const sesion = aSesionEnRutina(dia, nuevoId)
+      const nombres = new Map(dia.ejercicios.map((e) => [e.id, e.nombre]))
+      const fecha = sumarDias(semanaInicial, dia.diaSemana - 1)
+      const prescripcion: Prescripcion = {
+        nombre: sesion.nombre,
+        ...(sesion.duracion && { duracion: sesion.duracion }),
+        ...(sesion.nota && { nota: sesion.nota }),
+        ...(sesion.partes && { partes: sesion.partes }),
+        ...(sesion.circuito && { circuito: sesion.circuito }),
+        ejercicios: sesion.ejercicios.map((e) => ({
+          ...e,
+          nombre: nombres.get(e.id) ?? "Ejercicio",
+        })),
+      }
+      return [
+        {
+          resumen: {
+            agenda: {
+              id: dia.id,
+              clienteId,
+              fechaOriginal: fecha,
+              fechaActual: fecha,
+              estado: "abierta",
+              revision: 0,
+            },
+            nombre: sesion.nombre,
+            enviadoEn: null,
+          },
+          prescripcion,
+        },
+      ]
+    })
+}
+
+function escapar(texto: string): string {
+  return texto.replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!,
+  )
+}
+
+/** «Exportar PDF» en la web: una página limpia que el navegador imprime o guarda como PDF. */
+function exportarPdf(nombre: string, cliente: string, dias: DiaDelConstructor[]): void {
+  const filas = (dia: DiaDelConstructor): string =>
+    dia.ejercicios
+      .map(
+        (e) =>
+          `<tr><td>${escapar(e.nombre)}</td><td>${e.seccion === "principal" ? escapar(`${e.series} × ${e.objetivo}`) : escapar(e.dosis || e.objetivo)}</td><td>${escapar(e.rir)}</td><td>${escapar(e.descanso)}</td><td>${e.calibrar ? "Calibrar" : escapar(e.carga ? `${e.carga} kg` : "")}</td><td>${escapar(e.subida ? `${e.subida} kg` : "")}</td></tr>`,
+      )
+      .join("")
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapar(nombre)}</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{margin:0 0 4px}h2{margin:28px 0 8px}p{color:#555;margin:0}table{border-collapse:collapse;width:100%;margin-top:8px}td,th{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;font-size:13px}th{color:#666}</style></head><body><h1>${escapar(nombre)}</h1><p>${escapar(cliente)}</p>${[
+    ...dias,
+  ]
+    .sort((a, b) => a.diaSemana - b.diaSemana)
+    .map(
+      (d) =>
+        `<h2>${escapar(`${NOMBRES_DE_DIA[d.diaSemana - 1]} · ${d.nombre}`)}</h2>${d.duracion ? `<p>Duración estimada ${escapar(d.duracion)}</p>` : ""}<table><tr><th>Ejercicio</th><th>Series × reps</th><th>RIR</th><th>Descanso</th><th>Carga inicial</th><th>Subida</th></tr>${filas(d)}</table>`,
+    )
+    .join("")}</body></html>`
+  const ventana = window.open("", "_blank")
+  if (!ventana) return
+  ventana.document.write(html)
+  ventana.document.close()
+  ventana.focus()
+  ventana.print()
+}
+
+/**
+ * Constructor de planes del diseño: bloque y fases, días, otros deportes, cada
+ * parte de la sesión con su tabla, el panel del ejercicio, «Ver como cliente»,
+ * «Exportar PDF», «Guardar como plantilla» y «Publicar».
+ */
+export function ConstructorPlan({
+  clienteId,
+  cuentaId,
+  nombreCliente,
+  almacen,
+  api,
+  catalogo,
+  rutinas,
+  nuevoId,
+  terminado,
+  volver,
+}: {
+  clienteId: string
+  cuentaId: string
+  nombreCliente: string
+  almacen: AlmacenLocal
+  api: ApiEntrenamiento
+  catalogo: ApiDeCatalogo
+  rutinas: ApiRutinas
+  nuevoId: () => string
+  terminado: () => void
+  volver: () => void
+}): React.JSX.Element {
+  const { width } = useWindowDimensions()
+  const ancho = width >= 1000
+  const acceso = useAccesoAFiguras()
+  const [nombre, setNombre] = useState("")
+  const [semanaInicial, setSemanaInicial] = useState(() => sumarDias(lunesDeSemana(), 7))
+  const [semanas, setSemanas] = useState("6")
+  const [dias, setDias] = useState<DiaDelConstructor[]>(() => [nuevoDia(nuevoId, 1)])
+  const [activo, setActivo] = useState<string>(() => dias[0]!.id)
+  const [bloque, setBloque] = useState<Bloque>(BLOQUE_VACIO)
+  const [elegido, setElegido] = useState<string | null>(null)
+  const [anadiendo, setAnadiendo] = useState<SeccionDeSesion | null>(null)
+  const [plantillas, setPlantillas] = useState(false)
+  const [comoCliente, setComoCliente] = useState(false)
+  const [confirmando, setConfirmando] = useState<AsignarPlan | null>(null)
+  const [tecnica, setTecnica] = useState<EjercicioDelConstructor | null>(null)
+  const [error, setError] = useState("")
+  const [aviso, setAviso] = useState("")
+  const [ocupado, setOcupado] = useState(false)
+  const [pendiente, setPendiente] = useState<AsignarPlan | null>(null)
+  const enCurso = useRef(false)
+  const clave = `plan-${clienteId}`
+
+  // Una asignación que no llegó a confirmarse se recupera con su misma operación.
+  useEffect(() => {
+    let vigente = true
+    void almacen
+      .leer(cuentaId, clave, PendienteSchema)
+      .then((guardado) => {
+        if (!vigente || !guardado) return
+        const { solicitud, nombres } = guardado
+        const recuperados = solicitud.patron.sesiones.map((s) => desdeSesionEnRutina(s, nombres))
+        setNombre(solicitud.nombre)
+        setSemanaInicial(solicitud.semanaInicial)
+        setSemanas(String(solicitud.semanas))
+        setDias(recuperados)
+        setActivo(recuperados[0]?.id ?? "")
+        setBloque(solicitud.bloque ?? BLOQUE_VACIO)
+        setPendiente(solicitud)
+        setAviso("Hay una publicación sin confirmar: reintenta y no se duplicará.")
+      })
+      .catch(() => undefined)
+    return () => {
+      vigente = false
+    }
+  }, [almacen, cuentaId, clave])
+
+  const dia = dias.find((d) => d.id === activo) ?? dias[0]!
+  const cambiarDia = (cambio: Partial<DiaDelConstructor>): void =>
+    setDias((todos) => todos.map((d) => (d.id === dia.id ? { ...d, ...cambio } : d)))
+  const cambiarEjercicio = (id: string, cambio: Partial<EjercicioDelConstructor>): void =>
+    cambiarDia({ ejercicios: dia.ejercicios.map((e) => (e.id === id ? { ...e, ...cambio } : e)) })
+  const quitar = (id: string): void => {
+    cambiarDia({ ejercicios: dia.ejercicios.filter((e) => e.id !== id) })
+    if (elegido === id) setElegido(null)
+  }
+  const mover = (id: string, desplazamiento: number): void => {
+    const lista = [...dia.ejercicios]
+    const i = lista.findIndex((e) => e.id === id)
+    const seccion = lista[i]?.seccion
+    let j = i + desplazamiento
+    while (j >= 0 && j < lista.length && lista[j]!.seccion !== seccion) j += desplazamiento
+    if (i < 0 || j < 0 || j >= lista.length) return
+    ;[lista[i], lista[j]] = [lista[j]!, lista[i]!]
+    cambiarDia({ ejercicios: lista })
+  }
+  const ejercicioElegido = dia.ejercicios.find((e) => e.id === elegido) ?? null
+
+  const construir = (operacionId: string): AsignarPlan => {
+    const sesiones = dias.map((d) => aSesionEnRutina(d, nuevoId))
+    const repetidos = sesiones.map((s) => s.diaSemana)
+    if (new Set(repetidos).size !== repetidos.length)
+      throw new Error("Hay dos días en el mismo día de la semana.")
+    return AsignarPlanSchema.parse({
+      operacionId,
+      nombre: nombre.trim() || sesiones[0]!.nombre,
+      semanaInicial,
+      semanas: Number(semanas),
+      patron: { sesiones },
+      ...(tieneBloque(bloque) && { bloque }),
+    })
+  }
+
+  const preparar = (): void => {
+    setError("")
+    try {
+      setConfirmando(construir(pendiente?.operacionId ?? nuevoId()))
+    } catch (e) {
+      setError(
+        e instanceof z.ZodError
+          ? "Revisa el lunes de inicio, de 1 a 52 semanas, y que las fases quepan en el bloque con nombre."
+          : e instanceof Error
+            ? e.message
+            : "Revisa el plan.",
+      )
+    }
+  }
+
+  const publicar = async (solicitud: AsignarPlan): Promise<void> => {
+    if (enCurso.current) return
+    enCurso.current = true
+    setOcupado(true)
+    setError("")
+    try {
+      await almacen.guardar(cuentaId, clave, {
+        solicitud,
+        nombres: Object.fromEntries(
+          dias.flatMap((d) => d.ejercicios.map((e) => [e.ejercicioId, e.nombre])),
+        ),
+      })
+      setPendiente(solicitud)
+      await api.asignar(clienteId, solicitud)
+      await almacen.borrar(cuentaId, clave)
+      setConfirmando(null)
+      terminado()
+    } catch (fallo) {
+      setConfirmando(null)
+      setError(
+        fallo instanceof ErrorDePeticion
+          ? fallo.message
+          : "No se pudo confirmar la publicación. Reintenta: se conserva la misma operación para no duplicarla.",
+      )
+      if (
+        fallo instanceof ErrorDePermiso ||
+        (fallo instanceof ErrorDelServidor &&
+          fallo.codigo >= 400 &&
+          fallo.codigo < 500 &&
+          fallo.codigo !== 401)
+      ) {
+        await almacen.borrar(cuentaId, clave).catch(() => undefined)
+        setPendiente(null)
+      }
+    } finally {
+      enCurso.current = false
+      setOcupado(false)
+    }
+  }
+
+  const guardarPlantilla = async (): Promise<void> => {
+    setError("")
+    setAviso("")
+    try {
+      const sesiones = dias.map((d) => aSesionEnRutina(d, nuevoId))
+      await rutinas.crear({ nombre: nombre.trim() || sesiones[0]!.nombre, patron: { sesiones } })
+      setAviso("Guardado como plantilla en Rutinas.")
+    } catch (e) {
+      setError(
+        e instanceof Error && !(e instanceof z.ZodError)
+          ? e.message
+          : "No se pudo guardar la plantilla.",
+      )
+    }
+  }
+
+  const elegirPlantilla = async (rutina: RutinaGuardada): Promise<void> => {
+    setOcupado(true)
+    setError("")
+    try {
+      const { dias: cargados, retirados } = await cargarPatron(rutina.patron, catalogo)
+      setDias(cargados)
+      setActivo(cargados[0]?.id ?? "")
+      setNombre(rutina.nombre)
+      setPlantillas(false)
+      if (retirados.length > 0)
+        setError(`Sustituye los ejercicios retirados antes de publicar: ${retirados.join(", ")}`)
+    } catch {
+      setError("No se pudo cargar la rutina. Reintenta con conexión.")
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  const libres = [1, 2, 3, 4, 5, 6, 7].filter((n) => !dias.some((d) => d.diaSemana === n))
+  const seccionesVisibles = SECCIONES.filter(
+    (s) =>
+      s.seccion === "principal" ||
+      dia.ejercicios.some((e) => e.seccion === s.seccion) ||
+      anadiendo === s.seccion,
+  )
+  const faltan = SECCIONES.filter((s) => !seccionesVisibles.includes(s))
+
+  const panel =
+    ejercicioElegido !== null ? (
+      <PanelEjercicio
+        ejercicio={ejercicioElegido}
+        nombreCliente={nombreCliente}
+        cambiar={cambiarEjercicio}
+        verTecnica={() => setTecnica(ejercicioElegido)}
+      />
+    ) : (
+      <View style={s.panelVacio}>
+        <Text style={s.tenue}>
+          Elige un ejercicio para su nota, sus alternativas y si es compuesto.
+        </Text>
+      </View>
+    )
+
+  return (
+    <View style={s.contenido}>
+      <BotonAtras etiqueta="Volver a la ficha" onPress={volver} />
+      <View style={s.cabecera}>
+        <View style={s.textos}>
+          <TextInput
+            accessibilityLabel="Nombre del bloque"
+            value={nombre}
+            onChangeText={setNombre}
+            placeholder="BLOQUE 1 · RECOMPOSICIÓN"
+            placeholderTextColor={tema.marcador}
+            maxLength={120}
+            style={s.titulo}
+          />
+          <Text style={s.tenue}>
+            {nombreCliente} · empieza el {fechaCorta(semanaInicial)} · {semanas || "?"} semanas
+          </Text>
+        </View>
+        <View style={s.botones}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setComoCliente(true)}
+            style={s.secundario}
+          >
+            <Text style={s.textoSecundario}>Ver como cliente</Text>
+          </Pressable>
+          {Platform.OS === "web" && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => exportarPdf(nombre || "Plan", nombreCliente, dias)}
+              style={s.secundario}
+            >
+              <Text style={s.textoSecundario}>Exportar PDF</Text>
+            </Pressable>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            onPress={preparar}
+            style={[s.principal, degradadoOro]}
+          >
+            <Text style={s.textoPrincipal}>
+              {pendiente ? "Reintentar publicación" : "Publicar"}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+      {aviso !== "" && <Text style={s.aviso}>{aviso}</Text>}
+      {error !== "" && <AvisoDeError mensaje={error} />}
+
+      <View style={s.datos}>
+        <View style={s.dato}>
+          <Text style={s.tenue}>Lunes de inicio</Text>
+          <TextInput
+            accessibilityLabel="Lunes de inicio (AAAA-MM-DD)"
+            value={semanaInicial}
+            onChangeText={setSemanaInicial}
+            placeholder="2026-09-28"
+            placeholderTextColor={tema.marcador}
+            maxLength={10}
+            style={s.campo}
+          />
+        </View>
+        <View style={s.dato}>
+          <Text style={s.tenue}>Semanas</Text>
+          <TextInput
+            accessibilityLabel="Número de semanas"
+            value={semanas}
+            onChangeText={setSemanas}
+            keyboardType="number-pad"
+            maxLength={2}
+            style={[s.campo, s.corto]}
+          />
+        </View>
+        <Enlace
+          texto={plantillas ? "Cerrar plantillas" : "Partir de una plantilla"}
+          onPress={() => setPlantillas(!plantillas)}
+        />
+      </View>
+      {plantillas && <ListadoDeRutinas api={rutinas} elegir={(r) => void elegirPlantilla(r)} />}
+
+      <EditorDeBloque bloque={bloque} semanas={Number(semanas) || 1} cambiar={setBloque} />
+
+      <View style={s.diasFila}>
+        <View style={s.flex}>
+          <Pestanas
+            opciones={[...dias]
+              .sort((a, b) => a.diaSemana - b.diaSemana)
+              .map((d) => ({
+                valor: d.id,
+                texto: `${NOMBRES_DE_DIA[d.diaSemana - 1]!.slice(0, 3).replace(/^./, (c) => c.toUpperCase())} · ${d.nombre || "Sin nombre"}`,
+              }))}
+            activa={dia.id}
+            cambiar={(id) => {
+              setActivo(id)
+              setElegido(null)
+              setAnadiendo(null)
+            }}
+          />
+        </View>
+        {libres.length > 0 && (
+          <Enlace
+            texto="Añadir día"
+            onPress={() => {
+              const nuevo = nuevoDia(nuevoId, libres[0]!)
+              setDias((todos) => [...todos, nuevo])
+              setActivo(nuevo.id)
+            }}
+          />
+        )}
+      </View>
+
+      <View style={s.diaCabecera}>
+        <TextInput
+          accessibilityLabel="Nombre del día"
+          value={dia.nombre}
+          onChangeText={(v) => cambiarDia({ nombre: v })}
+          placeholder="Empuje"
+          placeholderTextColor={tema.marcador}
+          maxLength={120}
+          style={[s.campo, s.nombreDia]}
+        />
+        <View style={s.semana} accessibilityRole="radiogroup" accessibilityLabel="Día de la semana">
+          {INICIALES_DE_DIA.map((inicial, i) => {
+            const n = i + 1
+            const ocupadoPorOtro = dias.some((d) => d.diaSemana === n && d.id !== dia.id)
+            const elegidoDia = dia.diaSemana === n
+            return (
+              <Pressable
+                key={inicial}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: elegidoDia, disabled: ocupadoPorOtro }}
+                accessibilityLabel={NOMBRES_DE_DIA[i]}
+                disabled={ocupadoPorOtro}
+                onPress={() => cambiarDia({ diaSemana: n })}
+                style={[
+                  s.diaSemana,
+                  elegidoDia && [s.diaElegido, degradadoOro],
+                  ocupadoPorOtro && s.apagado,
+                ]}
+              >
+                <Text style={[s.textoDia, elegidoDia && s.textoDiaElegido]}>{inicial}</Text>
+              </Pressable>
+            )
+          })}
+        </View>
+        <View style={s.dato}>
+          <Text style={s.tenue}>Duración estimada</Text>
+          <TextInput
+            accessibilityLabel="Duración estimada"
+            value={dia.duracion}
+            onChangeText={(v) => cambiarDia({ duracion: v })}
+            placeholder="100–115 min"
+            placeholderTextColor={tema.marcador}
+            maxLength={30}
+            style={s.campo}
+          />
+        </View>
+        {(["calentamiento", "fuerza", "cardio", "calma"] as const).map((parte) => (
+          <View key={parte} style={s.dato}>
+            <Text style={s.tenue}>
+              {parte === "calentamiento" ? "Calentar" : parte[0]!.toUpperCase() + parte.slice(1)}{" "}
+              (min)
+            </Text>
+            <TextInput
+              accessibilityLabel={`Minutos de ${parte}`}
+              value={dia.partes[parte]}
+              onChangeText={(v) => cambiarDia({ partes: { ...dia.partes, [parte]: v } })}
+              placeholder="8–10"
+              placeholderTextColor={tema.marcador}
+              maxLength={20}
+              style={[s.campo, s.corto]}
+            />
+          </View>
+        ))}
+        <View style={s.accionesDia}>
+          <Enlace texto="Guardar como plantilla" onPress={() => void guardarPlantilla()} />
+          {dias.length > 1 && (
+            <Enlace
+              texto="Quitar día"
+              onPress={() => {
+                const resto = dias.filter((d) => d.id !== dia.id)
+                setDias(resto)
+                setActivo(resto[0]!.id)
+              }}
+            />
+          )}
+        </View>
+      </View>
+      <TextInput
+        accessibilityLabel="Nota del día para el cliente"
+        value={dia.nota}
+        onChangeText={(v) => cambiarDia({ nota: v })}
+        placeholder="Banca: 60 kg de inicio para 4×6"
+        placeholderTextColor={tema.marcador}
+        maxLength={300}
+        style={s.campo}
+      />
+
+      <View style={[s.cuerpo, ancho && s.cuerpoAncho]}>
+        <View style={s.flex}>
+          {seccionesVisibles.map(({ seccion, titulo }) => {
+            const ejercicios = dia.ejercicios.filter((e) => e.seccion === seccion)
+            return (
+              <View key={seccion} style={s.seccion}>
+                <Titulo derecha={resumenDeSeccion(dia, seccion)}>
+                  {seccion === "circuito" ? dia.circuito.nombre || titulo : titulo}
+                </Titulo>
+                {seccion === "circuito" && (
+                  <View style={s.datos}>
+                    <TextInput
+                      accessibilityLabel="Nombre del circuito"
+                      value={dia.circuito.nombre}
+                      onChangeText={(v) => cambiarDia({ circuito: { ...dia.circuito, nombre: v } })}
+                      placeholder="Core"
+                      placeholderTextColor={tema.marcador}
+                      maxLength={30}
+                      style={[s.campo, s.flex]}
+                    />
+                    <TextInput
+                      accessibilityLabel="Vueltas del circuito"
+                      value={dia.circuito.vueltas}
+                      onChangeText={(v) =>
+                        cambiarDia({ circuito: { ...dia.circuito, vueltas: v } })
+                      }
+                      placeholder="2"
+                      placeholderTextColor={tema.marcador}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      style={[s.campo, s.corto]}
+                    />
+                    <TextInput
+                      accessibilityLabel="Descanso entre vueltas"
+                      value={dia.circuito.descanso}
+                      onChangeText={(v) =>
+                        cambiarDia({ circuito: { ...dia.circuito, descanso: v } })
+                      }
+                      placeholder="60–90 s"
+                      placeholderTextColor={tema.marcador}
+                      maxLength={30}
+                      style={[s.campo, s.flex]}
+                    />
+                  </View>
+                )}
+                {seccion === "principal" ? (
+                  <TablaPrincipal
+                    ejercicios={ejercicios}
+                    elegido={elegido}
+                    elegir={setElegido}
+                    cambiar={cambiarEjercicio}
+                    quitar={quitar}
+                    mover={mover}
+                    ancha={ancho}
+                  />
+                ) : (
+                  <ListaDeSeccion
+                    ejercicios={ejercicios}
+                    elegido={elegido}
+                    elegir={setElegido}
+                    cambiar={cambiarEjercicio}
+                    quitar={quitar}
+                  />
+                )}
+                {anadiendo === seccion ? (
+                  <View style={s.selector}>
+                    <SelectorEjercicios
+                      api={catalogo}
+                      elegir={(e) => {
+                        cambiarDia({
+                          ejercicios: [...dia.ejercicios, nuevoEjercicio(e, seccion, nuevoId)],
+                        })
+                        setAnadiendo(null)
+                      }}
+                    />
+                    <BotonSecundario
+                      texto="Cerrar la biblioteca"
+                      onPress={() => setAnadiendo(null)}
+                    />
+                  </View>
+                ) : (
+                  <Enlace
+                    texto="Añadir desde la biblioteca"
+                    onPress={() => setAnadiendo(seccion)}
+                  />
+                )}
+                {!ancho && ejercicioElegido?.seccion === seccion && panel}
+              </View>
+            )
+          })}
+          {faltan.length > 0 && (
+            <View style={s.datos}>
+              {faltan.map(({ seccion, titulo }) => (
+                <Enlace
+                  key={seccion}
+                  texto={`Añadir ${titulo.toLowerCase()}`}
+                  onPress={() => setAnadiendo(seccion)}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+        {ancho && <View style={s.lateral}>{panel}</View>}
+      </View>
+
+      <Modal
+        visible={comoCliente}
+        animationType="slide"
+        onRequestClose={() => setComoCliente(false)}
+      >
+        <ScrollView style={s.modal} contentContainerStyle={s.contenidoModal}>
+          <BotonAtras
+            etiqueta="Cerrar la vista del cliente"
+            onPress={() => setComoCliente(false)}
+          />
+          <Text style={s.tituloModal}>Así lo verá {nombreCliente.split(" ")[0]}</Text>
+          {(() => {
+            const vista = vistaDelCliente(dias, semanaInicial, clienteId, nuevoId)
+            return vista.length === 0 ? (
+              <Text style={s.tenue}>Completa al menos un día para verlo como el cliente.</Text>
+            ) : (
+              <RutinaDeLaSemana
+                dias={vista}
+                elegido={null}
+                elegir={() => undefined}
+                hoy=""
+                verTecnica={() => undefined}
+                abrir={() => undefined}
+              />
+            )
+          })()}
+        </ScrollView>
+      </Modal>
+
+      <Dialogo
+        visible={confirmando !== null}
+        titulo="¿Publicar el plan?"
+        texto={
+          confirmando
+            ? `${nombreCliente.split(" ")[0]} verá el plan en su app desde el ${fechaCorta(confirmando.semanaInicial)}: ${confirmando.semanas * confirmando.patron.sesiones.length} sesiones en ${confirmando.semanas} semanas. Las sesiones que ya tenga se conservan.`
+            : ""
+        }
+        confirmar={ocupado ? "Publicando…" : "Publicar plan"}
+        cancelar="Cancelar"
+        alConfirmar={() => confirmando && void publicar(confirmando)}
+        alCancelar={() => setConfirmando(null)}
+      />
+      {tecnica && (
+        <VerTecnica
+          cuenta={cuentaId}
+          ejercicioId={tecnica.ejercicioId}
+          nombre={tecnica.nombre}
+          leer={catalogo.leer}
+          almacen={almacenDispositivo}
+          acceso={acceso}
+          cerrar={() => setTecnica(null)}
+        />
+      )}
+    </View>
+  )
+}
+
+const s = StyleSheet.create({
+  flex: { flex: 1 },
+  contenido: { gap: 20 },
+  cabecera: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 16 },
+  textos: { flex: 1, minWidth: 260, gap: 4 },
+  titulo: {
+    color: tema.texto,
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 32,
+    lineHeight: 38,
+    textTransform: "uppercase",
+    paddingVertical: 2,
+  },
+  tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
+  botones: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  secundario: {
+    minHeight: 42,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    justifyContent: "center",
+  },
+  textoSecundario: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  principal: { minHeight: 42, paddingHorizontal: 16, borderRadius: 12, justifyContent: "center" },
+  textoPrincipal: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  aviso: {
+    backgroundColor: tema.exitoSuave,
+    color: tema.texto,
+    borderRadius: 12,
+    padding: 12,
+    fontFamily: tema.fuenteBoton,
+  },
+  datos: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12 },
+  dato: { gap: 4 },
+  campo: {
+    minHeight: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    backgroundColor: tema.superficie,
+    color: tema.texto,
+    fontFamily: tema.fuenteTexto,
+    fontSize: 15,
+    paddingHorizontal: 12,
+  },
+  corto: { width: 72, textAlign: "center" },
+  diasFila: { flexDirection: "row", alignItems: "center", gap: 12 },
+  diaCabecera: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12 },
+  nombreDia: { minWidth: 180, fontFamily: tema.fuenteBoton },
+  semana: { flexDirection: "row", gap: 4 },
+  diaSemana: {
+    width: 36,
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  diaElegido: { borderColor: "transparent" },
+  apagado: { opacity: 0.35 },
+  textoDia: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  textoDiaElegido: { color: tema.sobreAcento },
+  accionesDia: { flexDirection: "row", gap: 16 },
+  cuerpo: { gap: 20 },
+  cuerpoAncho: { flexDirection: "row", alignItems: "flex-start" },
+  lateral: { width: 300 },
+  seccion: { gap: 10, marginBottom: 20 },
+  selector: { backgroundColor: tema.superficie, borderRadius: 16, padding: 12, gap: 8 },
+  panelVacio: { backgroundColor: tema.superficie, borderRadius: 20, padding: 16 },
+  modal: { flex: 1, backgroundColor: tema.fondo },
+  contenidoModal: { padding: 20, gap: 20, maxWidth: 720, width: "100%", alignSelf: "center" },
+  tituloModal: {
+    color: tema.texto,
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 28,
+    textTransform: "uppercase",
+  },
+})
