@@ -349,7 +349,10 @@ export default function FichaDeCliente(): React.JSX.Element {
               texto="Dieta"
               etiquetaAccesible={`Dieta de ${nombreCompleto}`}
               onPress={() =>
-                router.push({ pathname: "/nutricion/cliente/[id]", params: { id: ficha.id } })
+                router.push({
+                  pathname: "/nutricion/cliente/[id]",
+                  params: { id: ficha.id, nombre: nombreCompleto },
+                })
               }
             />
           </>

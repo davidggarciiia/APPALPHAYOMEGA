@@ -1,17 +1,19 @@
 import { randomUUID } from "expo-crypto"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { Text } from "react-native"
-import { BotonSecundario, PantallaDeFormulario } from "../../../../src/componentes/formulario"
+import { PantallaDeFormulario } from "../../../../src/componentes/formulario"
 import { useNutricion } from "../../../../src/nutricion/api"
-import { PanelDieta } from "../../../../src/nutricion/panel-dieta"
+import { FichaNutricion } from "../../../../src/nutricion/ficha-nutricion"
+import { useSeguimiento } from "../../../../src/seguimiento/use-seguimiento"
 import { useSesion } from "../../../../src/sesion"
 import { tema } from "../../../../src/tema"
 
-/** La dieta de un cliente, para el entrenador o su nutricionista. */
+/** La ficha de nutrición de un cliente, para el entrenador o su nutricionista. */
 export default function DietaDelCliente(): React.JSX.Element {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, nombre } = useLocalSearchParams<{ id: string; nombre?: string }>()
   const { estado } = useSesion()
   const api = useNutricion()
+  const seguimiento = useSeguimiento()
   const router = useRouter()
   const profesional =
     estado.fase === "dentro" &&
@@ -19,9 +21,11 @@ export default function DietaDelCliente(): React.JSX.Element {
   return (
     <PantallaDeFormulario sinTarjeta>
       {profesional && typeof id === "string" ? (
-        <PanelDieta
+        <FichaNutricion
           clienteId={id}
+          nombre={typeof nombre === "string" && nombre !== "" ? nombre : "Cliente"}
           api={api}
+          seguimiento={seguimiento}
           nuevoId={randomUUID}
           editar={(origen) =>
             router.push({ pathname: "/nutricion/cliente/[id]/editar", params: { id, origen } })
@@ -32,7 +36,6 @@ export default function DietaDelCliente(): React.JSX.Element {
           Esta pantalla es para el entrenador o el nutricionista.
         </Text>
       )}
-      <BotonSecundario texto="Volver" onPress={() => router.back()} />
     </PantallaDeFormulario>
   )
 }

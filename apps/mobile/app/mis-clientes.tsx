@@ -123,7 +123,10 @@ export default function MisClientes(): React.JSX.Element {
               accessibilityLabel={`${nombre}. ${item.email}`}
               accessibilityHint="Abre su dieta"
               onPress={() =>
-                router.push({ pathname: "/nutricion/cliente/[id]", params: { id: item.id } })
+                router.push({
+                  pathname: "/nutricion/cliente/[id]",
+                  params: { id: item.id, nombre },
+                })
               }
             >
               <View style={estilos.datos}>
