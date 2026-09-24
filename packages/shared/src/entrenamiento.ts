@@ -180,6 +180,8 @@ export const BloqueSchema = z.strictObject({
   fases: z.array(FaseDeBloqueSchema).max(8),
   deportes: z.array(DeporteDelPlanSchema).max(4),
   notas: z.array(TextoCorto(200)).max(10),
+  /** Objetivo de pasos al día: «3.240 / 7.000». */
+  pasosDiarios: z.number().int().min(1000).max(40000).optional(),
 })
 export type Bloque = z.infer<typeof BloqueSchema>
 

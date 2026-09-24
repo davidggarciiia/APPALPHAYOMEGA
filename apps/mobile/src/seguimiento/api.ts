@@ -1,0 +1,67 @@
+import {
+  CambiarDiaSchema,
+  DiaDeSeguimientoSchema,
+  ListadoDiasSchema,
+  ListadoMedidasSchema,
+  ListadoPruebasSchema,
+  MedidaSchema,
+  ProgresionFuerzaSchema,
+  PruebaFisicaSchema,
+  RegistrarMedidaSchema,
+  RegistrarPruebaSchema,
+  type CambiarDia,
+  type DiaDeSeguimiento,
+  type ListadoDias,
+  type ListadoMedidas,
+  type ListadoPruebas,
+  type Medida,
+  type ProgresionFuerza,
+  type PruebaFisica,
+  type RegistrarMedida,
+  type RegistrarPrueba,
+} from "@alpha-omega/shared"
+import type { PeticionAutenticada } from "../lib/peticion-autenticada"
+
+export type ApiSeguimiento = {
+  cambiarDia: (clienteId: string, fecha: string, cambio: CambiarDia) => Promise<DiaDeSeguimiento>
+  dias: (clienteId: string, desde: string, hasta: string) => Promise<ListadoDias>
+  medidas: (clienteId: string) => Promise<ListadoMedidas>
+  registrarMedida: (clienteId: string, datos: RegistrarMedida) => Promise<Medida>
+  pruebas: (clienteId: string) => Promise<ListadoPruebas>
+  registrarPrueba: (clienteId: string, datos: RegistrarPrueba) => Promise<PruebaFisica>
+  fuerza: (clienteId: string) => Promise<ProgresionFuerza>
+}
+
+export function crearApiSeguimiento(pedir: PeticionAutenticada): ApiSeguimiento {
+  const base = (clienteId: string): string =>
+    `/seguimiento/clientes/${encodeURIComponent(clienteId)}`
+  return {
+    cambiarDia: (clienteId, fecha, cambio) =>
+      pedir(`${base(clienteId)}/dias/${encodeURIComponent(fecha)}`, DiaDeSeguimientoSchema, {
+        method: "PUT",
+        body: JSON.stringify(CambiarDiaSchema.parse(cambio)),
+      }),
+    dias: (clienteId, desde, hasta) =>
+      pedir(
+        `${base(clienteId)}/dias?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`,
+        ListadoDiasSchema,
+      ),
+    medidas: (clienteId) => pedir(`${base(clienteId)}/medidas`, ListadoMedidasSchema),
+    registrarMedida: (clienteId, datos) =>
+      pedir(`${base(clienteId)}/medidas`, MedidaSchema, {
+        method: "POST",
+        body: JSON.stringify(RegistrarMedidaSchema.parse(datos)),
+      }),
+    pruebas: (clienteId) => pedir(`${base(clienteId)}/pruebas`, ListadoPruebasSchema),
+    registrarPrueba: (clienteId, datos) =>
+      pedir(`${base(clienteId)}/pruebas`, PruebaFisicaSchema, {
+        method: "POST",
+        body: JSON.stringify(RegistrarPruebaSchema.parse(datos)),
+      }),
+    fuerza: (clienteId) =>
+      pedir(
+        `/entrenamiento/clientes/${encodeURIComponent(clienteId)}/fuerza`,
+        ProgresionFuerzaSchema,
+      ),
+  }
+}

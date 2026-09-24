@@ -6,6 +6,7 @@ import {
   SesionClienteSchema,
   SesionEntrenadorSchema,
   type ListadoAnteriores,
+  type ProgresionFuerza,
   type ListadoSesiones,
   type ValoresEjecutados,
   type SesionCliente,
@@ -143,6 +144,62 @@ export class SesionesService {
       if (buscados.size === 0) break
     }
     return { anteriores }
+  }
+
+  /**
+   * «Fuerza»: por ejercicio, la mejor serie con carga de cada sesión enviada,
+   * valorada con la estimación de Epley. Los seis ejercicios más repetidos.
+   */
+  async fuerza(identidad: IdentidadVerificada, clienteId: string): Promise<ProgresionFuerza> {
+    this.comprobarAcceso(identidad, clienteId)
+    const cliente = await this.prisma.usuario.findFirst({
+      where: { id: clienteId, rol: "cliente" },
+      select: { id: true },
+    })
+    if (!cliente) throw new NotFoundException("Cliente no disponible")
+    const enviadas = await this.prisma.sesionEntrenamiento.findMany({
+      where: { clienteId, resultado: { not: DbNull } },
+      include: { agenda: true },
+      orderBy: [{ agenda: { fechaActual: "desc" } }, { id: "asc" }],
+      take: 200,
+    })
+    const porEjercicio = new Map<
+      string,
+      { nombre: string; puntos: ProgresionFuerza["ejercicios"][number]["puntos"] }
+    >()
+    for (const enviada of enviadas.reverse()) {
+      const resultado = leerDocumento(
+        enviada.resultado,
+        ResultadoEntrenamientoSchema,
+        enviada.version,
+      )
+      const hechas = new Map(
+        resultado.series.flatMap((s) => (s.hecha ? [[s.serieId, s.valores] as const] : [])),
+      )
+      for (const ejercicio of resultado.prescripcion.ejercicios) {
+        let mejor: { pesoKg: number; repeticiones: number; estimado: number } | null = null
+        for (const serie of ejercicio.series) {
+          const valores = hechas.get(serie.id)
+          if (valores?.tipoMedicion !== "repeticiones" || !valores.pesoKg) continue
+          const estimado = Math.round(valores.pesoKg * (1 + valores.repeticiones / 30) * 10) / 10
+          if (!mejor || estimado > mejor.estimado)
+            mejor = { pesoKg: valores.pesoKg, repeticiones: valores.repeticiones, estimado }
+        }
+        if (!mejor) continue
+        const entrada = porEjercicio.get(ejercicio.ejercicioId) ?? {
+          nombre: ejercicio.nombre,
+          puntos: [],
+        }
+        entrada.nombre = ejercicio.nombre
+        entrada.puntos.push({ fecha: agendaPublica(enviada.agenda).fechaActual, ...mejor })
+        porEjercicio.set(ejercicio.ejercicioId, entrada)
+      }
+    }
+    const ejercicios = [...porEjercicio.entries()]
+      .map(([ejercicioId, datos]) => ({ ejercicioId, ...datos }))
+      .sort((a, b) => b.puntos.length - a.puntos.length)
+      .slice(0, 6)
+    return { ejercicios }
   }
 
   async semana(

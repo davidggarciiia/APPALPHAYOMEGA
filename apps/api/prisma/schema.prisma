@@ -44,9 +44,9 @@ model Usuario {
 
   /// Datos de contacto del perfil. Todos opcionales: un perfil recien creado por
   /// el entrenador solo tiene nombre y correo, y su titular los completa despues.
-  telefono         String?
-  fechaNacimiento  DateTime?
-  fotoUrl          String?
+  telefono        String?
+  fechaNacimiento DateTime?
+  fotoUrl         String?
 
   rol    Rol
   estado EstadoUsuario @default(pendiente)
@@ -64,18 +64,23 @@ model Usuario {
   /// Nutricionistas que ven a este usuario como cliente.
   nutricionistasAsignados AsignacionNutricionista[] @relation("ComoCliente")
 
-  planesRecibidos PlanEntrenamiento[] @relation("ClientePlan")
-  planesCreados PlanEntrenamiento[] @relation("CreadorPlan")
+  planesRecibidos     PlanEntrenamiento[] @relation("ClientePlan")
+  planesCreados       PlanEntrenamiento[] @relation("CreadorPlan")
   sesionesProgramadas SesionProgramada[]
-  cambiosDeFecha CambioDeFecha[]
-  rutinasGuardadas RutinaGuardada[]
+  cambiosDeFecha      CambioDeFecha[]
+  rutinasGuardadas    RutinaGuardada[]
 
   dietas           Dieta[] @relation("DietasCliente")
   dietasCreadas    Dieta[] @relation("DietasCreadas")
   dietasPublicadas Dieta[] @relation("DietasPublicadas")
 
-  molestias          Molestia[] @relation("MolestiasCliente")
-  molestiasAtendidas Molestia[] @relation("MolestiasAtendidas")
+  molestias          Molestia[]       @relation("MolestiasCliente")
+  molestiasAtendidas Molestia[]       @relation("MolestiasAtendidas")
+  diasSeguimiento    DiaSeguimiento[]
+  medidas            MedidaCorporal[] @relation("MedidasCliente")
+  medidasTomadas     MedidaCorporal[] @relation("MedidasAutor")
+  pruebas            PruebaFisica[]   @relation("PruebasCliente")
+  pruebasTomadas     PruebaFisica[]   @relation("PruebasAutor")
 
   @@map("usuarios")
 }
@@ -119,7 +124,6 @@ model TokenRefresco {
   @@map("tokens_refresco")
 }
 
-
 /// Que clientes puede ver cada nutricionista.
 ///
 /// El nutricionista es un profesional EXTERNO subcontratado. Sin una fila aqui
@@ -142,7 +146,6 @@ model AsignacionNutricionista {
   @@index([clienteId])
   @@map("asignaciones_nutricionista")
 }
-
 
 /// Enlace de un solo uso con el que un perfil pendiente fija su contrasena.
 ///
@@ -175,15 +178,14 @@ model TokenRecuperacion {
   usuarioId String
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
-  hash String
+  hash     String
   expiraEn DateTime
-  usadoEn DateTime?
-  creadoEn DateTime @default(now())
+  usadoEn  DateTime?
+  creadoEn DateTime  @default(now())
 
   @@index([usuarioId])
   @@map("tokens_recuperacion")
 }
-
 
 /// Por que dejo de valer un token de refresco.
 enum MotivoRevocacion {
@@ -242,8 +244,8 @@ model Ejercicio {
   actualizadoEn     DateTime        @updatedAt
 
   gruposSecundarios GrupoSecundarioDeEjercicio[]
-  referencias ReferenciaEjercicio[]
-  contenidos  ContenidoDeEjercicio[]
+  referencias       ReferenciaEjercicio[]
+  contenidos        ContenidoDeEjercicio[]
 
   @@index([estado, grupoPrincipal])
   @@map("ejercicios")
@@ -265,23 +267,24 @@ enum EstadoSesionProgramada {
 }
 
 model PlanEntrenamiento {
-  id String @id @default(uuid())
-  clienteId String
-  cliente Usuario @relation("ClientePlan", fields: [clienteId], references: [id], onDelete: Restrict)
-  creadorId String
-  creador Usuario @relation("CreadorPlan", fields: [creadorId], references: [id], onDelete: Restrict)
-  operacionId String
-  hashPeticion String
-  nombre String @db.VarChar(120)
-  semanaInicial DateTime @db.Date
-  semanas Int
-  version Int @default(1)
-  patron Json
-  respuesta Json
+  id            String                @id @default(uuid())
+  clienteId     String
+  cliente       Usuario               @relation("ClientePlan", fields: [clienteId], references: [id], onDelete: Restrict)
+  creadorId     String
+  creador       Usuario               @relation("CreadorPlan", fields: [creadorId], references: [id], onDelete: Restrict)
+  operacionId   String
+  hashPeticion  String
+  nombre        String                @db.VarChar(120)
+  semanaInicial DateTime              @db.Date
+  semanas       Int
+  version       Int                   @default(1)
+  patron        Json
+  respuesta     Json
   /// Qué buscamos, fases, otros deportes y notas: lo que enseña «Bloque».
-  bloque Json?
-  creadoEn DateTime @default(now())
-  sesiones SesionEntrenamiento[]
+  bloque        Json?
+  creadoEn      DateTime              @default(now())
+  sesiones      SesionEntrenamiento[]
+
   @@unique([creadorId, operacionId])
   @@unique([id, clienteId])
   @@index([clienteId])
@@ -289,90 +292,96 @@ model PlanEntrenamiento {
 }
 
 model SesionProgramada {
-  id String @id @default(uuid())
-  clienteId String
-  cliente Usuario @relation(fields: [clienteId], references: [id], onDelete: Restrict)
-  fechaOriginal DateTime @db.Date
-  fechaActual DateTime @db.Date
-  estado EstadoSesionProgramada @default(abierta)
-  revision Int @default(0)
+  id            String                 @id @default(uuid())
+  clienteId     String
+  cliente       Usuario                @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  fechaOriginal DateTime               @db.Date
+  fechaActual   DateTime               @db.Date
+  estado        EstadoSesionProgramada @default(abierta)
+  revision      Int                    @default(0)
   entrenamiento SesionEntrenamiento?
-  cambios CambioDeFecha[]
+  cambios       CambioDeFecha[]
+
   @@unique([id, clienteId])
   @@index([clienteId, fechaActual])
   @@map("sesiones_programadas")
 }
 
 model SesionEntrenamiento {
-  id String @id
-  clienteId String
-  agenda SesionProgramada @relation(fields: [id, clienteId], references: [id, clienteId], onDelete: Restrict)
-  planId String
-  plan PlanEntrenamiento @relation(fields: [planId, clienteId], references: [id, clienteId], onDelete: Restrict)
-  version Int @default(1)
-  prescripcion Json
-  revisionPrescripcion Int @default(0)
-  iniciada Boolean @default(false)
-  revisionBorrador Int @default(0)
-  borrador Json?
-  resultado Json?
-  enviadoEn DateTime?
-  referencias ReferenciaEjercicio[]
-  operaciones OperacionEntrenamiento[]
-  molestias Molestia[]
+  id                   String                   @id
+  clienteId            String
+  agenda               SesionProgramada         @relation(fields: [id, clienteId], references: [id, clienteId], onDelete: Restrict)
+  planId               String
+  plan                 PlanEntrenamiento        @relation(fields: [planId, clienteId], references: [id, clienteId], onDelete: Restrict)
+  version              Int                      @default(1)
+  prescripcion         Json
+  revisionPrescripcion Int                      @default(0)
+  iniciada             Boolean                  @default(false)
+  revisionBorrador     Int                      @default(0)
+  borrador             Json?
+  resultado            Json?
+  enviadoEn            DateTime?
+  referencias          ReferenciaEjercicio[]
+  operaciones          OperacionEntrenamiento[]
+  molestias            Molestia[]
+
   @@unique([id, clienteId])
   @@index([planId])
   @@map("sesiones_entrenamiento")
 }
 
 model ReferenciaEjercicio {
-  sesionId String
+  sesionId    String
   idPrescrito String
   ejercicioId String
-  sesion SesionEntrenamiento @relation(fields: [sesionId], references: [id], onDelete: Restrict)
-  ejercicio Ejercicio @relation(fields: [ejercicioId], references: [id], onDelete: Restrict)
+  sesion      SesionEntrenamiento @relation(fields: [sesionId], references: [id], onDelete: Restrict)
+  ejercicio   Ejercicio           @relation(fields: [ejercicioId], references: [id], onDelete: Restrict)
+
   @@id([sesionId, idPrescrito])
   @@index([ejercicioId])
   @@map("referencias_ejercicio")
 }
 
 model CambioDeFecha {
-  id String @id @default(uuid())
-  sesionId String
-  sesion SesionProgramada @relation(fields: [sesionId], references: [id], onDelete: Restrict)
-  fechaAnterior DateTime @db.Date
-  fechaNueva DateTime @db.Date
-  autorId String
-  autor Usuario @relation(fields: [autorId], references: [id], onDelete: Restrict)
-  cambiadoEn DateTime @default(now())
+  id            String           @id @default(uuid())
+  sesionId      String
+  sesion        SesionProgramada @relation(fields: [sesionId], references: [id], onDelete: Restrict)
+  fechaAnterior DateTime         @db.Date
+  fechaNueva    DateTime         @db.Date
+  autorId       String
+  autor         Usuario          @relation(fields: [autorId], references: [id], onDelete: Restrict)
+  cambiadoEn    DateTime         @default(now())
+
   @@index([sesionId, cambiadoEn])
   @@map("cambios_de_fecha")
 }
 
 model RutinaGuardada {
-  id String @id @default(uuid())
-  nombre String @db.VarChar(120)
-  creadorId String
-  creador Usuario @relation(fields: [creadorId], references: [id], onDelete: Restrict)
-  version Int @default(1)
-  patron Json
-  revision Int @default(0)
-  creadoEn DateTime @default(now())
+  id            String   @id @default(uuid())
+  nombre        String   @db.VarChar(120)
+  creadorId     String
+  creador       Usuario  @relation(fields: [creadorId], references: [id], onDelete: Restrict)
+  version       Int      @default(1)
+  patron        Json
+  revision      Int      @default(0)
+  creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
+
   @@index([creadorId])
   @@map("rutinas_guardadas")
 }
 
 /// Registro de operaciones confirmado en la misma transacción que la escritura.
 model OperacionEntrenamiento {
-  sesionId String
-  sesion SesionEntrenamiento @relation(fields: [sesionId], references: [id], onDelete: Restrict)
-  operacionId String
-  tipo String
-  version Int @default(1)
+  sesionId     String
+  sesion       SesionEntrenamiento @relation(fields: [sesionId], references: [id], onDelete: Restrict)
+  operacionId  String
+  tipo         String
+  version      Int                 @default(1)
   hashPeticion String
-  respuesta Json
-  creadoEn DateTime @default(now())
+  respuesta    Json
+  creadoEn     DateTime            @default(now())
+
   @@id([sesionId, operacionId])
   @@map("operaciones_entrenamiento")
 }
@@ -461,27 +470,81 @@ enum EstadoMolestia {
 /// 0 a 10 (CHECK en la migración). El nombre del ejercicio se copia al avisar:
 /// la prescripción puede cambiar después y el aviso tiene que seguir diciendo lo mismo.
 model Molestia {
-  id                   String         @id @default(uuid())
+  id                   String              @id @default(uuid())
   clienteId            String
-  cliente              Usuario        @relation("MolestiasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  cliente              Usuario             @relation("MolestiasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
   sesionId             String
   sesion               SesionEntrenamiento @relation(fields: [sesionId, clienteId], references: [id, clienteId], onDelete: Restrict)
   operacionId          String
   ejercicioPrescritoId String?
-  ejercicio            String?        @db.VarChar(120)
+  ejercicio            String?             @db.VarChar(120)
   serie                Int?
   zona                 ZonaDeMolestia
   intensidad           Int
   sintomas             String[]
-  nota                 String?        @db.VarChar(1000)
-  estado               EstadoMolestia @default(abierta)
-  respuesta            String?        @db.VarChar(1000)
+  nota                 String?             @db.VarChar(1000)
+  estado               EstadoMolestia      @default(abierta)
+  respuesta            String?             @db.VarChar(1000)
   atendidaPorId        String?
-  atendidaPor          Usuario?       @relation("MolestiasAtendidas", fields: [atendidaPorId], references: [id], onDelete: Restrict)
+  atendidaPor          Usuario?            @relation("MolestiasAtendidas", fields: [atendidaPorId], references: [id], onDelete: Restrict)
   atendidaEn           DateTime?
-  creadaEn             DateTime       @default(now())
+  creadaEn             DateTime            @default(now())
 
   @@unique([clienteId, operacionId])
   @@index([clienteId, estado, creadaEn])
   @@map("molestias")
+}
+
+/// Registro diario del cliente: peso en ayunas, pasos, sueño y creatina.
+model DiaSeguimiento {
+  clienteId     String
+  cliente       Usuario  @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  fecha         DateTime @db.Date
+  pesoKg        Decimal? @db.Decimal(4, 1)
+  pasos         Int?
+  suenoMin      Int?
+  creatina      Boolean?
+  actualizadoEn DateTime @updatedAt
+
+  @@id([clienteId, fecha])
+  @@map("dias_seguimiento")
+}
+
+/// Medidas corporales: las toma el cliente o su equipo.
+model MedidaCorporal {
+  id          String   @id @default(uuid())
+  clienteId   String
+  cliente     Usuario  @relation("MedidasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  autorId     String
+  autor       Usuario  @relation("MedidasAutor", fields: [autorId], references: [id], onDelete: Restrict)
+  operacionId String
+  fecha       DateTime @db.Date
+  pesoKg      Decimal? @db.Decimal(4, 1)
+  cinturaCm   Decimal? @db.Decimal(4, 1)
+  grasaPct    Decimal? @db.Decimal(3, 1)
+  alturaCm    Int?
+  creadoEn    DateTime @default(now())
+
+  @@unique([autorId, operacionId])
+  @@index([clienteId, fecha])
+  @@map("medidas_corporales")
+}
+
+/// Pruebas físicas: «Flexiones seguidas · 32 reps».
+model PruebaFisica {
+  id          String   @id @default(uuid())
+  clienteId   String
+  cliente     Usuario  @relation("PruebasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  autorId     String
+  autor       Usuario  @relation("PruebasAutor", fields: [autorId], references: [id], onDelete: Restrict)
+  operacionId String
+  fecha       DateTime @db.Date
+  nombre      String   @db.VarChar(60)
+  valor       Decimal  @db.Decimal(8, 2)
+  unidad      String   @db.VarChar(12)
+  creadoEn    DateTime @default(now())
+
+  @@unique([autorId, operacionId])
+  @@index([clienteId, nombre, fecha])
+  @@map("pruebas_fisicas")
 }

@@ -7,6 +7,7 @@ import { IdentityModule } from "./identity/identity.module.js"
 import { NutricionModule } from "./nutricion/nutricion.module.js"
 import { PrismaModule } from "./prisma/prisma.module.js"
 import { SaludModule } from "./salud/salud.module.js"
+import { SeguimientoModule } from "./seguimiento/seguimiento.module.js"
 
 /**
  * Raiz de la aplicacion. Cada modulo del mapa de capacidades se cuelga de aqui.
@@ -20,6 +21,7 @@ import { SaludModule } from "./salud/salud.module.js"
     CatalogoEjerciciosModule,
     EntrenamientoModule,
     NutricionModule,
+    SeguimientoModule,
   ],
 })
 export class AppModule {}

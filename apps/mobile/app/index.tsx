@@ -1,5 +1,5 @@
-import { useMemo } from "react"
-import { useRouter, type Href } from "expo-router"
+import { useCallback, useMemo, useState } from "react"
+import { useFocusEffect, useRouter, type Href } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
 import { Icono } from "../src/componentes/iconos"
@@ -7,6 +7,9 @@ import { SemanaEntrenamiento } from "../src/entrenamiento/semana"
 import { useAccesoAFiguras } from "../src/catalogo-ejercicios/figura-ejercicio"
 import { useCatalogo } from "../src/catalogo-ejercicios/use-catalogo"
 import { useEntrenamiento } from "../src/entrenamiento/use-entrenamiento"
+import { lunesDeSemana } from "../src/entrenamiento/fechas"
+import { HoyDiario } from "../src/seguimiento/hoy-diario"
+import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
@@ -16,6 +19,26 @@ export default function Inicio(): React.JSX.Element {
   const catalogo = useCatalogo()
   const accesoFiguras = useAccesoAFiguras()
   const router = useRouter()
+  const seguimiento = useSeguimiento()
+  const [objetivoPasos, setObjetivoPasos] = useState<number | null>(null)
+  const clienteId =
+    estado.fase === "dentro" && estado.usuario.rol === "cliente" ? estado.usuario.id : null
+  // El objetivo de pasos lo fija el entrenador en el bloque de la semana.
+  useFocusEffect(
+    useCallback(() => {
+      if (clienteId === null) return
+      let vigente = true
+      api
+        .plan(clienteId, lunesDeSemana())
+        .then(({ plan }) => {
+          if (vigente) setObjetivoPasos(plan?.bloque?.pasosDiarios ?? null)
+        })
+        .catch(() => undefined)
+      return () => {
+        vigente = false
+      }
+    }, [api, clienteId]),
+  )
   const detalle = useMemo(
     () => ({ leerSesion: api.leerCliente, leerEjercicio: catalogo.leer, acceso: accesoFiguras }),
     [api, catalogo, accesoFiguras],
@@ -44,14 +67,17 @@ export default function Inicio(): React.JSX.Element {
   return (
     <PantallaDeFormulario sinTarjeta>
       {usuario.rol === "cliente" ? (
-        <SemanaEntrenamiento
-          clienteId={usuario.id}
-          api={api}
-          copiaLocal
-          resumenHoy
-          detalle={detalle}
-          abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
-        />
+        <View style={s.cliente}>
+          <SemanaEntrenamiento
+            clienteId={usuario.id}
+            api={api}
+            copiaLocal
+            resumenHoy
+            detalle={detalle}
+            abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
+          />
+          <HoyDiario clienteId={usuario.id} api={seguimiento} objetivoPasos={objetivoPasos} />
+        </View>
       ) : (
         <View style={s.contenido}>
           <Text style={s.leyenda}>Tu espacio de trabajo</Text>
@@ -86,11 +112,14 @@ export default function Inicio(): React.JSX.Element {
           {acceso("Mi perfil", "Consulta y actualiza tus datos personales.", "/perfil")}
         </View>
       )}
-      <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
+      {usuario.rol !== "cliente" && (
+        <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
+      )}
     </PantallaDeFormulario>
   )
 }
 const s = StyleSheet.create({
+  cliente: { gap: 32 },
   contenido: { gap: 12 },
   leyenda: { color: tema.textoTenue, fontFamily: tema.fuenteSemi, fontSize: 13, marginBottom: 4 },
   tarjeta: { backgroundColor: tema.superficie, borderRadius: 20, padding: 20, gap: 8 },

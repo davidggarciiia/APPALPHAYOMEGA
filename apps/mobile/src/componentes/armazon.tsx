@@ -14,12 +14,12 @@ const entrenador: Destino[] = [
   { ruta: "/rutinas", nombre: "Rutinas", icono: "plan" },
   { ruta: "/catalogo", nombre: "Ejercicios", icono: "ejercicios" },
 ]
-/** Como en el diseño: Entreno (hoy), Plan (la semana), Nutrición y la cuenta. */
+/** Como en el diseño: Entreno (hoy), Plan, Nutrición y Progreso. La cuenta, en el avatar. */
 const cliente: Destino[] = [
   { ruta: "/", nombre: "Entreno", icono: "entreno" },
   { ruta: "/entrenamiento", nombre: "Plan", icono: "plan" },
   { ruta: "/nutricion", nombre: "Nutrición", icono: "nutricion" },
-  { ruta: "/perfil", nombre: "Perfil", icono: "perfil" },
+  { ruta: "/progreso", nombre: "Progreso", icono: "progreso" },
 ]
 const titulos: Record<string, string> = {
   cartera: "Mis clientes",
@@ -30,6 +30,7 @@ const titulos: Record<string, string> = {
   entrenador: "Plan de entrenamiento",
   cliente: "Ficha de cliente",
   perfil: "Mi perfil",
+  progreso: "Progreso",
   nutricionista: "Nutricionista",
   "mis-clientes": "Mis clientes",
 }
@@ -41,6 +42,7 @@ const PRINCIPALES = [
   "/entrenamiento",
   "/nutricion",
   "/perfil",
+  "/progreso",
   "/mis-clientes",
 ]
 /** Desde este ancho el profesional trabaja con barra lateral, como en el diseño de escritorio. */

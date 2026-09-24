@@ -36,7 +36,11 @@ export async function entornoEntrenamiento(nombre: string): Promise<{
       select: { id: true },
     })
     const sesionId = { in: sesiones.map((fila) => fila.id) }
+    const clienteId = { in: ids }
     await prisma.$transaction([
+      prisma.diaSeguimiento.deleteMany({ where: { clienteId } }),
+      prisma.medidaCorporal.deleteMany({ where: { OR: [{ clienteId }, { autorId: clienteId }] } }),
+      prisma.pruebaFisica.deleteMany({ where: { OR: [{ clienteId }, { autorId: clienteId }] } }),
       prisma.molestia.deleteMany({ where: { sesionId } }),
       prisma.operacionEntrenamiento.deleteMany({ where: { sesionId } }),
       prisma.referenciaEjercicio.deleteMany({ where: { sesionId } }),

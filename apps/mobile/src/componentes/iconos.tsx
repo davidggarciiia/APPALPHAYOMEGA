@@ -18,6 +18,7 @@ export type NombreIcono =
   | "hecho"
   | "pausa"
   | "reproducir"
+  | "progreso"
 
 export function Icono({
   nombre,
@@ -86,6 +87,7 @@ export function Icono({
           </>
         )}
         {nombre === "reproducir" && <Path d="M8 5.5v13l11-6.5z" fill={color} />}
+        {nombre === "progreso" && <Path d="M4 20h16M5 15l4-4 3 3 7-7M15 7h4v4" {...trazo} />}
       </Svg>
     </View>
   )
