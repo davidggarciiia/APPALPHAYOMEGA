@@ -4,6 +4,8 @@ import type { FichaDeUsuario } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import type { ApiNutricion } from "../../nutricion/api"
 import type { ApiSeguimiento } from "../../seguimiento/api"
+import type { ApiMedios } from "../../seguimiento/medios-api"
+import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { FichaCliente } from "./ficha-cliente"
 
 const mockPush = jest.fn()
@@ -42,6 +44,13 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
   } as unknown as ApiEntrenamiento
   const seguimiento = {
     medidas: jest.fn(async () => ({ medidas: [], fechaNacimiento: null })),
+    consentimiento: jest.fn(async () => ({
+      version: null,
+      aceptadoEn: null,
+      retiradoEn: null,
+      vigente: false,
+      versionVigente: "2026-09-24-borrador",
+    })),
   } as unknown as ApiSeguimiento
   const nutricion = { vigente: jest.fn(async () => null) } as unknown as ApiNutricion
 
@@ -52,6 +61,8 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
       leerFicha={async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario}
       api={api}
       seguimiento={seguimiento}
+      valoraciones={{} as ApiValoraciones}
+      medios={{} as ApiMedios}
       nutricion={nutricion}
       nuevoId={() => "50000000-0000-4000-8000-000000000000"}
       editarPlan={jest.fn()}
@@ -61,6 +72,7 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
   )
 
   await waitFor(() => expect(screen.getByText(/cambió el día de Fuerza A/)).toBeTruthy())
+  expect(screen.getByText(/Sin consentimiento de datos de salud/)).toBeTruthy()
   expect(screen.getByText(/envió Fuerza A/)).toBeTruthy()
   expect(screen.getByText(/comunicó una molestia en Fuerza A/)).toBeTruthy()
   await fireEvent.press(screen.getByRole("button", { name: /comunicó una molestia en Fuerza A/ }))

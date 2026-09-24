@@ -6,6 +6,9 @@ import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
 
 import { ActivacionService } from "./activacion.service.js"
 import { AlcanceClienteGuard } from "./alcance-cliente.guard.js"
+import { ConsentimientoController } from "./consentimiento.controller.js"
+import { ConsentimientoGuard } from "./consentimiento.guard.js"
+import { ConsentimientoService } from "./consentimiento.service.js"
 import { AlcanceClienteService } from "./alcance-cliente.service.js"
 import { AsignacionesController } from "./asignaciones.controller.js"
 import { AsignacionesService } from "./asignaciones.service.js"
@@ -51,7 +54,13 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
       }),
     }),
   ],
-  controllers: [AuthController, UsuariosController, PerfilController, AsignacionesController],
+  controllers: [
+    AuthController,
+    UsuariosController,
+    PerfilController,
+    AsignacionesController,
+    ConsentimientoController,
+  ],
   providers: [
     AuthService,
     TokensRefrescoService,
@@ -62,6 +71,7 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
     AsignacionesService,
     LimitadorDeIntentos,
     AlcanceClienteService,
+    ConsentimientoService,
     // No es global. Se pone a mano en las rutas que tratan datos de un cliente
     // concreto: ponerlo global obligaria a excluir rutas una a una, que es otra
     // vez la regla al reves.
@@ -75,12 +85,15 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
     // en la peticion.
     { provide: APP_GUARD, useClass: AutenticacionGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    // Tercero: solo actúa en rutas marcadas que guardan datos de salud.
+    { provide: APP_GUARD, useClass: ConsentimientoGuard },
   ],
   exports: [
     AuthService,
     TokensRefrescoService,
     AlcanceClienteService,
     AlcanceClienteGuard,
+    ConsentimientoService,
     JwtModule,
   ],
 })

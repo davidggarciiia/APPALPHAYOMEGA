@@ -86,13 +86,29 @@ En Android no hay problema. Ver [SPEC-identity.md](../SPEC-identity.md).
 
 ### 4. Texto de consentimiento de datos de salud
 
-**Estado: sin redactar.** Peso, medidas, pliegues cutáneos y fotos corporales son
-categoría especial bajo el RGPD, el escalón más alto. Sin consentimiento
-explícito registrado no se puede guardar el primer dato de una persona real.
+**Estado (2026-09-24): implementado con un borrador; falta la revisión legal.**
+Peso, medidas, pliegues cutáneos y fotos corporales son categoría especial bajo
+el RGPD, el escalón más alto. Sin consentimiento explícito registrado no se
+puede guardar el primer dato de una persona real.
 
-Claude puede escribir un borrador sólido. **Antes de publicar lo tiene que
-revisar alguien con título**, porque es un documento legal y no un texto de
-interfaz.
+Lo que ya hace la app:
+
+- El cliente ve el texto al entrar y tiene que marcar la casilla; no viene nada
+  marcado. Puede no aceptar y cerrar sesión.
+- Se guarda quién aceptó, qué versión y cuándo (`consentimientos_salud`).
+- Lo puede retirar desde Perfil, con confirmación (RGPD, art. 7.3). La app
+  vuelve a pedírselo. Lo guardado antes no se borra.
+- La API rechaza con 409 `consentimiento_pendiente` las escrituras de datos de
+  salud de un cliente sin consentimiento vigente, las haga él o su equipo.
+- El entrenador ve en la ficha si falta, con la fecha en que se dio o se retiró.
+
+Lo que falta: **que alguien con título revise el texto**. Está en
+`packages/shared/src/consentimiento.ts`, marcado como versión
+`2026-09-24-borrador`. Si la revisión cambia el texto, hay que subir
+`VERSION_CONSENTIMIENTO` y cada cliente lo vuelve a aceptar. También tiene que
+confirmar si hace falta un aviso de privacidad aparte (responsable, base
+jurídica, plazos y derecho a reclamar ante la AEPD). Ese aviso no está
+redactado.
 
 ### 5. Dónde vive el servidor y quién lo paga
 
@@ -108,15 +124,30 @@ tirado y un riesgo innecesario.
 Sigue sin decidir el proveedor. Cuando toque, la restricción que manda es que los
 datos estén en la Unión Europea, por el [ADR 0005](adr/0005-almacenamiento-de-fotos.md).
 
+Lo que ya está listo (2026-09-24): el código de las fotos privadas funciona con
+cualquier almacenamiento compatible con S3 y región en la UE. Basta con
+configurar las variables `ALMACEN=s3` y `S3_*` de
+[DESPLIEGUE.md](DESPLIEGUE.md), sin tocar código. Mientras no haya proveedor, el
+almacén local sirve para desarrollar, pero no para producción: guarda las
+fotos en el disco del servidor.
+
 ## Bloqueantes blandos
 
 No impiden publicar, pero conviene resolverlos antes o poco después.
 
 ### 6. Licencia de las figuras animadas
 
-Si salen de la librería de Symmetry, no son vuestras. Hay librerías de
-animaciones anatómicas que se licencian por poco dinero. Conviene saber de cuál
-tiráis antes de que estén incrustadas en ocho pantallas.
+**Resuelto el 2026-09-24 con material gratuito.** Vital (paquete Free50) permite
+alojar y transcodificar sus animaciones en una app. La muestra de MoveKit solo
+se sirve por streaming. Detalle y citas en
+[animaciones-ejercicios.md](animaciones-ejercicios.md). Los originales **no**
+entran en el repositorio. En cada servidor se importan con
+`importar-medios.js`, y el catálogo inicial de 52 ejercicios se crea con
+`preparar-catalogo.js` (ver [DESPLIEGUE.md](DESPLIEGUE.md)).
+
+Queda una tarea práctica: guardar una copia de los paquetes descargados y de
+sus licencias en un sitio del entrenador. Si el proveedor los retira, no se
+pueden volver a bajar.
 
 ### 7. Vídeos de los ejercicios
 
@@ -137,28 +168,25 @@ hay que moverlo a la base de datos o a Redis. Ver
 las sesiones vivas y quema los enlaces de activación pendientes, las tres cosas
 en la misma transacción. Reactivar ya no resucita nada.
 
-Queda la mitad de la tarea 20: cambiar la contraseña también tiene que revocar
-las sesiones abiertas, o quien te la robó sigue dentro después de que la cambies.
+La otra mitad también está hecha. Hoy la contraseña solo se cambia con la
+recuperación por correo, y restablecerla revoca todas las sesiones en la misma
+transacción (`recuperacion.service.ts`). Si algún día se añade «cambiar
+contraseña» dentro de la app, tiene que hacer lo mismo.
 
-### 9c. El token de acceso no se renueva solo mientras la app está abierta
+### 9c. El token de acceso no se renovaba solo mientras la app estaba abierta
 
-El token de acceso dura quince minutos y solo se renueva al arrancar la
-aplicación. Una pantalla abierta más rato deja de funcionar y hoy la única salida
-es volver a entrar.
+**Hecho.** `apps/mobile/src/lib/peticion-autenticada.ts` renueva el token al
+recibir un 401. Varias peticiones a la vez comparten una sola renovación.
+Repite sola la petición si es una lectura o una escritura con `operacionId`
+(no puede duplicarse). Cualquier otra escritura pide al usuario que la
+confirme de nuevo. Solo se vuelve a entrar si también ha caducado
+el token de refresco.
 
-Las pantallas lo dicen con honestidad desde la tarea 17 en vez de ofrecer un
-"reintentar" que no arreglaría nada, pero el arreglo de verdad vive en
-`sesion.tsx` y afecta a todas las pantallas. Tarea propia antes de tener clientes
-de verdad usando la app a diario.
+### 9d. El nutricionista seguía viendo a un cliente dado de baja
 
-### 9d. El nutricionista sigue viendo a un cliente dado de baja
-
-`AlcanceClienteService.tieneAsignado` mira si existe la fila de asignación, no el
-estado del cliente. La fila no se borra a propósito, porque perderla borraría el
-rastro de quién tuvo acceso a qué. Filtrar por estado es trabajo de la tarea 18.
-
-Es la fuga de datos de salud más plausible del módulo: un nutricionista
-subcontratado conservando acceso a alguien que ya no es cliente.
+**Hecho.** `AlcanceClienteService.tieneAsignado` exige ahora que el cliente no
+esté desactivado. La fila de asignación se conserva como rastro de quién tuvo
+acceso, pero ya no da acceso.
 
 ### 9e. No hay registro de auditoría de las acciones del entrenador
 
@@ -166,19 +194,12 @@ Las bajas y reactivaciones dejan una línea en el log del servidor con quién,
 a quién y cuándo, y nada más. Cuando llegue el borrado a petición (tarea 21)
 habrá que poder demostrar qué se hizo y cuándo, y eso pide una tabla.
 
-### 9b. La app móvil no tiene ni un solo test
+### 9b. La app móvil no tenía tests
 
-`SPEC.md` fija en su estrategia de pruebas que las pantallas se comprueban con
-React Native Testing Library. No existe ninguna, y `apps/mobile` ni siquiera
-define un comando de test.
-
-Se nota. La revisión adversarial encontró once fallos confirmados en la app, y
-tres eran críticos: dejaban la aplicación colgada para siempre o cerraban la
-sesión de un cliente sin motivo. Ninguno habría sobrevivido a un test decente.
-
-Los arreglos están hechos y razonados, pero **verificados leyendo el código, no
-ejecutándolo**. Montar el entorno de pruebas de la app es trabajo pendiente y
-debería ir antes de la fase 4, no después.
+**Hecho.** La app tiene su suite con React Native Testing Library
+(`npm test --workspace apps/mobile`). Lo que sigue sin cubrir es lo físico:
+cámara, galería, permisos y rendimiento en un teléfono real. Eso se comprueba a
+mano antes de publicar (`tasks/todo.md`, Q03).
 
 ### 10. Avisos de `npm audit`
 

@@ -20,3 +20,6 @@ coverage/
 .DS_Store
 Thumbs.db
 *.log
+
+# Objetos del almacén local de fotos (desarrollo y pruebas). Nunca a Git.
+.almacen-local/

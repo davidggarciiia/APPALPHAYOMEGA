@@ -11,7 +11,13 @@ export const ErrorDeApiSchema = z.discriminatedUnion("statusCode", [
   }),
   z.strictObject({
     statusCode: z.literal(409),
-    codigo: z.enum(["nombre_duplicado", "revision_obsoleta", "operacion_incompatible"]),
+    codigo: z.enum([
+      "nombre_duplicado",
+      "revision_obsoleta",
+      "operacion_incompatible",
+      "estado_incompatible",
+      "consentimiento_pendiente",
+    ]),
     message: MensajeSchema,
   }),
 ])

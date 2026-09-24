@@ -20,6 +20,48 @@ Una variación de peso indica dirección y magnitud. Sin una pauta suficiente de
 
 La migración es aditiva. Las cuentas y registros previos siguen siendo válidos; ningún campo nuevo obliga retrospectivamente a introducir datos ni elimina el historial.
 
+## Valoración inicial y revisiones
+
+Contratos en `packages/shared/src/valoraciones.ts` (V01 de [todo.md](tasks/todo.md)). Una **valoración** es una visita del entrenador: inicial o revisión. Al crearla se copian las definiciones activas de la **plantilla** del cliente para los bloques elegidos (`medidas`, `pliegues`, `bioimpedancia`, `pruebas`, `fotos`); cambiar después la plantilla no altera esa copia. Una revisión copia definiciones, nunca resultados; los anteriores solo se consultan como referencia fechada.
+
+**Definiciones.** Cada campo corporal (magnitud, unidad, zona, lateralidad, instrumento, protocolo) y cada prueba (tipo, variante, protocolo, duración prescrita, instrumento, métricas con una principal) tiene `id` y `version`. Renombrar o desactivar conserva la versión; cambiar cómo se mide la sube (`versionarDefinicionCorporal`, `versionarDefinicionPrueba`) y crea otra serie de comparación. No hay listado fijo de pliegues ni perímetros: los elige el entrenador. Los textos son planos (sin `<` ni `>`) y no contienen fórmulas.
+
+**Resultados.** Cada dato es `pendiente` (sin dato), `registrado` o `noRealizado` con motivo opcional. En pruebas, el cero es un resultado real; en magnitudes físicas (peso, altura, perímetro, pliegue, grasa, masas, agua) no se admite cero, y el peso empieza en 30 kg como en el registro diario. Los valores llevan como máximo dos decimales. Un pliegue guarda el valor adoptado y hasta cinco lecturas originales; las lecturas pueden guardarse mientras el valor sigue `pendiente`, hasta que el profesional lo adopte. Una prueba guarda sus métricas por clave; las opcionales no recogidas (por ejemplo, FC de recuperación) no aparecen. El porcentaje de grasa por pliegues es el que calculó el profesional, con método y fecha; la app no lo calcula. Se distinguen fecha de toma (día de la visita, o de la prueba si fue otro día), creación, actualización y publicación.
+
+**Borrador, publicación y corrección.** El borrador contiene definiciones copiadas, resultados, `conclusion` y `notasInternas`. Se edita nombrando `borradorId` y su `revision`; las definiciones no se cambian desde el borrador. Añadir un bloque copia las definiciones activas de la plantilla vigente para ese bloque; retirarlo solo se admite si no tiene resultados anotados. Publicar congela `proyeccionPublica`: sin notas internas, sin pendientes y solo las definiciones con resultado. `conclusion`, las `notas` de cada prueba y el `motivo` de un no realizado se publican; solo `notasInternas` queda para el entrenador, que conserva el documento interno de la versión vigente (`documentoVigente`). Para corregir, `POST valoraciones` con `corrigePublicacionId` abre un borrador nuevo sobre la **misma** visita copiando ese documento interno (definiciones, pendientes y notas); al publicarlo, la nueva versión (`numero` + 1) indica en `sustituyeId` la que reemplaza, que se conserva como auditoría. Una corrección no crea otra visita ni otro punto en la evolución.
+
+| Rol                    | Lee                                                                                                                             | Escribe                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Entrenador con alcance | Plantilla, historial con estado de trabajo, visitas (`ValoracionProfesional`: borrador, versión vigente y su documento interno) | Plantilla, visitas, borradores, publicaciones, correcciones, próxima revisión |
+| Cliente propio         | Publicación vigente (`ValoracionCliente`), historial publicado (`ListadoValoracionesPublicadas`, sin estado) y próxima revisión | Nada de la valoración profesional; solo aportaciones que se le soliciten      |
+| Nutricionista asignado | Resultados corporales publicados (`ValoracionCorporal`, sin pruebas, conclusión ni notas) e historial publicado                 | Nada                                                                          |
+
+El nutricionista no recibe fotos, notas internas ni borradores; ampliarlo requiere una decisión expresa. Los permisos se aplican en la API antes de leer el documento, no ocultando botones.
+
+**Idempotencia y errores.** Crear y publicar llevan `operacionId`: repetir la misma operación con el mismo contenido devuelve el mismo resultado; con contenido distinto, `409 operacion_incompatible`. Guardar o publicar con una `revision` que no es la actual devuelve `409 revision_obsoleta` y conserva la versión del servidor. Publicar una corrección que no nombra la publicación vigente, abrir una segunda corrección, editar una visita sin borrador abierto o nombrar un `borradorId` que no es el abierto devuelve `409 estado_incompatible`. Un cuerpo inválido es `400 solicitud_invalida`; un rol sin permiso, `403`; una visita inexistente o de otro cliente, `404`. Para cliente y nutricionista, una visita sin publicación vigente responde `404`, igual que una inexistente; se comprueba antes de leer el documento. La plantilla solo la lee y guarda el entrenador: cambiar cómo se mide una definición exige subir su versión y quitar una definición no se admite (se desactiva).
+
+**Próxima revisión.** `pauta: null` es «Sin programar»; si existe, lleva fecha **o** intervalo en semanas y los bloques que se repetirán. Se guarda con `revision`. No se fija una frecuencia por defecto ni se repiten automáticamente todas las pruebas. Solo crear una revisión con `cumplePauta` (la revisión vigente de la pauta) la marca cumplida y guarda `cumplidaPorId`; abrirla no. Guardar una pauta nueva la deja otra vez pendiente.
+
+## Fotos de evolución
+
+Detalle técnico en el [ADR 0005](docs/adr/0005-almacenamiento-de-fotos.md). Una foto tiene vista (`frente`, `espalda`, `perfilIzquierdo`, `perfilDerecho` u `otra` con etiqueta), fecha de toma, autor, origen (`profesional` en una visita, `cliente` en una solicitud) y estado (`pendiente`, `disponible`, `eliminando`, `eliminado`). Solo `disponible` es una foto confirmada.
+
+- **Subir:** `POST /medios/subidas` con `operacionId` → enlace de subida → `POST /medios/:id/confirmacion`. Repetir la misma operación devuelve el mismo medio y renueva el enlace. Una confirmación tardía responde `409` y se vuelve a subir con la misma operación.
+- **Ver:** `GET /medios/:id/acceso` da una lectura de 5 minutos. `GET seguimiento/clientes/:clienteId/fotos` lista las que puede ver quien pregunta, sin las pendientes: el entrenador, todas; el cliente, las suyas y las del entrenador ya publicadas. El nutricionista recibe `403`.
+- **Solicitudes:** el entrenador pide vistas (`solicitudes-fotos`). El cliente aporta aunque aún no exista la visita, y el entrenador incorpora lo recibido sin volver a subirlo. «Recibida» y «revisada» son estados distintos; revisar es una acción explícita.
+- **Retirar:** `DELETE /medios/:id`. El entrenador retira cualquier foto de su cliente; el cliente, solo lo que aportó. Si el almacén falla, queda `eliminando` sin acceso y se puede repetir. Una foto retirada sigue en su visita como retirada. Las subidas sin confirmar se descartan solas.
+- **Comparar:** dos fechas de la misma vista, nunca de vistas distintas. Una vista con una sola foto se explica; el hueco no se rellena con otra vista ni otra fecha.
+
+## Evolución y avisos
+
+`GET seguimiento/clientes/:clienteId/evolucion?desde&hasta` devuelve series de puntos. Una serie solo junta valores comparables: misma definición y versión, misma métrica y unidad, y protocolo completo o no. Los formatos de clave están en `SerieEvolucionSchema`. El histórico anterior a las valoraciones sale sin clasificar y no se compara con las visitas. Una corrección sustituye el punto de su visita. La lee el cliente, el entrenador y el nutricionista asignado, este sin pruebas físicas. La app muestra la diferencia solo entre dos puntos de la misma serie y con lectura neutral.
+
+`GET seguimiento/clientes/:clienteId/avisos` y `POST …/avisos/leidos` avisan al cliente de valoraciones publicadas o corregidas y de fotos solicitadas, y al entrenador de fotos recibidas. Los avisos salen de las publicaciones y solicitudes, sin tabla propia. La lectura va por usuario y es idempotente, y leer un aviso no revisa nada.
+
+## Consentimiento de datos de salud
+
+Sin consentimiento vigente del cliente (`packages/shared/src/consentimiento.ts`), la API rechaza con `409 consentimiento_pendiente` cualquier escritura de sus datos de salud: medidas, días, pruebas, valoraciones, fotos, molestias y comidas. Da igual que la haga él o su equipo. El cliente lo da y lo retira desde la app (`GET/POST/DELETE /consentimiento`). El entrenador y el nutricionista asignado lo consultan (`GET seguimiento/clientes/:clienteId/consentimiento`). Retirarlo no borra lo guardado antes. El texto es un borrador pendiente de revisión legal.
+
 ## Aceptación
 
 1. El entrenador configura y reabre los indicadores, frecuencia, objetivo y pruebas de un cliente; el cliente ve exactamente lo publicado.

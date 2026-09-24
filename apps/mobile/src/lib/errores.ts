@@ -1,4 +1,5 @@
 import { ErrorDePermiso, ErrorDeRed, ErrorDeSesion } from "./api"
+import { ErrorDePeticion } from "./http"
 
 /**
  * Lo que la pantalla enseña cuando algo falla.
@@ -47,6 +48,12 @@ export function faltaDe(error: unknown, respaldo: string): Falta {
       reintentable: false,
       sesionCaducada: true,
     }
+  }
+
+  if (error instanceof ErrorDePeticion && error.detalle.codigo === "consentimiento_pendiente") {
+    // El servidor ya dice a quién le falta: al propio cliente o al equipo.
+    // Reintentar no sirve hasta que el cliente acepte el consentimiento.
+    return { texto: error.message, reintentable: false, sesionCaducada: false }
   }
 
   return { texto: respaldo, reintentable: true, sesionCaducada: false }

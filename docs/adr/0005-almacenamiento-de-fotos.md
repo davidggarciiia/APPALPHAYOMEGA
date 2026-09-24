@@ -1,7 +1,7 @@
 # ADR 0005: Las fotos van a almacenamiento de objetos, con enlaces firmados
 
 - **Fecha:** 2026-09-16
-- **Estado:** aceptado, pendiente de elegir proveedor
+- **Estado:** aceptado e implementado (2026-09-24); pendiente de elegir proveedor
 - **Contexto:** tarea 15, aplazado hasta el módulo `seguimiento-corporal`
 
 ## Contexto
@@ -84,3 +84,35 @@ La tarea 15 queda cerrada con los datos de texto, que no dependen de nada de est
 Para unos pocos gigas, entre céntimos y un par de euros al mes. Poco, pero es otro
 gasto recurrente que se suma al servidor, y eso sigue sin decidirse quién lo paga.
 Ver [PENDIENTE-PARA-PRODUCCION.md](../PENDIENTE-PARA-PRODUCCION.md), punto 5.
+
+## Implementación (2026-09-24)
+
+Lo decidido arriba está en código. Solo falta elegir el proveedor:
+
+- **Contrato `AlmacenObjetos`** (`apps/api/src/medios/almacen-objetos.ts`), con dos
+  implementaciones que se eligen con `ALMACEN`:
+  - `AlmacenS3` sirve para AWS o cualquier compatible con S3 en la UE, con URLs
+    prefirmadas v4. Sin sumas de comprobación automáticas, que firmarían un
+    cuerpo vacío.
+  - `AlmacenLocal` usa el disco del servidor, con enlaces HMAC a la propia API.
+    Es solo para desarrollo.
+  - Con `NODE_ENV=production` la API no arranca sin elegir uno. Ver
+    [DESPLIEGUE.md](../DESPLIEGUE.md).
+- **Flujo:** la app pide una intención (`POST /medios/subidas`) y sube directo
+  con un enlace de 15 minutos que firma el tipo y el tamaño. Después confirma, y
+  la API relee el objeto, comprueba el formato por su firma de bytes y quita los
+  metadatos (ubicación, cámara) por lista blanca antes de darlo por
+  disponible. La lectura es otro enlace, de 5 minutos, sin caché
+  (`private, no-store`).
+- **Nada público ni persistido:** la base guarda la clave del objeto, nunca una
+  URL. La app no guarda enlaces ni fotos. En Android descarga la foto a memoria
+  y la pinta como `data:`, así no queda en la caché de disco de Fresco.
+- **Quién ve qué:** el entrenador ve todas las fotos de sus clientes. El cliente
+  ve las suyas y las del entrenador ya publicadas. El nutricionista no ve
+  ninguna.
+- **Retirada y limpieza:** una foto retirada pasa a `eliminando` sin acceso y
+  después se borra el objeto; si el almacén falla, se puede repetir. Las
+  intenciones que nadie confirma se descartan una hora después de caducar
+  (`MEDIOS_LIMPIEZA_MINUTOS`). Una foto aún sin confirmar no se puede retirar:
+  la descarta la limpieza.
+- **La app reduce la imagen** antes de subirla y el servidor rechaza más de 8 MB.

@@ -36,6 +36,7 @@ function seguimientoEnMemoria() {
     pruebas: falta,
     registrarPrueba: falta,
     fuerza: falta,
+    consentimiento: falta,
   } satisfies ApiSeguimiento
 }
 

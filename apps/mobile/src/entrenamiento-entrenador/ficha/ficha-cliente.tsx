@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_ZONA,
+  type EstadoConsentimiento,
   type FichaDeUsuario,
   type LecturaDietaVigente,
   type ListadoMedidas,
@@ -23,7 +24,10 @@ import type { ApiNutricion } from "../../nutricion/api"
 import { tipoDelDia } from "../../nutricion/hoy-modelo"
 import type { ApiSeguimiento } from "../../seguimiento/api"
 import { edadEn, miles, pesoLegible } from "../../seguimiento/modelo"
+import { ValoracionesProfesional } from "../../seguimiento/editor-valoracion"
 import { ProgresoCliente } from "../../seguimiento/progreso"
+import type { ApiMedios } from "../../seguimiento/medios-api"
+import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { degradadoOro, tema } from "../../tema"
 import { resumenDeResultado } from "../ficha-modelo"
 import { DialogoResponder, RequiereAtencion } from "./atencion"
@@ -47,6 +51,16 @@ type Datos = {
   molestias: Molestia[]
   dieta: LecturaDietaVigente | null
   medidas: ListadoMedidas | null
+  consentimiento: EstadoConsentimiento | null
+}
+
+/** Cómo está el consentimiento de datos de salud, en una línea. */
+function textoConsentimiento(estado: EstadoConsentimiento | null): string {
+  if (estado === null) return "No se pudo comprobar"
+  if (estado.vigente && estado.aceptadoEn)
+    return `Dado el ${fechaLegible(estado.aceptadoEn.slice(0, 10))}`
+  if (estado.retiradoEn) return `Retirado el ${fechaLegible(estado.retiradoEn.slice(0, 10))}`
+  return estado.version ? "Pendiente de la versión nueva" : "Pendiente"
 }
 
 /**
@@ -60,6 +74,8 @@ export function FichaCliente({
   leerFicha,
   api,
   seguimiento,
+  valoraciones,
+  medios,
   nutricion,
   nuevoId,
   editarPlan,
@@ -71,6 +87,8 @@ export function FichaCliente({
   leerFicha: () => Promise<FichaDeUsuario>
   api: ApiEntrenamiento
   seguimiento: ApiSeguimiento
+  valoraciones: ApiValoraciones
+  medios: ApiMedios
   nutricion: ApiNutricion
   nuevoId: () => string
   editarPlan: () => void
@@ -95,12 +113,15 @@ export function FichaCliente({
         api.molestias(clienteId, "todas"),
         nutricion.vigente(clienteId).catch(() => null),
         seguimiento.medidas(clienteId).catch(() => null),
+        seguimiento.consentimiento(clienteId).catch(() => null),
       ])
-        .then(([ficha, { plan }, { resultados }, { molestias }, dieta, medidas]) => {
-          if (!vigente) return
-          setDatos({ ficha, plan, resultados, molestias, dieta, medidas })
-          setError("")
-        })
+        .then(
+          ([ficha, { plan }, { resultados }, { molestias }, dieta, medidas, consentimiento]) => {
+            if (!vigente) return
+            setDatos({ ficha, plan, resultados, molestias, dieta, medidas, consentimiento })
+            setError("")
+          },
+        )
         .catch((e: unknown) => {
           if (vigente) setError(faltaDe(e, "No se pudo cargar la ficha.").texto)
         })
@@ -157,6 +178,12 @@ export function FichaCliente({
             {nombre}
           </Text>
           <Text style={s.tenue}>{subtitulo}</Text>
+          {datos.consentimiento && !datos.consentimiento.vigente && (
+            <Text style={s.aviso} accessibilityRole="alert">
+              Sin consentimiento de datos de salud: hasta que lo acepte en su app no se pueden
+              guardar sus medidas, pruebas, valoraciones ni fotos.
+            </Text>
+          )}
         </View>
         <View style={s.botones}>
           <Pressable
@@ -235,12 +262,20 @@ export function FichaCliente({
       )}
 
       {pestana === "progreso" && (
-        <ProgresoCliente
-          clienteId={clienteId}
-          seguimiento={seguimiento}
-          entrenamiento={api}
-          modo="entrenador"
-        />
+        <View style={s.contenido}>
+          <ValoracionesProfesional
+            clienteId={clienteId}
+            api={valoraciones}
+            medios={medios}
+            nuevoId={nuevoId}
+          />
+          <ProgresoCliente
+            clienteId={clienteId}
+            seguimiento={seguimiento}
+            entrenamiento={api}
+            modo="entrenador"
+          />
+        </View>
       )}
 
       {pestana === "checkins" && (
@@ -314,6 +349,7 @@ export function FichaCliente({
                       : "—",
                   ],
                   ["Teléfono", datos.ficha.telefono ?? "—"],
+                  ["Consentimiento de salud", textoConsentimiento(datos.consentimiento)],
                 ]
                 return filas.map(([k, v], n) => (
                   <Fila key={k} primera={n === 0}>
@@ -373,6 +409,7 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
   },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18 },
+  aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 13, lineHeight: 18 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },
   fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
   botones: { flexDirection: "row", gap: 8 },

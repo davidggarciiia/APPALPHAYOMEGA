@@ -11,6 +11,7 @@ import {
   Campo,
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
+import { TarjetaConsentimiento } from "../src/consentimiento"
 import { ErrorDeRed, guardarPerfil, leerPerfil } from "../src/lib/api"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
@@ -218,6 +219,7 @@ export default function Perfil(): React.JSX.Element {
             <Text style={s.flecha}>›</Text>
           </Pressable>
         )}
+        {perfil.rol === "cliente" && <TarjetaConsentimiento />}
         <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
         <Pressable accessibilityRole="button" onPress={() => router.replace("/")} style={s.volver}>
           <Text style={s.ayuda}>Volver al inicio</Text>

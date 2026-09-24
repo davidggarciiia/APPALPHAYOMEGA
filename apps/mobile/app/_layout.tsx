@@ -5,12 +5,13 @@ import archivoBold from "../assets/fonts/Archivo-Bold.ttf"
 import { DarkTheme, Stack, ThemeProvider, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useFonts } from "expo-font"
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
 
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { degradadoOro, fondoDeMarca, tema } from "../src/tema"
 import { Armazon } from "../src/componentes/armazon"
+import { crearApiConsentimiento, PuertaConsentimiento } from "../src/consentimiento"
 
 /** Rutas a las que se llega sin sesion. Activar y recuperar estan aqui porque,
  *  por definicion, quien activa o rescata su cuenta todavia no tiene ninguna. */
@@ -23,7 +24,8 @@ const RUTAS_PUBLICAS = ["login", "activar", "recuperar", "restablecer"]
  * pantalla se olvida en la pantalla numero doce.
  */
 function Enrutador(): React.JSX.Element {
-  const { estado, sinConexion, reintentar } = useSesion()
+  const { estado, sinConexion, reintentar, pedir, salir } = useSesion()
+  const consentimiento = useMemo(() => crearApiConsentimiento(pedir), [pedir])
   const segmentos = useSegments()
   const router = useRouter()
 
@@ -78,16 +80,30 @@ function Enrutador(): React.JSX.Element {
     )
   }
 
+  const pila = (
+    <Armazon>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: "transparent" },
+        }}
+      />
+    </Armazon>
+  )
+  // Un cliente da su consentimiento de datos de salud antes de usar la app.
   return (
     <ThemeProvider value={TEMA_DE_NAVEGACION}>
-      <Armazon>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: "transparent" },
-          }}
-        />
-      </Armazon>
+      {estado.fase === "dentro" && estado.usuario.rol === "cliente" ? (
+        <PuertaConsentimiento
+          key={estado.usuario.id}
+          api={consentimiento}
+          salir={() => void salir()}
+        >
+          {pila}
+        </PuertaConsentimiento>
+      ) : (
+        pila
+      )}
     </ThemeProvider>
   )
 }

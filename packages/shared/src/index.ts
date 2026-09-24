@@ -7,6 +7,10 @@ export * from "./errores-api"
 export * from "./nutricion"
 export * from "./molestias"
 export * from "./seguimiento"
+export * from "./valoraciones"
+export * from "./pruebas-valoracion"
+export * from "./medios"
+export * from "./consentimiento"
 
 /**
  * Vocabulario y contratos compartidos por la app y el servidor.
