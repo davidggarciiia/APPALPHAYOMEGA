@@ -3,6 +3,7 @@ import request from "supertest"
 import {
   PlanAsignadoSchema,
   ResultadoEntrenamientoSchema,
+  RutinaGuardadaSchema,
   SerieRegistradaDistanciaSchema,
   SerieRegistradaSchema,
   ValoresEjecutadosDistanciaSchema,
@@ -23,7 +24,7 @@ const segundos = (pesoKg: number | null, cantidad: number): ValoresEjecutados =>
 const metros = (pesoKg: number | null, cantidad: number): ValoresEjecutadosDistancia =>
   ValoresEjecutadosDistanciaSchema.parse({ tipoMedicion: "distancia", pesoKg, metros: cantidad })
 
-describe("Lo hecho y las métricas en metros (D01.f, sin publicar)", () => {
+describe("Lo hecho y las métricas en metros (D01.f)", () => {
   it("lo hecho guarda metros y carga como metros, nunca como repeticiones ni segundos", () => {
     const serieId = randomUUID()
     const transporte = SerieRegistradaDistanciaSchema.parse({
@@ -155,35 +156,66 @@ describe("Entrega e histórico con la tercera unidad preparada (D01.f)", () => {
     return { id, base, borrador, datos }
   }
 
-  // Al publicar los metros en D01.g este caso se invierte a propósito.
-  it("hasta D01.g no se pueden pautar metros", async () => {
-    const datos = entorno.plan()
-    const sesion = datos.patron.sesiones[0]!
-    const ejercicio = sesion.ejercicios[0]!
-    const conMetros = {
-      ...datos,
-      patron: {
-        sesiones: [
-          {
-            ...sesion,
-            ejercicios: [
-              {
-                ...ejercicio,
-                series: [
-                  ...ejercicio.series,
-                  { id: randomUUID(), tipoMedicion: "distancia", pesoKg: 32, metros: 20 },
-                ],
-              },
-            ],
-          },
-        ],
-      },
+  // D01.g invierte el cierre de D01.f: los metros ya se pueden pautar.
+  it("desde D01.g se guardan, reutilizan y publican metros, sin cantidades de otra unidad", async () => {
+    const { app, como } = entorno
+    /** El plan de siempre con una serie más; cada llamada, con ids y operación nuevos. */
+    const conSerie = (serie: object) => {
+      const datos = entorno.plan()
+      const sesion = datos.patron.sesiones[0]!
+      const ejercicio = sesion.ejercicios[0]!
+      return {
+        ...datos,
+        patron: {
+          sesiones: [
+            {
+              ...sesion,
+              ejercicios: [{ ...ejercicio, series: [...ejercicio.series, serie] }],
+            },
+          ],
+        },
+      }
     }
-    await request(entorno.app.getHttpServer())
-      .post(`/entrenamiento/clientes/${entorno.ids.cliente}/planes`)
-      .set(entorno.como("entrenador"))
-      .send(conMetros)
-      .expect(400)
+    const pautada = { id: randomUUID(), tipoMedicion: "distancia", pesoKg: 32, metros: 20 }
+    const datos = conSerie(pautada)
+
+    // Rutina reutilizable: se guarda y se lee igual, y de ella sale el plan.
+    const creada = await request(app.getHttpServer())
+      .post("/entrenamiento/rutinas")
+      .set(como("entrenador"))
+      .send({ nombre: "Transportes", patron: datos.patron })
+      .expect(201)
+    const rutina = RutinaGuardadaSchema.parse(creada.body)
+    const leidaRutina = await request(app.getHttpServer())
+      .get(`/entrenamiento/rutinas/${rutina.id}`)
+      .set(como("entrenador"))
+      .expect(200)
+    expect(RutinaGuardadaSchema.parse(leidaRutina.body).patron).toEqual(datos.patron)
+    const { base } = await asignar({ ...datos, patron: rutina.patron })
+    const leida = await request(app.getHttpServer()).get(base).set(como("cliente")).expect(200)
+    expect(leida.body.prescripcion.ejercicios[0].series).toEqual(
+      datos.patron.sesiones[0]!.ejercicios[0]!.series,
+    )
+
+    for (const invalida of [
+      { ...pautada, repeticiones: 20 },
+      { ...pautada, segundos: 20 },
+      { ...pautada, metros: 0 },
+      { ...pautada, metros: 12.5 },
+      { ...pautada, metros: null },
+    ]) {
+      const otro = conSerie({ ...invalida, id: randomUUID() })
+      await request(app.getHttpServer())
+        .post("/entrenamiento/rutinas")
+        .set(como("entrenador"))
+        .send({ nombre: "No válida", patron: otro.patron })
+        .expect(400)
+      await request(app.getHttpServer())
+        .post(`/entrenamiento/clientes/${entorno.ids.cliente}/planes`)
+        .set(como("entrenador"))
+        .send(otro)
+        .expect(400)
+    }
   })
 
   it("no acepta valores de otra unidad ni hechas sin cantidad o sin la carga pautada", async () => {
@@ -325,9 +357,8 @@ describe("Entrega e histórico con la tercera unidad preparada (D01.f)", () => {
     expect(fila.resultado).toEqual(historico)
   })
 
-  // D01.g: quitar `.skip` al publicar los metros y ejecutar estos casos; no
-  // cuentan como pasados hasta entonces.
-  describe.skip("metros de la pauta al resultado (preparado para D01.g)", () => {
+  // Preparados en D01.f y activos desde D01.g: el recorrido completo en metros.
+  describe("metros de la pauta al resultado (D01.g)", () => {
     async function catalogo(nombre: string): Promise<string> {
       const normalizado = `e2e-entrenamiento-distancia-${nombre}`
       const fila = await entorno.prisma.ejercicio.upsert({

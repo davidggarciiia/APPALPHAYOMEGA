@@ -110,8 +110,8 @@ describe("Preparar una sesión", () => {
   })
 })
 
-// D01: la distancia aún no entra en el contrato público; el modelo ya la representa.
-describe("Distancia en metros (D01, aún sin publicar)", () => {
+// D01: el modelo representa la distancia y, desde D01.g, el contrato público la acepta.
+describe("Distancia en metros (D01)", () => {
   const TRANSPORTE = "30000000-0000-4000-8000-000000000000"
   const distancia = SeriePrescritaDistanciaSchema.parse({
     id: "40000000-0000-4000-8000-000000000001",
@@ -225,12 +225,17 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
     expect(unidadCorta("distancia")).toBe("m")
   })
 
-  it("no se publica hasta D01.g y las series nuevas siguen naciendo en repeticiones", () => {
+  it("se publica en D01.g y las series nuevas siguen naciendo en repeticiones", () => {
     const sesion = agregarEjercicio(nuevaSesion(), { id: TRANSPORTE, nombre: "Transporte" })
     sesion.nombre = "Fuerza"
     expect(sesion.ejercicios[0]!.series[0]!.tipoMedicion).toBe("repeticiones")
     sesion.ejercicios[0]!.series = [desdeSerie(distancia)]
-    // D01.g invierte esta comprobación al incorporar los metros a SeriePrescritaSchema.
-    expect(() => convertirSesion(sesion)).toThrow()
+    // D01.g invierte el cierre de D01.b: la sesión en metros cumple el contrato público.
+    const publicada = convertirSesion(sesion)
+    expect(SesionEnRutinaSchema.parse(publicada)).toEqual(publicada)
+    expect(publicada.ejercicios[0]).toMatchObject({
+      tipoCarga: "conCargaExterna",
+      series: [distancia],
+    })
   })
 })

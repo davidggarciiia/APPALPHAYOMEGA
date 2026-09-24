@@ -809,3 +809,121 @@ pruebas, no encuentra nada. En la API, `tipoMedicion` solo se lee en los
 - Sin recorrido autenticado ni prueba en móvil físico. El detalle del
   entrenador en metros solo se ha comprobado con una API simulada; el
   recorrido real depende de D01.g.
+
+## D01.g
+
+**División.** D01.g prevé cinco archivos, pero activar el contrato obliga a
+invertir en el mismo commit los cierres «no se publica hasta D01.g» que D01.a,
+D01.b, D01.c y D01.f dejaron en cinco pruebas fuera de esa lista. Si no, la
+suite queda en rojo. Se reparte en tres commits de la misma ejecución:
+
+- **D01.g** (esta sección): el contrato público acepta metros, se invierten los
+  cierres y se ejecutan los casos HTTP preparados. Siete archivos: uno de
+  producción y seis de prueba.
+- **D01.g2**: el editor de sesión y el constructor ofrecen «Metros» al pautar.
+- **D01.g3**: la recuperación en cliente con una pauta en metros y la
+  especificación.
+
+**Cambio realizado.** `packages/shared/src/entrenamiento.ts` incorpora la
+variante de distancia a las tres uniones públicas:
+
+- `SeriePrescritaSchema` incluye `SeriePrescritaDistanciaSchema`;
+  `SerieRegistradaSchema` incluye `SerieRegistradaDistanciaBase`, con los mismos
+  refinamientos (hecha exige cantidad y no puede estar omitida); y
+  `ValoresEjecutadosSchema` incluye `ValoresEjecutadosDistanciaSchema`. Los
+  esquemas auxiliares se siguen exportando y se definen antes de su unión.
+- Todo lo que usa esas uniones acepta ya metros sin más cambios:
+  `PrescripcionSchema`, `SesionEnRutinaSchema`, `PatronRutinaSchema`
+  (rutinas y planes), `CambiarPrescripcionSchema`, `RegistroSchema`,
+  borrador, envío, `ResultadoEntrenamientoSchema`, ficha y «Anterior».
+  `crearRegistroDeSesionSchema` y el resultado ya validaban con
+  `mantieneUnidadYCarga` desde D01.a.
+- El mensaje «Una serie hecha necesita repeticiones o segundos registrados»
+  pasa a «Una serie hecha necesita la cantidad registrada en su unidad».
+  Ninguna prueba ni pantalla usaba el texto anterior.
+- Comentarios que decían «auxiliar hasta D01.g» actualizados. Sin migración:
+  prescripción y registro son JSON y ningún documento guardado cambia.
+
+`npm run typecheck` pasa sin tocar ningún consumidor: D01.b–D01.f ya los
+habían preparado con `switch` exhaustivos. Tras el cambio, la búsqueda
+`rg '=== "tiempo"|!== "tiempo"|"tiempo" \?|\.segundos \?\?|\.repeticiones \?\?'`
+en código de producción no encuentra nada. `!== "repeticiones"` solo aparece
+donde es correcto: `fuerzaEstimada`, `rangosValidos`, el rótulo «reps» de
+`tabla-series.tsx` y la etiqueta «En …» de `constructor/tabla.tsx`.
+
+**Archivos:** `packages/shared/src/entrenamiento.ts`,
+`apps/api/src/entrenamiento/contratos.spec.ts`,
+`apps/api/test/entrenamiento-distancia.e2e-spec.ts`,
+`apps/mobile/src/entrenamiento-entrenador/contratos.spec.ts`,
+`editor-modelo.spec.ts` (mismo directorio),
+`apps/mobile/src/entrenamiento-entrenador/constructor/modelo.spec.ts`,
+`apps/mobile/src/entrenamiento/registro-modelo.spec.ts` y
+`tasks/evidencia-mejoras-pdf.md`.
+
+**Pruebas** (datos sintéticos, sin datos personales):
+
+- Cierres invertidos, uno por subtarea anterior:
+  - `contratos.spec.ts` (API, D01.a): las tres uniones leen metros sin
+    cambiarlos. Siguen rechazando `repeticiones` añadidas, otra unidad, hecha
+    sin metros y hecha omitida. `crearRegistroDeSesionSchema` con una pauta de
+    repeticiones y metros acepta ambas. Rechaza el transporte sin kilos con
+    carga externa, 18 repeticiones en la serie de metros y 8 m en la de
+    repeticiones. El registro histórico se lee igual.
+  - `editor-modelo.spec.ts` (D01.b): `convertirSesion` publica la sesión en
+    metros con su carga; las series nuevas siguen naciendo en repeticiones.
+  - `constructor/modelo.spec.ts` (D01.b): reabrir una fila en metros y
+    publicarla con `aSesionEnRutina` conserva id, carga, RIR e ids de serie.
+  - `registro-modelo.spec.ts` (D01.c): `registroParaEnviar` entrega metros y
+    kilos (`34 kg × 18 m`, `25 m` sin carga y una pendiente vacía) y lanza si
+    falta el peso con carga externa.
+  - `contratos.spec.ts` (móvil, D01.f): resultado, ficha y «Anterior» leen los
+    metros sin convertirlos, y rechazan repeticiones, una cantidad ajena o
+    la falta de kilos.
+- `entrenamiento-distancia.e2e-spec.ts`:
+  - el cierre HTTP pasa a «desde D01.g se guardan, reutilizan y publican
+    metros»: una rutina con metros se guarda (201), se lee igual y de ella
+    sale un plan cuya sesión devuelve las mismas series. Una serie con
+    `repeticiones` o `segundos` añadidos, 0, 12,5 o sin metros da 400 al
+    guardar la rutina y al asignar el plan.
+  - el bloque `describe.skip` preparado en D01.f se ejecuta ya (tres casos):
+    pautar un transporte con carga y zancadas sin carga, guardar, repetir el
+    guardado, enviar con una omitida, reintentar, chocar con otra unidad
+    (409), leer resultado, ficha, «Fuerza» (sin los metros) y «Anterior» en
+    metros. Rechazar otra unidad, cantidades no válidas y la carga que no
+    toca. Tras cambiar la pauta a metros, la copia vieja choca
+    (`revision_obsoleta`), las repeticiones no entran y los metros sí.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                                                                                                                  | Resultado                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/api -- --runInBand contratos.spec.ts` con el cierre invertido y el contrato de `HEAD`                                                                         | 1 suite fallida: 1 fallida, 34 correctas (rojo esperado: la unión no admite «distancia»)  |
+| `npm test --workspace apps/mobile -- --runInBand contratos.spec.ts editor-modelo.spec.ts modelo.spec.ts registro-modelo.spec.ts` (rojo)                                                  | 4 suites fallidas: 4 fallidas, 87 correctas. Solo fallan los cuatro cierres invertidos    |
+| `npm run test:e2e --workspace apps/api -- --runTestsByPath test/entrenamiento-distancia.e2e-spec.ts` (rojo)                                                                              | 1 suite fallida: 4 fallidas, 6 correctas. El cierre invertido y los tres casos preparados |
+| `npm run build:shared` y `npm run typecheck`                                                                                                                                             | Correcto (shared, api y mobile)                                                           |
+| `npm test --workspace apps/api -- --runInBand contratos.spec.ts`                                                                                                                         | 3 suites, 35 pruebas en verde                                                             |
+| `npm test --workspace apps/mobile -- --runInBand contratos.spec.ts editor-modelo.spec.ts modelo.spec.ts registro-modelo.spec.ts`                                                         | 10 suites, 91 pruebas en verde                                                            |
+| `npm run test:e2e --workspace apps/api -- --runTestsByPath test/entrenamiento-distancia.e2e-spec.ts`                                                                                     | 1 suite, 10 pruebas en verde, ninguna omitida. Base desechable `alpha_omega_e2e_claude_d` |
+| `npm run test:e2e … entrenamiento-registro entrenamiento-concurrencia entrenamiento-novedades entrenamiento-rutinas entrenamiento-limites ficha-entrenador seguimiento` (regresión HTTP) | 7 suites, 28 pruebas en verde                                                             |
+| `npm run test:e2e … entrenamiento-asignacion`                                                                                                                                            | 1 suite, 4 pruebas en verde                                                               |
+| `npm test --workspace apps/api -- --runInBand` (regresión unitaria API)                                                                                                                  | 17 suites, 104 pruebas en verde                                                           |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                                                                                                             | 51 suites, 348 pruebas en verde                                                           |
+| `npx eslint` sobre los siete archivos de código                                                                                                                                          | Sin avisos                                                                                |
+| `npx prettier --write` sobre los siete archivos de código y esta evidencia                                                                                                               | Aplicado                                                                                  |
+
+**Pendiente:**
+
+- D01.g2: ofrecer «Metros» en `editor-sesion.tsx` y `constructor/tabla.tsx`.
+  Hasta ese commit, una serie en metros solo llega por API o por un documento
+  ya guardado.
+- Tipos y comentarios que quedan redundantes y no se tocan aquí para no ampliar
+  el commit: `SerieConDistancia`/`SesionConDistancia` (`editor-modelo.ts`),
+  `PrescripcionConDistancia`/`RegistroConDistancia` (`registro-modelo.ts`),
+  `ResultadoConDistancia` (`resultado.tsx`, `ficha-modelo.ts`) y
+  `ValoresEnUnidad` (`sesiones.service.ts`) equivalen ya a los tipos públicos.
+  Sus comentarios aún dicen que el contrato «no la acepta hasta D01.g».
+  Conviene simplificarlos en una subtarea propia.
+- Los bloques de otras pruebas siguen titulados «(D01, aún sin publicar)»:
+  `sesion/modelo.spec.ts`, `sesion/partes.spec.tsx`, `tabla-series.spec.tsx`,
+  `ficha-modelo.spec.ts` y `detalle.spec.tsx`. Solo es el nombre; sus casos no
+  dependen del contrato.

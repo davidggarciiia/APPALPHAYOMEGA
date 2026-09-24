@@ -325,17 +325,48 @@ describe("Distancia en metros (D01, contrato auxiliar)", () => {
     expect(contratos.mantieneUnidadYCarga(enSegundos, objetivo, "conCargaExterna")).toBe(false)
   })
 
-  // Al activar metros en D01.g este caso se invierte a propósito.
-  it("no se publica hasta D01.g: las uniones activas y el histórico siguen igual", () => {
-    expect(contratos.SeriePrescritaSchema.safeParse(objetivoMetros).success).toBe(false)
-    expect(contratos.SerieRegistradaSchema.safeParse(registroMetros).success).toBe(false)
-    expect(contratos.ValoresEjecutadosSchema.safeParse(valoresMetros).success).toBe(false)
+  // D01.g invierte el cierre de D01.a: las uniones públicas ya aceptan metros.
+  it("se publica en D01.g: las uniones aceptan metros y el histórico sigue igual", () => {
+    expect(contratos.SeriePrescritaSchema.parse(objetivoMetros)).toEqual(objetivoMetros)
+    expect(contratos.SerieRegistradaSchema.parse(registroMetros)).toEqual(registroMetros)
+    expect(contratos.ValoresEjecutadosSchema.parse(valoresMetros)).toEqual(valoresMetros)
+    // Siguen siendo estrictas: ni una cantidad de otra unidad ni un vacío como cero.
+    for (const invalida of [
+      { ...registroMetros, repeticiones: 18 },
+      { ...registroMetros, tipoMedicion: "repeticiones" },
+      { ...registroMetros, metros: null },
+      { ...registroMetros, omitida: true },
+    ]) {
+      expect(contratos.SerieRegistradaSchema.safeParse(invalida).success).toBe(false)
+    }
     expect(
-      contratos.PrescripcionSchema.safeParse({
-        ...prescripcion,
-        ejercicios: [{ ...ejercicioPrescrito, series: [objetivoMetros] }],
-      }).success,
+      contratos.SeriePrescritaSchema.safeParse({ ...objetivoMetros, segundos: 30 }).success,
     ).toBe(false)
+    expect(
+      contratos.ValoresEjecutadosSchema.safeParse({ ...valoresMetros, repeticiones: 18 }).success,
+    ).toBe(false)
+
+    // La entrega valida los metros contra la serie pautada y la carga del ejercicio.
+    const metrosPautados = { ...objetivoMetros, id: otroId }
+    const conMetros = contratos.PrescripcionSchema.parse({
+      ...prescripcion,
+      ejercicios: [
+        { ...ejercicioPrescrito, tipoCarga: "conCargaExterna", series: [serie, metrosPautados] },
+      ],
+    })
+    const esquema = contratos.crearRegistroDeSesionSchema(conMetros)
+    const metrosHechos = { ...registroMetros, serieId: otroId }
+    expect(esquema.safeParse({ series: [registroSerie, metrosHechos], notas: null }).success).toBe(
+      true,
+    )
+    for (const invalida of [
+      { ...metrosHechos, pesoKg: null },
+      { ...metrosHechos, tipoMedicion: "repeticiones", metros: undefined, repeticiones: 18 },
+      { ...registroSerie, tipoMedicion: "distancia", repeticiones: undefined, metros: 8 },
+    ]) {
+      expect(esquema.safeParse({ series: [invalida], notas: null }).success).toBe(false)
+    }
+
     const historico = {
       series: [
         registroSerie,

@@ -190,7 +190,7 @@ describe("compatibilidad de prescripción y registro", () => {
   })
 })
 
-describe("Distancia en metros en la lectura del entrenador (D01, aún sin publicar)", () => {
+describe("Distancia en metros en la lectura del entrenador (D01)", () => {
   const otraSerieId = "10000000-0000-4000-8000-000000000006"
   const enviadoEn = "2026-09-24T12:00:00.000Z"
   const agenda = {
@@ -294,8 +294,8 @@ describe("Distancia en metros en la lectura del entrenador (D01, aún sin public
     )
   })
 
-  // Al publicar los metros en D01.g este caso se invierte a propósito.
-  it("no se publica hasta D01.g: resultado, ficha y «Anterior» aún rechazan los metros", () => {
+  // D01.g invierte el cierre de D01.f: resultado, ficha y «Anterior» ya leen metros.
+  it("se publica en D01.g: resultado, ficha y «Anterior» leen los metros sin convertirlos", () => {
     const enMetros = {
       ...historico,
       prescripcion: {
@@ -310,14 +310,25 @@ describe("Distancia en metros en la lectura del entrenador (D01, aún sin public
       },
       series: [{ serieId, hecha: true, valores: hecho }],
     }
-    expect(ResultadoEntrenamientoSchema.safeParse(enMetros).success).toBe(false)
+    expect(ResultadoEntrenamientoSchema.parse(enMetros)).toEqual(enMetros)
     expect(
-      ListadoResultadosSchema.safeParse({ resultados: [{ agenda, resultado: enMetros }] }).success,
-    ).toBe(false)
-    expect(
-      ListadoAnterioresSchema.safeParse({
-        anteriores: [{ ejercicioId: catalogoId, fecha: enviadoEn, valores: hecho }],
-      }).success,
-    ).toBe(false)
+      ListadoResultadosSchema.parse({ resultados: [{ agenda, resultado: enMetros }] })
+        .resultados[0]!.resultado,
+    ).toEqual(enMetros)
+    const anterior = { ejercicioId: catalogoId, fecha: enviadoEn, valores: hecho }
+    expect(ListadoAnterioresSchema.parse({ anteriores: [anterior] }).anteriores).toEqual([anterior])
+    // Siguen rechazando otra unidad, una cantidad ajena y la carga que falta.
+    for (const valores of [
+      { tipoMedicion: "repeticiones", pesoKg: 34, repeticiones: 18 },
+      { ...hecho, repeticiones: 18 },
+      { ...hecho, pesoKg: null },
+    ]) {
+      expect(
+        ResultadoEntrenamientoSchema.safeParse({
+          ...enMetros,
+          series: [{ serieId, hecha: true, valores }],
+        }).success,
+      ).toBe(false)
+    }
   })
 })

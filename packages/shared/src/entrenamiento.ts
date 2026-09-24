@@ -9,7 +9,19 @@ const SegundosSchema = z.number().int().min(1).max(86400)
 /** Metros enteros, como repeticiones y segundos; el tope solo frena datos absurdos. */
 const MetrosSchema = z.number().int().min(1).max(100000)
 
-// Cada variante excluye la unidad de la otra, también al validar JSON externo.
+/**
+ * D01 · Serie por distancia, con kilos si el ejercicio los lleva (un transporte).
+ * Forma parte de SeriePrescritaSchema desde D01.g; se exporta aparte para validarla sola.
+ */
+export const SeriePrescritaDistanciaSchema = z.strictObject({
+  id: z.uuid(),
+  tipoMedicion: z.literal("distancia"),
+  pesoKg: PesoSchema,
+  metros: MetrosSchema,
+})
+export type SeriePrescritaDistancia = z.infer<typeof SeriePrescritaDistanciaSchema>
+
+// Cada variante excluye la unidad de las otras, también al validar JSON externo.
 // https://zod.dev/api#discriminated-unions
 export const SeriePrescritaSchema = z.discriminatedUnion("tipoMedicion", [
   z.strictObject({
@@ -26,21 +38,9 @@ export const SeriePrescritaSchema = z.discriminatedUnion("tipoMedicion", [
     pesoKg: PesoSchema,
     segundos: SegundosSchema,
   }),
+  SeriePrescritaDistanciaSchema,
 ])
 export type SeriePrescrita = z.infer<typeof SeriePrescritaSchema>
-
-/**
- * D01 · Serie por distancia, con kilos si el ejercicio los lleva (un transporte).
- * Contrato auxiliar: se valida aparte y no entra en SeriePrescritaSchema hasta
- * D01.g, cuando editor, registro, envío y lectura ya distinguen los metros.
- */
-export const SeriePrescritaDistanciaSchema = z.strictObject({
-  id: z.uuid(),
-  tipoMedicion: z.literal("distancia"),
-  pesoKg: PesoSchema,
-  metros: MetrosSchema,
-})
-export type SeriePrescritaDistancia = z.infer<typeof SeriePrescritaDistanciaSchema>
 
 /** Partes de una sesión, en el orden en que se hacen (Design.html). */
 export const SECCIONES_DE_SESION = ["calentamiento", "principal", "circuito", "final"] as const
@@ -328,7 +328,7 @@ const SerieRegistradaTiempo = z.strictObject({
   tipoMedicion: z.literal("tiempo"),
   segundos: SegundosSchema.nullable(),
 })
-// D01: variante sin refinar; en D01.g se añade a la unión de SerieRegistradaSchema.
+// D01: variante sin refinar; desde D01.g forma parte de SerieRegistradaSchema.
 const SerieRegistradaDistanciaBase = z.strictObject({
   ...CamposRegistroSerie,
   tipoMedicion: z.literal("distancia"),
@@ -357,12 +357,16 @@ const hechaSinOmitir = (serie: SerieRegistradaEnUnidad): boolean =>
   !serie.hecha || serie.omitida !== true
 
 export const SerieRegistradaSchema = z
-  .discriminatedUnion("tipoMedicion", [SerieRegistradaRepeticiones, SerieRegistradaTiempo])
-  .refine(hechaConCantidad, "Una serie hecha necesita repeticiones o segundos registrados")
+  .discriminatedUnion("tipoMedicion", [
+    SerieRegistradaRepeticiones,
+    SerieRegistradaTiempo,
+    SerieRegistradaDistanciaBase,
+  ])
+  .refine(hechaConCantidad, "Una serie hecha necesita la cantidad registrada en su unidad")
   .refine(hechaSinOmitir, "Una serie hecha no puede estar omitida")
 export type SerieRegistrada = z.infer<typeof SerieRegistradaSchema>
 
-/** D01 · Resultado por distancia, separado del objetivo; auxiliar hasta D01.g. */
+/** D01 · Resultado por distancia, separado del objetivo; se exporta aparte para validarlo solo. */
 export const SerieRegistradaDistanciaSchema = SerieRegistradaDistanciaBase.refine(
   hechaConCantidad,
   "Una serie hecha necesita los metros registrados",
@@ -418,10 +422,7 @@ function cargaEjecutadaValida(
   return objetivo.pesoKg === null || pesoKg !== null
 }
 
-/**
- * Lo registrado conserva la unidad pautada y la carga que pide el ejercicio.
- * Acepta ya la distancia (D01) para validarla aparte antes de publicarla.
- */
+/** Lo registrado conserva la unidad pautada y la carga que pide el ejercicio. */
 export function mantieneUnidadYCarga(
   serie: Pick<SerieRegistrada | SerieRegistradaDistancia, "tipoMedicion" | "hecha" | "pesoKg">,
   objetivo: Pick<SeriePrescrita | SeriePrescritaDistancia, "tipoMedicion" | "pesoKg">,
@@ -511,6 +512,14 @@ export const PlanAsignadoSchema = z.strictObject({
 })
 export type PlanAsignado = z.infer<typeof PlanAsignadoSchema>
 
+/** D01 · Lo hecho en una serie por distancia; forma parte de la unión de abajo desde D01.g. */
+export const ValoresEjecutadosDistanciaSchema = z.strictObject({
+  tipoMedicion: z.literal("distancia"),
+  pesoKg: PesoSchema,
+  metros: MetrosSchema,
+  rir: RirSchema.nullable().optional(),
+})
+export type ValoresEjecutadosDistancia = z.infer<typeof ValoresEjecutadosDistanciaSchema>
 export const ValoresEjecutadosSchema = z.discriminatedUnion("tipoMedicion", [
   z.strictObject({
     tipoMedicion: z.literal("repeticiones"),
@@ -524,16 +533,9 @@ export const ValoresEjecutadosSchema = z.discriminatedUnion("tipoMedicion", [
     segundos: SegundosSchema,
     rir: RirSchema.nullable().optional(),
   }),
+  ValoresEjecutadosDistanciaSchema,
 ])
 export type ValoresEjecutados = z.infer<typeof ValoresEjecutadosSchema>
-/** D01 · Lo hecho en una serie por distancia; entra en la unión de arriba en D01.g. */
-export const ValoresEjecutadosDistanciaSchema = z.strictObject({
-  tipoMedicion: z.literal("distancia"),
-  pesoKg: PesoSchema,
-  metros: MetrosSchema,
-  rir: RirSchema.nullable().optional(),
-})
-export type ValoresEjecutadosDistancia = z.infer<typeof ValoresEjecutadosDistanciaSchema>
 export const ResultadoSerieSchema = z.discriminatedUnion("hecha", [
   z.strictObject({
     serieId: z.uuid(),

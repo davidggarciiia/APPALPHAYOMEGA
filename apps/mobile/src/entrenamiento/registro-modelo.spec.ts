@@ -85,7 +85,7 @@ it("conserva la omisión y el tiempo activo sin convertir pendientes en omitidas
   expect(desdePrescripcion(prescripcion, registro).series[0]?.omitida).toBe(true)
 })
 
-describe("Distancia en metros (D01, aún sin publicar)", () => {
+describe("Distancia en metros (D01)", () => {
   const u = (n: number): string => `50000000-0000-4000-8000-${String(n).padStart(12, "0")}`
   const transportes: PrescripcionConDistancia = {
     nombre: "Transportes",
@@ -172,10 +172,21 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
     )
   })
 
-  it("no se guarda ni se envía hasta D01.g: el contrato público aún rechaza los metros", () => {
+  // D01.g invierte el cierre de D01.c: el contrato público ya acepta los metros.
+  it("se guarda y se envía desde D01.g, con la carga que pide cada ejercicio", () => {
     const edicion = desdePrescripcion(transportes)
+    Object.assign(edicion.series[0]!, { peso: "34", valor: "18", hecha: true })
     Object.assign(edicion.series[2]!, { valor: "25", hecha: true })
-    expect(RegistroSchema.safeParse(registroSinValidar(transportes, edicion)).success).toBe(false)
+    const registro = registroParaEnviar(transportes, edicion)
+    expect(RegistroSchema.parse(registro)).toEqual(registro)
+    expect(registro.series).toEqual([
+      { serieId: u(11), tipoMedicion: "distancia", pesoKg: 34, metros: 18, hecha: true },
+      { serieId: u(12), tipoMedicion: "distancia", pesoKg: null, metros: null, hecha: false },
+      { serieId: u(21), tipoMedicion: "distancia", pesoKg: null, metros: 25, hecha: true },
+    ])
+    // Sin peso escrito, el transporte con carga sigue sin poder enviarse.
+    Object.assign(edicion.series[0]!, { peso: "" })
+    expect(() => registroParaEnviar(transportes, edicion)).toThrow()
   })
 
   const UNIDADES = ["repeticiones", "tiempo", "distancia"] as const

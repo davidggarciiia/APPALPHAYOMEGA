@@ -175,8 +175,8 @@ describe("constructor de planes", () => {
   })
 })
 
-// D01: la distancia aún no entra en el contrato público; el modelo ya la representa.
-describe("distancia en metros en el constructor (D01, aún sin publicar)", () => {
+// D01: el modelo representa la distancia y, desde D01.g, el contrato público la acepta.
+describe("distancia en metros en el constructor (D01)", () => {
   const TRANSPORTE = { id: "10000000-0000-4000-8000-000000000003", nombre: "Transporte" }
   const enMetros = (id: string) =>
     SeriePrescritaDistanciaSchema.parse({ id, tipoMedicion: "distancia", pesoKg: 24, metros: 20 })
@@ -256,10 +256,17 @@ describe("distancia en metros en el constructor (D01, aún sin publicar)", () =>
     })
   })
 
-  it("no se publica hasta D01.g y las filas nuevas siguen naciendo en repeticiones", () => {
+  it("se publica en D01.g y las filas nuevas siguen naciendo en repeticiones", () => {
     expect(nuevoEjercicio(TRANSPORTE, "principal", nuevoId).tipo).toBe("repeticiones")
     const dia = desdeSesionEnRutina(guardada, { [TRANSPORTE.id]: TRANSPORTE.nombre })
-    // D01.g invierte esta comprobación al incorporar los metros a SeriePrescritaSchema.
-    expect(() => aSesionEnRutina(dia, nuevoId)).toThrow()
+    // D01.g invierte el cierre de D01.b: reabrir y publicar conserva metros, carga e ids.
+    expect(aSesionEnRutina(dia, nuevoId).ejercicios).toEqual([
+      expect.objectContaining({
+        id: guardada.ejercicios[0]!.id,
+        tipoCarga: "conCargaExterna",
+        rir: { min: 2, max: 2 },
+        series: guardada.ejercicios[0]!.series,
+      }),
+    ])
   })
 })
