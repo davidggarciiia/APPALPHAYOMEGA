@@ -29,7 +29,8 @@ export type CampoPrueba = {
   estado: "pendiente" | "registrado" | "noRealizado"
   /** Por clave de métrica. Vacío = no se recogió. */
   valores: Record<string, string>
-  protocoloCompleto: boolean
+  /** Sin elegir hasta que el entrenador lo indique: no se da por completo. */
+  protocoloCompleto: boolean | null
   /** AAAA-MM-DD si se hizo otro día; vacío = el día de la visita. */
   fecha: string
   notas: string
@@ -58,7 +59,7 @@ export const CAMPO_CORPORAL_VACIO: CampoCorporal = {
 export const CAMPO_PRUEBA_VACIO: CampoPrueba = {
   estado: "pendiente",
   valores: {},
-  protocoloCompleto: true,
+  protocoloCompleto: null,
   fecha: "",
   notas: "",
   motivo: "",
@@ -166,6 +167,8 @@ function prueba(d: DefinicionPrueba, campo: CampoPrueba): ResultadoPrueba | Fall
     if (typeof valor !== "number") return valor
     valores[m.clave] = valor
   }
+  if (campo.protocoloCompleto === null)
+    return { error: `${d.nombre}: indica si se completó el protocolo.` }
   if (campo.fecha.trim() !== "" && !esFecha(campo.fecha.trim()))
     return { error: `${d.nombre}: escribe la fecha como AAAA-MM-DD.` }
   return {

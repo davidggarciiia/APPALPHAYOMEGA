@@ -145,6 +145,14 @@ it("Cooper se guarda sin frecuencia cardiaca y exige las métricas obligatorias"
   edicion.pruebas[cooper.id] = {
     ...CAMPO_PRUEBA_VACIO,
     estado: "registrado",
+    valores: { distancia: "2400", duracion: "720" },
+  }
+  expect(cambioDe(v, edicion)).toEqual({
+    error: "Cooper: indica si se completó el protocolo.",
+  })
+  edicion.pruebas[cooper.id] = {
+    ...CAMPO_PRUEBA_VACIO,
+    estado: "registrado",
     valores: { distancia: "2400", duracion: "720", fcMedia: "" },
     protocoloCompleto: false,
     fecha: "2026-09-25",
