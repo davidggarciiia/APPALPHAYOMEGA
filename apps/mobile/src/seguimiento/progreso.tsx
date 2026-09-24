@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react"
+import { randomUUID } from "expo-crypto"
 import { useFocusEffect } from "expo-router"
 import { StyleSheet, Text, View } from "react-native"
 import type {
@@ -136,7 +137,7 @@ export function ProgresoCliente({
         <ValoracionesCliente clienteId={clienteId} api={valoraciones} />
       )}
       {modo === "cliente" && medios && (
-        <SolicitudesFotos clienteId={clienteId} api={medios} modo="cliente" nuevoId={() => ""} />
+        <SolicitudesFotos clienteId={clienteId} api={medios} modo="cliente" nuevoId={randomUUID} />
       )}
       {modo === "entrenador" && datos && (
         <EditorConfiguracionSeguimiento
