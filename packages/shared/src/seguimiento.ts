@@ -27,6 +27,8 @@ export const DiaDeSeguimientoSchema = z.strictObject({
   pasos: PasosSchema.nullable(),
   suenoMin: SuenoSchema.nullable(),
   creatina: z.boolean().nullable(),
+  /** Otros suplementos de la dieta tomados ese día, por nombre. */
+  suplementos: z.array(z.string()),
 })
 export type DiaDeSeguimiento = z.infer<typeof DiaDeSeguimientoSchema>
 
@@ -37,6 +39,11 @@ export const CambiarDiaSchema = z
     pasos: PasosSchema.nullable().optional(),
     suenoMin: SuenoSchema.nullable().optional(),
     creatina: z.boolean().nullable().optional(),
+    suplementos: z
+      .array(z.string().trim().min(1).max(60))
+      .max(10)
+      .refine((nombres) => new Set(nombres).size === nombres.length, "Hay suplementos repetidos")
+      .optional(),
   })
   .refine((cambio) => Object.keys(cambio).length > 0, "Indica qué quieres guardar")
 export type CambiarDia = z.infer<typeof CambiarDiaSchema>

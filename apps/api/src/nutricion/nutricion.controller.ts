@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -14,6 +15,13 @@ import {
 } from "@nestjs/common"
 import { z } from "zod"
 import {
+  ConsultarPeriodoSchema,
+  FechaAgendaSchema,
+  RegistrarComidaSchema,
+  type ComidaRegistrada,
+  type ConsultarPeriodo,
+  type ListadoComidasRegistradas,
+  type RegistrarComida,
   ConsultarHistoricoDietasSchema,
   DescartarBorradorDietaSchema,
   GuardarBorradorDietaSchema,
@@ -35,6 +43,7 @@ import { AlcanceClienteGuard } from "../identity/alcance-cliente.guard.js"
 import type { IdentidadVerificada, PeticionAutenticada } from "../identity/peticion.js"
 import { Roles } from "../identity/roles.decorator.js"
 
+import { ComidasService } from "./comidas.service.js"
 import { DietasService } from "./dietas.service.js"
 
 const IdSchema = z.uuid()
@@ -47,7 +56,10 @@ const IdSchema = z.uuid()
 @Controller("nutricion/clientes/:clienteId")
 @UseGuards(AlcanceClienteGuard)
 export class NutricionController {
-  constructor(private readonly dietas: DietasService) {}
+  constructor(
+    private readonly dietas: DietasService,
+    private readonly comidas: ComidasService,
+  ) {}
 
   private actor(peticion: PeticionAutenticada): IdentidadVerificada {
     if (!peticion.usuario) throw new UnauthorizedException()
@@ -118,5 +130,37 @@ export class NutricionController {
     @Param("dietaId", new EntradaApiPipe(IdSchema)) dietaId: string,
   ): Promise<DietaDelHistorico> {
     return this.dietas.delHistorico(clienteId, dietaId)
+  }
+
+  /** Marcar una comida del día como hecha, con lo que eligió. Solo el cliente. */
+  @Roles("cliente")
+  @Put("comidas/:fecha/:comidaId")
+  registrarComida(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Param("fecha", new EntradaApiPipe(FechaAgendaSchema)) fecha: string,
+    @Param("comidaId", new EntradaApiPipe(IdSchema)) comidaId: string,
+    @Body(new EntradaApiPipe(RegistrarComidaSchema)) datos: RegistrarComida,
+  ): Promise<ComidaRegistrada> {
+    return this.comidas.registrar(clienteId, fecha, comidaId, datos)
+  }
+
+  @Roles("cliente")
+  @Delete("comidas/:fecha/:comidaId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async quitarComida(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Param("fecha", new EntradaApiPipe(FechaAgendaSchema)) fecha: string,
+    @Param("comidaId", new EntradaApiPipe(IdSchema)) comidaId: string,
+  ): Promise<void> {
+    await this.comidas.quitar(clienteId, fecha, comidaId)
+  }
+
+  @Roles("cliente", "entrenador", "nutricionista")
+  @Get("comidas")
+  comidasRegistradas(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Query(new EntradaApiPipe(ConsultarPeriodoSchema)) periodo: ConsultarPeriodo,
+  ): Promise<ListadoComidasRegistradas> {
+    return this.comidas.listar(clienteId, periodo)
   }
 }

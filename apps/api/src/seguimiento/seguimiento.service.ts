@@ -18,6 +18,7 @@ import type {
   Prisma,
   PruebaFisica as FilaPrueba,
 } from "@prisma/client"
+import { z } from "zod"
 
 import { fechaSql } from "../agenda/fechas.js"
 import { conflicto } from "../entrenamiento/documentos.js"
@@ -160,6 +161,8 @@ export class SeguimientoService {
   }
 }
 
+const SuplementosGuardados = z.array(z.string()).catch([])
+
 function diaPublico(fila: DiaSeguimiento): DiaDeSeguimiento {
   return {
     fecha: fecha(fila.fecha),
@@ -167,6 +170,7 @@ function diaPublico(fila: DiaSeguimiento): DiaDeSeguimiento {
     pasos: fila.pasos,
     suenoMin: fila.suenoMin,
     creatina: fila.creatina,
+    suplementos: SuplementosGuardados.parse(fila.suplementos),
   }
 }
 

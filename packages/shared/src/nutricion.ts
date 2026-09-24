@@ -95,6 +95,8 @@ export const TipoDeDiaSchema = z
     id: z.uuid(),
     nombre: Texto(1, 40),
     objetivo: MacrosSchema.nullable(),
+    /** «entre 3.150 y 3.350»: las kcal del objetivo, más o menos esto. */
+    margenKcal: z.number().int().min(0).max(1000).optional(),
     comidas: z.array(ComidaSchema).max(10),
   })
   .refine(
@@ -108,6 +110,39 @@ export const IndicacionSchema = z.strictObject({
   texto: Texto(1, 3000),
 })
 export type Indicacion = z.infer<typeof IndicacionSchema>
+
+/** «Creatina monohidrato · 3–5 g al día». */
+export const SuplementoSchema = z.strictObject({
+  nombre: Texto(1, 60),
+  dosis: TextoOpcional(40),
+})
+export type Suplemento = z.infer<typeof SuplementoSchema>
+
+export const SEXOS = ["hombre", "mujer"] as const
+
+/**
+ * Los datos con los que el profesional calculó el gasto (Mifflin-St Jeor por el
+ * factor de actividad). Se guardan con la dieta para saber de dónde salió.
+ */
+export const CalculoDeGastoSchema = z.strictObject({
+  pesoKg: z.number().min(30).max(400),
+  alturaCm: z.number().int().min(100).max(250),
+  edad: z.number().int().min(10).max(100),
+  sexo: z.enum(SEXOS),
+  grasaPct: z.number().min(2).max(70).nullable(),
+  factorActividad: z.number().min(1.2).max(2.2),
+  nota: TextoOpcional(500),
+})
+export type CalculoDeGasto = z.infer<typeof CalculoDeGastoSchema>
+
+/** Metabolismo basal de Mifflin-St Jeor, en kcal. */
+export function metabolismoBasal(
+  c: Pick<CalculoDeGasto, "pesoKg" | "alturaCm" | "edad" | "sexo">,
+): number {
+  return Math.round(
+    10 * c.pesoKg + 6.25 * c.alturaCm - 5 * c.edad + (c.sexo === "hombre" ? 5 : -161),
+  )
+}
 
 function idsUnicos(dieta: { tiposDeDia: TipoDeDia[] }): boolean {
   const ids = dieta.tiposDeDia.flatMap((tipo) => [
@@ -130,6 +165,12 @@ export const DocumentoDietaSchema = z
     /** De lunes a domingo: el tipo de día que toca cada uno. */
     semana: z.array(z.uuid()).length(7),
     indicaciones: z.array(IndicacionSchema).max(10),
+    suplementos: z.array(SuplementoSchema).max(10).optional(),
+    /** Lo que el cliente lee arriba de su pestaña Nutrición. */
+    nota: TextoOpcional(1000).optional(),
+    /** Si el cliente marca sus comidas como hechas. Por defecto, sí. */
+    registroComidas: z.boolean().optional(),
+    calculo: CalculoDeGastoSchema.optional(),
   })
   .refine(
     (dieta) => dieta.semana.every((id) => dieta.tiposDeDia.some((tipo) => tipo.id === id)),
@@ -179,6 +220,8 @@ export type DietaPublicada = z.infer<typeof DietaPublicadaSchema>
 
 export const LecturaDietaVigenteSchema = z.strictObject({
   dieta: DietaPublicadaSchema.nullable(),
+  /** «Dieta de tu nutricionista»: el rol de quien la publicó, nunca quién. */
+  deNutricionista: z.boolean(),
 })
 export type LecturaDietaVigente = z.infer<typeof LecturaDietaVigenteSchema>
 
@@ -212,3 +255,38 @@ export const DietaDelHistoricoSchema = ResumenDietaSchema.extend({
   documento: DocumentoDietaSchema,
 })
 export type DietaDelHistorico = z.infer<typeof DietaDelHistoricoSchema>
+
+/** Qué comió el cliente en una comida: la alternativa, su plato de intercambio o sin detalle. */
+export const EleccionDeComidaSchema = z.discriminatedUnion("tipo", [
+  z.strictObject({ tipo: z.literal("alternativa"), alternativaId: z.uuid() }),
+  z.strictObject({
+    tipo: z.literal("plato"),
+    elegidos: z
+      .array(z.strictObject({ columna: Texto(1, 40), alimento: Texto(1, 80) }))
+      .min(1)
+      .max(6),
+  }),
+  z.strictObject({ tipo: z.literal("hecha") }),
+])
+export type EleccionDeComida = z.infer<typeof EleccionDeComidaSchema>
+
+export const RegistrarComidaSchema = z.strictObject({
+  /** La dieta publicada que tenía delante: si cambió, el registro se rechaza. */
+  dietaId: z.uuid(),
+  eleccion: EleccionDeComidaSchema,
+})
+export type RegistrarComida = z.infer<typeof RegistrarComidaSchema>
+
+export const ComidaRegistradaSchema = z.strictObject({
+  fecha: z.iso.date(),
+  comidaId: z.uuid(),
+  dietaId: z.uuid(),
+  eleccion: EleccionDeComidaSchema,
+  registradaEn: z.iso.datetime(),
+})
+export type ComidaRegistrada = z.infer<typeof ComidaRegistradaSchema>
+
+export const ListadoComidasRegistradasSchema = z.strictObject({
+  comidas: z.array(ComidaRegistradaSchema),
+})
+export type ListadoComidasRegistradas = z.infer<typeof ListadoComidasRegistradasSchema>

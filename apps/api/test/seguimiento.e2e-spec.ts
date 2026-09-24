@@ -45,11 +45,12 @@ describe("Seguimiento del cliente", () => {
       pasos: 3240,
       suenoMin: null,
       creatina: null,
+      suplementos: [],
     })
     await request(http)
       .put(ruta(ids.cliente!, `dias/${hoy}`))
       .set(como("cliente"))
-      .send({ creatina: true, suenoMin: 460 })
+      .send({ creatina: true, suenoMin: 460, suplementos: ["Omega 3"] })
       .expect(200)
     const borrado = await request(http)
       .put(ruta(ids.cliente!, `dias/${hoy}`))
@@ -62,6 +63,7 @@ describe("Seguimiento del cliente", () => {
       pasos: null,
       suenoMin: 460,
       creatina: true,
+      suplementos: ["Omega 3"],
     })
   })
 

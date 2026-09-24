@@ -24,6 +24,7 @@ const dia = (
   pasos,
   suenoMin,
   creatina: null,
+  suplementos: [],
 })
 
 describe("formatos del diseño", () => {

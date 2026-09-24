@@ -26,6 +26,7 @@ function api(dias: DiaDeSeguimiento[] = []): ApiSeguimiento {
       creatina: null,
       ...dias[0],
       ...cambio,
+      suplementos: cambio.suplementos ?? dias[0]?.suplementos ?? [],
     })),
     dias: jest.fn(async () => ({ dias })),
     medidas: jest.fn(async () => ({ medidas: [], fechaNacimiento: null })),
@@ -46,7 +47,16 @@ describe("HoyDiario", () => {
     await render(
       <HoyDiario
         clienteId={CLIENTE}
-        api={api([{ fecha: hoy, pesoKg: 111.6, pasos: 3240, suenoMin: 460, creatina: null }])}
+        api={api([
+          {
+            fecha: hoy,
+            pesoKg: 111.6,
+            pasos: 3240,
+            suenoMin: 460,
+            creatina: null,
+            suplementos: [],
+          },
+        ])}
         objetivoPasos={7000}
       />,
     )
@@ -91,6 +101,7 @@ describe("ProgresoCliente", () => {
       pasos: 6000,
       suenoMin: 480,
       creatina: null,
+      suplementos: [],
     }))
     const seguimiento = api(dias)
     seguimiento.medidas = jest.fn(async () => ({

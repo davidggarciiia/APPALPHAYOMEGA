@@ -42,6 +42,7 @@ export async function entornoNutricion(nombre: string): Promise<{
     })
     const ids = usuarios.map((fila) => fila.id)
     await prisma.$transaction([
+      prisma.comidaRegistrada.deleteMany({ where: { clienteId: { in: ids } } }),
       prisma.dieta.deleteMany({ where: { clienteId: { in: ids } } }),
       prisma.usuario.deleteMany({ where: { id: { in: ids } } }),
     ])

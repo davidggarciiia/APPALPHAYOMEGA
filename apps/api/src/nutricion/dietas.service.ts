@@ -268,8 +268,14 @@ export class DietasService {
 
   async vigente(clienteId: string): Promise<LecturaDietaVigente> {
     await this.cliente(this.prisma, clienteId, false)
-    const fila = await this.prisma.dieta.findFirst({ where: { clienteId, estado: "publicada" } })
-    return { dieta: fila === null ? null : aPublicada(fila) }
+    const fila = await this.prisma.dieta.findFirst({
+      where: { clienteId, estado: "publicada" },
+      include: { publicadaPor: { select: { rol: true } } },
+    })
+    return {
+      dieta: fila === null ? null : aPublicada(fila),
+      deNutricionista: fila?.publicadaPor?.rol === "nutricionista",
+    }
   }
 
   async historico(clienteId: string, consulta: ConsultarHistoricoDietas): Promise<ListadoDietas> {

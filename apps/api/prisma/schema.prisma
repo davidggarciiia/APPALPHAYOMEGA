@@ -74,13 +74,14 @@ model Usuario {
   dietasCreadas    Dieta[] @relation("DietasCreadas")
   dietasPublicadas Dieta[] @relation("DietasPublicadas")
 
-  molestias          Molestia[]       @relation("MolestiasCliente")
-  molestiasAtendidas Molestia[]       @relation("MolestiasAtendidas")
+  molestias          Molestia[]         @relation("MolestiasCliente")
+  molestiasAtendidas Molestia[]         @relation("MolestiasAtendidas")
   diasSeguimiento    DiaSeguimiento[]
-  medidas            MedidaCorporal[] @relation("MedidasCliente")
-  medidasTomadas     MedidaCorporal[] @relation("MedidasAutor")
-  pruebas            PruebaFisica[]   @relation("PruebasCliente")
-  pruebasTomadas     PruebaFisica[]   @relation("PruebasAutor")
+  medidas            MedidaCorporal[]   @relation("MedidasCliente")
+  medidasTomadas     MedidaCorporal[]   @relation("MedidasAutor")
+  pruebas            PruebaFisica[]     @relation("PruebasCliente")
+  pruebasTomadas     PruebaFisica[]     @relation("PruebasAutor")
+  comidasRegistradas ComidaRegistrada[]
 
   @@map("usuarios")
 }
@@ -399,25 +400,26 @@ enum EstadoDieta {
 /// índices únicos parciales escritos en la migración, porque Prisma no los
 /// expresa en el esquema. Una publicada o archivada no se modifica nunca.
 model Dieta {
-  id                   String      @id @default(uuid())
+  id                   String             @id @default(uuid())
   clienteId            String
-  cliente              Usuario     @relation("DietasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  cliente              Usuario            @relation("DietasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
   estado               EstadoDieta
   /// Versión del formato del documento, para poder migrarlo sin reescribir filas.
-  version              Int         @default(1)
+  version              Int                @default(1)
   documento            Json
-  revision             Int         @default(0)
+  revision             Int                @default(0)
   /// Idempotencia de la publicación: el mismo id devuelve el mismo resultado.
   operacionPublicacion String?
   hashPublicacion      String?
   creadaPorId          String
-  creadaPor            Usuario     @relation("DietasCreadas", fields: [creadaPorId], references: [id], onDelete: Restrict)
+  creadaPor            Usuario            @relation("DietasCreadas", fields: [creadaPorId], references: [id], onDelete: Restrict)
   publicadaPorId       String?
-  publicadaPor         Usuario?    @relation("DietasPublicadas", fields: [publicadaPorId], references: [id], onDelete: Restrict)
-  creadaEn             DateTime    @default(now())
-  actualizadaEn        DateTime    @updatedAt
+  publicadaPor         Usuario?           @relation("DietasPublicadas", fields: [publicadaPorId], references: [id], onDelete: Restrict)
+  creadaEn             DateTime           @default(now())
+  actualizadaEn        DateTime           @updatedAt
   publicadaEn          DateTime?
   archivadaEn          DateTime?
+  registros            ComidaRegistrada[]
 
   @@unique([clienteId, operacionPublicacion])
   @@index([clienteId, estado])
@@ -504,6 +506,7 @@ model DiaSeguimiento {
   pasos         Int?
   suenoMin      Int?
   creatina      Boolean?
+  suplementos   Json     @default("[]")
   actualizadoEn DateTime @updatedAt
 
   @@id([clienteId, fecha])
@@ -547,4 +550,20 @@ model PruebaFisica {
   @@unique([autorId, operacionId])
   @@index([clienteId, nombre, fecha])
   @@map("pruebas_fisicas")
+}
+
+/// Comida marcada como hecha por el cliente, con lo que eligió de su dieta.
+model ComidaRegistrada {
+  clienteId    String
+  cliente      Usuario  @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  fecha        DateTime @db.Date
+  comidaId     String
+  dietaId      String
+  dieta        Dieta    @relation(fields: [dietaId], references: [id], onDelete: Restrict)
+  eleccion     Json
+  registradaEn DateTime @updatedAt
+
+  @@id([clienteId, fecha, comidaId])
+  @@index([dietaId])
+  @@map("comidas_registradas")
 }
