@@ -456,6 +456,34 @@ el 8765. No pude pararlos porque el sistema de permisos lo denegó.
 | Revisión visual de F08, figuras y nutrición (guion)                  | David                      |
 | Prueba física en Android e iOS: F10, F04 y criterio 12 de nutrición  | David, con el guion        |
 | Revisión de los commits en su zona e integración (C07)               | Codex                      |
-| Decidir si `Pantallas con el plan.html` pasa a ser la referencia     | David                      |
+| ~~Decidir si `Pantallas con el plan.html` pasa a ser la referencia~~ | Resuelto: ver abajo        |
 | Almacenamiento propio si hace falta garantía sin conexión en figuras | David decide; tarea aparte |
 | Pregunta abierta de la spec: adjuntar el PDF de la dieta             | David                      |
+
+## Diseño nuevo (Design.html, 24-09)
+
+David aportó `Design.html` (17 pantallas: 14 del cliente a 390 px y 3 del
+profesional a 1440 px) y pidió adaptarlo a la app sin más preguntas. Sustituye
+a la referencia v2 que seguía F08. El archivo no entra en el repositorio.
+
+| Commit    | Qué                                                                                                                                                                                                                                                            |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `62c5789` | **Zona de Codex:** tema oscuro (mismos nombres de tokens), Anton y Archivo (OFL) en lugar de Barlow, logotipos del diseño, componentes comunes, armazón con barra inferior de iconos y barra lateral del profesional desde 1024 px, `react-native-svg` 15.15.4 |
+| `1642994` | Pantallas del cliente: Entreno, sesión en curso, técnica, cierre y nutrición; inicio del profesional                                                                                                                                                           |
+| `0871294` | Archivo en los textos que salían con la fuente del sistema; opciones elegidas en dorado                                                                                                                                                                        |
+| `1a29897` | Iconos ocultos sin avisos en web; título alineado en escritorio                                                                                                                                                                                                |
+
+**Qué no se ha copiado del diseño**, porque la app no tiene esos datos o
+funciones y no se inventan: cronómetro y descanso de la sesión, RIR, «anterior»
+y sugerencias de carga, check-in, molestias, añadir deporte, guía, progreso,
+creatina, pasos, sueño, mensajes, porcentajes de macros y el constructor por
+fases. El cliente tampoco marca comidas (spec de nutrición). Donde el diseño
+muestra una animación en «Hoy toca», la app enseña la foto de la sesión: el
+listado semanal no trae los ejercicios.
+
+**Verificación:** `npm run typecheck`, `npm run lint`, `npm test` (API 89; móvil
+24 suites / 136) y bundles web y Android. En el navegador, con una ruta temporal
+de vista previa y datos inventados (retirada antes del commit): Entreno, sesión,
+cierre, nutrición, técnica, formulario, armazón del cliente a 320 y 390 px y
+barra lateral del entrenador a 1440 px. Sin sesión real: las pantallas con datos
+de la API siguen en el guion para David.
