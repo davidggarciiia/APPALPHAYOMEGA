@@ -69,6 +69,15 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Verificación integrada de esta pasada:** `npm test --workspace apps/mobile -- --runInBand`: 51 suites / 282 pruebas correctas; `npm run typecheck` y `npm run lint`: correctos. Revisión independiente de recuperación y editor sin hallazgos adicionales reproducibles. API `/salud` y web `:8181/login` responden 200. No hay cambios en API, contratos ni migraciones en esta pasada; no se repiten las pruebas HTTP ni se modifican registros de la base principal.
 
+## Preparación para producción · 24-09-2026
+
+Encargo de David: «termina la aplicación, que quede para producción, acuérdate de los muñecos». Lo que no depende de código sigue en `docs/PENDIENTE-PARA-PRODUCCION.md`.
+
+- [x] **PR1 · Consentimiento de datos de salud (RGPD, art. 9).** Texto versionado (`VERSION_CONSENTIMIENTO = "2026-09-24-borrador"`), aceptación explícita sin nada marcado, retirada desde Perfil y reactivación. La API responde 409 `consentimiento_pendiente` en las 10 rutas que guardan datos de salud (medidas, días, pruebas, valoraciones, fotos, molestias y comidas), las use el cliente o su equipo. El guard comprueba el alcance antes para no revelar el consentimiento de clientes ajenos. El entrenador ve el estado en la ficha. Evidencia: `consentimiento.e2e-spec.ts` (4), `consentimiento.guard.spec.ts` (5), `consentimiento.spec.tsx` (7), `errores.spec.ts` (2) y `ficha-cliente.spec.tsx`; suite e2e completa: 41 suites y 436 pruebas. **Pendiente:** revisión legal del texto y aviso de privacidad (PENDIENTE, punto 4).
+- [x] **PR2 · Almacén de fotos de producción.** `AlmacenS3` para cualquier servicio compatible con S3: firma tipo y tamaño y desactiva las sumas automáticas, que romperían las URLs prefirmadas. `ALMACEN=s3|local`; con `NODE_ENV=production` la API no arranca sin elegirlo. Evidencia: `almacen-s3.spec.ts` (5) y `almacen-configurado.spec.ts` (4); e2e de fotos con el contrato asíncrono: 28 pruebas. **Pendiente:** elegir proveedor en la UE y probar con un bucket real (PENDIENTE, punto 5).
+- [x] **PR3 · Figuras animadas («muñecos») y catálogo inicial.** `catalogo-inicial.ts` tiene 52 ejercicios, uno por figura de Vital Free50 y MoveKit, con textos propios y sin cifras. `preparar-catalogo.js` los crea con su figura; sin `--confirmar` solo informa, y nunca cambia ni borra nada. `catalogo-inicial.e2e-spec.ts`: 60 pruebas en la base desechable. Entorno principal: figuras copiadas a `%LOCALAPPDATA%\alpha-omega\medios\figuras` (104 archivos, 12 MB) y `MEDIOS_DIR` en el `.env` local. **Pendiente de David:** ejecutar `preparar-catalogo.js --confirmar` contra `alpha_omega`. No se ha hecho, porque la regla prohíbe sembrar esa base sin su permiso.
+- [x] **PR4 · Despliegue.** `docs/DESPLIEGUE.md`: variables, bucket, migraciones solo con `migrate deploy`, cuenta del entrenador, figuras, arranque, actualización, app con EAS y copias. La API activa los ganchos de cierre (`SIGTERM`). `PENDIENTE-PARA-PRODUCCION.md` queda actualizado con el estado real de los puntos 4, 5, 6, 9, 9b, 9c y 9d.
+
 ## Ampliación propuesta · valoración inicial y revisiones · 24-09-2026
 
 **Estado: planificación; todas las tareas siguientes están pendientes.** Este desglose amplía el mismo trabajo y conserva T05, T06, T17 y la prueba observada pendientes hasta obtener su evidencia. No autoriza por sí mismo implementar, ejecutar migraciones sobre la base principal ni desplegar. El encargo actual consiste en preparar la entrega para Claude con Agent Skills.
@@ -530,12 +539,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Eliminación explícita autorizada retira acceso y elimina original/miniaturas; fallo del almacén conserva estado pendiente y se puede reintentar sin devolver éxito falso.
-- [ ] Limpieza de intenciones caducadas omite medios vinculados; una valoración no se elimina por limpiar una subida, y su historial identifica una foto retirada sin revivirla.
+- [x] Eliminación explícita autorizada retira acceso y elimina original/miniaturas; fallo del almacén conserva estado pendiente y se puede reintentar sin devolver éxito falso. (No hay miniaturas: solo se guarda el original.)
+- [x] Limpieza de intenciones caducadas omite medios vinculados; una valoración no se elimina por limpiar una subida, y su historial identifica una foto retirada sin revivirla.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/medios.e2e-spec.ts`; simular fallo de borrado, reintento, medio vinculado, intención caducada y lectura de una foto eliminada.
 
 **Dependencias:** F04a. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/medios/medios.service.ts`, `medios.controller.ts`, `limpieza-medios.ts`, `medios.module.ts` en el mismo directorio; `apps/api/test/medios.e2e-spec.ts`. **Tamaño:** M, 5 archivos; eliminación del adaptador ya preparada en F02a.
+
+**Evidencia 24-09-2026 (Claude, con subagente y revisión escéptica en dos rondas):** `DELETE /medios/:id` pasa a «eliminando» antes de borrar el objeto. Si el almacén falla, responde 503 y queda «eliminando» sin acceso; repetirlo la retira. `LimpiezaMedios` descarta las intenciones «pendiente» una hora después de caducar y respeta las que un reintento renueva. Una confirmación tardía que la limpieza ya podría descartar responde 409 sin quedar disponible. DELETE sobre una foto aún «pendiente» responde 409 (decisión: no se puede retirar lo que no está confirmado; la limpieza la descarta). `medios.e2e-spec.ts`: 13 pruebas, incluidos el fallo simulado del almacén, los reintentos cruzados con la limpieza y el listado por rol; suite e2e completa de la API: 41 suites y 436 pruebas.
 
 #### F05b · Comparación por vista y fecha
 
@@ -563,12 +574,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Devuelve publicaciones vigentes y registros previos con origen, fecha, unidad, método/protocolo y paginación/período; el legado sin clasificación se identifica y no se agrupa por mera coincidencia de fecha.
-- [ ] Separa variantes, unidades, instrumentos/métodos no equivalentes y medido/estimado; correcciones sustituyen el punto visible sin borrar su auditoría ni duplicar visitas.
+- [x] Devuelve publicaciones vigentes y registros previos con origen, fecha, unidad, método/protocolo y paginación/período; el legado sin clasificación se identifica y no se agrupa por mera coincidencia de fecha. (Filtro por periodo `desde`/`hasta`; sin paginación, que el contrato no pide.)
+- [x] Separa variantes, unidades, instrumentos/métodos no equivalentes y medido/estimado; correcciones sustituyen el punto visible sin borrar su auditoría ni duplicar visitas.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/evolucion-valoraciones.e2e-spec.ts test/seguimiento.e2e-spec.ts`; fixtures sintéticos de legado más inicial/revisión/corrección, cambios de variante y fechas coincidentes.
 
 **Dependencias:** V07 y P01. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/seguimiento/evolucion-valoraciones.service.ts`, `evolucion-valoraciones.controller.ts`, `seguimiento.module.ts` en el mismo directorio; `apps/api/test/evolucion-valoraciones.e2e-spec.ts`. **Tamaño:** M, 4 archivos.
+
+**Evidencia 24-09-2026 (Claude, con subagente y revisión escéptica aprobada):** `GET seguimiento/clientes/:clienteId/evolucion`. Los formatos de clave de serie están documentados en `SerieEvolucionSchema`. Un protocolo incompleto va en serie aparte, el histórico se separa por origen y el nutricionista no recibe pruebas físicas. `evolucion-valoraciones.e2e-spec.ts`: 8 pruebas (legado, inicial, revisión y corrección; versión nueva, series distintas en la misma fecha, borrador invisible, periodo y permisos) y `seguimiento.e2e-spec.ts` sin cambios.
 
 #### E01b · Evolución comprensible en Progreso
 
@@ -595,12 +608,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] API consulta publicaciones/solicitudes autorizadas y registra lectura por usuario y novedad, idempotente; no marca una foto revisada por leer el aviso.
-- [ ] Reintentos no duplican avisos y un enlace identifica su destino vigente; publicaciones corregidas y solicitudes completadas mantienen un estado comprensible.
+- [x] API consulta publicaciones/solicitudes autorizadas y registra lectura por usuario y novedad, idempotente; no marca una foto revisada por leer el aviso.
+- [x] Reintentos no duplican avisos y un enlace identifica su destino vigente; publicaciones corregidas y solicitudes completadas mantienen un estado comprensible.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/valoraciones-novedades.e2e-spec.ts`; probar dos dispositivos, otro cliente, lectura repetida y destinos corregidos/completados.
 
 **Dependencias:** V02, V05 y F04a. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/seguimiento/valoraciones-novedades.service.ts`, `valoraciones-novedades.controller.ts`, `seguimiento.module.ts` en el mismo directorio; `apps/api/test/valoraciones-novedades.e2e-spec.ts`. **Tamaño:** M, 4 archivos.
+
+**Evidencia 24-09-2026 (Claude, con subagente y revisión escéptica aprobada):** `GET avisos` y `POST avisos/leidos`, sin tabla nueva: los avisos se derivan de publicaciones y solicitudes. Salen los 50 más recientes; `sinLeer` cuenta los de esa lista (documentado en el contrato). La lectura va por usuario, es idempotente y no revisa nada. `valoraciones-novedades.e2e-spec.ts`: 6 pruebas (publicada y corregida, reintento, dos sesiones, fotos recibidas y revisión, ids ajenos, tope de 50 y permisos). Queda anotado sin cambiar: el aviso `fotosRecibidas` nace con la primera foto y no se reactiva con las siguientes.
 
 #### E02b · Mostrar avisos y acciones en Inicio
 
