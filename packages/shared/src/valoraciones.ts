@@ -780,8 +780,21 @@ export const PuntoEvolucionSchema = z.strictObject({
 })
 export type PuntoEvolucion = z.infer<typeof PuntoEvolucionSchema>
 
+/**
+ * Una serie solo junta valores comparables. Formatos de `clave`:
+ * - `c:<definición>:<versión>`: campo corporal de las visitas.
+ * - `g:pliegues:<método>`: % de grasa que declaró el profesional a partir de
+ *   los pliegues; su identidad es el método que declara.
+ * - `p:<definición>:<versión>:<métrica>`, con `:incompleto` al final si el
+ *   protocolo no se completó: nunca se compara con el completo. Comparte
+ *   `nombre` con la serie completa; se distinguen por `metodo`, que la
+ *   pantalla debe mostrar cuando dos series se llaman igual.
+ * - `h:medida:<campo>:<origen>`, `h:dia:pesoKg`, `h:prueba:<id>:<unidad>:<origen>`
+ *   y `h:prueba-libre:<nombre>|<unidad>:<origen>`: histórico anterior a las
+ *   valoraciones, sin clasificar.
+ */
 export const SerieEvolucionSchema = z.strictObject({
-  /** Identidad estable de la serie (definición + versión + métrica, o campo histórico). */
+  /** Identidad estable de la serie; ver los formatos arriba. */
   clave: z.string().min(1).max(200),
   nombre: z.string().min(1).max(120),
   unidad: z.string().min(1).max(20),
@@ -832,6 +845,11 @@ export const AvisoSeguimientoSchema = z.strictObject({
 })
 export type AvisoSeguimiento = z.infer<typeof AvisoSeguimientoSchema>
 
+/**
+ * Los 50 avisos más recientes. `sinLeer` cuenta los vigentes y no leídos de
+ * esa lista. En `fotosRecibidas` el autor es el cliente, que es quien aporta;
+ * el aviso nace con la primera foto recibida y deja de estar vigente al revisar.
+ */
 export const ListadoAvisosSeguimientoSchema = z.strictObject({
   avisos: z.array(AvisoSeguimientoSchema),
   sinLeer: z.number().int().nonnegative(),
