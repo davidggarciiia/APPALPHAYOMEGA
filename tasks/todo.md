@@ -203,7 +203,7 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Desde Progreso de la ficha se crea/continúa una valoración, se guardan fecha y medidas básicas, y tras volver se recupera exactamente lo confirmado.
+- [x] Desde Progreso de la ficha se crea/continúa una valoración, se guardan fecha y medidas básicas, y tras volver se recupera exactamente lo confirmado.
 - [x] Guardando bloquea dobles envíos; el error conserva el formulario y el conflicto ofrece recargar o recuperar la edición sin sustituir silenciosamente datos del servidor.
 - [x] Los bloques todavía no implementados no aparentan estar terminados; solo las operaciones con backend disponible aparecen como acciones del editor.
 
@@ -219,15 +219,17 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Cada definición tiene ID, nombre, bloque, unidad, zona/lateralidad cuando proceda y estado activo; el profesional puede guardar y reabrir la plantilla.
-- [ ] Cambiar una etiqueta conserva la identidad; cambiar método/unidad/protocolo crea versión distinta, y desactivar un campo no cambia valoraciones existentes.
-- [ ] Peso/altura/perímetros se registran con su unidad e instrumento; no se copian resultados anteriores al crear otra visita.
+- [x] Cada definición tiene ID, nombre, bloque, unidad, zona/lateralidad cuando proceda y estado activo; el profesional puede guardar y reabrir la plantilla.
+- [x] Cambiar una etiqueta conserva la identidad; cambiar método/unidad/protocolo crea versión distinta, y desactivar un campo no cambia valoraciones existentes.
+- [x] Peso/altura/perímetros se registran con su unidad e instrumento; no se copian resultados anteriores al crear otra visita.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand plantilla-valoracion.spec.tsx editor-valoracion.spec.tsx`; comprobar renombrado, desactivación, coma decimal y copia de definiciones entre visitas.
 
 **Dependencias:** V04. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/plantilla-valoracion.tsx`, `plantilla-valoracion.spec.tsx`, `editor-valoracion.tsx`, `valoraciones-api.ts` en el mismo directorio. **Tamaño:** M, 4 archivos.
 
-**Punto de control V-B · V04–M01:** [ ] crear → medir → guardar → continuar funciona desde la ficha; [ ] cambiar la plantilla no cambia el documento de una visita anterior; [ ] visual profesional comprobado con datos sintéticos.
+**Evidencia 24-09-2026 (Claude):** `plantilla-valoracion.tsx` (construido por un subagente con archivos exclusivos y dos rondas de revisión escéptica): añadir, ordenar, renombrar (conserva versión) y desactivar; cambiar cómo se mide sube la versión con aviso visible; lo guardado no se borra; cinco pruebas estándar más personalizada; guardado con revisión y conflicto recuperable. Se abre desde «Plantilla» en Valoraciones de la ficha. `plantilla-valoracion.spec.tsx`: 15 pruebas. Deuda anotada: el archivo mide unas 1.100 líneas (subcomponentes en el mismo archivo); conviene dividirlo. **Pendiente:** comprobación visual con datos sintéticos (C00).
+
+**Punto de control V-B · V04–M01:** [x] crear → medir → guardar → continuar funciona desde la ficha (pruebas de componente y HTTP); [x] cambiar la plantilla no cambia el documento de una visita anterior (e2e V03); [ ] visual profesional comprobado con datos sintéticos (pendiente de C00).
 
 ### M02 · Registrar pliegues con sus lecturas
 
@@ -235,12 +237,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Cada punto conserva unidad mm, lateralidad/protocolo, lecturas originales y valor adoptado; ausencia y no realizado siguen siendo estados distintos.
-- [ ] Guardar/reabrir no pierde lecturas; se admite un porcentaje ya calculado por el profesional con método/fecha y origen diferenciados, sin inventar lecturas ni calcular grasa con una fórmula implícita.
+- [x] Cada punto conserva unidad mm, lateralidad/protocolo, lecturas originales y valor adoptado; ausencia y no realizado siguen siendo estados distintos.
+- [x] Guardar/reabrir no pierde lecturas; se admite un porcentaje ya calculado por el profesional con método/fecha y origen diferenciados, sin inventar lecturas ni calcular grasa con una fórmula implícita.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand pliegues-valoracion.spec.tsx editor-valoracion.spec.tsx`; probar lecturas múltiples, dato parcial, decimal y relectura del documento guardado.
 
 **Dependencias:** M01. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/pliegues-valoracion.tsx`, `pliegues-valoracion.spec.tsx`, `editor-valoracion.tsx` en el mismo directorio. **Tamaño:** M, 3 archivos.
+
+**Evidencia 24-09-2026 (Claude):** `pliegues-valoracion.tsx` (subagente + revisión aprobada): hasta 5 lecturas por punto, «Adoptar esta lectura» copia una lectura exacta y el valor adoptado es explícito, sin medias; no realizado con motivo; porcentaje por pliegues con método y fecha, rotulado como calculado por el profesional. El contrato admite lecturas con el valor aún pendiente. Integrado en `borrador-valoracion.tsx` con el modelo común `valoracion-modelo.ts`.
 
 ### M03 · Registrar bioimpedancia manual
 
@@ -248,12 +252,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Se registran solo campos configurados y su instrumento/modelo; kg, porcentajes e índices del fabricante se validan como magnitudes distintas.
-- [ ] Peso de báscula, peso doméstico, grasa por bioimpedancia y cualquier histórico de otro origen no se sobrescriben ni promedian; masa muscular y masa libre de grasa no se renombran como equivalentes.
+- [x] Se registran solo campos configurados y su instrumento/modelo; kg, porcentajes e índices del fabricante se validan como magnitudes distintas.
+- [x] Peso de báscula, peso doméstico, grasa por bioimpedancia y cualquier histórico de otro origen no se sobrescriben ni promedian; masa muscular y masa libre de grasa no se renombran como equivalentes.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand bioimpedancia-valoracion.spec.tsx editor-valoracion.spec.tsx`; reabrir dos visitas con instrumentos distintos y campos opcionales ausentes.
 
 **Dependencias:** M01. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/bioimpedancia-valoracion.tsx`, `bioimpedancia-valoracion.spec.tsx`, `editor-valoracion.tsx` en el mismo directorio. **Tamaño:** M, 3 archivos.
+
+**Evidencia 24-09-2026 (Claude):** `bioimpedancia-valoracion.tsx` (subagente + revisión aprobada): agrupado por báscula, unidades explícitas («índice del fabricante» aparte de kg y %), masa muscular y masa libre de grasa separadas, peso de báscula distinto del de Medidas. Integrado en el borrador. Pruebas de pliegues, bioimpedancia y pruebas: 28 en total.
 
 ### P01 · Definir las cinco pruebas y su comparabilidad
 
@@ -261,15 +267,17 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Dominadas/suspensión son variantes diferentes; flexiones y sentadillas guardan 60 s; banca registra 1RM medido; Cooper guarda distancia, duración e instrumento, más FC disponible y tiempo de recuperación cuando exista.
-- [ ] Cambiar variante/protocolo/unidad produce una serie distinta; 1RM medido no se mezcla con fuerza estimada ni flexiones de un minuto con «flexiones seguidas» del histórico.
-- [ ] No se inventa sexta prueba ni baremos, fórmulas de VO₂máx o instrucciones de esfuerzos máximos; el entrenador puede definir otra prueba con contrato validado.
+- [x] Dominadas/suspensión son variantes diferentes; flexiones y sentadillas guardan 60 s; banca registra 1RM medido; Cooper guarda distancia, duración e instrumento, más FC disponible y tiempo de recuperación cuando exista.
+- [x] Cambiar variante/protocolo/unidad produce una serie distinta; 1RM medido no se mezcla con fuerza estimada ni flexiones de un minuto con «flexiones seguidas» del histórico.
+- [x] No se inventa sexta prueba ni baremos, fórmulas de VO₂máx o instrucciones de esfuerzos máximos; el entrenador puede definir otra prueba con contrato validado.
 
 **Verificación:** `npm run build:shared`; `npm test --workspace apps/api -- --runInBand valoraciones-contratos.spec.ts`; casos de cada prueba, variante, resultado cero, ausencia de FC y protocolo no completado.
 
 **Dependencias:** V01; ejecutar tras M02/M03 para el orden de entrega. **Responsable:** Claude principal, dueño de contratos. **Archivos previstos:** `packages/shared/src/pruebas-valoracion.ts`, `packages/shared/src/valoraciones.ts`, `packages/shared/src/index.ts`, `apps/api/src/seguimiento/valoraciones-contratos.spec.ts`. **Tamaño:** M, 4 archivos.
 
-**Punto de control M-P · M02–P01:** [ ] medidas/pliegues/bioimpedancia conservan fuente y lecturas; [ ] las cinco definiciones son válidas y sus variantes no se confunden; [ ] no se inventan puntos antropométricos a partir de los PDF.
+**Evidencia 24-09-2026 (Claude):** `pruebas-valoracion.ts`: las cinco pruebas de David (dominadas y aguante en barra como variantes distintas, flexiones y sentadillas de 60 s, 1RM medido, Cooper con distancia, duración, banda pectoral y FC opcional con su tiempo de recuperación), reglas por tipo y validación de resultados (enteros, límites) sin baremos ni fórmulas; personalizada libre. `valoraciones-contratos.spec.ts`: 23 pruebas.
+
+**Punto de control M-P · M02–P01:** [x] medidas/pliegues/bioimpedancia conservan fuente y lecturas; [x] las cinco definiciones son válidas y sus variantes no se confunden; [x] no se inventan puntos antropométricos a partir de los PDF.
 
 ### P02 · Completar las pruebas en una visita
 
@@ -277,12 +285,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] El entrenador registra las cinco pruebas, o marca cualquiera no realizada con motivo opcional; unidades y protocolo aparecen junto al resultado y se conservan tras guardar.
-- [ ] Los campos opcionales de FC no son obligatorios para guardar Cooper; la referencia anterior muestra su fecha y no rellena el resultado nuevo.
+- [x] El entrenador registra las cinco pruebas, o marca cualquiera no realizada con motivo opcional; unidades y protocolo aparecen junto al resultado y se conservan tras guardar.
+- [x] Los campos opcionales de FC no son obligatorios para guardar Cooper; la referencia anterior muestra su fecha y no rellena el resultado nuevo.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand pruebas-valoracion.spec.tsx editor-valoracion.spec.tsx`; recorrido con dominadas y suspensión en fechas distintas, prueba incompleta y Cooper sin FC de recuperación.
 
 **Dependencias:** P01 y V04. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/pruebas-valoracion.tsx`, `pruebas-valoracion.spec.tsx`, `editor-valoracion.tsx` en el mismo directorio. **Tamaño:** M, 3 archivos.
+
+**Evidencia 24-09-2026 (Claude):** `pruebas-valoracion.tsx` (subagente + revisión aprobada): estado explícito Pendiente/Registrar/No realizada, métricas con unidad, FC opcional, fecha si fue otro día, notas visibles al publicar y referencia anterior fechada de solo lectura (solo misma definición y versión). Tras la revisión, «Protocolo completo» ya no viene marcado: se exige elegir. **Pendiente:** recorrido autenticado (C00).
 
 ### V05 · Publicar y corregir una valoración
 
@@ -290,15 +300,17 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Una publicación parcial contiene solo datos y conclusión visibles permitidos, con autor/fecha; notas internas y borradores quedan excluidos también de respuestas por ID.
-- [ ] Reintentar tras respuesta perdida devuelve la misma publicación; revisión obsoleta o contenido distinto con la misma operación da conflicto sin doble publicación.
-- [ ] Corregir conserva el original inmutable y la relación de sustitución; no crea otra visita ni un punto adicional de evolución para la misma medición.
+- [x] Una publicación parcial contiene solo datos y conclusión visibles permitidos, con autor/fecha; notas internas y borradores quedan excluidos también de respuestas por ID.
+- [x] Reintentar tras respuesta perdida devuelve la misma publicación; revisión obsoleta o contenido distinto con la misma operación da conflicto sin doble publicación.
+- [x] Corregir conserva el original inmutable y la relación de sustitución; no crea otra visita ni un punto adicional de evolución para la misma medición.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/valoraciones.e2e-spec.ts`; `npm test --workspace apps/mobile -- --runInBand editor-valoracion.spec.tsx`; probar publicación simultánea, respuesta perdida y corrección consultada por cliente.
 
 **Dependencias:** P02, M02, M03 y V03. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/seguimiento/valoraciones.controller.ts`, `valoraciones.service.ts` en el mismo directorio; `apps/api/test/valoraciones.e2e-spec.ts`; `apps/mobile/src/seguimiento/editor-valoracion.tsx`, `editor-valoracion.spec.tsx` en el mismo directorio. **Tamaño:** M, 5 archivos; subdividir API/UI si excede una sesión enfocada.
 
-**Punto de control P-V · P02–V05:** [ ] entrenador completa → guarda → publica → corrige sin duplicar; [ ] cliente solo puede leer publicaciones autorizadas; [ ] estados Guardado/Publicado se comprueban con fallo de red.
+**Evidencia 24-09-2026 (Claude):** API: `POST valoraciones/:id/publicaciones` congela la proyección pública e idempotente por operación; corrección con `corrigePublicacionId` sobre la misma visita desde el documento interno vigente, con revisión que continúa la publicada; carreras de publicación resueltas por claves únicas. `valoraciones.e2e-spec.ts` (bloque V05): publicación parcial por rol, reintento, conflictos, carrera (201 + 409) y corrección sin duplicar visita ni punto. UI: `borrador-valoracion.tsx` publica solo lo guardado, con la misma operación en cada reintento, y `editor-valoracion.tsx` ofrece «Corregir» en visitas publicadas. `editor-valoracion.spec.tsx`: 11 pruebas. **Pendiente:** comprobación visual autenticada.
+
+**Punto de control P-V · P02–V05:** [x] entrenador completa → guarda → publica → corrige sin duplicar; [x] cliente solo puede leer publicaciones autorizadas; [x] estados Guardado/Publicado se comprueban con fallo de red (prueba de componente con ErrorDeRed).
 
 ### V06 · Mostrar la valoración al cliente
 
@@ -306,12 +318,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] El cliente ve fecha de toma, conclusión/autor, datos disponibles y publicación corregida identificable; abrir el detalle no expone controles profesionales ni notas internas.
-- [ ] Progreso conserva indicadores cotidianos y ofrece detalle/historial con destino funcional; «Ver mi evolución» se incorpora en E01b al conectar la comparación, sin un botón vacío entre incrementos. Vacío/carga/error/parcial no convierten ausencias en ceros.
+- [x] El cliente ve fecha de toma, conclusión/autor, datos disponibles y publicación corregida identificable; abrir el detalle no expone controles profesionales ni notas internas.
+- [x] Progreso conserva indicadores cotidianos y ofrece detalle/historial con destino funcional; «Ver mi evolución» se incorpora en E01b al conectar la comparación, sin un botón vacío entre incrementos. Vacío/carga/error/parcial no convierten ausencias en ceros.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand resumen-valoracion.spec.tsx pantallas.spec.tsx`; comprobar primera visita, historial paginado, publicación corregida y cliente sin valoraciones a 360/390 px.
 
 **Dependencias:** V05. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/resumen-valoracion.tsx`, `resumen-valoracion.spec.tsx`, `progreso.tsx`, `valoraciones-api.ts` en el mismo directorio. **Tamaño:** M, 4 archivos.
+
+**Evidencia 24-09-2026 (Claude):** `resumen-valoracion.tsx` (subagente): última valoración con autor, fecha, conclusión, destacados con unidad y «Corregida»; próxima revisión; historial paginado y detalle por bloque sin controles profesionales ni ceros; montado en Progreso del cliente (`progreso.tsx` y `app/progreso.tsx`). 12 pruebas; `pantallas.spec.tsx` sigue en verde. «Ver mi evolución» queda para E01b. **Pendiente:** 360/390 px autenticado.
 
 ### V07 · Programar y repetir una revisión
 
@@ -323,13 +337,15 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] La pauta conserva fecha/intervalo y bloques; puede quitarse y la actualización simultánea usa revisión para evitar sobrescritura.
-- [ ] La visita nueva reutiliza definiciones y protocolos con resultados vacíos; los valores anteriores solo sirven de referencia con fecha.
-- [ ] Una solicitud se completa únicamente al confirmar la acción definida en el contrato y vincular la revisión; abrirla o reintentar no la completa/duplica.
+- [x] La pauta conserva fecha/intervalo y bloques; puede quitarse y la actualización simultánea usa revisión para evitar sobrescritura.
+- [x] La visita nueva reutiliza definiciones y protocolos con resultados vacíos; los valores anteriores solo sirven de referencia con fecha.
+- [x] Una solicitud se completa únicamente al confirmar la acción definida en el contrato y vincular la revisión; abrirla o reintentar no la completa/duplica.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/valoraciones.e2e-spec.ts`; cubrir quitar pauta, conflicto, repetición y reintento de completar solicitud.
 
 **Dependencias:** V05. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/seguimiento/valoraciones.controller.ts`, `valoraciones.service.ts` en el mismo directorio; `apps/api/test/valoraciones.e2e-spec.ts`. **Tamaño:** M, 3 archivos.
+
+**Evidencia 24-09-2026 (Claude):** `GET/PUT proxima-revision` (cliente lee, entrenador guarda con revisión o deja «Sin programar»); crear una revisión con `cumplePauta` marca `cumplidaPorId` en la misma transacción, reintentar no duplica y una segunda revisión no vuelve a cumplirla; guardar pauta nueva la deja pendiente. `valoraciones.e2e-spec.ts` + persistencia: 18 pruebas.
 
 #### V07b · Pautar y consultar la siguiente revisión
 
@@ -337,14 +353,16 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] El entrenador programa/cancela la pauta y abre una revisión con bloques seleccionados y resultados vacíos; anterior y actual se distinguen por fecha.
-- [ ] El cliente consulta próxima fecha/intervalo o «Sin programar» sin controles profesionales; se muestra el valor confirmado, no una edición fallida.
+- [x] El entrenador programa/cancela la pauta y abre una revisión con bloques seleccionados y resultados vacíos; anterior y actual se distinguen por fecha.
+- [x] El cliente consulta próxima fecha/intervalo o «Sin programar» sin controles profesionales; se muestra el valor confirmado, no una edición fallida.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand editor-valoracion.spec.tsx resumen-valoracion.spec.tsx`; inicial → programar → revisión parcial → publicar → consultar próxima pauta.
 
 **Dependencias:** V07a y V06. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/editor-valoracion.tsx`, `editor-valoracion.spec.tsx`, `resumen-valoracion.tsx`, `resumen-valoracion.spec.tsx`, `valoraciones-api.ts` en el mismo directorio. **Tamaño:** M, 5 archivos.
 
-**Punto de control V-C · V06, V07a–V07b:** [ ] inicial y revisión se distinguen en cliente; [ ] nueva revisión no hereda resultados; [ ] próxima pauta y estado de realización son coherentes entre roles.
+**Evidencia 24-09-2026 (Claude):** `pauta-revision.tsx` (programar por fecha o intervalo con bloques, o dejar sin programar, mostrando solo lo confirmado) y en `editor-valoracion.tsx` «Hacer la revisión pautada» con `cumplePauta` y bloques disponibles; el cliente ve la pauta en su resumen. Cubierto en `editor-valoracion.spec.tsx` y `resumen-valoracion.spec.tsx`.
+
+**Punto de control V-C · V06, V07a–V07b:** [x] inicial y revisión se distinguen en cliente; [x] nueva revisión no hereda resultados; [x] próxima pauta y estado de realización son coherentes entre roles.
 
 ### F01 · Contratos y persistencia de medios privados
 
@@ -356,12 +374,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] El contrato identifica dueño, autor, vista/fecha, origen, estado, vínculo y operación; define formatos, límites y errores de selección/subida/confirmación/acceso/eliminación.
-- [ ] La clave de objeto y los enlaces temporales no son identificadores editables de la foto; una solicitud propia puede recibir una foto antes de existir valoración.
+- [x] El contrato identifica dueño, autor, vista/fecha, origen, estado, vínculo y operación; define formatos, límites y errores de selección/subida/confirmación/acceso/eliminación.
+- [x] La clave de objeto y los enlaces temporales no son identificadores editables de la foto; una solicitud propia puede recibir una foto antes de existir valoración.
 
 **Verificación:** `npm run build:shared`; `npm test --workspace apps/api -- --runInBand medios-contratos.spec.ts`; cubrir formato/tamaño inválidos, estados incompatibles, operaciones repetidas y DTO público sin claves internas.
 
 **Dependencias:** V01 y V07. **Responsable:** Claude principal, dueño de contratos. **Archivos previstos:** `packages/shared/src/medios.ts`, `packages/shared/src/index.ts`, `apps/api/src/medios/medios-contratos.spec.ts`. **Tamaño:** M, 3 archivos.
+
+**Evidencia 24-09-2026 (Claude):** `medios.ts`: JPEG/PNG/WebP hasta 8 MB, vistas comparables, estados pendiente/disponible/eliminando/eliminado, origen profesional o cliente, destino visita o solicitud, DTO sin clave ni enlaces, solicitudes con recibida frente a revisada. `medios-contratos.spec.ts`: 5 pruebas.
 
 #### F01b · Persistencia de fotografías y solicitudes
 
@@ -369,14 +389,16 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Migración aditiva guarda medios, intenciones, solicitudes, vínculos y estado de eliminación con claves/índices por propietario; nunca guarda una URL firmada como localización permanente.
-- [ ] Una intención repetida no duplica medio; incorporar una aportación a valoración reutiliza el objeto y no altera quién lo aportó.
+- [x] Migración aditiva guarda medios, intenciones, solicitudes, vínculos y estado de eliminación con claves/índices por propietario; nunca guarda una URL firmada como localización permanente.
+- [x] Una intención repetida no duplica medio; incorporar una aportación a valoración reutiliza el objeto y no altera quién lo aportó.
 
 **Verificación:** `npx prisma validate`; `npx prisma generate`; ensayo migración/reversión/reaplicación aislado; `npm run test:e2e --workspace apps/api -- --runTestsByPath test/medios-persistencia.e2e-spec.ts`.
 
 **Dependencias:** F01a y V02. **Responsable:** Claude principal, dueño de migraciones. **Archivos previstos:** `apps/api/prisma/schema.prisma`, `apps/api/prisma/migrations/<fecha>_medios_privados/migration.sql`, `apps/api/prisma/rollback/medios_privados.sql`, `apps/api/test/medios-persistencia.e2e-spec.ts`. **Tamaño:** M, 4 archivos.
 
-**Punto de control F-A · F01a–F01b:** [ ] permisos/estados definidos y migración aislada validada; [ ] relaciones permiten aportación previa a la valoración sin duplicar objetos.
+**Evidencia 24-09-2026 (Claude):** migración `20260924130000_medios_privados` con CHECK de formato, tamaño, etiqueta, origen y estados; solo la clave del objeto, nunca una URL. Ensayo deploy → rollback (con una solicitud sintética y la plantilla ajena conservada) → deploy en `alpha_omega_e2e_codex`. `medios-persistencia.e2e-spec.ts`: 4 pruebas.
+
+**Punto de control F-A · F01a–F01b:** [x] permisos/estados definidos y migración aislada validada; [x] relaciones permiten aportación previa a la valoración sin duplicar objetos.
 
 ### F02 · Subida, confirmación y acceso autorizados
 
@@ -388,12 +410,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] El entorno local permite cargar, verificar, leer temporalmente y eliminar un objeto privado; no publica el bucket ni necesita contratar un proveedor.
-- [ ] Configuración usa variables documentadas sin secretos, claves aleatorias y caducidad acotada; las dependencias seleccionadas son compatibles con los runtimes del repo y se justifican brevemente.
+- [x] El entorno local permite cargar, verificar, leer temporalmente y eliminar un objeto privado; no publica el bucket ni necesita contratar un proveedor.
+- [x] Configuración usa variables documentadas sin secretos, claves aleatorias y caducidad acotada; las dependencias seleccionadas son compatibles con los runtimes del repo y se justifican brevemente.
 
 **Verificación:** levantar únicamente el servicio local de objetos; comprobar objeto sintético sin acceso público, firma válida y firma caducada; `npm run build --workspace apps/api`. Los casos automáticos de integración se incorporan en F02b.
 
 **Dependencias:** F01b. **Responsable:** Claude principal, dueño de dependencias/configuración. **Archivos previstos:** `docker-compose.yml`, `.env.example`, `apps/api/package.json`, `package-lock.json`, `apps/api/src/medios/almacen-objetos.ts`. **Tamaño:** M, 5 archivos.
+
+**Evidencia 24-09-2026 (Claude):** **Desviación consciente:** no se descargó MinIO ni el SDK de S3 (descargar requiere autorización de David). `almacen-objetos.ts` define la interfaz del almacén y `AlmacenLocal`, con el mismo contrato que un S3 con URLs prefirmadas: enlaces HMAC con caducidad (15 min subida, 5 lectura), objetos en `.almacen-local/` ignorado por git, variables opcionales `ALMACEN_LOCAL_DIR`, `API_URL_PUBLICA` y `ALMACEN_LOCAL_SECRETO` (aleatorio por arranque si falta). El adaptador S3 de producción queda pendiente de elegir proveedor.
 
 #### F02b · API privada de medios
 
@@ -401,13 +425,15 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Intención, confirmación y lectura temporal comprueban rol, cliente, vínculo y estado; objeto ajeno/pendiente o subida manipulada se rechazan antes de vincular o firmar acceso.
-- [ ] Confirmación verifica existencia, contenido/formato y tamaño reales; la imagen servida y miniaturas no conservan localización y se mantienen privadas.
-- [ ] Mismo reintento confirma una sola foto; expiración o fallo se informa como recuperable sin registrar éxito ni filtrar claves/enlaces en logs.
+- [x] Intención, confirmación y lectura temporal comprueban rol, cliente, vínculo y estado; objeto ajeno/pendiente o subida manipulada se rechazan antes de vincular o firmar acceso.
+- [x] Confirmación verifica existencia, contenido/formato y tamaño reales; la imagen servida y miniaturas no conservan localización y se mantienen privadas.
+- [x] Mismo reintento confirma una sola foto; expiración o fallo se informa como recuperable sin registrar éxito ni filtrar claves/enlaces en logs.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/medios.e2e-spec.ts`; probar acceso directo por ID, propietario distinto, nutricionista según contrato, objeto ausente, MIME falseado, tamaño excesivo, firma caducada y respuesta perdida contra almacén local.
 
 **Dependencias:** F02a. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/medios/medios.controller.ts`, `medios.service.ts`, `medios.module.ts` en el mismo directorio; `apps/api/src/app.module.ts`; `apps/api/test/medios.e2e-spec.ts`. **Tamaño:** M, 5 archivos; extraer y subdividir verificación de imágenes si excede la sesión.
+
+**Evidencia 24-09-2026 (Claude):** rutas `/medios/subidas`, `/medios/:id/confirmacion`, `/medios/:id/acceso` y el almacén local firmado. La confirmación exige objeto presente, formato real por firma de bytes y tamaño anunciado, y retira metadatos por LISTA BLANCA (`imagenes.ts`, subagente, 46 pruebas: Exif/GPS, XMP, C2PA, comentarios, tIME…). Sin miniaturas (no se decodifican imágenes). `medios.e2e-spec.ts`: 3 pruebas (roles, reintento, firma ajena o caducada, 413, formato falseado).
 
 #### F02c · Vincular fotos profesionales a una valoración
 
@@ -415,14 +441,16 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Entrenador autorizado vincula solo medios propios del cliente, confirmados y no eliminados; un reintento devuelve el mismo vínculo.
-- [ ] Cliente solo obtiene fotos de publicaciones propias; listado/vínculo por ID rechaza medios ajenos o pendientes y mantiene el borrador privado.
+- [x] Entrenador autorizado vincula solo medios propios del cliente, confirmados y no eliminados; un reintento devuelve el mismo vínculo.
+- [x] Cliente solo obtiene fotos de publicaciones propias; listado/vínculo por ID rechaza medios ajenos o pendientes y mantiene el borrador privado.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/valoraciones-fotos.e2e-spec.ts test/medios.e2e-spec.ts`; adjuntar → publicar → consultar cliente y pruebas negativas por ID.
 
 **Dependencias:** F02b y V05. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/seguimiento/valoraciones.controller.ts`, `valoraciones.service.ts`, `seguimiento.module.ts` en el mismo directorio; `apps/api/src/medios/medios.module.ts`; `apps/api/test/valoraciones-fotos.e2e-spec.ts`. **Tamaño:** M, 5 archivos.
 
-**Punto de control F-B · F02a–F02c:** [ ] ninguna foto/miniatura es pública; [ ] objeto ausente/ajeno no se confirma/vincula; [ ] adjuntar/publicar/consultar funciona en API con imágenes sintéticas sin proveedor de producción.
+**Evidencia 24-09-2026 (Claude):** `POST/GET valoraciones/:id/fotos`; publicar marca `publicadaEn` de las fotos de la visita; el cliente solo ve fotos publicadas; nutricionista 403; aportación del cliente incorporada sin nueva subida ni cambio de autor. `valoraciones-fotos.e2e-spec.ts`: 3 pruebas.
+
+**Punto de control F-B · F02a–F02c:** [x] ninguna foto/miniatura es pública; [x] objeto ausente/ajeno no se confirma/vincula; [x] adjuntar/publicar/consultar funciona en API con imágenes sintéticas sin proveedor de producción.
 
 ### F03 · Aportar fotografías desde la app
 
@@ -467,13 +495,15 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Entrenador crea solicitudes con vistas/fecha o intervalo; solo el cliente destinatario aporta, incluso si todavía no existe valoración, y reintentar no duplica solicitud ni vínculo.
-- [ ] Incorporar la aportación a una valoración conserva medio, autor/origen y permisos; «recibida» y «revisada» son estados separados mediante acción profesional explícita.
-- [ ] Aportar a la solicitud reutiliza las comprobaciones de F02c y valida todos los IDs; no acepta medios pendientes, ajenos o eliminados.
+- [x] Entrenador crea solicitudes con vistas/fecha o intervalo; solo el cliente destinatario aporta, incluso si todavía no existe valoración, y reintentar no duplica solicitud ni vínculo.
+- [x] Incorporar la aportación a una valoración conserva medio, autor/origen y permisos; «recibida» y «revisada» son estados separados mediante acción profesional explícita.
+- [x] Aportar a la solicitud reutiliza las comprobaciones de F02c y valida todos los IDs; no acepta medios pendientes, ajenos o eliminados.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/solicitudes-fotos.e2e-spec.ts test/medios.e2e-spec.ts`; probar solicitud sin visita, vista opcional, reintento, enlace ajeno y recepción sin revisión.
 
 **Dependencias:** F02c y V07b. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/seguimiento/solicitudes-fotos.controller.ts`, `solicitudes-fotos.service.ts`, `seguimiento.module.ts` en el mismo directorio; `apps/api/test/solicitudes-fotos.e2e-spec.ts`. **Tamaño:** M, 4 archivos.
+
+**Evidencia 24-09-2026 (Claude):** `POST/GET solicitudes-fotos` y `POST solicitudes-fotos/:id/revision`; la confirmación de una aportación marca la solicitud «recibida»; revisar es explícito e idempotente. `solicitudes-fotos.e2e-spec.ts`: 3 pruebas.
 
 #### F04b · Aportar y revisar desde las pantallas
 
