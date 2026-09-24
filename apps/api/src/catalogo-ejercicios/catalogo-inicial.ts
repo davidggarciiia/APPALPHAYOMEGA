@@ -26,6 +26,12 @@ export type EntradaCatalogoInicial = {
   /** El error más habitual, en una frase. */
   evita: string
   consejos: Consejo[]
+  /**
+   * Otros nombres con los que un entrenador suele llamar a este mismo
+   * movimiento. Si ya tiene uno así y sin figura, se le asocia la figura en vez
+   * de crear otro ejercicio. Solo equivalencias claras, nunca familias enteras.
+   */
+  equivalentes?: string[]
 }
 
 export const CATALOGO_INICIAL: readonly EntradaCatalogoInicial[] = [
@@ -514,6 +520,7 @@ export const CATALOGO_INICIAL: readonly EntradaCatalogoInicial[] = [
   {
     medioId: "vital-0060",
     nombre: "Peso muerto rumano con barra",
+    equivalentes: ["Peso muerto rumano"],
     grupoPrincipal: "isquiotibiales",
     gruposSecundarios: ["gluteos", "espalda"],
     instrucciones:
@@ -743,6 +750,7 @@ export const CATALOGO_INICIAL: readonly EntradaCatalogoInicial[] = [
   {
     medioId: "vital-0064",
     nombre: "Sentadilla goblet con mancuerna",
+    equivalentes: ["Sentadilla goblet"],
     grupoPrincipal: "cuadriceps",
     gruposSecundarios: ["gluteos", "abdomen"],
     instrucciones:

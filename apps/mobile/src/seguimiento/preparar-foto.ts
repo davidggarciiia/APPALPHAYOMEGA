@@ -1,6 +1,7 @@
 import { Platform } from "react-native"
 import * as ImagePicker from "expo-image-picker"
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator"
+import { File, Paths } from "expo-file-system"
 import { BYTES_MAXIMOS_FOTO } from "@alpha-omega/shared"
 
 /**
@@ -12,8 +13,9 @@ import { BYTES_MAXIMOS_FOTO } from "@alpha-omega/shared"
  * cargar la imagen (iOS la endereza, en Android Glide aplica la orientación
  * EXIF y en web lo hace el navegador), así que aquí no se gira otra vez.
  *
- * Nada de esto se guarda: la URI local solo vive en memoria mientras dura la
- * subida.
+ * Ninguna URI se guarda en un almacén. En Android e iOS el selector y el
+ * manipulador escriben copias en la caché de la app; `liberarFoto` borra esas
+ * copias y solo esas (RI07).
  */
 
 export type OrigenFoto = "camara" | "galeria"
@@ -88,6 +90,7 @@ export async function elegirFoto(origen: OrigenFoto): Promise<EleccionFoto> {
   }
   const asset = resultado.canceled ? undefined : resultado.assets[0]
   if (!asset) return { tipo: "cancelada" }
+  registrarCopia(asset.uri)
   if (asset.type === "video" || asset.type === "pairedVideo") {
     liberarFoto(asset.uri)
     return { tipo: "fallo", mensaje: "Elige una foto, no un vídeo." }
@@ -118,6 +121,7 @@ export async function prepararFoto(uri: string): Promise<FotoPreparada> {
       liberables.push(imagen)
     }
     guardada = await imagen.saveAsync({ format: SaveFormat.JPEG, compress: CALIDAD_JPEG })
+    registrarCopia(guardada.uri)
   } catch {
     throw new ErrorDeFoto(NO_SE_LEE)
   } finally {
@@ -182,13 +186,98 @@ async function primerosBytes(blob: Blob, cuantos: number): Promise<Uint8Array> {
 }
 
 /**
- * Suelta la copia temporal de una foto. En web revoca la URL `blob:` y el
- * navegador libera la memoria. En iOS y Android el archivo queda en la caché de
- * la app (el sistema la vacía): borrarlo exige `expo-file-system`, que no es
- * dependencia directa de la app. La URI nunca se guarda en ningún almacén.
+ * Carpetas de la caché de la app donde escriben sus copias el selector
+ * (`ImagePicker/`) y el manipulador (`ImageManipulator/`), en Android y en iOS.
  */
-export function liberarFoto(uri: string): void {
-  if (Platform.OS === "web" && uri.startsWith("blob:")) URL.revokeObjectURL(uri)
+const CARPETAS_PROPIAS = ["ImagePicker", "ImageManipulator"] as const
+
+/**
+ * Copias que el selector o la preparación han creado en esta sesión. Solo se
+ * borra lo que está aquí: nunca una ruta recibida de otra parte (servidor,
+ * fototeca) aunque apunte a la caché. Se conservan tras borrarlas para que
+ * liberar dos veces sea inocuo.
+ */
+const copiasPropias = new Set<string>()
+
+function registrarCopia(uri: string): void {
+  if (Platform.OS !== "web" && esCopiaTemporal(uri)) copiasPropias.add(uri)
+}
+
+/** Ruta de una URI `file://` ya decodificada, o `null` si no es segura de comparar. */
+function rutaDeArchivo(uri: string): string | null {
+  const partes = /^file:\/\/(\/[^?#]*)$/.exec(uri)
+  if (!partes?.[1]) return null
+  let ruta: string
+  try {
+    ruta = decodeURIComponent(partes[1])
+  } catch {
+    return null
+  }
+  if (ruta.includes("\0") || ruta.split("/").some((s) => s === "." || s === "..")) return null
+  // En iOS `/var` es un enlace a `/private/var`; según la API llega una forma u otra.
+  return ruta.replace(/\/{2,}/g, "/").replace(/^\/private\/var\//, "/var/")
+}
+
+/** Un archivo directamente dentro de `ImagePicker/` o `ImageManipulator/` de la caché. */
+function esCopiaTemporal(uri: string): boolean {
+  const ruta = rutaDeArchivo(uri)
+  let cache: string | null
+  try {
+    cache = rutaDeArchivo(Paths.cache.uri)
+  } catch {
+    return false
+  }
+  if (!ruta || !cache) return false
+  const base = cache.endsWith("/") ? cache : `${cache}/`
+  return CARPETAS_PROPIAS.some((carpeta) => {
+    const prefijo = `${base}${carpeta}/`
+    const nombre = ruta.slice(prefijo.length)
+    return ruta.startsWith(prefijo) && nombre.length > 0 && !nombre.includes("/")
+  })
+}
+
+/**
+ * - `liberada`: se revocó la URL `blob:` (web) o se borró el archivo.
+ * - `yaNoEstaba`: era una copia propia, pero ya no existe (ya liberada o el
+ *   sistema vació la caché).
+ * - `ajena`: no es una copia creada por la app en esta sesión; no se toca.
+ * - `fallo`: el almacenamiento no dejó borrarla; sigue en la caché.
+ */
+export type LiberacionFoto = "liberada" | "yaNoEstaba" | "ajena" | "fallo"
+
+/**
+ * Suelta la copia temporal de una foto. En web revoca la URL `blob:`. En iOS y
+ * Android borra el archivo solo si es una copia que el selector o la
+ * preparación crearon en esta sesión dentro de sus carpetas de la caché: un
+ * original de la fototeca (`content:`, `ph:` o una ruta de la galería) o una
+ * ruta del servidor se quedan como están.
+ *
+ * Nunca lanza y se puede repetir. Si el almacenamiento del móvil impide
+ * borrar, devuelve `fallo` sin afirmar que se borró; la copia sigue contando
+ * como propia para volver a intentarlo, y como está en la caché el sistema
+ * puede recuperar ese espacio más adelante.
+ */
+export function liberarFoto(uri: string): LiberacionFoto {
+  if (Platform.OS === "web") {
+    if (!uri.startsWith("blob:")) return "ajena"
+    URL.revokeObjectURL(uri)
+    return "liberada"
+  }
+  if (!copiasPropias.has(uri)) return "ajena"
+  let archivo: File | undefined
+  try {
+    archivo = new File(uri)
+    if (!archivo.exists) return "yaNoEstaba"
+    archivo.delete()
+    return "liberada"
+  } catch {
+    // Si ha desaparecido entretanto ya no ocupa sitio: no es un fallo.
+    try {
+      return archivo && !archivo.exists ? "yaNoEstaba" : "fallo"
+    } catch {
+      return "fallo"
+    }
+  }
 }
 
 /** Elegir y preparar en un paso; el original se suelta en cuanto hay copia preparada. */

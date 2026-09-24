@@ -26,6 +26,39 @@ jest.mock("expo-image-manipulator", () => ({
   SaveFormat: { JPEG: "jpeg", PNG: "png", WEBP: "webp" },
 }))
 
+/**
+ * Disco sintético del móvil: qué archivos existen, cuáles no se dejan borrar y
+ * qué se ha borrado. Imita `File` de expo-file-system: `delete()` lanza si el
+ * archivo no existe o si el almacenamiento falla.
+ */
+const mockDisco = {
+  cache: "",
+  archivos: new Set<string>(),
+  fallos: new Set<string>(),
+  borrados: [] as string[],
+}
+jest.mock("expo-file-system", () => ({
+  File: class {
+    readonly uri: string
+    constructor(ruta: string) {
+      this.uri = ruta
+    }
+    get exists(): boolean {
+      return mockDisco.archivos.has(this.uri)
+    }
+    delete(): void {
+      if (mockDisco.fallos.has(this.uri)) throw new Error("EACCES sintético")
+      if (!mockDisco.archivos.delete(this.uri)) throw new Error("No existe")
+      mockDisco.borrados.push(this.uri)
+    }
+  },
+  Paths: {
+    get cache() {
+      return { uri: mockDisco.cache }
+    },
+  },
+}))
+
 // Todo es sintético: rutas, dimensiones y bytes inventados; ninguna foto real.
 const ORIGINAL = "file:///cache/ImagePicker/sintetica-original.jpg"
 const SALIDA = "file:///cache/ImageManipulator/sintetica-preparada.jpg"
@@ -60,7 +93,7 @@ type Ref = { width: number; height: number; saveAsync: jest.Mock; release: jest.
  * hace la librería en iOS, Android y web), `resize` con un solo lado conserva
  * la proporción y cada `renderAsync` entrega una referencia nueva.
  */
-function manipuladorFalso(ancho: number, alto: number, fallo?: Error) {
+function manipuladorFalso(ancho: number, alto: number, fallo?: Error, salida = SALIDA) {
   let w = ancho
   let h = alto
   const referencias: Ref[] = []
@@ -81,7 +114,7 @@ function manipuladorFalso(ancho: number, alto: number, fallo?: Error) {
       const ref: Ref = {
         width: w,
         height: h,
-        saveAsync: jest.fn(async () => ({ uri: SALIDA, width: ref.width, height: ref.height })),
+        saveAsync: jest.fn(async () => ({ uri: salida, width: ref.width, height: ref.height })),
         release: jest.fn(),
       }
       referencias.push(ref)
@@ -344,10 +377,166 @@ describe("obtener y liberar", () => {
     expect(manipular).not.toHaveBeenCalled()
   })
 
-  it("fuera de la web no hay nada que soltar con las librerías instaladas", () => {
-    jest.replaceProperty(Platform, "OS", "android")
+  it("en web solo se revocan URL blob:; lo demás no se toca", () => {
+    const soltar = jest.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined)
+    mockDisco.borrados = []
+
+    expect(liberarFoto("blob:http://localhost/preparada-sintetica")).toBe("liberada")
+    expect(soltar).toHaveBeenCalledWith("blob:http://localhost/preparada-sintetica")
+    expect(liberarFoto("data:image/jpeg;base64,/9j/sintetico")).toBe("ajena")
+    expect(liberarFoto("https://almacen.example/medios/sintetico.jpg")).toBe("ajena")
+    expect(soltar).toHaveBeenCalledTimes(1)
+    expect(mockDisco.borrados).toEqual([])
+  })
+})
+
+describe.each([
+  { os: "android" as const, cache: "file:///data/user/0/app.sintetica/cache/" },
+  {
+    os: "ios" as const,
+    cache: "file:///var/mobile/Containers/Data/Application/SINTETICA/Library/Caches/",
+  },
+])("liberar copias temporales en $os", ({ os, cache }) => {
+  const seleccion = `${cache}ImagePicker/seleccion-sintetica.jpg`
+  const preparada = (nombre: string): string => `${cache}ImageManipulator/${nombre}.jpg`
+
+  beforeEach(() => {
+    jest.replaceProperty(Platform, "OS", os)
+    mockDisco.cache = cache
+    mockDisco.archivos = new Set()
+    mockDisco.fallos = new Set()
+    mockDisco.borrados = []
+  })
+
+  /** Prepara una foto cuyo JPEG queda escrito en la caché sintética. */
+  async function prepararEn(salida: string): ReturnType<typeof prepararFoto> {
+    manipuladorFalso(1200, 900, undefined, salida)
+    archivoPreparado(jpegSintetico(50_000))
+    mockDisco.archivos.add(salida)
+    return prepararFoto(seleccion)
+  }
+
+  it("la copia preparada en la caché propia se borra de verdad, una sola vez", async () => {
     const soltar = jest.spyOn(URL, "revokeObjectURL")
-    liberarFoto(SALIDA)
+    const foto = await prepararEn(preparada("borrar"))
+
+    expect(liberarFoto(foto.uri)).toBe("liberada")
+    expect(mockDisco.archivos.has(foto.uri)).toBe(false)
+    expect(mockDisco.borrados).toEqual([foto.uri])
+    // Idempotente: repetir no borra nada más ni lanza.
+    expect(liberarFoto(foto.uri)).toBe("yaNoEstaba")
+    expect(mockDisco.borrados).toEqual([foto.uri])
     expect(soltar).not.toHaveBeenCalled()
+  })
+
+  it("elegir y preparar borra la copia de la selección y conserva la preparada hasta soltarla", async () => {
+    galeria.mockResolvedValue(elegida({ uri: seleccion }))
+    mockDisco.archivos.add(seleccion)
+    manipuladorFalso(1200, 900, undefined, preparada("conservar"))
+    archivoPreparado(jpegSintetico(50_000))
+    mockDisco.archivos.add(preparada("conservar"))
+
+    const resultado = await obtenerFoto("galeria")
+
+    expect(resultado).toMatchObject({ tipo: "lista", foto: { uri: preparada("conservar") } })
+    expect(mockDisco.borrados).toEqual([seleccion])
+    // La preparada sigue disponible para subirla o reintentar.
+    expect(mockDisco.archivos.has(preparada("conservar"))).toBe(true)
+
+    expect(liberarFoto(preparada("conservar"))).toBe("liberada")
+    expect(mockDisco.borrados).toEqual([seleccion, preparada("conservar")])
+  })
+
+  it.each([
+    "content://media/external/images/media/42",
+    "ph://SINTETICA-0042/L0/001",
+    "file:///storage/emulated/0/DCIM/Camera/sintetica.jpg",
+  ])("el original de la fototeca %s nunca se borra", async (original) => {
+    galeria.mockResolvedValue(elegida({ uri: original }))
+    mockDisco.archivos.add(original)
+    manipuladorFalso(1200, 900, undefined, preparada("desde-original"))
+    archivoPreparado(jpegSintetico(50_000))
+    mockDisco.archivos.add(preparada("desde-original"))
+
+    expect((await obtenerFoto("galeria")).tipo).toBe("lista")
+    expect(manipular).toHaveBeenCalledWith(original)
+    expect(liberarFoto(original)).toBe("ajena")
+    expect(mockDisco.archivos.has(original)).toBe(true)
+    expect(mockDisco.borrados).toEqual([])
+  })
+
+  it("no borra rutas que la app no ha creado en esta sesión", () => {
+    const ajenas = [
+      "content://media/external/images/media/7",
+      "ph://SINTETICA-0007/L0/001",
+      "https://almacen.example/medios/sintetico.jpg",
+      "blob:http://localhost/sintetico",
+      // En la carpeta del manipulador, pero no la ha preparado esta sesión.
+      preparada("de-otra-sesion"),
+      `${cache}ImageManipulator/../../files/datos-sinteticos.db`,
+    ]
+    for (const uri of ajenas) mockDisco.archivos.add(uri)
+
+    for (const uri of ajenas) expect(liberarFoto(uri)).toBe("ajena")
+    expect(mockDisco.borrados).toEqual([])
+  })
+
+  it("una salida fuera de las carpetas temporales propias no se da por propia", async () => {
+    const fuera = [
+      `${cache}../files/sintetica.jpg`,
+      `${cache}ImageManipulator/%2e%2e/%2e%2e/files/sintetica.jpg`,
+      `${cache}ImageManipulator/sub/sintetica.jpg`,
+      `${cache}Otra/sintetica.jpg`,
+      `${cache}sintetica.jpg`,
+      "file:///storage/emulated/0/Pictures/sintetica.jpg",
+    ]
+    for (const salida of fuera) {
+      const foto = await prepararEn(salida)
+      expect(liberarFoto(foto.uri)).toBe("ajena")
+      expect(mockDisco.archivos.has(salida)).toBe(true)
+    }
+    expect(mockDisco.borrados).toEqual([])
+  })
+
+  it("si el sistema ya vació la caché, liberar no lanza ni dice que borró", async () => {
+    const foto = await prepararEn(preparada("ya-vaciada"))
+    mockDisco.archivos.delete(foto.uri)
+
+    expect(liberarFoto(foto.uri)).toBe("yaNoEstaba")
+    expect(mockDisco.borrados).toEqual([])
+  })
+
+  it("un error del almacenamiento se informa como fallo, sin lanzar, y se puede reintentar", async () => {
+    const foto = await prepararEn(preparada("bloqueada"))
+    mockDisco.fallos.add(foto.uri)
+
+    expect(liberarFoto(foto.uri)).toBe("fallo")
+    expect(mockDisco.archivos.has(foto.uri)).toBe(true)
+    expect(mockDisco.borrados).toEqual([])
+
+    mockDisco.fallos.delete(foto.uri)
+    expect(liberarFoto(foto.uri)).toBe("liberada")
+    expect(mockDisco.borrados).toEqual([foto.uri])
+  })
+
+  it("si la preparada no es un JPEG válido, su copia se borra y no queda en la caché", async () => {
+    manipuladorFalso(800, 600, undefined, preparada("no-jpeg"))
+    archivoPreparado(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), "")
+    mockDisco.archivos.add(preparada("no-jpeg"))
+
+    await expect(prepararFoto(seleccion)).rejects.toThrow(ErrorDeFoto)
+    expect(mockDisco.borrados).toEqual([preparada("no-jpeg")])
+  })
+
+  it("un vídeo elegido por error se descarta y su copia se borra", async () => {
+    const video = `${cache}ImagePicker/video-sintetico.mp4`
+    galeria.mockResolvedValue(elegida({ uri: video, type: "video" }))
+    mockDisco.archivos.add(video)
+
+    expect(await elegirFoto("galeria")).toEqual({
+      tipo: "fallo",
+      mensaje: "Elige una foto, no un vídeo.",
+    })
+    expect(mockDisco.borrados).toEqual([video])
   })
 })

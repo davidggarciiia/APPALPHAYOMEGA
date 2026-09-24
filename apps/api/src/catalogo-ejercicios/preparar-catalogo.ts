@@ -25,7 +25,9 @@ import { medioDelIndice } from "./medios.js"
  *
  * Idempotente y conservador, porque el entrenador puede haber editado todo:
  * - Crea, publicado, cada ejercicio del catálogo que falte por nombre
- *   normalizado (la misma comparación que el catálogo).
+ *   normalizado (la misma comparación que el catálogo). Un ejercicio que el
+ *   entrenador ya tenga con un nombre equivalente de la entrada cuenta como
+ *   ese ejercicio: recibe la figura y conserva su nombre y su ficha.
  * - No lo crea si su figura ya la tiene otro ejercicio: es el mismo ejercicio
  *   con otro nombre, por ejemplo uno que el entrenador ha renombrado.
  * - A un ejercicio sin figura le asocia la del índice, como hace
@@ -82,13 +84,22 @@ export async function prepararCatalogo(
 
   // Todo se valida antes de escribir nada: o entra el catálogo entero o nada.
   for (const entrada of CATALOGO_INICIAL) {
-    const { medioId, ...ficha } = entrada
-    figuraDelIndice(medioId)
-    CrearEjercicioSchema.parse(ficha)
+    figuraDelIndice(entrada.medioId)
+    CrearEjercicioSchema.parse({
+      nombre: entrada.nombre,
+      grupoPrincipal: entrada.grupoPrincipal,
+      gruposSecundarios: entrada.gruposSecundarios,
+      instrucciones: entrada.instrucciones,
+      pasos: entrada.pasos,
+      evita: entrada.evita,
+      consejos: entrada.consejos,
+    })
   }
 
   const importadas = new Set(mediosDisponibles().map((medio) => medio.id))
-  const nombres = CATALOGO_INICIAL.map((entrada) => normalizarNombre(entrada.nombre))
+  const nombresDe = (entrada: EntradaCatalogoInicial): string[] =>
+    [entrada.nombre, ...(entrada.equivalentes ?? [])].map(normalizarNombre)
+  const nombres = CATALOGO_INICIAL.flatMap(nombresDe)
   const existentes = await prisma.ejercicio.findMany({
     where: { nombreNormalizado: { in: nombres } },
     select: { id: true, nombreNormalizado: true, contenidos: { where: { tipo: "figura" } } },
@@ -114,8 +125,10 @@ export async function prepararCatalogo(
   }
 
   for (const entrada of CATALOGO_INICIAL) {
-    const nombreNormalizado = normalizarNombre(entrada.nombre)
-    const existente = porNombre.get(nombreNormalizado)
+    // Primero su nombre; si no, el primer equivalente que ya exista.
+    const existente = nombresDe(entrada)
+      .map((nombre) => porNombre.get(nombre))
+      .find((fila) => fila !== undefined)
     const otro = enUso.get(entrada.medioId)
     const conArchivo = importadas.has(entrada.medioId)
 

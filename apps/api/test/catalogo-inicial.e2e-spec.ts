@@ -27,7 +27,12 @@ import { entornoEntrenamiento } from "./entrenamiento-ayuda.js"
 
 type Entorno = Awaited<ReturnType<typeof entornoEntrenamiento>>
 
-const NOMBRES = CATALOGO_INICIAL.map((entrada) => normalizarNombre(entrada.nombre))
+/** Nombres de cada entrada y sus equivalentes: todos identifican ya el ejercicio. */
+const nombresDe = (entrada: EntradaCatalogoInicial): string[] =>
+  [entrada.nombre, ...(entrada.equivalentes ?? [])].map(normalizarNombre)
+const NOMBRES = CATALOGO_INICIAL.flatMap(nombresDe)
+/** La entrada con un nombre equivalente que usa la prueba. */
+const CON_EQUIVALENTE = CATALOGO_INICIAL.find((entrada) => entrada.equivalentes?.length)
 const FIGURAS = CATALOGO_INICIAL.map((entrada) => entrada.medioId)
 
 /** La parte de la entrada que viaja por el contrato del catálogo. */
@@ -48,8 +53,14 @@ describe("Catálogo inicial", () => {
     it("trae un ejercicio por cada figura del índice, sin repetir figura ni nombre", () => {
       expect(CATALOGO_INICIAL).toHaveLength(52)
       expect([...FIGURAS].sort()).toEqual(MEDIOS.map((medio) => medio.id).sort())
-      // Dos nombres que solo cambian en mayúsculas o espacios son el mismo ejercicio.
-      expect(new Set(NOMBRES).size).toBe(CATALOGO_INICIAL.length)
+      // Dos nombres que solo cambian en mayúsculas o espacios son el mismo ejercicio,
+      // y un equivalente no puede repetir el nombre de otra entrada.
+      expect(new Set(NOMBRES).size).toBe(NOMBRES.length)
+      // Solo equivalencias claras: hoy las dos que usan los ejercicios de David.
+      expect(CATALOGO_INICIAL.flatMap((entrada) => entrada.equivalentes ?? [])).toEqual([
+        "Peso muerto rumano",
+        "Sentadilla goblet",
+      ])
       for (const entrada of CATALOGO_INICIAL) {
         expect(entrada.nombre).toBe(medioDelIndice(entrada.medioId)?.nombre)
       }
@@ -92,6 +103,8 @@ describe("Catálogo inicial", () => {
     let simulacion: ResumenPreparacion
     /** El ejercicio que el entrenador ya tenía, con el nombre de una entrada y otra figura. */
     let propio: Ejercicio
+    /** El que tenía con un nombre equivalente al de una entrada y sin figura. */
+    let equivalente: Ejercicio
     let elegidas: {
       propio: EntradaCatalogoInicial
       figuraAjena: EntradaCatalogoInicial
@@ -186,7 +199,9 @@ describe("Catálogo inicial", () => {
       const nombresPrevios = new Set(existentes.map((fila) => fila.nombreNormalizado))
       const libres = CATALOGO_INICIAL.filter(
         (entrada) =>
-          !nombresPrevios.has(normalizarNombre(entrada.nombre)) && !enUso.has(entrada.medioId),
+          entrada !== CON_EQUIVALENTE &&
+          !nombresDe(entrada).some((nombre) => nombresPrevios.has(nombre)) &&
+          !enUso.has(entrada.medioId),
       )
       const [propia, figuraAjena, sinArchivo, renombrada] = libres
       if (
@@ -228,9 +243,36 @@ describe("Catálogo inicial", () => {
 
       enUso.add(figuraAjena.medioId)
       nombresPrevios.add(normalizarNombre(propia.nombre))
+
+      // Y otro con un nombre equivalente al de una entrada («Sentadilla goblet»), sin figura.
+      const nombreEquivalente = CON_EQUIVALENTE?.equivalentes?.[0]
+      if (
+        CON_EQUIVALENTE === undefined ||
+        nombreEquivalente === undefined ||
+        nombresDe(CON_EQUIVALENTE).some((nombre) => nombresPrevios.has(nombre)) ||
+        enUso.has(CON_EQUIVALENTE.medioId)
+      )
+        throw new Error("La base de pruebas ya tiene el ejercicio con nombre equivalente")
+      const altaEquivalente = await request(servidor)
+        .post("/ejercicios")
+        .set(entorno.como("entrenador"))
+        .send({
+          nombre: nombreEquivalente,
+          grupoPrincipal: "gluteos",
+          gruposSecundarios: [],
+          instrucciones: "La del entrenador.",
+          pasos: [],
+          evita: "",
+        })
+        .expect(201)
+      equivalente = EjercicioSchema.parse(altaEquivalente.body)
+      creados.add(equivalente.id)
+      nombresPrevios.add(normalizarNombre(nombreEquivalente))
+
       faltaban = CATALOGO_INICIAL.filter(
         (entrada) =>
-          !nombresPrevios.has(normalizarNombre(entrada.nombre)) && !enUso.has(entrada.medioId),
+          !nombresDe(entrada).some((nombre) => nombresPrevios.has(nombre)) &&
+          !enUso.has(entrada.medioId),
       ).length
     })
 
@@ -276,7 +318,9 @@ describe("Catálogo inicial", () => {
       expect(resumen.figurasAsociadas).toBe((await figurasDelCatalogo()) - figurasAntes)
 
       const nuevos = await entorno.prisma.ejercicio.findMany({
-        where: { id: { in: [...creados].filter((id) => id !== propio.id) } },
+        where: {
+          id: { in: [...creados].filter((id) => id !== propio.id && id !== equivalente.id) },
+        },
         include: { gruposSecundarios: true, contenidos: true },
       })
       expect(nuevos).toHaveLength(faltaban)
@@ -339,6 +383,17 @@ describe("Catálogo inicial", () => {
       }
       // Su figura ya estaba en otro ejercicio: no se duplica el ejercicio.
       expect(await idPorNombre(elegidas.figuraAjena)).toBeUndefined()
+    })
+
+    it("reconoce un ejercicio del entrenador por un nombre equivalente: le pone la figura sin duplicarlo", async () => {
+      const conFigura = await leer(equivalente.id)
+      expect(conFigura).toEqual({
+        ...equivalente,
+        figura: expect.objectContaining({ medioId: CON_EQUIVALENTE!.medioId }),
+      })
+      expect(conFigura.nombre).toBe(equivalente.nombre)
+      expect(conFigura.instrucciones).toBe("La del entrenador.")
+      expect(await idPorNombre(CON_EQUIVALENTE!)).toBeUndefined()
     })
 
     it("respeta el ejercicio que el entrenador ya tenía: su ficha y su figura propia", async () => {
