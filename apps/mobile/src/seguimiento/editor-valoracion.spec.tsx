@@ -5,7 +5,11 @@ import type {
   DefinicionCorporal,
   ErrorDeApi,
   GuardarPlantillaValoracion,
+  ListadoValoraciones,
   PlantillaValoracion,
+  ProximaRevision,
+  PublicacionValoracion,
+  PublicarValoracion,
   ValoracionProfesional,
 } from "@alpha-omega/shared"
 
@@ -94,7 +98,7 @@ function api(
       ...datos,
       revision: datos.revision + 1,
     })),
-    listar: jest.fn(async () =>
+    listar: jest.fn(async (): Promise<ListadoValoraciones> =>
       servidor
         ? {
             total: 1,
@@ -121,10 +125,12 @@ function api(
       })
       return servidor
     }),
-    publicar: jest.fn(async () => {
-      throw new Error("no usado")
-    }),
-    proximaRevision: jest.fn(async () => ({
+    publicar: jest.fn(
+      async (_c: string, _id: string, _d: PublicarValoracion): Promise<PublicacionValoracion> => {
+        throw new Error("no usado")
+      },
+    ),
+    proximaRevision: jest.fn(async (): Promise<ProximaRevision> => ({
       revision: 0,
       pauta: null,
       cumplidaPorId: null,
@@ -147,6 +153,7 @@ const conflicto = (): ErrorDePeticion =>
 async function abrirNueva(falsa: ReturnType<typeof api>): Promise<void> {
   await render(<ValoracionesProfesional clienteId={CLIENTE} api={falsa} nuevoId={nuevoId} />)
   await fireEvent.press(await screen.findByRole("button", { name: "Nueva valoración" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Crear valoración" }))
   await screen.findByText("Valoración inicial")
 }
 
@@ -173,7 +180,8 @@ it("crea una visita inicial con solo el bloque disponible y guarda peso y altura
     CLIENTE,
     expect.objectContaining({ tipo: "inicial", bloques: ["medidas"] }),
   )
-  expect(screen.queryByText(/Pliegues|Bioimpedancia|Pruebas|Fotos|Publicar/)).toBeNull()
+  // Solo aparecen los bloques que tiene la plantilla; las fotos aún no tienen formulario.
+  expect(screen.queryByText(/Pliegues|Bioimpedancia|Pruebas físicas|Fotos/)).toBeNull()
   await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "80,5")
   await fireEvent.changeText(screen.getByLabelText("Altura (cm)"), "180")
   expect(screen.getByText("Cambios sin guardar")).toBeTruthy()
@@ -279,4 +287,156 @@ it("un conflicto no pisa el servidor: permite cargar la versión guardada o cons
   await fireEvent.press(await screen.findByRole("button", { name: "Cargar versión guardada" }))
   expect(await screen.findByDisplayValue("71")).toBeTruthy()
   expect(screen.getByText("Guardado")).toBeTruthy()
+})
+
+const PUBLICACION = "60000000-0000-4000-8000-000000000001"
+function publicada(numero = 1): ValoracionProfesional {
+  const base = visita(3, { peso: 80 })
+  const documento = base.borrador!.documento
+  return {
+    ...base,
+    estado: "publicada",
+    borrador: null,
+    documentoVigente: { ...documento, notasInternas: "Nota interna sintética" },
+    publicacion: {
+      id: PUBLICACION,
+      valoracionId: VISITA,
+      numero,
+      sustituyeId: null,
+      tipo: "inicial",
+      fechaToma: "2026-09-24",
+      autor: { id: "70000000-0000-4000-8000-000000000001", nombre: "Entrenador" },
+      publicadaEn: "2026-09-24T12:00:00.000Z",
+      documento: {
+        definiciones: { corporales: [peso], pruebas: [] },
+        bloques: ["medidas"],
+        corporales: [{ definicionId: peso.id, estado: "registrado", valor: 80 }],
+        pruebas: [],
+        grasaPorPliegues: null,
+        destacados: [],
+        conclusion: "Conclusión sintética",
+      },
+    },
+  }
+}
+
+it("publicar exige lo guardado y un reintento reutiliza la misma operación", async () => {
+  const falsa = api()
+  await abrirNueva(falsa)
+  await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "80")
+  expect(screen.queryByRole("button", { name: "Publicar" })).toBeNull()
+  expect(screen.getByText("Guarda los cambios para poder publicar.")).toBeTruthy()
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+  await screen.findByText("Guardado")
+  falsa.publicar.mockRejectedValueOnce(new ErrorDeRed())
+  falsa.publicar.mockResolvedValueOnce(publicada().publicacion!)
+  await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  expect(await screen.findByText(/No hemos podido conectar/)).toBeTruthy()
+  falsa.leer.mockResolvedValue(publicada())
+  await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  expect(await screen.findByRole("button", { name: "Corregir" })).toBeTruthy()
+  const [primera, segunda] = falsa.publicar.mock.calls
+  expect(segunda![2].operacionId).toBe(primera![2].operacionId)
+  expect(segunda![2]).toMatchObject({ revision: 2, sustituyePublicacionId: null })
+  expect(screen.getByText(/Notas internas: Nota interna sintética/)).toBeTruthy()
+})
+
+it("corregir una publicación abre un borrador de la misma visita que la sustituye", async () => {
+  const falsa = api()
+  falsa.listar.mockResolvedValue({
+    total: 1,
+    valoraciones: [
+      {
+        id: VISITA,
+        tipo: "inicial",
+        estado: "publicada",
+        fechaToma: "2026-09-24",
+        publicadaEn: "2026-09-24T12:00:00.000Z",
+        numeroPublicacion: 1,
+      },
+    ],
+  })
+  falsa.leer.mockResolvedValue(publicada())
+  const correccion = visita(4, { peso: 80 })
+  correccion.estado = "corrigiendo"
+  correccion.borrador!.corrigePublicacionId = PUBLICACION
+  falsa.crear.mockResolvedValue(correccion)
+  await render(<ValoracionesProfesional clienteId={CLIENTE} api={falsa} nuevoId={nuevoId} />)
+  await fireEvent.press(await screen.findByRole("button", { name: /Inicial del .*Publicada/ }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Corregir" }))
+  expect(await screen.findByText("Corrección de la valoración")).toBeTruthy()
+  expect(falsa.crear).toHaveBeenCalledWith(CLIENTE, {
+    operacionId: expect.any(String),
+    corrigePublicacionId: PUBLICACION,
+  })
+  falsa.publicar.mockResolvedValueOnce({ ...publicada(2).publicacion!, sustituyeId: PUBLICACION })
+  await fireEvent.press(screen.getByRole("button", { name: "Publicar la corrección" }))
+  await waitFor(() =>
+    expect(falsa.publicar).toHaveBeenCalledWith(
+      CLIENTE,
+      VISITA,
+      expect.objectContaining({ sustituyePublicacionId: PUBLICACION }),
+    ),
+  )
+})
+
+it("una revisión pautada se crea con la pauta que cumple y solo con bloques disponibles", async () => {
+  const falsa = api()
+  falsa.listar.mockResolvedValue({
+    total: 1,
+    valoraciones: [
+      {
+        id: VISITA,
+        tipo: "inicial",
+        estado: "publicada",
+        fechaToma: "2026-09-24",
+        publicadaEn: "2026-09-24T12:00:00.000Z",
+        numeroPublicacion: 1,
+      },
+    ],
+  })
+  falsa.proximaRevision.mockResolvedValue({
+    revision: 3,
+    pauta: { fecha: null, intervaloSemanas: 6, bloques: ["medidas", "pliegues"] },
+    cumplidaPorId: null,
+    actualizadaEn: "2026-09-24T12:00:00.000Z",
+  })
+  await render(<ValoracionesProfesional clienteId={CLIENTE} api={falsa} nuevoId={nuevoId} />)
+  expect(await screen.findByText("Próxima revisión: Cada 6 semanas")).toBeTruthy()
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Hacer la revisión pautada (Cada 6 semanas)" }),
+  )
+  await waitFor(() =>
+    expect(falsa.crear).toHaveBeenCalledWith(CLIENTE, {
+      operacionId: expect.any(String),
+      tipo: "revision",
+      fechaToma: expect.any(String),
+      bloques: ["medidas"],
+      anteriorId: VISITA,
+      cumplePauta: 3,
+    }),
+  )
+})
+
+it("una nueva revisión deja elegir los bloques y no crea nada sin ninguno", async () => {
+  const falsa = api()
+  falsa.listar.mockResolvedValue({
+    total: 1,
+    valoraciones: [
+      {
+        id: VISITA,
+        tipo: "inicial",
+        estado: "publicada",
+        fechaToma: "2026-09-24",
+        publicadaEn: "2026-09-24T12:00:00.000Z",
+        numeroPublicacion: 1,
+      },
+    ],
+  })
+  await render(<ValoracionesProfesional clienteId={CLIENTE} api={falsa} nuevoId={nuevoId} />)
+  await fireEvent.press(await screen.findByRole("button", { name: "Nueva revisión" }))
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Medidas" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Crear revisión" }))
+  expect(await screen.findByText(/Elige al menos un bloque/)).toBeTruthy()
+  expect(falsa.crear).not.toHaveBeenCalled()
 })

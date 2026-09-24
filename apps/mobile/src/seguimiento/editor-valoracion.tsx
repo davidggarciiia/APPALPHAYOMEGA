@@ -2,201 +2,43 @@ import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import type {
-  CambiarValoracion,
+  BloqueValoracion,
   DefinicionCorporal,
   ListadoValoraciones,
   PlantillaValoracion,
+  ProximaRevision,
   ValoracionProfesional,
 } from "@alpha-omega/shared"
 
-import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
+import { AvisoDeError, BotonPrincipal, BotonSecundario } from "../componentes/formulario"
 import { fechaLegible, hoyAgenda } from "../entrenamiento/fechas"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
-import { ErrorDePeticion } from "../lib/http"
 import { tema } from "../tema"
-import {
-  CAMPO_CORPORAL_VACIO,
-  cambioDe,
-  edicionDe,
-  type CampoCorporal,
-  type EdicionValoracion,
-} from "./valoracion-modelo"
+import { BorradorValoracion } from "./borrador-valoracion"
+import { EditorPautaRevision, textoDePauta } from "./pauta-revision"
+import { EditorPlantilla } from "./plantilla-valoracion"
+import type { ReferenciaPrueba } from "./pruebas-valoracion"
 import type { ApiValoraciones } from "./valoraciones-api"
 
-type Estado = "guardado" | "cambios" | "guardando" | "error" | "conflicto"
+type Vista =
+  | { tipo: "lista" }
+  | { tipo: "visita"; valoracion: ValoracionProfesional; referencias: ReferenciaPrueba[] }
+  | { tipo: "plantilla" }
+  | { tipo: "pauta" }
 
-function medidasDe(valoracion: ValoracionProfesional): DefinicionCorporal[] {
-  return valoracion.borrador!.documento.definiciones.corporales.filter(
-    (d) => d.bloque === "medidas",
-  )
+const NOMBRE_DE_BLOQUE: Record<BloqueValoracion, string> = {
+  medidas: "Medidas",
+  pliegues: "Pliegues",
+  bioimpedancia: "Bioimpedancia",
+  pruebas: "Pruebas físicas",
+  fotos: "Fotos",
 }
-
-const TEXTO_DE_ESTADO: Record<Estado, string> = {
-  guardado: "Guardado",
-  cambios: "Cambios sin guardar",
-  guardando: "Guardando…",
-  error: "No se pudo guardar",
-  conflicto: "Otra edición se guardó antes",
-}
-
-function EditorValoracion({
-  valoracion: inicial,
-  cambiar,
-  recargar,
-  volver,
-}: {
-  valoracion: ValoracionProfesional
-  cambiar: (datos: CambiarValoracion) => Promise<ValoracionProfesional>
-  recargar: () => Promise<ValoracionProfesional>
-  volver: () => void
-}): React.JSX.Element {
-  const [valoracion, setValoracion] = useState(inicial)
-  const [edicion, setEdicion] = useState(() => edicionDe(inicial))
-  const [estado, setEstado] = useState<Estado>("guardado")
-  const [error, setError] = useState("")
-  const enCurso = useRef(false)
-  const medidas = medidasDe(valoracion)
-  const bloqueado = estado === "guardando"
-
-  const editar = (cambio: Partial<EdicionValoracion>): void => {
-    if (enCurso.current) return
-    setEdicion((actual) => ({ ...actual, ...cambio }))
-    if (estado !== "conflicto") setEstado("cambios")
-  }
-  const campo = (id: string, cambio: Partial<CampoCorporal>): void =>
-    editar({
-      corporales: {
-        ...edicion.corporales,
-        [id]: { ...CAMPO_CORPORAL_VACIO, ...edicion.corporales[id], ...cambio },
-      },
-    })
-
-  const guardar = async (): Promise<void> => {
-    if (enCurso.current) return
-    const datos = cambioDe(valoracion, edicion)
-    if ("error" in datos) {
-      setError(datos.error)
-      return
-    }
-    enCurso.current = true
-    setEstado("guardando")
-    setError("")
-    try {
-      const guardada = await cambiar(datos)
-      setValoracion(guardada)
-      setEdicion(edicionDe(guardada))
-      setEstado("guardado")
-    } catch (fallo) {
-      if (fallo instanceof ErrorDePeticion && fallo.detalle.codigo === "revision_obsoleta") {
-        setEstado("conflicto")
-        setError(
-          "Otra edición de esta valoración se guardó antes. Tu edición sigue aquí: carga la versión guardada o conserva la tuya y vuelve a guardar.",
-        )
-      } else {
-        setEstado("error")
-        setError(faltaDe(fallo, "No se pudo guardar la valoración. Tu edición sigue aquí.").texto)
-      }
-    } finally {
-      enCurso.current = false
-    }
-  }
-
-  /** Relee la versión del servidor; con `conservar`, mantiene lo escrito sobre ella. */
-  const resolver = async (conservar: boolean): Promise<void> => {
-    if (enCurso.current) return
-    enCurso.current = true
-    try {
-      const actual = await recargar()
-      setValoracion(actual)
-      if (!conservar) setEdicion(edicionDe(actual))
-      setEstado(conservar ? "cambios" : "guardado")
-      setError("")
-    } catch (fallo) {
-      setError(faltaDe(fallo, "No se pudo cargar la versión guardada.").texto)
-    } finally {
-      enCurso.current = false
-    }
-  }
-
-  return (
-    <View style={s.contenido}>
-      <View style={s.cabecera}>
-        <View style={s.textos}>
-          <Text style={s.titulo} accessibilityRole="header">
-            {valoracion.tipo === "inicial" ? "Valoración inicial" : "Revisión"}
-          </Text>
-          <Text
-            style={[s.estado, (estado === "error" || estado === "conflicto") && s.estadoAviso]}
-            accessibilityLiveRegion="polite"
-          >
-            {TEXTO_DE_ESTADO[estado]}
-          </Text>
-        </View>
-        <Enlace texto="Volver" onPress={volver} />
-      </View>
-      <Campo
-        etiqueta="Fecha de toma (AAAA-MM-DD)"
-        value={edicion.fechaToma}
-        editable={!bloqueado}
-        onChangeText={(fechaToma) => editar({ fechaToma })}
-        maxLength={10}
-      />
-      <View style={s.grupo}>
-        <Titulo>Medidas</Titulo>
-        {medidas.length === 0 ? (
-          <Text style={s.tenue}>Esta visita no tiene medidas en su plantilla.</Text>
-        ) : (
-          <Tarjeta>
-            {medidas.map((d, n) => {
-              const valor = edicion.corporales[d.id] ?? CAMPO_CORPORAL_VACIO
-              const nombre = [d.nombre, d.zona, d.lateralidad].filter(Boolean).join(" · ")
-              return (
-                <Fila key={d.id} primera={n === 0}>
-                  <View style={s.textos}>
-                    <Campo
-                      etiqueta={`${nombre} (${d.unidad})`}
-                      value={valor.noRealizado ? "" : valor.texto}
-                      placeholder={valor.noRealizado ? "No realizado" : "Sin dato"}
-                      editable={!bloqueado && !valor.noRealizado}
-                      keyboardType="decimal-pad"
-                      maxLength={8}
-                      onChangeText={(texto) => campo(d.id, { texto })}
-                    />
-                    {d.instrumento && <Text style={s.tenue}>{d.instrumento}</Text>}
-                  </View>
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={`No realizado — ${d.nombre}`}
-                    accessibilityState={{ checked: valor.noRealizado, disabled: bloqueado }}
-                    disabled={bloqueado}
-                    onPress={() => campo(d.id, { noRealizado: !valor.noRealizado })}
-                    style={[s.marca, valor.noRealizado && s.marcaActiva]}
-                  >
-                    <Text style={s.textoMarca}>No realizado</Text>
-                  </Pressable>
-                </Fila>
-              )
-            })}
-          </Tarjeta>
-        )}
-      </View>
-      {error !== "" && <AvisoDeError mensaje={error} />}
-      {estado === "conflicto" ? (
-        <View style={s.grupo}>
-          <BotonSecundario texto="Cargar versión guardada" onPress={() => void resolver(false)} />
-          <BotonSecundario texto="Conservar mi edición" onPress={() => void resolver(true)} />
-        </View>
-      ) : (
-        <BotonPrincipal
-          texto={bloqueado ? "Guardando…" : "Guardar"}
-          ocupado={bloqueado}
-          onPress={() => void guardar()}
-        />
-      )}
-    </View>
-  )
+const NOMBRE_DE_ESTADO = {
+  borrador: "Borrador",
+  publicada: "Publicada",
+  corrigiendo: "Corrigiendo",
 }
 
 /** Peso y altura: lo mínimo para una primera visita, a elección explícita del entrenador. */
@@ -216,15 +58,86 @@ function definicionesBasicas(nuevoId: () => string): DefinicionCorporal[] {
   ]
 }
 
-const NOMBRE_DE_ESTADO = {
-  borrador: "Borrador",
-  publicada: "Publicada",
-  corrigiendo: "Corrigiendo",
+/** Bloques que la plantilla puede rellenar hoy (las fotos llegan con su propia tarea). */
+function bloquesDisponibles(plantilla: PlantillaValoracion): BloqueValoracion[] {
+  const activos = plantilla.corporales.filter((d) => d.activa).map((d) => d.bloque)
+  return (["medidas", "pliegues", "bioimpedancia", "pruebas"] as const).filter((b) =>
+    b === "pruebas" ? plantilla.pruebas.some((p) => p.activa) : activos.includes(b),
+  )
 }
 
 /**
- * Valoraciones en la ficha profesional: historial, crear o continuar una
- * visita y editar su borrador. Solo aparecen las acciones con API disponible.
+ * Resultados anteriores de las mismas pruebas (misma definición y versión),
+ * solo como referencia fechada: nunca rellenan el resultado nuevo.
+ */
+function referenciasDe(
+  actual: ValoracionProfesional,
+  anterior: ValoracionProfesional | null,
+): ReferenciaPrueba[] {
+  const publicada = anterior?.publicacion
+  if (!publicada || !actual.borrador) return []
+  const versiones = new Map(publicada.documento.definiciones.pruebas.map((d) => [d.id, d.version]))
+  const actuales = actual.borrador.documento.definiciones.pruebas
+  return publicada.documento.pruebas.flatMap((r) =>
+    r.estado === "registrado" &&
+    actuales.some((d) => d.id === r.definicionId && d.version === versiones.get(r.definicionId))
+      ? [
+          {
+            definicionId: r.definicionId,
+            fecha: r.fecha ?? publicada.fechaToma,
+            valores: r.valores,
+          },
+        ]
+      : [],
+  )
+}
+
+/** Una visita ya publicada, sin borrador abierto: se consulta y, si hace falta, se corrige. */
+function VisitaPublicada({
+  valoracion,
+  corregir,
+  ocupado,
+  volver,
+}: {
+  valoracion: ValoracionProfesional
+  corregir: () => void
+  ocupado: boolean
+  volver: () => void
+}): React.JSX.Element {
+  const publicacion = valoracion.publicacion!
+  const documento = publicacion.documento
+  return (
+    <View style={s.grupo}>
+      <View style={s.cabecera}>
+        <Text style={[s.titulo, s.textos]} accessibilityRole="header">
+          {valoracion.tipo === "inicial" ? "Valoración inicial" : "Revisión"}
+        </Text>
+        <Enlace texto="Volver" onPress={volver} />
+      </View>
+      <Text style={s.texto}>
+        Publicada el {fechaLegible(publicacion.publicadaEn.slice(0, 10))}
+        {publicacion.numero > 1 ? ` · corrección ${publicacion.numero - 1}` : ""} · tomada el{" "}
+        {fechaLegible(publicacion.fechaToma)}
+      </Text>
+      <Text style={s.tenue}>
+        {documento.corporales.length} datos corporales y {documento.pruebas.length} pruebas
+        publicados.
+      </Text>
+      {documento.conclusion && <Text style={s.texto}>{documento.conclusion}</Text>}
+      {valoracion.documentoVigente?.notasInternas && (
+        <Text style={s.tenue}>Notas internas: {valoracion.documentoVigente.notasInternas}</Text>
+      )}
+      <BotonSecundario texto={ocupado ? "Abriendo…" : "Corregir"} onPress={corregir} />
+      <Text style={s.tenue}>
+        Corregir crea una versión nueva de esta misma visita; la anterior se conserva.
+      </Text>
+    </View>
+  )
+}
+
+/**
+ * Valoraciones en la ficha profesional: historial, plantilla, próxima revisión,
+ * crear o continuar una visita, publicarla y corregirla.
  */
 export function ValoracionesProfesional({
   clienteId,
@@ -237,21 +150,24 @@ export function ValoracionesProfesional({
 }): React.JSX.Element {
   const [listado, setListado] = useState<ListadoValoraciones | null>(null)
   const [plantilla, setPlantilla] = useState<PlantillaValoracion | null>(null)
-  const [abierta, setAbierta] = useState<ValoracionProfesional | null>(null)
+  const [proxima, setProxima] = useState<ProximaRevision | null>(null)
+  const [vista, setVista] = useState<Vista>({ tipo: "lista" })
+  const [eligiendo, setEligiendo] = useState<BloqueValoracion[] | null>(null)
   const [error, setError] = useState("")
   const [ocupado, setOcupado] = useState(false)
   const [intento, setIntento] = useState(0)
-  // La misma operación en cada reintento: el servidor no crea dos visitas.
+  // La misma operación en cada reintento: el servidor no crea dos visitas ni correcciones.
   const operacion = useRef<string | null>(null)
 
   useFocusEffect(
     useCallback(() => {
       let vigente = true
-      Promise.all([api.listar(clienteId), api.plantilla(clienteId)])
-        .then(([lista, actual]) => {
+      Promise.all([api.listar(clienteId), api.plantilla(clienteId), api.proximaRevision(clienteId)])
+        .then(([lista, actual, pauta]) => {
           if (!vigente) return
           setListado(lista)
           setPlantilla(actual)
+          setProxima(pauta)
           setError("")
         })
         .catch((fallo: unknown) => {
@@ -275,22 +191,78 @@ export function ValoracionesProfesional({
       setOcupado(false)
     }
   }
+  const mostrar = async (valoracion: ValoracionProfesional): Promise<void> => {
+    const anterior =
+      valoracion.borrador && valoracion.anteriorId
+        ? await api.leer(clienteId, valoracion.anteriorId).catch(() => null)
+        : null
+    setVista({ tipo: "visita", valoracion, referencias: referenciasDe(valoracion, anterior) })
+  }
   const abrir = (id: string): Promise<void> =>
-    accion(async () => setAbierta(await api.leer(clienteId, id)), "No se pudo abrir la valoración.")
+    accion(async () => mostrar(await api.leer(clienteId, id)), "No se pudo abrir la valoración.")
+  const alLista = (): void => {
+    setVista({ tipo: "lista" })
+    setEligiendo(null)
+    setIntento((n) => n + 1)
+  }
 
-  if (abierta)
+  if (vista.tipo === "plantilla" && plantilla)
     return (
-      <EditorValoracion
-        key={abierta.id}
-        valoracion={abierta}
-        cambiar={(datos) => api.cambiar(clienteId, abierta.id, datos)}
-        recargar={() => api.leer(clienteId, abierta.id)}
-        volver={() => {
-          setAbierta(null)
-          setIntento((n) => n + 1)
-        }}
+      <EditorPlantilla
+        plantilla={plantilla}
+        guardar={(datos) => api.guardarPlantilla(clienteId, datos)}
+        recargar={() => api.plantilla(clienteId)}
+        nuevoId={nuevoId}
+        cerrar={alLista}
       />
     )
+  if (vista.tipo === "pauta" && proxima)
+    return (
+      <EditorPautaRevision
+        proxima={proxima}
+        guardar={(datos) => api.guardarProximaRevision(clienteId, datos)}
+        recargar={() => api.proximaRevision(clienteId)}
+        cerrar={alLista}
+      />
+    )
+  if (vista.tipo === "visita") {
+    const { valoracion } = vista
+    if (valoracion.borrador)
+      return (
+        <BorradorValoracion
+          key={valoracion.borrador.id}
+          valoracion={valoracion}
+          referencias={vista.referencias}
+          cambiar={(datos) => api.cambiar(clienteId, valoracion.id, datos)}
+          recargar={() => api.leer(clienteId, valoracion.id)}
+          publicar={(datos) => api.publicar(clienteId, valoracion.id, datos)}
+          nuevoId={nuevoId}
+          publicada={() => void abrir(valoracion.id)}
+          volver={alLista}
+        />
+      )
+    const corregir = (): Promise<void> =>
+      accion(async () => {
+        operacion.current ??= nuevoId()
+        const correccion = await api.crear(clienteId, {
+          operacionId: operacion.current,
+          corrigePublicacionId: valoracion.publicacion!.id,
+        })
+        operacion.current = null
+        await mostrar(correccion)
+      }, "No se pudo abrir la corrección.")
+    return (
+      <View style={s.grupo}>
+        <VisitaPublicada
+          valoracion={valoracion}
+          corregir={() => void corregir()}
+          ocupado={ocupado}
+          volver={alLista}
+        />
+        {error !== "" && <AvisoDeError mensaje={error} />}
+      </View>
+    )
+  }
   if (error !== "" && listado === null)
     return (
       <View style={s.grupo}>
@@ -298,36 +270,27 @@ export function ValoracionesProfesional({
         <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
       </View>
     )
-  if (listado === null || plantilla === null)
+  if (listado === null || plantilla === null || proxima === null)
     return <Text style={s.tenue}>Cargando valoraciones…</Text>
 
   const enCurso = listado.valoraciones.find((v) => v.estado !== "publicada")
   const ultima = listado.valoraciones[0]
-  const sinMedidas = !plantilla.corporales.some((d) => d.activa && d.bloque === "medidas")
-  const crear = (): Promise<void> =>
+  const disponibles = bloquesDisponibles(plantilla)
+  const pautaPendiente = proxima.pauta && !proxima.cumplidaPorId ? proxima.pauta : null
+  const crear = (bloques: BloqueValoracion[], cumplePauta: number | null): Promise<void> =>
     accion(async () => {
+      if (bloques.length === 0) throw new Error("Elige al menos un bloque.")
       operacion.current ??= nuevoId()
+      const base = { operacionId: operacion.current, fechaToma: hoyAgenda(), bloques }
       const creada = await api.crear(
         clienteId,
         ultima
-          ? {
-              operacionId: operacion.current,
-              tipo: "revision",
-              fechaToma: hoyAgenda(),
-              bloques: ["medidas"],
-              anteriorId: ultima.id,
-              cumplePauta: null,
-            }
-          : {
-              operacionId: operacion.current,
-              tipo: "inicial",
-              fechaToma: hoyAgenda(),
-              bloques: ["medidas"],
-            },
+          ? { ...base, tipo: "revision", anteriorId: ultima.id, cumplePauta }
+          : { ...base, tipo: "inicial" },
       )
       operacion.current = null
-      setAbierta(creada)
-    }, "No se pudo crear la valoración.")
+      await mostrar(creada)
+    }, "No se pudo crear la valoración. Elige al menos un bloque y vuelve a intentarlo.")
   const anadirBasicas = (): Promise<void> =>
     accion(async () => {
       setPlantilla(
@@ -340,17 +303,31 @@ export function ValoracionesProfesional({
 
   return (
     <View style={s.grupo}>
-      <Titulo>Valoraciones</Titulo>
+      <View style={s.cabecera}>
+        <View style={s.textos}>
+          <Titulo>Valoraciones</Titulo>
+        </View>
+        <Enlace texto="Plantilla" onPress={() => setVista({ tipo: "plantilla" })} />
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Próxima revisión: ${textoDePauta(proxima.pauta)}. Cambiar`}
+        onPress={() => setVista({ tipo: "pauta" })}
+        style={s.pauta}
+      >
+        <Text style={s.texto}>Próxima revisión: {textoDePauta(proxima.pauta)}</Text>
+        <Text style={s.enlace}>Cambiar</Text>
+      </Pressable>
       {enCurso ? (
         <BotonPrincipal
           texto="Continuar valoración"
           ocupado={ocupado}
           onPress={() => void abrir(enCurso.id)}
         />
-      ) : sinMedidas ? (
+      ) : disponibles.length === 0 ? (
         <>
           <Text style={s.tenue}>
-            Para empezar, añade a la plantilla de este cliente las medidas que vas a tomar.
+            Para empezar, añade a la plantilla de este cliente lo que vas a medir.
           </Text>
           <BotonPrincipal
             texto="Añadir peso y altura a la plantilla"
@@ -358,12 +335,55 @@ export function ValoracionesProfesional({
             onPress={() => void anadirBasicas()}
           />
         </>
+      ) : eligiendo ? (
+        <View style={s.grupo}>
+          <Text style={s.subtitulo}>Qué incluye esta visita</Text>
+          <View style={s.chips}>
+            {disponibles.map((b) => {
+              const elegido = eligiendo.includes(b)
+              return (
+                <Pressable
+                  key={b}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={NOMBRE_DE_BLOQUE[b]}
+                  accessibilityState={{ checked: elegido, disabled: ocupado }}
+                  disabled={ocupado}
+                  onPress={() =>
+                    setEligiendo(elegido ? eligiendo.filter((x) => x !== b) : [...eligiendo, b])
+                  }
+                  style={[s.chip, elegido && s.chipElegido]}
+                >
+                  <Text style={s.textoChip}>{NOMBRE_DE_BLOQUE[b]}</Text>
+                </Pressable>
+              )
+            })}
+          </View>
+          <BotonPrincipal
+            texto={ultima ? "Crear revisión" : "Crear valoración"}
+            ocupado={ocupado}
+            onPress={() => void crear(eligiendo, null)}
+          />
+          <BotonSecundario texto="Cancelar" onPress={() => setEligiendo(null)} />
+        </View>
       ) : (
-        <BotonPrincipal
-          texto={ultima ? "Nueva revisión" : "Nueva valoración"}
-          ocupado={ocupado}
-          onPress={() => void crear()}
-        />
+        <>
+          {ultima && pautaPendiente && (
+            <BotonPrincipal
+              texto={`Hacer la revisión pautada (${textoDePauta(pautaPendiente)})`}
+              ocupado={ocupado}
+              onPress={() =>
+                void crear(
+                  pautaPendiente.bloques.filter((b) => disponibles.includes(b)),
+                  proxima.revision,
+                )
+              }
+            />
+          )}
+          <BotonSecundario
+            texto={ultima ? "Nueva revisión" : "Nueva valoración"}
+            onPress={() => setEligiendo(disponibles)}
+          />
+        </>
       )}
       {error !== "" && <AvisoDeError mensaje={error} />}
       {listado.valoraciones.length === 0 ? (
@@ -397,24 +417,31 @@ export function ValoracionesProfesional({
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 20 },
   grupo: { gap: 12 },
-  cabecera: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  cabecera: { flexDirection: "row", gap: 12, alignItems: "center" },
   textos: { flex: 1, gap: 4 },
   titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
-  estado: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  estadoAviso: { color: tema.aviso },
+  subtitulo: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 15 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },
   fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  marca: {
+  enlace: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  pauta: {
     minHeight: 44,
-    paddingHorizontal: 10,
-    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: tema.bordeFuerte,
     justifyContent: "center",
   },
-  marcaActiva: { borderColor: tema.acento },
-  textoMarca: { color: tema.textoSecundario, fontFamily: tema.fuenteTexto, fontSize: 13 },
+  chipElegido: { borderColor: tema.acento, backgroundColor: tema.acentoSuave },
+  textoChip: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 14 },
 })
