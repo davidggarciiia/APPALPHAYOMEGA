@@ -2,6 +2,7 @@ import {
   CambiarDiaSchema,
   ConfiguracionSeguimientoSchema,
   DiaDeSeguimientoSchema,
+  EstadoConsentimientoSchema,
   GuardarConfiguracionSeguimientoSchema,
   ListadoDiasSchema,
   ListadoMedidasSchema,
@@ -14,6 +15,7 @@ import {
   type CambiarDia,
   type ConfiguracionSeguimiento,
   type DiaDeSeguimiento,
+  type EstadoConsentimiento,
   type GuardarConfiguracionSeguimiento,
   type ListadoDias,
   type ListadoMedidas,
@@ -39,6 +41,8 @@ export type ApiSeguimiento = {
   pruebas: (clienteId: string) => Promise<ListadoPruebas>
   registrarPrueba: (clienteId: string, datos: RegistrarPrueba) => Promise<PruebaFisica>
   fuerza: (clienteId: string) => Promise<ProgresionFuerza>
+  /** Consentimiento de datos de salud del cliente; solo lectura para su equipo. */
+  consentimiento: (clienteId: string) => Promise<EstadoConsentimiento>
 }
 
 export function crearApiSeguimiento(pedir: PeticionAutenticada): ApiSeguimiento {
@@ -79,5 +83,7 @@ export function crearApiSeguimiento(pedir: PeticionAutenticada): ApiSeguimiento 
         `/entrenamiento/clientes/${encodeURIComponent(clienteId)}/fuerza`,
         ProgresionFuerzaSchema,
       ),
+    consentimiento: (clienteId) =>
+      pedir(`${base(clienteId)}/consentimiento`, EstadoConsentimientoSchema),
   }
 }

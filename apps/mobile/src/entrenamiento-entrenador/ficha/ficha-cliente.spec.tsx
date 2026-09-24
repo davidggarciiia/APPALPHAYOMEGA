@@ -44,6 +44,13 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
   } as unknown as ApiEntrenamiento
   const seguimiento = {
     medidas: jest.fn(async () => ({ medidas: [], fechaNacimiento: null })),
+    consentimiento: jest.fn(async () => ({
+      version: null,
+      aceptadoEn: null,
+      retiradoEn: null,
+      vigente: false,
+      versionVigente: "2026-09-24-borrador",
+    })),
   } as unknown as ApiSeguimiento
   const nutricion = { vigente: jest.fn(async () => null) } as unknown as ApiNutricion
 
@@ -65,6 +72,7 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
   )
 
   await waitFor(() => expect(screen.getByText(/cambió el día de Fuerza A/)).toBeTruthy())
+  expect(screen.getByText(/Sin consentimiento de datos de salud/)).toBeTruthy()
   expect(screen.getByText(/envió Fuerza A/)).toBeTruthy()
   expect(screen.getByText(/comunicó una molestia en Fuerza A/)).toBeTruthy()
   await fireEvent.press(screen.getByRole("button", { name: /comunicó una molestia en Fuerza A/ }))

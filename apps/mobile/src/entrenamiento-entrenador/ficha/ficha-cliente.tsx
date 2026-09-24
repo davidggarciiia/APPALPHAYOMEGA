@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_ZONA,
+  type EstadoConsentimiento,
   type FichaDeUsuario,
   type LecturaDietaVigente,
   type ListadoMedidas,
@@ -50,6 +51,16 @@ type Datos = {
   molestias: Molestia[]
   dieta: LecturaDietaVigente | null
   medidas: ListadoMedidas | null
+  consentimiento: EstadoConsentimiento | null
+}
+
+/** Cómo está el consentimiento de datos de salud, en una línea. */
+function textoConsentimiento(estado: EstadoConsentimiento | null): string {
+  if (estado === null) return "No se pudo comprobar"
+  if (estado.vigente && estado.aceptadoEn)
+    return `Dado el ${fechaLegible(estado.aceptadoEn.slice(0, 10))}`
+  if (estado.retiradoEn) return `Retirado el ${fechaLegible(estado.retiradoEn.slice(0, 10))}`
+  return estado.version ? "Pendiente de la versión nueva" : "Pendiente"
 }
 
 /**
@@ -102,12 +113,15 @@ export function FichaCliente({
         api.molestias(clienteId, "todas"),
         nutricion.vigente(clienteId).catch(() => null),
         seguimiento.medidas(clienteId).catch(() => null),
+        seguimiento.consentimiento(clienteId).catch(() => null),
       ])
-        .then(([ficha, { plan }, { resultados }, { molestias }, dieta, medidas]) => {
-          if (!vigente) return
-          setDatos({ ficha, plan, resultados, molestias, dieta, medidas })
-          setError("")
-        })
+        .then(
+          ([ficha, { plan }, { resultados }, { molestias }, dieta, medidas, consentimiento]) => {
+            if (!vigente) return
+            setDatos({ ficha, plan, resultados, molestias, dieta, medidas, consentimiento })
+            setError("")
+          },
+        )
         .catch((e: unknown) => {
           if (vigente) setError(faltaDe(e, "No se pudo cargar la ficha.").texto)
         })
@@ -164,6 +178,12 @@ export function FichaCliente({
             {nombre}
           </Text>
           <Text style={s.tenue}>{subtitulo}</Text>
+          {datos.consentimiento && !datos.consentimiento.vigente && (
+            <Text style={s.aviso} accessibilityRole="alert">
+              Sin consentimiento de datos de salud: hasta que lo acepte en su app no se pueden
+              guardar sus medidas, pruebas, valoraciones ni fotos.
+            </Text>
+          )}
         </View>
         <View style={s.botones}>
           <Pressable
@@ -329,6 +349,7 @@ export function FichaCliente({
                       : "—",
                   ],
                   ["Teléfono", datos.ficha.telefono ?? "—"],
+                  ["Consentimiento de salud", textoConsentimiento(datos.consentimiento)],
                 ]
                 return filas.map(([k, v], n) => (
                   <Fila key={k} primera={n === 0}>
@@ -388,6 +409,7 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
   },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18 },
+  aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 13, lineHeight: 18 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },
   fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
   botones: { flexDirection: "row", gap: 8 },

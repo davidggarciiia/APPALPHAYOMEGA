@@ -48,6 +48,9 @@ function api(dias: DiaDeSeguimiento[] = []): ApiSeguimiento {
       throw new Error("no usado")
     }),
     fuerza: jest.fn(async () => ({ ejercicios: [] })),
+    consentimiento: jest.fn(async () => {
+      throw new Error("no usado")
+    }),
   }
 }
 
