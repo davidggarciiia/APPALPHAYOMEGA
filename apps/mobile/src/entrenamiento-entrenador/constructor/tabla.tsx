@@ -27,6 +27,22 @@ export function objetivoConUnidad(e: Pick<EjercicioDelConstructor, "tipo" | "obj
   return `${e.objetivo} ${UNIDADES_DE_FILA[e.tipo].corta}`
 }
 
+/**
+ * La pauta de una fila en una línea: «4 × 8–10», «2 × 20 m» o la dosis de un
+ * calentamiento. Una fila que mezcla unidades no se resume con la primera.
+ */
+export function pautaDeFila(
+  e: Pick<
+    EjercicioDelConstructor,
+    "seccion" | "series" | "tipo" | "objetivo" | "dosis" | "mezclaUnidades"
+  >,
+): string {
+  if (e.mezclaUnidades) return "Mezcla unidades: revisar"
+  return e.seccion === "principal"
+    ? `${e.series} × ${objetivoConUnidad(e)}`
+    : e.dosis || objetivoConUnidad(e)
+}
+
 /** «Reps», «Seg», «Metros» o, si la tabla mezcla unidades, «Reps / Metros». */
 function columnaDeObjetivo(ejercicios: EjercicioDelConstructor[]): string {
   const unidades = new Set(ejercicios.map((e) => e.tipo))
@@ -189,8 +205,9 @@ export function TablaPrincipal({
               style={ancha ? s.flex : undefined}
             >
               <Text style={s.nombre}>{e.nombre}</Text>
+              {e.mezclaUnidades && <Text style={s.aviso}>Mezcla unidades: revisar</Text>}
               {/* Las repeticiones son lo habitual; otra unidad se dice en la fila. */}
-              {e.tipo !== "repeticiones" && (
+              {!e.mezclaUnidades && e.tipo !== "repeticiones" && (
                 <Text style={s.tenue}>En {UNIDADES_DE_FILA[e.tipo].nombre.toLowerCase()}</Text>
               )}
               {e.compuesto && <Text style={s.tenue}>Compuesto</Text>}
@@ -312,6 +329,12 @@ export function PanelEjercicio({
         />
       </View>
       <Text style={s.etiquetaPanel}>Se mide en</Text>
+      {ejercicio.mezclaUnidades && (
+        <Text style={s.aviso}>
+          La sesión guardada pauta este ejercicio en varias unidades. Elige una para todas sus
+          series o revísalo en el editor de sesión.
+        </Text>
+      )}
       <View style={s.opcionesPanel}>
         {UNIDADES_OFRECIDAS.map((unidad) => (
           <Enlace
@@ -319,8 +342,13 @@ export function PanelEjercicio({
             texto={`${ejercicio.tipo === unidad ? "✓ " : ""}${UNIDADES_DE_FILA[unidad].nombre}`}
             etiqueta={`Medir ${ejercicio.nombre} en ${UNIDADES_DE_FILA[unidad].nombre.toLowerCase()}`}
             // El objetivo de otra unidad no se reutiliza: 20 m nunca pasan a 20 repeticiones.
+            // Con unidades mezcladas, elegir cualquiera (también la mostrada) es la
+            // decisión explícita de pautar todas las series en ella.
             onPress={() => {
-              if (unidad !== ejercicio.tipo) cambiar(ejercicio.id, { tipo: unidad, objetivo: "" })
+              if (ejercicio.mezclaUnidades)
+                cambiar(ejercicio.id, { tipo: unidad, objetivo: "", mezclaUnidades: undefined })
+              else if (unidad !== ejercicio.tipo)
+                cambiar(ejercicio.id, { tipo: unidad, objetivo: "" })
             }}
           />
         ))}
@@ -390,6 +418,7 @@ const s = StyleSheet.create({
     borderColor: tema.aviso,
   },
   textoCalibrar: { color: tema.aviso, fontFamily: tema.fuenteBoton, fontSize: 13 },
+  aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 13, lineHeight: 18 },
   acciones: { flexDirection: "row", alignItems: "center", gap: 4 },
   accion: { width: 32, height: 40, alignItems: "center", justifyContent: "center" },
   girarArriba: { transform: [{ rotate: "-90deg" }] },
