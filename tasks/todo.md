@@ -121,12 +121,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] En modo por serie se puede corregir o dejar sin anotar el RIR de una serie hecha, conservando repeticiones, carga y estado.
-- [ ] La corrección persiste al salir/volver; los modos desactivado y al terminar ejercicio mantienen su comportamiento y el dato sigue siendo opcional.
+- [x] En modo por serie se puede corregir o dejar sin anotar el RIR de una serie hecha, conservando repeticiones, carga y estado.
+- [x] La corrección persiste al salir/volver; los modos desactivado y al terminar ejercicio mantienen su comportamiento y el dato sigue siendo opcional.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand tabla-series.spec.tsx registro-control.spec.ts`; recorrido manual hacer → corregir RIR → salir → continuar. Si ya funciona, registrar la evidencia sin un cambio artificial.
 
 **Dependencias:** ninguna para pruebas; C00 para comprobarlo autenticado. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/entrenamiento/tabla-series.tsx`, `tabla-series.spec.tsx` en el mismo directorio; `apps/mobile/src/entrenamiento/registro-control.ts`, `registro-control.spec.ts` en el mismo directorio. **Tamaño:** M, hasta 4 archivos.
+
+**Evidencia 24-09-2026 (Claude):** fallo reproducido con una prueba que fallaba: en modo por serie la pregunta «¿Cuántas te quedaban?» solo acompañaba a la serie en curso; al marcar la serie hecha, su celda de RIR quedaba fija. Cambio en `tabla-series.tsx`: la celda de una serie hecha es un botón que abre la misma pregunta para corregirla; «Sin anotar» deja el RIR vacío; solo se envía `{ rir }`, sin tocar carga, repeticiones ni estado; con el registro bloqueado no se abre. `registro-control.ts` no necesitó cambios: una prueba nueva confirma que corregir y quitar el RIR persisten al reabrir y que el borrador enviado omite el RIR vacío. `npm test --workspace apps/mobile -- --runInBand tabla-series.spec.tsx registro-control.spec.ts`: 2 suites / 20 pruebas; carpeta `src/entrenamiento`: 26 suites / 114 pruebas; `typecheck` y lint correctos. **Pendiente:** recorrido manual hacer → corregir → salir → continuar, bloqueado por C00.
 
 ### C03 · Acceder a cintura cuando está pautada
 

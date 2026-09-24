@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
 import type { EjercicioPrescrito, SeriePrescrita, ValoresEjecutados } from "@alpha-omega/shared"
 import type { EdicionRegistro } from "./registro-modelo"
@@ -75,6 +76,8 @@ export function TablaSeries({
   const ultimaHecha = [...ejercicio.series]
     .reverse()
     .find((s) => series.find((r) => r.serieId === s.id)?.hecha)
+  // La serie hecha cuyo RIR se está corrigiendo: la pregunta solo acompaña a la serie en curso.
+  const [corrigiendo, setCorrigiendo] = useState<string | null>(null)
   return (
     <View style={s.bloque}>
       <View style={s.cabecera}>
@@ -122,6 +125,15 @@ export function TablaSeries({
         const actual = enCurso === prescrita.id
         const rir = real.rir ?? null
         const fueraDeObjetivo = rir !== null && rirObjetivo !== undefined && rir < rirObjetivo
+        const corregible = mostrarRirPorSerie && real.hecha && !actual && !bloqueado
+        const preguntar =
+          mostrarRirPorSerie &&
+          !bloqueado &&
+          (actual || (corregible && corrigiendo === prescrita.id))
+        const anotar = (valor: number | null): void => {
+          cambiar(prescrita.id, { rir: valor })
+          if (!actual) setCorrigiendo(null)
+        }
         const sugerencia = `Sugerencia de tu entrenador: ${[
           prescrita.pesoKg === null ? null : kg(prescrita.pesoKg),
           tiempo ? `${prescrita.segundos} segundos` : `${prescrita.repeticiones} repeticiones`,
@@ -167,9 +179,15 @@ export function TablaSeries({
                 style={[s.valor, s.campo, real.hecha && s.campoHecho]}
               />
               {mostrarRirPorSerie && (
-                <View
-                  style={[s.rir, s.campo, s.celdaRir, fueraDeObjetivo && s.rirFuera]}
+                <Pressable
+                  accessibilityRole={corregible ? "button" : undefined}
                   accessibilityLabel={`RIR, serie ${n + 1}: ${rir === null ? "sin anotar" : rir === 5 ? "5 o más" : rir}${fueraDeObjetivo ? ", menos del objetivo" : ""}`}
+                  accessibilityHint={
+                    corregible ? "Corrige o quita las repeticiones que te quedaban" : undefined
+                  }
+                  disabled={!corregible}
+                  onPress={() => setCorrigiendo(corrigiendo === prescrita.id ? null : prescrita.id)}
+                  style={[s.rir, s.campo, s.celdaRir, fueraDeObjetivo && s.rirFuera]}
                 >
                   <Text
                     style={[
@@ -180,7 +198,7 @@ export function TablaSeries({
                   >
                     {rir === null ? (rirObjetivo ?? "—") : rir === 5 ? "5+" : rir}
                   </Text>
-                </View>
+                </Pressable>
               )}
               <Pressable
                 accessibilityRole="checkbox"
@@ -229,15 +247,25 @@ export function TablaSeries({
                 {rirObjetivo - rir === 1 ? "Una menos" : `${rirObjetivo - rir} menos`} del objetivo
               </Text>
             )}
-            {actual && !bloqueado && mostrarRirPorSerie && (
+            {preguntar && (
               <View style={s.pregunta}>
                 <Text style={s.textoPregunta}>¿Cuántas te quedaban?</Text>
                 <Opciones
                   etiqueta={`Repeticiones que te quedaban, serie ${n + 1}`}
                   opciones={RIRS}
                   valor={rir}
-                  cambiar={(valor) => cambiar(prescrita.id, { rir: valor })}
+                  cambiar={anotar}
                 />
+                {rir !== null && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Sin anotar el RIR de la serie ${n + 1}`}
+                    onPress={() => anotar(null)}
+                    style={s.omitir}
+                  >
+                    <Text style={s.textoOmitir}>Sin anotar</Text>
+                  </Pressable>
+                )}
               </View>
             )}
           </View>

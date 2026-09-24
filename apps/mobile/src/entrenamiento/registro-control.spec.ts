@@ -406,3 +406,27 @@ it("recupera ejercicio elegido y descanso tras reabrir sin alterar el borrador",
   })
   expect(nueva.documento?.secuencia).toBe(0)
 })
+it("corregir o quitar el RIR de una serie hecha persiste al reabrir sin tocar lo demás", async () => {
+  const { control, api, almacen } = preparar()
+  await control.abrir()
+  const hecha = { serieId, peso: "20", valor: "10", hecha: true }
+  const conSeries = (rir: number | null) => ({
+    ...control.documento!.edicion,
+    series: [{ ...hecha, rir }],
+  })
+  await control.editar(conSeries(1))
+  await control.editar(conSeries(3))
+  control.cerrar()
+  const corregida = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+  await corregida.abrir()
+  expect(corregida.documento?.edicion.series).toEqual([{ ...hecha, rir: 3 }])
+
+  await corregida.editar(conSeries(null))
+  corregida.cerrar()
+  const sinAnotar = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+  await sinAnotar.abrir()
+  expect(sinAnotar.documento?.edicion.series).toEqual([{ ...hecha, rir: null }])
+  const [serie] = registroParaEnviar(sesion.prescripcion, sinAnotar.documento!.edicion).series
+  expect(serie).toMatchObject({ hecha: true, pesoKg: 20, repeticiones: 10 })
+  expect(serie).not.toHaveProperty("rir")
+})
