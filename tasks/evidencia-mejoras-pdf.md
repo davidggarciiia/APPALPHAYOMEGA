@@ -419,3 +419,117 @@ prueba propia, así que su resumen se comprueba en `tabla-series.spec.tsx`.
   segundos, la vista activa, la lista y el resumen se ven igual; lo comprueban
   las pruebas existentes y la nueva de presentación. La distancia aún no
   llega a ninguna pantalla real.
+
+## D01.e
+
+**División.** D01.e prevé cinco archivos de producción. Con sus pruebas son
+diez, así que se reparte en dos commits de la misma ejecución:
+
+- **D01.e** (esta sección): editor de sesión, ficha del entrenador, guía y
+  revisión de `sesion/tiempo.ts`.
+- **D01.e2** (sección siguiente): el constructor. Incluye `constructor/tabla.tsx`,
+  prevista en D01.e, y `constructor/partes.tsx`, un consumidor que no estaba en
+  el inventario de D01.a y que encontró D01.b. Van juntos porque `partes.tsx`
+  usa la celda de `tabla.tsx` y ambos se prueban en `constructor.spec.tsx`.
+
+**Cambio realizado.** El editor, la ficha y la guía nombran cada unidad. Una
+serie en metros se lee y se edita en metros, con su carga y su id. Al pautar
+todavía no se ofrecen los metros.
+
+- `editor-sesion.tsx` («Ajustar esta sesión» y el editor de patrón):
+  - Los dos botones fijos pasan a una lista `UNIDADES_OFRECIDAS`
+    (repeticiones y segundos). D01.g solo tiene que añadir `"distancia"`.
+  - Si una serie ya viene en metros, su unidad aparece marcada («✓ Metros») y
+    no se pierde. Antes no se marcaba ninguna y el campo decía «Segundos».
+  - El campo usa `NOMBRE_DE_UNIDAD`: «Repeticiones —», «Segundos —» o
+    «Metros — Paseo del granjero, serie 1».
+  - Cambiar de unidad conserva id y kilos y vacía la cantidad, como antes.
+- `ficha-modelo.ts` (tabla de la sesión en la ficha del cliente):
+  - `edicionDesdeResultado`, `hechoLegible` y `filasDeSesion` aceptan
+    `ResultadoConDistancia` (de `resultado.tsx`, D01.d). Cualquier resultado
+    actual encaja sin cambios.
+  - La cantidad hecha sale de un `switch` exhaustivo (`cantidadEjecutada`).
+    Antes, una serie en metros llegaba como «undefined»: «Hecho» mostraba
+    «32 × undefined» y «La próxima vez» recibía `NaN`. Ahora se lee «32 × 20 m
+    · 34 × 18 m», «30 m» sin kilos y «40 s, 40 m» si se mezclan.
+  - `resumenDeResultado` y `senalesDeVolumen` no cambian: solo cuentan series,
+    esfuerzo y RIR, sin leer la unidad.
+- `plan/guia.tsx`: nuevo tema «Cómo se mide cada serie», tercero de la lista.
+  Sus ejemplos salen de `objetivoDeSerie` con una serie sintética de cada
+  unidad, así que se leen como en la sesión: «8–10» son repeticiones, «30 s»
+  son segundos y «20 m» son metros. Pide registrar en esa misma unidad y
+  añadir los kilos si el ejercicio lleva carga. El tipo de `EJEMPLOS` exige un
+  ejemplo por unidad: una unidad nueva sin ejemplo no compila.
+- `sesion/tiempo.ts`: revisado, sin cambios. Solo calcula la duración de la
+  sesión con `inicio`, `tiempoActivoSegundos` y `tramoActivoDesde`. No lee
+  series, unidades ni valores registrados, así que no puede tomar metros ni
+  segundos de una serie como tiempo de sesión. `tiempo.spec.ts` sigue en verde.
+
+No hay migración ni cambios en `packages/shared`.
+
+**Archivos:** `apps/mobile/src/entrenamiento-entrenador/editor-sesion.tsx`,
+`editor-sesion.spec.tsx`, `ficha-modelo.ts`, `ficha-modelo.spec.ts` (mismo
+directorio), `apps/mobile/src/entrenamiento/plan/guia.tsx`,
+`plan/pantallas.spec.tsx`, `tasks/evidencia-mejoras-pdf.md`. Son seis archivos
+de código: tres de producción y sus tres pruebas. La prueba de la guía vive
+en `plan/pantallas.spec.tsx`, donde ya se probaba `Guia`.
+
+**Pruebas nuevas** (datos sintéticos, sin datos personales):
+
+- `ficha-modelo.spec.ts`, bloque «Distancia en metros (D01, aún sin
+  publicar)», con series validadas con los contratos auxiliares:
+  - tabla: «2 × 20 m · RIR 2–3», sugerido «32 kg», hecho «32 × 20 m · 34 × 18 m»
+    y RIR «2». Sin carga: «30 m», «—» y «30 m». La serie de repeticiones del
+    mismo resultado se lee igual («1 × 6», «67,5 × 6»).
+  - `edicionDesdeResultado` entrega 20, 18 y 30 como valores, con sus kilos y
+    RIR, y la serie de repeticiones sin cambios.
+  - `hechoLegible`: «30 m, 25 m» y «40 s, 40 m».
+- `editor-sesion.spec.tsx`, bloque del mismo nombre:
+  - una serie en metros con carga muestra «✓ Metros», «Metros — …» con 20 y
+    «Peso kg — …» con 32, sin campos de repeticiones ni segundos. Escribir 25
+    produce `{ id, tipoMedicion: "distancia", pesoKg: 32, metros: 25 }`, que
+    cumple `SeriePrescritaDistanciaSchema`.
+  - al pautar no hay botón de metros, ni antes ni después de pasar a
+    segundos, y cada campo nombra su unidad.
+  - pasar esa serie a repeticiones conserva id y kilos y deja la cantidad
+    vacía: nunca «20 repeticiones».
+- `plan/pantallas.spec.tsx`: la guía explica «8–10», «30 s» y «20 m», que son
+  lo que `objetivoDeSerie` devuelve para una serie sintética de cada unidad.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                                                      | Resultado                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/mobile -- --runInBand editor-sesion.spec.tsx constructor.spec.tsx ficha-modelo.spec.ts` (base)    | 3 suites, 7 pruebas en verde                                                                                           |
+| `npm test --workspace apps/mobile -- --runInBand editor-sesion.spec.tsx ficha-modelo.spec.ts plan.pantallas.spec.tsx` (rojo) | 3 suites fallidas: 5 fallidas, 11 correctas. Rojo esperado; las dos pruebas de guarda del editor ya cumplían el código |
+| Mismo comando tras implementar                                                                                               | 3 suites, 16 pruebas en verde                                                                                          |
+| `npm test --workspace apps/mobile -- --runInBand editor-sesion.spec.tsx constructor.spec.tsx ficha-modelo.spec.ts`           | 3 suites, 13 pruebas en verde                                                                                          |
+| `npm test --workspace apps/mobile -- --runInBand plan.pantallas.spec.tsx tiempo.spec.ts`                                     | 2 suites, 8 pruebas en verde                                                                                           |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                                                 | 51 suites, 337 pruebas en verde                                                                                        |
+| `npm run typecheck`                                                                                                          | Correcto (shared, api y mobile)                                                                                        |
+| `npx eslint` sobre los seis archivos de código                                                                               | Sin avisos                                                                                                             |
+| `npx prettier --write` sobre los seis archivos de código y esta evidencia                                                    | Aplicado; los de código ya tenían el estilo de Prettier                                                                |
+
+**Pendiente:**
+
+- D01.g: añadir `"distancia"` a `UNIDADES_OFRECIDAS` de `editor-sesion.tsx`
+  (archivo ya previsto en D01.g). Hasta entonces, una serie que se pasa de
+  metros a otra unidad no puede volver a metros desde el editor. Solo puede
+  ocurrir con una serie en metros ya guardada, y hoy ninguna lo está.
+- **Cambio visible antes de D01.g:** el tema «Cómo se mide cada serie» de la
+  guía menciona los metros aunque todavía no se puedan pautar. Así lo pide
+  D01.e («guía … muestran la unidad explícita»). No pauta ni envía nada. Si
+  David prefiere no mencionarlos hasta activarlos, basta con quitar ese tema o
+  su frase sobre metros.
+- **Decisión para confirmar con David:** el RIR sigue disponible para las series
+  en metros. El contrato auxiliar de D01.a lo admite (`rir` opcional en
+  `ValoresEjecutadosDistanciaSchema`) y el editor no lo oculta. El texto del
+  cliente («Repeticiones que te quedaban») sigue igual, ya señalado en D01.d.
+- `resumenDeResultado` y `senalesDeVolumen` siguen tipados con
+  `ResultadoEntrenamiento`. Con el tipo ampliado, `seriesDeTrabajo`
+  (`sesion/modelo.ts`, fuera de esta subtarea) también tendría que aceptar
+  `PrescripcionConDistancia`. No leen unidades; tras D01.g los tipos coinciden.
+- Sin recorrido autenticado ni prueba en móvil físico. Para repeticiones y
+  segundos, el editor y la ficha se ven igual, como comprueban las pruebas
+  existentes (`editor-plan.spec.tsx` usa las etiquetas «Repeticiones — …»). La
+  guía tiene un tema más, que no se ha revisado en pantalla real.

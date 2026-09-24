@@ -2,6 +2,7 @@ import { describe, expect, it, jest } from "@jest/globals"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import { PrescripcionSchema, type EjercicioPrescrito, type PlanVigente } from "@alpha-omega/shared"
 
+import { objetivoDeSerie } from "../sesion/modelo"
 import { BloqueDelPlan } from "./bloque"
 import { Guia } from "./guia"
 import { RutinaDeLaSemana, type DiaDelPlan } from "./rutina"
@@ -159,5 +160,27 @@ describe("Guia", () => {
     expect(screen.queryByText(/doble progresión: primero sumas/)).toBeNull()
     await fireEvent.press(screen.getByRole("button", { name: "Cómo subir las cargas" }))
     expect(screen.getByText(/doble progresión: primero sumas/)).toBeTruthy()
+  })
+
+  it("explica cada unidad con el mismo formato que la sesión (D01)", async () => {
+    // Una serie sintética de cada unidad, leída como en la sesión en curso.
+    const ejemplos = [
+      objetivoDeSerie({
+        id: u(1),
+        tipoMedicion: "repeticiones",
+        pesoKg: null,
+        repeticiones: 8,
+        repeticionesMax: 10,
+      }),
+      objetivoDeSerie({ id: u(2), tipoMedicion: "tiempo", pesoKg: null, segundos: 30 }),
+      objetivoDeSerie({ id: u(3), tipoMedicion: "distancia", pesoKg: 32, metros: 20 }),
+    ]
+    expect(ejemplos).toEqual(["8–10", "30 s", "20 m"])
+    await render(<Guia />)
+    await fireEvent.press(screen.getByRole("button", { name: "Cómo se mide cada serie" }))
+    expect(
+      screen.getByText(/«8–10» son repeticiones, «30 s» son segundos y «20 m» son metros/),
+    ).toBeTruthy()
+    expect(screen.getByText(/en esa misma unidad/)).toBeTruthy()
   })
 })

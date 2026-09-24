@@ -1,6 +1,12 @@
-import type { Molestia, ResultadoEntrenamiento, ValoresEjecutados } from "@alpha-omega/shared"
+import type {
+  Molestia,
+  ResultadoEntrenamiento,
+  ValoresEjecutados,
+  ValoresEjecutadosDistancia,
+} from "@alpha-omega/shared"
 
 import type { EdicionRegistro } from "../entrenamiento/registro-modelo"
+import type { ResultadoConDistancia } from "../entrenamiento/resultado"
 import {
   duracionLegible,
   kg,
@@ -13,8 +19,29 @@ import {
 
 const decimal = (valor: number): string => String(valor).replace(".", ",")
 
+/** D01 · Lo ejecutado puede ir en metros aunque el contrato público no lo acepte hasta D01.g. */
+type Ejecutado = ValoresEjecutados | ValoresEjecutadosDistancia
+
+/** Lo hecho en su propia unidad; nunca se convierte a otra. */
+function cantidadEjecutada(v: Ejecutado): number {
+  switch (v.tipoMedicion) {
+    case "repeticiones":
+      return v.repeticiones
+    case "tiempo":
+      return v.segundos
+    case "distancia":
+      return v.metros
+  }
+}
+
+/** «6», «30 s» o «20 m»: las repeticiones van sin unidad, como en el diseño. */
+const SUFIJO = { repeticiones: "", tiempo: " s", distancia: " m" } as const satisfies Record<
+  Ejecutado["tipoMedicion"],
+  string
+>
+
 /** El resultado como la edición del registro, para calcular «La próxima vez». */
-export function edicionDesdeResultado(resultado: ResultadoEntrenamiento): EdicionRegistro {
+export function edicionDesdeResultado(resultado: ResultadoConDistancia): EdicionRegistro {
   return {
     notas: resultado.notas ?? "",
     checkin: resultado.checkin ?? null,
@@ -26,11 +53,7 @@ export function edicionDesdeResultado(resultado: ResultadoEntrenamiento): Edicio
             serieId: serie.serieId,
             hecha: true,
             peso: serie.valores.pesoKg === null ? "" : decimal(serie.valores.pesoKg),
-            valor: String(
-              serie.valores.tipoMedicion === "tiempo"
-                ? serie.valores.segundos
-                : serie.valores.repeticiones,
-            ),
+            valor: String(cantidadEjecutada(serie.valores)),
             rir: serie.valores.rir ?? null,
           }
         : { serieId: serie.serieId, hecha: false, peso: "", valor: "", rir: null },
@@ -38,12 +61,12 @@ export function edicionDesdeResultado(resultado: ResultadoEntrenamiento): Edicio
   }
 }
 
-/** «67,5 × 6, 6, 6, 6» o, si cambió la carga, «26 × 10, 9 · 22 × 10». */
-export function hechoLegible(valores: ValoresEjecutados[]): string {
+/** «67,5 × 6, 6, 6, 6», «32 × 20 m» o, si cambió la carga, «26 × 10, 9 · 22 × 10». */
+export function hechoLegible(valores: Ejecutado[]): string {
   if (valores.length === 0) return "Quitada"
   const grupos: Array<{ peso: number | null; cantidades: string[] }> = []
   for (const v of valores) {
-    const cantidad = v.tipoMedicion === "tiempo" ? `${v.segundos} s` : String(v.repeticiones)
+    const cantidad = `${cantidadEjecutada(v)}${SUFIJO[v.tipoMedicion]}`
     const ultimo = grupos[grupos.length - 1]
     if (ultimo && ultimo.peso === v.pesoKg) ultimo.cantidades.push(cantidad)
     else grupos.push({ peso: v.pesoKg, cantidades: [cantidad] })
@@ -68,7 +91,7 @@ export type FilaDeSesion = {
 
 /** La tabla de la sesión del diseño: prescrito, sugerido, hecho, RIR y próxima vez. */
 export function filasDeSesion(
-  resultado: ResultadoEntrenamiento,
+  resultado: ResultadoConDistancia,
   conMolestia: ReadonlySet<string>,
 ): FilaDeSesion[] {
   const hechas = new Map(
@@ -85,7 +108,7 @@ export function filasDeSesion(
     .map((ejercicio) => {
       const valores = ejercicio.series
         .map((s) => hechas.get(s.id))
-        .filter((v): v is ValoresEjecutados => v !== undefined)
+        .filter((v): v is Ejecutado => v !== undefined)
       const objetivos = [...new Set(ejercicio.series.map(objetivoDeSerie))]
       const principal = (ejercicio.seccion ?? "principal") === "principal"
       const prescrito = principal

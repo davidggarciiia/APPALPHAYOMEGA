@@ -6,7 +6,22 @@ import {
   nuevaSerie,
   type EjercicioEditable,
   type SesionEditable,
+  type TipoMedicion,
 } from "./editor-modelo"
+
+const NOMBRE_DE_UNIDAD = {
+  repeticiones: "Repeticiones",
+  tiempo: "Segundos",
+  distancia: "Metros",
+} as const satisfies Record<TipoMedicion, string>
+
+/** Las unidades que se ofrecen al pautar. D01.g añade «distancia» al activar los metros. */
+const UNIDADES_OFRECIDAS: readonly TipoMedicion[] = ["repeticiones", "tiempo"]
+
+/** Las ofrecidas y, si la serie ya usa otra, también esa: se muestra marcada y no se pierde. */
+function unidadesDe(actual: TipoMedicion): readonly TipoMedicion[] {
+  return UNIDADES_OFRECIDAS.includes(actual) ? UNIDADES_OFRECIDAS : [...UNIDADES_OFRECIDAS, actual]
+}
 
 export function EditorSesion({
   valor,
@@ -144,14 +159,13 @@ export function EditorSesion({
                   Serie {numero + 1}
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  <BotonSecundario
-                    texto={s.tipoMedicion === "repeticiones" ? "✓ Repeticiones" : "Repeticiones"}
-                    onPress={() => editar({ tipoMedicion: "repeticiones", objetivo: "" })}
-                  />
-                  <BotonSecundario
-                    texto={s.tipoMedicion === "tiempo" ? "✓ Segundos" : "Segundos"}
-                    onPress={() => editar({ tipoMedicion: "tiempo", objetivo: "" })}
-                  />
+                  {unidadesDe(s.tipoMedicion).map((unidad) => (
+                    <BotonSecundario
+                      key={unidad}
+                      texto={`${s.tipoMedicion === unidad ? "✓ " : ""}${NOMBRE_DE_UNIDAD[unidad]}`}
+                      onPress={() => editar({ tipoMedicion: unidad, objetivo: "" })}
+                    />
+                  ))}
                 </View>
                 {e.tipoCarga !== "sinCarga" && !e.calibrar && (
                   <Campo
@@ -163,7 +177,7 @@ export function EditorSesion({
                   />
                 )}
                 <Campo
-                  etiqueta={`${s.tipoMedicion === "repeticiones" ? "Repeticiones" : "Segundos"} — ${etiqueta}`}
+                  etiqueta={`${NOMBRE_DE_UNIDAD[s.tipoMedicion]} — ${etiqueta}`}
                   value={s.objetivo}
                   keyboardType="number-pad"
                   onChangeText={(objetivo) => editar({ objetivo })}
