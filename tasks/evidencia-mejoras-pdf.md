@@ -199,3 +199,117 @@ No hay migración ni cambios en `packages/shared`.
 - Sin recorrido autenticado ni prueba en móvil físico: D01.b no cambia nada
   visible salvo el texto de unidad de la revisión del plan, que para
   repeticiones y segundos es idéntico.
+
+## D01.c
+
+**Cambio realizado.** El registro local y los modelos de sesión dejan de asumir
+dos unidades. Representan la distancia con los tipos auxiliares de D01.a, sin
+guardarla ni enviarla aún:
+
+- `registro-modelo.ts`: tipos `SerieConDistancia`, `EjercicioConDistancia`,
+  `PrescripcionConDistancia` y `RegistroConDistancia` (los públicos más la
+  variante en metros). `desdePrescripcion` los acepta y lee lo registrado con
+  un `switch` exhaustivo (`cantidadRegistrada`). Si la serie registrada tiene
+  **otra unidad** que la pautada, queda pendiente y vacía: antes, 10
+  repeticiones de un borrador se mostraban como «10» en una serie de segundos.
+  La construcción del registro pasa a `registroSinValidar`, exportada y sin
+  validar, con un `switch` que escribe `repeticiones`, `segundos` o `metros`.
+  Antes, cualquier unidad distinta de tiempo acababa en `repeticiones`.
+  `registroParaEnviar` la valida con `crearRegistroDeSesionSchema`, así que una
+  serie en metros sigue lanzando hasta D01.g. Una serie ajena a la
+  prescripción sigue rechazándose con `ZodError`. Nueva `edicionRecuperada`: la
+  fusión de «Recuperar mi copia», que antes vivía en el control, pasa aquí sin
+  cambiar su lógica. Así se puede probar con las tres unidades.
+- `registro-control.ts`: `recuperarCopia` llama a `edicionRecuperada`. Las
+  series con otra unidad o una carga incompatible quedan pendientes. El
+  respaldo se conserva hasta que el cliente lo descarta.
+- `sesion/modelo.ts`: `objetivoDeSerie` usa un `switch` exhaustivo («8–10»,
+  «30 s», «20 m»); `resumenPrescrito` acepta ejercicios con metros («2 × 20 m
+  · RIR 2–3 · 90 s»). En `proximaVez`, el tope sale de `topeDeSerie`, en la
+  unidad de la serie. Antes, una serie en metros leía `repeticiones`
+  (`undefined`). El descanso sigue saliendo solo del texto del entrenador
+  (`segundosDeDescanso`). Estos modelos no calculan volumen.
+- Formato de la copia local sin cambios: `EdicionRegistroSchema` guarda texto
+  por serie y la unidad la pone la prescripción del mismo documento, así que
+  las copias anteriores se leen igual. `DocumentoSesionSchema` sigue usando los
+  contratos públicos: hasta D01.g no puede contener una prescripción en metros.
+
+No hay migración ni cambios en `packages/shared` ni en la interfaz.
+
+**Archivos:** `apps/mobile/src/entrenamiento/registro-modelo.ts`,
+`registro-modelo.spec.ts`, `registro-control.ts`, `registro-control.spec.ts`
+(mismo directorio), `apps/mobile/src/entrenamiento/sesion/modelo.ts`,
+`sesion/modelo.spec.ts`, `tasks/evidencia-mejoras-pdf.md`. Hay seis archivos
+de código frente a los cinco previstos. El sexto es `sesion/modelo.spec.ts`,
+la prueba del modelo previsto. El patrón `modelo.spec.ts` de la verificación
+ya lo ejecuta. No se ha dividido porque sin él `sesion/modelo.ts` quedaría sin
+prueba.
+
+**Pruebas nuevas** (datos sintéticos, sin datos personales):
+
+- `registro-modelo.spec.ts`, bloque «Distancia en metros (D01, aún sin
+  publicar)»:
+  - preparar: series vacías; el objetivo no cuenta como ejecución; la edición
+    cabe en `EdicionRegistroSchema`; la serie vacía cumple
+    `SerieRegistradaDistanciaSchema`.
+  - ida y vuelta: metros y kilos con coma decimal y RIR, con y sin carga;
+    cumplen el contrato auxiliar y `mantieneUnidadYCarga`, y
+    `desdePrescripcion` devuelve la misma edición.
+  - sin peso escrito no se inventan kilos y un transporte con carga no se
+    puede enviar.
+  - cierre «no se guarda ni se envía hasta D01.g»: `RegistroSchema` rechaza
+    los metros.
+  - matriz 3 × 3 de cambios de unidad (repeticiones, segundos, metros): solo
+    vuelve lo registrado en la misma unidad, tanto al preparar un registro
+    como al recuperar la copia. El respaldo no se modifica y lo enviado nunca
+    contiene el 12 en otra unidad.
+- `registro-control.spec.ts`, bloque «Cambio de unidad y copias anteriores
+  (D01)»:
+  - repeticiones → segundos con conflicto y «Recuperar mi copia»: la serie
+    queda pendiente, el respaldo es idéntico al original tras reabrir y se
+    envía `segundos: null`, no 10 s.
+  - un borrador del servidor en otra unidad se abre pendiente.
+  - una copia guardada con el formato anterior (sin RIR, tiempo activo, vista
+    ni intención de envío) se lee y se envía igual.
+- `sesion/modelo.spec.ts`, bloque «Distancia en metros (D01, aún sin
+  publicar)»:
+  - objetivo y resumen en metros, con descanso escrito; repeticiones y
+    segundos sin cambios.
+  - «La próxima vez» compara metros con metros: 20 de 20 m propone subir y
+    15 de 20 mantiene.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                                                        | Resultado                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/mobile -- --runInBand registro-modelo.spec.ts registro-control.spec.ts modelo.spec.ts` (línea base) | 10 suites, 79 pruebas en verde                                                                                            |
+| Mismo comando con las pruebas nuevas y sin implementación                                                                      | 3 suites fallidas: 16 fallidas, 81 correctas (rojo esperado; las dos pruebas de control que ya cumplía el código pasaban) |
+| `npm test --workspace apps/mobile -- --runInBand registro-modelo.spec.ts registro-control.spec.ts modelo.spec.ts`              | 10 suites, 97 pruebas en verde                                                                                            |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                                                   | 51 suites, 322 pruebas en verde                                                                                           |
+| `npm run typecheck`                                                                                                            | Correcto (shared, api y mobile)                                                                                           |
+| `npx eslint` sobre los seis archivos de código                                                                                 | Sin avisos                                                                                                                |
+| `npx prettier --write` y `--check` sobre los seis archivos de código y esta evidencia                                          | Aplicado; todos con el estilo de Prettier                                                                                 |
+
+**Pendiente:**
+
+- D01.g debe invertir el cierre «no se guarda ni se envía hasta D01.g» de
+  `registro-modelo.spec.ts`. Con las uniones ampliadas, `registroParaEnviar`
+  aceptará los metros sin cambiar el código. Se suma a los archivos que D01.a
+  y D01.b ya señalaron fuera de la lista de D01.g. Tras activar,
+  `PrescripcionConDistancia` y `RegistroConDistancia` equivalen a los tipos
+  públicos y pueden simplificarse. `SerieConDistancia` existe ahora en
+  `registro-modelo.ts` y en `editor-modelo.ts` con el mismo significado.
+- **Decisión para confirmar con David:** en «La próxima vez» (panel del
+  entrenador), una serie en metros se compara con sus metros pautados, igual
+  que el tiempo con sus segundos. Si se prefiere que la distancia nunca
+  proponga subir carga, basta con cambiar `topeDeSerie`/`proximaVez`. Solo es
+  una propuesta: la app no cambia la prescripción.
+- Consumidores que siguen siendo binarios, ya repartidos en el inventario:
+  - `ficha-modelo.ts:30-32` (`edicionDesdeResultado`, D01.e): hasta entonces,
+    un resultado en metros llega a `proximaVez` como `NaN` y queda en «igual».
+  - `registro-cliente.tsx`: el mensaje «repeticiones y segundos deben ser
+    enteros positivos» (D01.d).
+- Sin recorrido autenticado ni prueba en móvil físico. D01.c no cambia nada
+  visible: los textos de repeticiones y segundos son idénticos (las pruebas
+  existentes de `resumenPrescrito`, `plan/modelo`, `partes` y `tabla-series`
+  siguen en verde) y la distancia aún no se puede pautar, guardar ni enviar.

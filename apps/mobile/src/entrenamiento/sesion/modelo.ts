@@ -1,10 +1,10 @@
+import type { EjercicioPrescrito, Prescripcion, SeccionDeSesion } from "@alpha-omega/shared"
 import type {
-  EjercicioPrescrito,
-  Prescripcion,
-  SeccionDeSesion,
-  SeriePrescrita,
-} from "@alpha-omega/shared"
-import type { EdicionRegistro } from "../registro-modelo"
+  EdicionRegistro,
+  EjercicioConDistancia,
+  PrescripcionConDistancia,
+  SerieConDistancia,
+} from "../registro-modelo"
 
 const numero = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 })
 
@@ -48,15 +48,34 @@ export function textoRir(rir: EjercicioPrescrito["rir"]): string | null {
   return rir.min === rir.max ? `RIR ${rir.min}` : `RIR ${rir.min}–${rir.max}`
 }
 
-export function objetivoDeSerie(serie: SeriePrescrita): string {
-  if (serie.tipoMedicion === "tiempo") return `${serie.segundos} s`
-  return serie.repeticionesMax !== undefined && serie.repeticionesMax !== serie.repeticiones
-    ? `${serie.repeticiones}–${serie.repeticionesMax}`
-    : String(serie.repeticiones)
+/** El objetivo en su unidad: «8–10», «30 s» o «20 m». */
+export function objetivoDeSerie(serie: SerieConDistancia): string {
+  switch (serie.tipoMedicion) {
+    case "repeticiones":
+      return serie.repeticionesMax !== undefined && serie.repeticionesMax !== serie.repeticiones
+        ? `${serie.repeticiones}–${serie.repeticionesMax}`
+        : String(serie.repeticiones)
+    case "tiempo":
+      return `${serie.segundos} s`
+    case "distancia":
+      return `${serie.metros} m`
+  }
+}
+
+/** El tope de la doble progresión en la unidad de la serie; nunca se convierte. */
+function topeDeSerie(serie: SerieConDistancia): number {
+  switch (serie.tipoMedicion) {
+    case "repeticiones":
+      return serie.repeticionesMax ?? serie.repeticiones
+    case "tiempo":
+      return serie.segundos
+    case "distancia":
+      return serie.metros
+  }
 }
 
 /** «4 × 6 · RIR 3 · 2–3 min», como bajo el nombre del ejercicio en el diseño. */
-export function resumenPrescrito(ejercicio: EjercicioPrescrito): string {
+export function resumenPrescrito(ejercicio: EjercicioConDistancia): string {
   const objetivos = [...new Set(ejercicio.series.map(objetivoDeSerie))]
   return [
     `${ejercicio.series.length} × ${objetivos.join(" / ")}`,
@@ -151,10 +170,11 @@ export type ProximaVez = {
 /**
  * «La próxima vez», con la doble progresión de la guía: se sube la carga cuando
  * todas las series llegan al tope del rango sin apurar más que el RIR objetivo;
- * con RIR 1 o 0 no se sube; una molestia deja el ejercicio en revisión.
+ * con RIR 1 o 0 no se sube; una molestia deja el ejercicio en revisión. Segundos
+ * y metros se comparan con su propio objetivo, nunca como repeticiones.
  */
 export function proximaVez(
-  prescripcion: Prescripcion,
+  prescripcion: PrescripcionConDistancia,
   edicion: EdicionRegistro,
   conMolestia: ReadonlySet<string>,
 ): ProximaVez[] {
@@ -182,12 +202,7 @@ export function proximaVez(
       const rir = (r: (typeof hechas)[number]["real"]): number | null => r.rir ?? null
       const alTope = hechas.every(({ serie, real }) => {
         const hecho = lectura(real.valor)
-        if (hecho === null) return false
-        const tope =
-          serie.tipoMedicion === "tiempo"
-            ? serie.segundos
-            : (serie.repeticionesMax ?? serie.repeticiones)
-        return hecho >= tope
+        return hecho !== null && hecho >= topeDeSerie(serie)
       })
       const duro = hechas.some(({ real }) => {
         const valor = rir(real)

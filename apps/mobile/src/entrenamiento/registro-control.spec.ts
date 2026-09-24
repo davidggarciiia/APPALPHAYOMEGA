@@ -430,3 +430,94 @@ it("corregir o quitar el RIR de una serie hecha persiste al reabrir sin tocar lo
   expect(serie).toMatchObject({ hecha: true, pesoKg: 20, repeticiones: 10 })
   expect(serie).not.toHaveProperty("rir")
 })
+
+describe("Cambio de unidad y copias anteriores (D01)", () => {
+  const hecha = { serieId, peso: "20", valor: "10", hecha: true, rir: 2 }
+  const enSegundos: SesionCliente = {
+    ...sesion,
+    revisionPrescripcion: 1,
+    prescripcion: {
+      ...sesion.prescripcion,
+      ejercicios: sesion.prescripcion.ejercicios.map((ejercicio) => ({
+        ...ejercicio,
+        series: [{ id: serieId, tipoMedicion: "tiempo", pesoKg: 20, segundos: 30 }],
+      })),
+    },
+  }
+
+  it("cambiar la unidad deja pendiente lo hecho y conserva el respaldo original", async () => {
+    const { control, api, almacen } = preparar()
+    await control.abrir()
+    const original = { notas: "mi copia", series: [hecha] }
+    await control.editar(original)
+    jest.mocked(api.leerCliente).mockResolvedValue(enSegundos)
+    await control.recuperarServidor()
+    await control.recuperarCopia()
+
+    expect(control.documento?.edicion.series).toEqual([
+      { serieId, peso: "", valor: "", hecha: false },
+    ])
+    expect(control.documento?.edicion.notas).toBe("mi copia")
+    expect(control.documento?.respaldo).toEqual({
+      edicion: original,
+      prescripcion: sesion.prescripcion,
+    })
+    // Las 10 repeticiones no se envían como 10 segundos.
+    expect(registroParaEnviar(enSegundos.prescripcion, control.documento!.edicion).series).toEqual([
+      { serieId, tipoMedicion: "tiempo", pesoKg: null, segundos: null, hecha: false },
+    ])
+
+    control.cerrar()
+    const reabierta = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+    await reabierta.abrir()
+    expect(reabierta.documento?.edicion.series[0]).toMatchObject({ valor: "", hecha: false })
+    expect(reabierta.documento?.respaldo?.edicion).toEqual(original)
+    expect(await hayCambiosLocales(almacen, cuenta)).toBe(true)
+  })
+
+  it("un borrador del servidor en otra unidad no se reinterpreta al abrir", async () => {
+    const { control, api } = preparar()
+    jest.mocked(api.leerCliente).mockResolvedValue({
+      ...enSegundos,
+      borrador: {
+        revision: 1,
+        revisionPrescripcion: 0,
+        actualizadoEn: "2026-09-24T10:00:00.000Z",
+        registro: {
+          notas: null,
+          series: [
+            { serieId, tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10, hecha: true },
+          ],
+        },
+      },
+    })
+    await control.abrir()
+    expect(control.documento?.edicion.series).toEqual([
+      { serieId, peso: "", valor: "", hecha: false },
+    ])
+  })
+
+  it("una copia guardada antes de la distancia se sigue leyendo y enviando igual", async () => {
+    const { control, almacen } = preparar()
+    // Formato anterior: sin RIR, sin tiempo activo, sin vista ni intención de envío.
+    await almacen.guardar(cuenta, claveSesion(id), {
+      sesion,
+      edicion: {
+        notas: "copia antigua",
+        series: [{ serieId, peso: "20", valor: "10", hecha: true }],
+      },
+      secuencia: 1,
+      sincronizada: 0,
+      revisionBorrador: 0,
+      pendiente: null,
+      envioPendiente: null,
+      respaldo: null,
+      resultado: null,
+    })
+    await control.abrir()
+    expect(control.documento?.edicion.notas).toBe("copia antigua")
+    expect(registroParaEnviar(sesion.prescripcion, control.documento!.edicion).series).toEqual([
+      { serieId, tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10, hecha: true },
+    ])
+  })
+})
