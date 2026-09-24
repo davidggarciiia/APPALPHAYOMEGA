@@ -28,6 +28,51 @@ da igual que una comparativa la publique un competidor. Con esos criterios:
   lo sustituye por el criterio de calidad.
 - Las secciones siguientes conservan la investigación del 18-09 como histórico.
 
+## Cómo funciona en la app (implementado en la iteración 3)
+
+**Los MP4 no entran en el repositorio.** El EULA de Vital prohíbe redistribuir
+los originales. El índice (`apps/api/src/catalogo-ejercicios/medios.ts`) solo
+guarda nuestros identificadores (`vital-0051` … `vital-0100`, `movekit-pull-ups`,
+`movekit-dumbbell-chest-fly`), el nombre en español, la licencia y si admite
+copia en el dispositivo.
+
+Para tener figuras en un servidor:
+
+1. Descargar los paquetes gratuitos (Vital Free50 y la muestra de MoveKit) y
+   descomprimirlos fuera del repositorio.
+2. Fijar en `.env` una carpeta privada, fuera del repo y de cualquier ruta
+   pública: `MEDIOS_DIR=/ruta/privada/alpha-omega-medios`.
+3. Con ffmpeg instalado:
+
+   ```bash
+   npm run build --workspace apps/api
+   node apps/api/dist/catalogo-ejercicios/importar-medios.js --vital <carpeta con 0051.mp4…> --movekit <carpeta con pull-ups.mp4>
+   ```
+
+   Pasa cada clip a 720 px, H.264 con `faststart` y sin audio, y genera un
+   póster JPG. Los 52 clips ocupan unos 12 MB en total (de 76 a 640 KB cada uno).
+   `--forzar` vuelve a importar los que ya existen.
+
+Sin `MEDIOS_DIR` el catálogo funciona igual: el índice sale vacío y el
+entrenador no ve figuras que elegir.
+
+| Ruta                                | Quién                | Qué hace                                                          |
+| ----------------------------------- | -------------------- | ----------------------------------------------------------------- |
+| `GET /ejercicios/medios`            | entrenador           | Figuras importadas en este servidor                               |
+| `PUT /ejercicios/:id/figura`        | entrenador           | `{ medioId }` asocia una del índice; `{ medioId: null }` la quita |
+| `GET /ejercicios/:id/figura`        | cliente y entrenador | El MP4, con rangos y `Cache-Control: private`                     |
+| `GET /ejercicios/:id/figura/poster` | cliente y entrenador | El póster JPG                                                     |
+
+Nutricionista y empleado no acceden: el catálogo autoriza por rol.
+
+**Sin conexión.** En Android e iOS el reproductor guarda en caché los clips de
+Vital cuando se ven con conexión (`useCaching`); los de MoveKit no, porque su
+licencia no habla de copias en el dispositivo. Esa caché es del sistema y puede
+vaciarse si falta espacio: no es una descarga garantizada, y la app lo dice.
+La ficha de texto del ejercicio sí se guarda cifrada por cuenta al abrir «Ver
+técnica». En web no hay caché de vídeo: se descarga cada vez. La prueba en modo
+avión con un móvil real está pendiente (F10).
+
 ## Opciones gratuitas
 
 | Opción                                                                               | Qué permite probar                                                                                                                                                    | Límites para esta app                                                                                                                                                                                                                                                  |
