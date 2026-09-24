@@ -1,10 +1,10 @@
 import { useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
-import type { EjercicioPrescrito } from "@alpha-omega/shared"
 
 import { Icono } from "../../componentes/iconos"
 import { degradadoExito, degradadoOro, tema } from "../../tema"
-import type { EdicionRegistro } from "../registro-modelo"
+import type { EdicionRegistro, EjercicioConDistancia } from "../registro-modelo"
+import { cantidadObjetivo } from "../tabla-series"
 import { BotonAtras, Enlace } from "./controles"
 import { reloj, resumenPrescrito } from "./modelo"
 
@@ -99,6 +99,30 @@ export function Descanso({
 }
 
 /**
+ * Marcar un ejercicio de la lista: sus series quedan hechas con lo escrito o, si
+ * no hay nada, con lo prescrito en su unidad. Desmarcar conserva lo escrito.
+ */
+export function seriesMarcadas(
+  ejercicio: EjercicioConDistancia,
+  series: EdicionRegistro["series"],
+  hecho: boolean,
+): EdicionRegistro["series"] {
+  const ids = new Map(ejercicio.series.map((p) => [p.id, p]))
+  return series.map((s) => {
+    const prescrita = ids.get(s.serieId)
+    if (!prescrita) return s
+    if (!hecho) return { ...s, hecha: false }
+    return {
+      ...s,
+      hecha: true,
+      omitida: undefined,
+      valor: s.valor || String(cantidadObjetivo(prescrita)),
+      peso: s.peso || (prescrita.pesoKg === null ? "" : String(prescrita.pesoKg).replace(".", ",")),
+    }
+  })
+}
+
+/**
  * Calentamiento o final: una lista que se marca de un toque. Marcar un ejercicio
  * da por hechas sus series con lo prescrito.
  */
@@ -111,13 +135,13 @@ export function ListaMarcable({
   cambiarPeso,
 }: {
   titulo: string
-  ejercicios: EjercicioPrescrito[]
+  ejercicios: EjercicioConDistancia[]
   series: EdicionRegistro["series"]
   bloqueado: boolean
-  marcar: (ejercicio: EjercicioPrescrito, hecho: boolean) => void
+  marcar: (ejercicio: EjercicioConDistancia, hecho: boolean) => void
   cambiarPeso: (serieId: string, peso: string) => void
 }): React.JSX.Element {
-  const hecho = (e: EjercicioPrescrito): boolean =>
+  const hecho = (e: EjercicioConDistancia): boolean =>
     e.series.every((p) => series.find((r) => r.serieId === p.id)?.hecha === true)
   const hechos = ejercicios.filter(hecho).length
   const completo = hechos === ejercicios.length

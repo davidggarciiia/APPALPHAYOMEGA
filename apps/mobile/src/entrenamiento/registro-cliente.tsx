@@ -7,7 +7,12 @@ import type { Checkin, Ejercicio, EjercicioPrescrito, ValoresEjecutados } from "
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import { RegistroControl } from "./registro-control"
-import { registroParaEnviar, type EdicionRegistro } from "./registro-modelo"
+import {
+  registroParaEnviar,
+  type EdicionRegistro,
+  type EjercicioConDistancia,
+  type PrescripcionConDistancia,
+} from "./registro-modelo"
 import { TablaSeries } from "./tabla-series"
 import { PrescripcionVisible } from "./resultado"
 import { VerTecnica } from "./ver-tecnica"
@@ -25,7 +30,7 @@ import {
   seriesDeTrabajo,
 } from "./sesion/modelo"
 import { RegistrarMolestiaPantalla, type LugarDeMolestia } from "./sesion/molestia"
-import { CabeceraSesion, Descanso, ListaMarcable } from "./sesion/partes"
+import { CabeceraSesion, Descanso, ListaMarcable, seriesMarcadas } from "./sesion/partes"
 import { duracionDeSesion, iniciarTramo } from "./sesion/tiempo"
 import { RespuestasDelEntrenador } from "./sesion/respuestas"
 import { FiguraDeEjercicio, useAccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
@@ -43,6 +48,14 @@ const TITULOS_DE_SECCION = {
   circuito: "Circuito",
   final: "Vuelta a la calma",
 } as const
+
+/** Lo que se cuenta en enteros; los metros solo se nombran si la sesión los pauta. */
+function magnitudes(prescripcion: PrescripcionConDistancia | undefined): string {
+  const metros = prescripcion?.ejercicios.some((e) =>
+    e.series.some((s) => s.tipoMedicion === "distancia"),
+  )
+  return metros ? "repeticiones, segundos y metros" : "repeticiones y segundos"
+}
 
 /**
  * El entrenamiento del cliente con el recorrido de Design.html: check-in,
@@ -187,7 +200,7 @@ export function RegistroCliente({
     } catch (e) {
       setError(
         e instanceof ZodError
-          ? "Revisa los valores: repeticiones y segundos deben ser enteros positivos; completa el peso requerido antes de marcar la serie."
+          ? `Revisa los valores: ${magnitudes(documento?.sesion.prescripcion)} deben ser enteros positivos; completa el peso requerido antes de marcar la serie.`
           : "No se pudo confirmar la operación. Tu copia local se conserva. Reintenta cuando tengas conexión.",
       )
     } finally {
@@ -295,29 +308,8 @@ export function RegistroCliente({
       ...(retener && { ejercicioElegidoId: retener }),
     })
   }
-  const marcarLista = (ejercicio: EjercicioPrescrito, hecho: boolean): void => {
-    const ids = new Map(ejercicio.series.map((p) => [p.id, p]))
-    cambiar({
-      ...edicion,
-      series: edicion.series.map((s) => {
-        const prescrita = ids.get(s.serieId)
-        if (!prescrita) return s
-        if (!hecho) return { ...s, hecha: false }
-        return {
-          ...s,
-          hecha: true,
-          omitida: undefined,
-          valor:
-            s.valor ||
-            String(
-              prescrita.tipoMedicion === "tiempo" ? prescrita.segundos : prescrita.repeticiones,
-            ),
-          peso:
-            s.peso || (prescrita.pesoKg === null ? "" : String(prescrita.pesoKg).replace(".", ",")),
-        }
-      }),
-    })
-  }
+  const marcarLista = (ejercicio: EjercicioConDistancia, hecho: boolean): void =>
+    cambiar({ ...edicion, series: seriesMarcadas(ejercicio, edicion.series, hecho) })
 
   const trabajo = seriesDeTrabajo(prescripcion)
   const hechasTrabajo = edicion.series.filter((s) => s.hecha && trabajo.includes(s.serieId)).length

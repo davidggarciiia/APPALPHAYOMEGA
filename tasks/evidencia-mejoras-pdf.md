@@ -313,3 +313,109 @@ prueba.
   visible: los textos de repeticiones y segundos son idénticos (las pruebas
   existentes de `resumenPrescrito`, `plan/modelo`, `partes` y `tabla-series`
   siguen en verde) y la distancia aún no se puede pautar, guardar ni enviar.
+
+## D01.d
+
+**Cambio realizado.** La entrada y la lectura del cliente nombran cada magnitud
+con un `switch` exhaustivo. Una serie en metros ya se pide, se marca y se lee
+como metros. La distancia sigue sin poder pautarse ni enviarse: el contrato
+público no la acepta hasta D01.g y ninguna pantalla ofrece aún el selector.
+
+- `tabla-series.tsx` («Sesión en curso»):
+  - Acepta `EjercicioConDistancia` y un «Anterior» en metros.
+  - Cabecera: «Reps», «Seg» o «Metros». Si el ejercicio mezcla unidades, se
+    unen («Reps / s», igual que antes, o «Reps / m»).
+  - Campo accesible «Metros — ejercicio, serie N». Sugerencia «32 kg, 20
+    metros». Marcador y «Hecha» usan los metros pautados.
+  - «Anterior» muestra «30 kg × 18 m» o «30 m».
+  - Kilos: solo si el ejercicio lleva carga, con la regla de siempre.
+  - Nueva `cantidadObjetivo(serie)`, exportada: el objetivo en su unidad.
+- `resultado.tsx`: `valoresLegibles` usa un `switch` («20 m · 32 kg»).
+  `PrescripcionVisible` acepta `ResultadoConDistancia`, un tipo local en el que
+  encaja cualquier resultado actual. Así «Entrenamiento enviado» lee objetivo y
+  hecho en metros. `detalle.tsx` del entrenador compila sin cambios.
+- `sesion/partes.tsx` (calentamiento y final): `ListaMarcable` acepta
+  ejercicios en metros. El relleno de «marcar el ejercicio» pasa aquí como
+  `seriesMarcadas`, con la misma lógica pero usando `cantidadObjetivo`. Antes
+  vivía sin prueba en `registro-cliente.tsx` y leía el objetivo como segundos
+  o, si no, repeticiones.
+- `registro-cliente.tsx`: `marcarLista` llama a `seriesMarcadas`. El aviso de
+  valores no válidos solo nombra los metros si la sesión los pauta; sin metros,
+  el texto no cambia.
+
+No hay migración ni cambios en `packages/shared`.
+
+**Archivos:** `apps/mobile/src/entrenamiento/tabla-series.tsx`,
+`tabla-series.spec.tsx`, `registro-cliente.tsx`, `resultado.tsx` (mismo
+directorio), `apps/mobile/src/entrenamiento/sesion/partes.tsx`,
+`sesion/partes.spec.tsx`, `tasks/evidencia-mejoras-pdf.md`. Hay seis archivos
+de código frente a los cinco previstos. El sexto es `sesion/partes.spec.tsx`:
+la verificación de la subtarea ya lo ejecuta, y sin él la lista de
+calentamiento y `seriesMarcadas` quedarían sin prueba. `resultado.tsx` no tiene
+prueba propia, así que su resumen se comprueba en `tabla-series.spec.tsx`.
+
+**Pruebas nuevas** (datos sintéticos, sin datos personales):
+
+- `tabla-series.spec.tsx`, bloque «Distancia en metros (D01, aún sin
+  publicar)»:
+  - con carga: resumen «2 × 20 m», cabeceras «Kg» y «Metros», «Anterior 30 kg
+    × 18 m», etiqueta de la serie «20 m · 32 kg», campo «Metros —…» con
+    marcador y sugerencia en metros, sin campos de repeticiones ni segundos;
+    escribir y marcar «Hecha» rellenan metros y kilos pautados.
+  - sin carga: sin kilos, «Anterior 30 m», marcar rellena solo los metros y
+    omitir queda como omitida.
+  - error y corrección, con una tabla que guarda su estado: «20,5» marcada no
+    cumple `SerieRegistradaDistanciaSchema`. Corregida a «18», el registro es
+    `{ tipoMedicion: "distancia", metros: 18, pesoKg: 32 }` sin `repeticiones`
+    y cumple `mantieneUnidadYCarga`. Desmarcar conserva «18» en metros.
+  - series existentes: «Reps / s», «Anterior 55 kg × 6», «6 reps», etiquetas
+    «Repeticiones —»/«Segundos —» y sugerencia «8 repeticiones» sin cambios;
+    la mezcla con metros muestra «Reps / m».
+  - resumen enviado (`PrescripcionVisible`): objetivo y hecho en metros, con y
+    sin kilos, omitida, «3/4» y una serie en segundos que se lee igual.
+- `sesion/partes.spec.tsx`:
+  - `seriesMarcadas` con repeticiones y segundos: marca con lo escrito o lo
+    pautado, quita la omisión y, al desmarcar, conserva lo escrito.
+  - distancia con carga: «Paseo del granjero, 2 × 20 m», kilos por serie y
+    casilla bloqueada hasta escribir el peso que falta; marcar rellena 20 m y
+    los kilos, y cada serie cumple el contrato auxiliar sin repeticiones ni
+    segundos.
+  - distancia sin carga: sin kilos; marcar rellena 30 m.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                        | Resultado                                                                                                   |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/mobile -- --runInBand tabla-series.spec.tsx partes.spec.tsx` (base) | 2 suites, 7 pruebas en verde                                                                                |
+| Mismo comando con las pruebas nuevas y sin implementación                                      | 2 suites fallidas: 8 fallidas, 7 correctas (rojo esperado; lo anterior a «Reps / m» ya pasaba en su prueba) |
+| `npm test --workspace apps/mobile -- --runInBand tabla-series.spec.tsx partes.spec.tsx`        | 2 suites, 15 pruebas en verde                                                                               |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                   | 51 suites, 330 pruebas en verde                                                                             |
+| `npm run typecheck`                                                                            | Correcto (shared, api y mobile)                                                                             |
+| `npx eslint` sobre los seis archivos de código                                                 | Sin avisos                                                                                                  |
+| `npx prettier --write` y `--check` sobre los seis archivos de código y esta evidencia          | Aplicado; todos con el estilo de Prettier                                                                   |
+
+**Pendiente:**
+
+- El aviso de `registro-cliente.tsx` («…repeticiones, segundos y metros deben
+  ser enteros positivos…») no tiene prueba automática: `RegistroCliente` no
+  tiene spec. Solo lo cubren `npm run typecheck` y la revisión del código.
+  Hasta D01.g, el documento local usa el contrato público y no puede pautar
+  metros, así que el texto no cambia.
+- Sin cambiar en esta subtarea:
+  - «Copia · serie N: … kg · …» (respaldo tras un envío desde otro
+    dispositivo) muestra la cantidad sin unidad, como ya pasaba con
+    repeticiones y segundos. Se ha dejado igual para no alterar la
+    presentación existente.
+  - La pregunta de RIR («¿Cuántas te quedaban?», «Repeticiones que te
+    quedaban») se muestra igual en una serie en metros si el entrenador activa
+    el RIR. Decidir en D01.e/D01.g si se ofrece para distancia.
+- D01.g: la tabla, la lista y el resumen ya aceptan los tipos `…ConDistancia`.
+  Al ampliar las uniones públicas, `ResultadoConDistancia` equivale a
+  `ResultadoEntrenamiento` y puede simplificarse. Los casos nuevos no dependen
+  del contrato público, así que no hay que invertir ningún cierre.
+- Consumidores restantes, ya repartidos: `plan/guia.tsx` y `sesion/tiempo.ts`
+  (D01.e), `detalle.tsx` y la lectura de la API (D01.f).
+- Sin recorrido autenticado ni prueba en móvil físico. Para repeticiones y
+  segundos, la vista activa, la lista y el resumen se ven igual; lo comprueban
+  las pruebas existentes y la nueva de presentación. La distancia aún no
+  llega a ninguna pantalla real.
