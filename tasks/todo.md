@@ -153,13 +153,15 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Los contratos diferencian pendiente/registrado/no realizado, cero/sin dato, fecha de toma/creación/publicación, notas internas/conclusión visible y resultados de fuentes distintas.
-- [ ] IDs y versiones conservan la identidad; `revision` evita sobrescritura y `operacionId` identifica reintentos con conflicto si cambia el contenido.
-- [ ] La especificación fija por rol qué campos se leen/escriben, el inicio de una corrección y las respuestas de error; no da acceso al nutricionista por reutilizar el documento completo.
+- [x] Los contratos diferencian pendiente/registrado/no realizado, cero/sin dato, fecha de toma/creación/publicación, notas internas/conclusión visible y resultados de fuentes distintas.
+- [x] IDs y versiones conservan la identidad; `revision` evita sobrescritura y `operacionId` identifica reintentos con conflicto si cambia el contenido.
+- [x] La especificación fija por rol qué campos se leen/escriben, el inicio de una corrección y las respuestas de error; no da acceso al nutricionista por reutilizar el documento completo.
 
 **Verificación:** `npm run build:shared`; `npm test --workspace apps/api -- --runInBand valoraciones-contratos.spec.ts`; cubrir documentos parciales, valores inválidos, campos internos excluidos y compatibilidad de contratos previos.
 
 **Dependencias:** lectura del plan; independiente del bloqueo visual C00. **Responsable:** Claude principal, dueño de contratos. **Archivos previstos:** `packages/shared/src/valoraciones.ts`, `packages/shared/src/index.ts`, `apps/api/src/seguimiento/valoraciones-contratos.spec.ts`, `SPEC-seguimiento-corporal.md`. **Tamaño:** M, 4 archivos.
+
+**Evidencia 24-09-2026 (Claude):** contratos en `packages/shared/src/valoraciones.ts` (plantilla, definiciones versionadas, resultados pendiente/registrado/noRealizado, documento de borrador, proyección pública y corporal, historial profesional y publicado, crear/cambiar/publicar con `operacionId`, `borradorId` y `revision`, próxima revisión) y código `409 estado_incompatible` en `errores-api.ts`; especificación en `SPEC-seguimiento-corporal.md`, sección «Valoración inicial y revisiones». Revisión adversarial con subagentes (tres enfoques: plan, privacidad, corrección técnica; cada hallazgo verificado por un escéptico): 13 hallazgos confirmados y corregidos antes de construir encima (documento interno vigente para el entrenador y corrección a partir de él, `borradorId` obligatorio para no pisar una corrección, lecturas de pliegue pendientes, cero no admitido en magnitudes físicas, decimales sin ruido, clave de métrica heredada, orden de métricas, historial publicado sin estado, salidas que garantizan definición↔resultado, vínculo pauta→visita, textos visibles documentados); el resto se descartó con motivo. `npm run build:shared` correcto; `npm test --workspace apps/api -- --runInBand valoraciones-contratos.spec.ts`: 19 pruebas.
 
 ### V02 · Persistir visitas y publicaciones sin alterar el histórico
 
@@ -167,13 +169,15 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] La migración es aditiva y mantiene medidas, pruebas y diarios antiguos; claves, revisiones e índices sirven al aislamiento por cliente y al historial paginado.
-- [ ] Se distinguen snapshot de plantilla, borrador, publicación y publicación sustituida; las restricciones impiden duplicar una operación o completar dos veces la misma revisión.
-- [ ] Migración y reversión se ensayan solo con datos sintéticos en base desechable; el procedimiento no elimina registros históricos ajenos a la ampliación.
+- [x] La migración es aditiva y mantiene medidas, pruebas y diarios antiguos; claves, revisiones e índices sirven al aislamiento por cliente y al historial paginado.
+- [x] Se distinguen snapshot de plantilla, borrador, publicación y publicación sustituida; las restricciones impiden duplicar una operación o completar dos veces la misma revisión.
+- [x] Migración y reversión se ensayan solo con datos sintéticos en base desechable; el procedimiento no elimina registros históricos ajenos a la ampliación.
 
 **Verificación:** `npx prisma validate`; `npx prisma generate`; aplicar `npx prisma migrate deploy` en la base de prueba, probar reversión/reaplicación según el SQL documentado y ejecutar `npm run test:e2e --workspace apps/api -- --runTestsByPath test/valoraciones-persistencia.e2e-spec.ts`.
 
 **Dependencias:** V01. **Responsable:** Claude principal, único dueño de migraciones. **Archivos previstos:** `apps/api/prisma/schema.prisma`, `apps/api/prisma/migrations/<fecha>_valoraciones/migration.sql`, `apps/api/prisma/rollback/valoraciones.sql`, `apps/api/test/valoraciones-persistencia.e2e-spec.ts`. **Tamaño:** M, 4 archivos.
+
+**Evidencia 24-09-2026 (Claude):** migración aditiva `20260924120000_valoraciones` (plantillas, visitas, borradores, publicaciones, operaciones, próxima revisión y lecturas de avisos) con `CHECK` de coherencia; un solo borrador abierto por visita mediante `valoracionAbiertaId` única (sin índice parcial que Prisma vería como deriva); cada publicación se sustituye como mucho una vez y una visita cumple como mucho una pauta. Reversión `rollback/valoraciones.sql` transaccional. Ensayo en `alpha_omega_e2e_codex` (nombre comprobado antes de cada paso): deploy → rollback → deploy, 7 tablas creadas/eliminadas/recreadas; con una medida sintética previa, la reversión la conservó; filas sintéticas eliminadas después. `npx prisma validate` y `generate` correctos. `valoraciones-persistencia.e2e-spec.ts` + `seguimiento.e2e-spec.ts`: 2 suites / 12 pruebas. Para limpiar fixtures con referencias RESTRICT se añadió `test/valoraciones-ayuda.ts`, llamado desde `entrenamiento-ayuda.ts` (una línea en el ayudante compartido).
 
 ### V03 · Guardar y recuperar borradores profesionales
 
@@ -181,15 +185,17 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] El entrenador autorizado guarda y relee una valoración parcial con snapshot de plantilla; el cliente no escribe resultados profesionales ni obtiene un borrador, notas internas o datos ajenos.
-- [ ] Crear dos veces con la misma operación devuelve la misma visita; contenido distinto o `revision` obsoleta produce conflicto sin perder la versión guardada.
-- [ ] El listado se pagina y las rutas históricas de seguimiento conservan sus permisos y formatos.
+- [x] El entrenador autorizado guarda y relee una valoración parcial con snapshot de plantilla; el cliente no escribe resultados profesionales ni obtiene un borrador, notas internas o datos ajenos.
+- [x] Crear dos veces con la misma operación devuelve la misma visita; contenido distinto o `revision` obsoleta produce conflicto sin perder la versión guardada.
+- [x] El listado se pagina y las rutas históricas de seguimiento conservan sus permisos y formatos.
 
 **Verificación:** `npm run test:e2e --workspace apps/api -- --runTestsByPath test/valoraciones.e2e-spec.ts test/seguimiento.e2e-spec.ts`; incluir cliente propio/ajeno, entrenador, nutricionista asignado/no asignado y acceso directo por ID.
 
 **Dependencias:** V02. **Responsable:** Claude principal. **Archivos previstos:** `apps/api/src/seguimiento/valoraciones.controller.ts`, `valoraciones.service.ts`, `plantillas-valoracion.service.ts`, `seguimiento.module.ts` en el mismo directorio; `apps/api/test/valoraciones.e2e-spec.ts`. **Tamaño:** M, 5 archivos.
 
-**Punto de control V-A · V01–V03:** [ ] contratos, migración aislada y API pasan; [ ] una visita parcial se relee sin duplicados; [ ] el cliente no puede obtener su borrador profesional ni datos de otro cliente.
+**Evidencia 24-09-2026 (Claude):** rutas `GET/PUT plantilla-valoracion` (solo entrenador; versión obligatoria al cambiar cómo se mide; no se quitan definiciones), `POST/GET valoraciones`, `GET/PUT valoraciones/:id`. Crear copia la plantilla activa de los bloques elegidos con resultados `pendiente`; mismo `operacionId` devuelve la misma visita y con otro contenido `409 operacion_incompatible` (también en carrera, por la clave única); `PUT` exige `borradorId` y `revision` (`409 estado_incompatible`/`revision_obsoleta` sin perder lo guardado). Cliente y nutricionista reciben solo lo publicado (404 en visitas sin publicar; historial publicado sin estado); nutricionista no asignado y cliente ajeno, 403. `POST` de corrección y `cumplePauta` responden `409 estado_incompatible` hasta V05/V07a. `npm run test:e2e --workspace apps/api -- --runTestsByPath test/valoraciones.e2e-spec.ts test/valoraciones-persistencia.e2e-spec.ts test/seguimiento.e2e-spec.ts` sobre `alpha_omega_e2e_codex`: 3 suites / 19 pruebas.
+
+**Punto de control V-A · V01–V03:** [x] contratos, migración aislada y API pasan; [x] una visita parcial se relee sin duplicados; [x] el cliente no puede obtener su borrador profesional ni datos de otro cliente. Evidencia en V01–V03; `npm run typecheck` y `git diff --check` correctos.
 
 ### V04 · Completar la primera valoración básica
 
@@ -198,12 +204,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 **Criterios:**
 
 - [ ] Desde Progreso de la ficha se crea/continúa una valoración, se guardan fecha y medidas básicas, y tras volver se recupera exactamente lo confirmado.
-- [ ] Guardando bloquea dobles envíos; el error conserva el formulario y el conflicto ofrece recargar o recuperar la edición sin sustituir silenciosamente datos del servidor.
-- [ ] Los bloques todavía no implementados no aparentan estar terminados; solo las operaciones con backend disponible aparecen como acciones del editor.
+- [x] Guardando bloquea dobles envíos; el error conserva el formulario y el conflicto ofrece recargar o recuperar la edición sin sustituir silenciosamente datos del servidor.
+- [x] Los bloques todavía no implementados no aparentan estar terminados; solo las operaciones con backend disponible aparecen como acciones del editor.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand editor-valoracion.spec.tsx`; cubrir petición HTTP, guardado demorado, fallo, reintento, lectura posterior y conflicto; recorrido profesional crear → guardar → salir → continuar.
 
 **Dependencias:** V03. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/valoraciones-api.ts`, `use-valoraciones.ts`, `editor-valoracion.tsx`, `editor-valoracion.spec.tsx` en el mismo directorio; `apps/mobile/src/entrenamiento-entrenador/ficha/ficha-cliente.tsx`. **Tamaño:** M, 5 archivos.
+
+**Evidencia 24-09-2026 (Claude):** `valoraciones-api.ts`/`use-valoraciones.ts` (cliente HTTP profesional), `editor-valoracion.tsx` (historial, «Nueva valoración»/«Nueva revisión»/«Continuar valoración», bloque Medidas con coma decimal y «No realizado», estados Guardado/Cambios sin guardar/Guardando…/No se pudo guardar, conflicto con «Cargar versión guardada» o «Conservar mi edición») y pestaña Progreso de la ficha. Si la plantilla no tiene medidas, el entrenador añade explícitamente «peso y altura» (sin protocolo inventado). Solo aparece el bloque con API disponible: nada de pliegues, bioimpedancia, pruebas, fotos ni publicar todavía. Cableado mínimo fuera de los 5 archivos: la ruta `app/entrenador/cliente/[id]/index.tsx` pasa `useValoraciones()` y `ficha-cliente.spec.tsx` recibe la prop. `npm test --workspace apps/mobile -- --runInBand editor-valoracion.spec.tsx ficha-cliente.spec.tsx`: 2 suites / 8 pruebas (creación, guardado, pendiente frente a cero, fuera de rango, guardado lento sin doble envío, fallo y reintento, volver y continuar, conflicto en sus dos salidas). **Pendiente:** recorrido profesional crear → guardar → salir → continuar en navegador autenticado (C00).
 
 ### M01 · Configurar la plantilla corporal
 
