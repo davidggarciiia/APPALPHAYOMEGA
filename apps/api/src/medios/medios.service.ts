@@ -158,7 +158,12 @@ export class MediosService {
       })
       return {
         medio: medioPublico(fila),
-        subida: this.almacen.enlaceDeSubida(fila.clave, datos.tipoMime, datos.bytes, caducaEn),
+        subida: await this.almacen.enlaceDeSubida(
+          fila.clave,
+          datos.tipoMime,
+          datos.bytes,
+          caducaEn,
+        ),
       }
     } catch (error) {
       // La misma operación llegó dos veces a la vez: la segunda lee la primera.
@@ -218,7 +223,7 @@ export class MediosService {
     }
     return {
       medio: medioPublico(fila),
-      subida: this.almacen.enlaceDeSubida(
+      subida: await this.almacen.enlaceDeSubida(
         fila.clave,
         fila.tipoMime as FormatoFoto,
         fila.bytes,
@@ -344,7 +349,7 @@ export class MediosService {
     if (fila.estado !== "disponible") throw new NotFoundException("Foto no disponible")
     return {
       medioId: fila.id,
-      lectura: this.almacen.enlaceDeLectura(
+      lectura: await this.almacen.enlaceDeLectura(
         fila.clave,
         fila.tipoMime as FormatoFoto,
         minutos(MINUTOS_ENLACE_LECTURA),

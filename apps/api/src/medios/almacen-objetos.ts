@@ -11,9 +11,10 @@ import { leerVariableOpcional } from "../config/entorno.js"
  * un enlace que caduca y que solo sirve para ese objeto y esa operación. Nunca
  * hay una dirección pública ni se guarda un enlace.
  *
- * El proveedor de producción está sin decidir (docs/PENDIENTE-PARA-PRODUCCION.md,
- * punto 5). Mientras tanto, `AlmacenLocal` implementa el mismo contrato en el
- * disco del servidor de desarrollo, sin contratar nada ni añadir dependencias.
+ * En producción lo implementa `AlmacenS3` sobre cualquier servicio compatible
+ * con S3 de la UE (el proveedor está sin decidir: PENDIENTE-PARA-PRODUCCION,
+ * punto 5). `AlmacenLocal` implementa el mismo contrato en el disco del
+ * servidor de desarrollo. `crearAlmacen` elige según `ALMACEN`.
  */
 export interface AlmacenObjetos {
   enlaceDeSubida(
@@ -21,8 +22,8 @@ export interface AlmacenObjetos {
     tipoMime: FormatoFoto,
     bytes: number,
     caducaEn: Date,
-  ): EnlaceTemporal
-  enlaceDeLectura(clave: string, tipoMime: FormatoFoto, caducaEn: Date): EnlaceTemporal
+  ): Promise<EnlaceTemporal>
+  enlaceDeLectura(clave: string, tipoMime: FormatoFoto, caducaEn: Date): Promise<EnlaceTemporal>
   /** El objeto tal como está, o `null` si no existe. */
   leer(clave: string): Promise<Uint8Array | null>
   /** Sustituye el objeto (por ejemplo, tras retirar metadatos). */
@@ -99,16 +100,20 @@ export class AlmacenLocal implements AlmacenObjetos {
     }
   }
 
-  enlaceDeSubida(
+  async enlaceDeSubida(
     clave: string,
     tipoMime: FormatoFoto,
     bytes: number,
     caducaEn: Date,
-  ): EnlaceTemporal {
+  ): Promise<EnlaceTemporal> {
     return this.enlace(clave, "subir", tipoMime, bytes, caducaEn)
   }
 
-  enlaceDeLectura(clave: string, tipoMime: FormatoFoto, caducaEn: Date): EnlaceTemporal {
+  async enlaceDeLectura(
+    clave: string,
+    tipoMime: FormatoFoto,
+    caducaEn: Date,
+  ): Promise<EnlaceTemporal> {
     return this.enlace(clave, "leer", tipoMime, 0, caducaEn)
   }
 

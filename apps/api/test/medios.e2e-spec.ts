@@ -128,7 +128,7 @@ describe("Fotos privadas: subida, confirmación y acceso (F02b)", () => {
 
     const almacen = entorno.app.get<AlmacenLocal>(ALMACEN_OBJETOS)
     const clave = decodeURIComponent(new URL(subida!.url).pathname.split("/").pop()!)
-    const caducado = almacen.enlaceDeSubida(
+    const caducado = await almacen.enlaceDeSubida(
       clave,
       "image/jpeg",
       jpeg.length,

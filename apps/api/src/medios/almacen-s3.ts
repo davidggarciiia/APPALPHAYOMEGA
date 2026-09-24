@@ -8,7 +8,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import type { EnlaceTemporal, FormatoFoto } from "@alpha-omega/shared"
 
 import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
-import { CLAVE_VALIDA } from "./almacen-objetos.js"
+import { CLAVE_VALIDA, type AlmacenObjetos } from "./almacen-objetos.js"
 
 /**
  * Almacén de producción sobre cualquier servicio compatible con S3 (ADR 0005).
@@ -20,7 +20,7 @@ import { CLAVE_VALIDA } from "./almacen-objetos.js"
  * distinto. Al confirmar, la API vuelve a leer el objeto y comprueba formato y
  * metadatos igual que con el almacén local.
  */
-export class AlmacenS3 {
+export class AlmacenS3 implements AlmacenObjetos {
   constructor(
     private readonly cliente: S3Client,
     private readonly bucket: string,
