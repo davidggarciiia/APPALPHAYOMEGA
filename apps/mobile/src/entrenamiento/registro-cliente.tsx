@@ -26,6 +26,7 @@ import {
 } from "./sesion/modelo"
 import { RegistrarMolestiaPantalla, type LugarDeMolestia } from "./sesion/molestia"
 import { CabeceraSesion, Descanso, ListaMarcable } from "./sesion/partes"
+import { RespuestasDelEntrenador } from "./sesion/respuestas"
 import { FiguraDeEjercicio, useAccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
 import { useCatalogo } from "../catalogo-ejercicios/use-catalogo"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
@@ -213,6 +214,7 @@ export function RegistroCliente({
           prescripcion={documento.resultado.prescripcion}
           resultado={documento.resultado}
         />
+        <RespuestasDelEntrenador cuenta={cuenta} sesionId={id} api={api} />
         {documento.respaldo && (
           <View>
             <AvisoDeError mensaje="La sesión se envió desde otro dispositivo. Conservamos aquí tu copia no enviada; el resultado del entrenador ya está cerrado." />
