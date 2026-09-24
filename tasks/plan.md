@@ -1,4 +1,6 @@
-# Alpha & Omega — experiencia del cliente
+# Alpha & Omega — experiencia del cliente y valoración integral
+
+> **Ampliación del 24-09-2026:** plan completo solicitado por David con Agent Skills, preparado para que lo implemente Claude. Incluye valoración integral y mejoras detectadas en los PDF, aprobadas con «todo menos k1». Esta ampliación todavía no está implementada. Se amplía el mismo trabajo: los pendientes anteriores y sus evidencias permanecen en [todo.md](todo.md). Entrada para Claude: [para-claude.md](para-claude.md). Fuentes y decisión: [revision-pdfs.md](revision-pdfs.md).
 
 > Iteración aprobada por David el 24-09-2026. Base: `d7d8ef0`, integrada mediante avance directo en `codex/cliente-intuitivo`. [Tareas y verificaciones](todo.md) · [Planes anteriores](planes%20antiguos/2026-09-24/INDEX.md).
 
@@ -50,3 +52,203 @@ Desde la raíz: `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e
 ## Revisión incremental posterior
 
 David solicita continuar revisando y corrigiendo poco a poco. La primera pasada se limita a cuatro fallos reproducibles: recuperación de series cuando cambia el tipo de carga, registros de Inicio que ignoran la configuración profesional, escrituras simultáneas de suplementos y edición del seguimiento durante un guardado. Cada corrección se reproduce con una prueba, conserva los datos existentes y se entrega en cambios pequeños. Se mantienen el diseño y las decisiones aprobadas. Los recorridos que todavía no se hayan comprobado en navegador autenticado o móvil físico permanecen pendientes en la lista de tareas.
+
+## Ampliación propuesta: valoración inicial y revisiones del entrenamiento personal
+
+### Objetivo
+
+El entrenador realiza una valoración inicial completa y la repite durante el proceso. Registra medidas corporales, pliegues con plicómetro, bioimpedancia, pruebas físicas y fotografías. El cliente consulta una evolución comprensible y las indicaciones publicadas por su entrenador desde Progreso; mantiene los registros cotidianos y el feedback ya aprobados.
+
+Aquí «registro» significa la ficha de valoración y sus resultados, no el alta de una cuenta. La valoración se puede crear después de dar de alta al cliente, completar por partes y repetir sin sobrescribir la anterior.
+
+### Qué existe y qué falta
+
+| Capacidad                     | Evidencia actual                                                                                           | Trabajo necesario                                                                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Configuración del seguimiento | Indicadores, orden, frecuencia diaria/semanal y pruebas prescritas en `packages/shared/src/seguimiento.ts` | Conectar la valoración profesional y su próxima revisión sin convertirla en una obligación diaria del cliente.                                      |
+| Medidas corporales            | `MedidaCorporal`: peso, cintura, grasa y altura                                                            | Agrupar una visita, ampliar perímetros y pliegues, distinguir instrumentos y métodos.                                                               |
+| Pruebas físicas               | `PruebaFisica`: nombre, unidad y un valor; `pruebaId` opcional para histórico                              | Protocolos con identidad estable, variantes y varios resultados cuando corresponda.                                                                 |
+| Progreso                      | Lectura de medidas, pruebas, fuerza estimada y registros diarios                                           | Resumen de valoración, comparación coherente y detalle de cada fecha.                                                                               |
+| Fotos                         | Decisión técnica en ADR 0005; no hay módulo de fotos de evolución implementado                             | Almacenamiento privado, carga, permisos, historial y comparación.                                                                                   |
+| Acceso de prueba              | El navegador devolvió «Correo o contraseña incorrectos» al usar los datos facilitados                      | Diagnosticar entorno/cuenta/sesión antes de afirmar que se ha revisado la UI autenticada. Las credenciales no se guardan en documentos ni fixtures. |
+
+### Enfoque elegido para este plan
+
+Se propone **una valoración agrupada por visita, con una plantilla del entrenador y una copia de esa plantilla en cada valoración**. Permite repetir el mismo protocolo y deja una cronología clara para el cliente.
+
+Ampliar únicamente los formularios sueltos sería más rápido, pero seguiría sin relacionar las fotos, medidas y pruebas de una visita. Un constructor genérico de formularios y una conexión directa a cada dispositivo añadirían complejidad innecesaria para esta entrega. Se reutilizan los componentes, roles, almacenamiento local y convenciones de la app; se añaden bloques específicos de valoración.
+
+### Alcance confirmado y decisiones propuestas
+
+**Confirmado por David:** el entrenador realiza la valoración, las medidas y las cinco pruebas enumeradas; pruebas, fotos y seguimiento se repetirán para observar la progresión. La experiencia del cliente debe seguir siendo visual, intuitiva y centrada en registrar lo solicitado y devolver feedback.
+
+**Propuestas que el plan hace explícitas:**
+
+- El entrenador configura y escribe las valoraciones profesionales. El cliente las consulta una vez publicadas; no modifica sus resultados ni sus protocolos.
+- El cliente conserva sus registros diarios y puede aportar fotos cuando se las solicite el entrenador. Las fotos aportadas no se presentan como revisadas automáticamente.
+- Las pruebas profesionales nuevas son de registro exclusivo del entrenador. Las pruebas y autorregistros prescritos existentes se conservan con su origen; no se cambian silenciosamente los permisos de toda la API histórica.
+- Perímetros, puntos de pliegues, lateralidad y campos de bioimpedancia se configuran en la plantilla. No se inventa un protocolo antropométrico concreto.
+- Cada revisión puede incluir solo los bloques seleccionados por el entrenador. La frecuencia y la próxima fecha son configurables; no se fija por defecto una revisión mensual ni se repiten automáticamente todas las pruebas.
+- Los resultados de báscula y banda pectoral se introducen manualmente en esta entrega. Se guarda el instrumento y el protocolo para añadir una integración de dispositivos más adelante sin alterar el historial.
+- El punto 6 de la lista del usuario está vacío. La plantilla incluye las cinco pruebas definidas y permite al entrenador añadir otra; no se inventa una sexta.
+
+La revisión de los tres PDF del ZIP de WhatsApp confirma que hay un resultado atribuido a plicometría, pero no una ficha con sus puntos anatómicos ni el desglose de bioimpedancia. No se presentará ninguna lista de pliegues como extraída de esos documentos. Las referencias originales se conservan localmente en `PDF/referencias-entrenador/`, sin copiarlas a fixtures ni incorporar datos personales al código.
+
+### Recorrido del entrenador
+
+1. En la ficha del cliente, dentro de Progreso, abrir **«Nueva valoración»** o **«Continuar valoración»**.
+2. Elegir inicial o revisión. En una revisión se reutilizan definiciones, unidades y protocolo; todos los resultados nuevos empiezan vacíos. Los anteriores se muestran solo como referencia con su fecha.
+3. Completar cinco bloques con un bloque abierto cada vez: **medidas → pliegues → bioimpedancia → pruebas → fotos**. Se puede volver, guardar y continuar más tarde.
+4. Cada dato distingue pendiente, registrado y no realizado, con motivo opcional. Un cero es un resultado real, nunca un sustituto de «sin dato».
+5. Revisar el resumen, añadir una conclusión para el cliente y publicar. Las notas internas se guardan aparte y no aparecen en la respuesta de la API del cliente.
+6. Seleccionar una próxima fecha o un intervalo de revisión y qué se repetirá. «Sin programar» es válido. Una revisión pendiente no se marca realizada por abrir su pantalla.
+
+El estado de guardado será visible. Un fallo conserva el borrador; una revisión concurrente ofrece recargar o recuperar la edición sin sobrescribir. Se reutiliza la protección de guardado aplicada al editor actual. Publicar requiere confirmación del servidor: no se muestra una valoración como publicada solo por pulsar el botón.
+
+### Datos de la valoración
+
+| Bloque        | Datos propuestos                                                                                                                                                                      | Regla de comparación                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Medidas       | Peso (kg), altura (cm), perímetros configurados (cm), zona y lateralidad cuando corresponda, fecha e instrumento                                                                      | Misma magnitud, zona, unidad y método; diferenciar peso doméstico de la medida profesional.                                                          |
+| Pliegues      | Puntos seleccionados por el entrenador (mm), lateralidad, lecturas repetidas opcionales y valor adoptado; porcentaje calculado por el profesional opcional, con método y fecha        | Conservar lecturas originales y protocolo. No convertir a grasa corporal con una fórmula implícita ni reconstruir lecturas a partir del porcentaje.  |
+| Bioimpedancia | Modelo de báscula, peso y campos habilitados: por ejemplo grasa %, masa muscular kg o agua %. Cada campo tiene unidad explícita; los índices del fabricante se identifican como tales | Distinguir el resultado de bioimpedancia del calculado por pliegues y conservar el equipo utilizado. No mezclar masa muscular y masa libre de grasa. |
+| Pruebas       | Protocolo, variante, fecha, resultados, notas y motivo si no se realiza                                                                                                               | Comparar únicamente protocolos y unidades equivalentes.                                                                                              |
+| Fotos         | Fecha, vista, autor, origen y vínculo a la valoración o solicitud                                                                                                                     | Misma vista entre dos fechas; no exigir todas las vistas ni mostrar como foto nueva una imagen heredada.                                             |
+
+Una plantilla tiene identificadores estables para puntos y pruebas. Cambiar el nombre visible no rompe las series históricas; cambiar unidad, variante o protocolo genera una nueva versión. Los campos se pueden desactivar para futuras valoraciones sin borrar sus resultados antiguos. Una definición arbitraria no puede introducir fórmulas ejecutables, HTML o accesos externos.
+
+### Las cinco pruebas
+
+| Prueba                          | Registro                                                                                   | Condiciones que se guardan                                                                                                                                                          |
+| ------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dominadas o aguante en barra    | Repeticiones de dominadas **o** duración del aguante en segundos, como variantes distintas | Agarre, modalidad de aguante e indicaciones elegidas por el entrenador; no se unen segundos y repeticiones en una gráfica.                                                          |
+| Flexiones máximas en 1 minuto   | Repeticiones válidas, con duración prescrita de 60 s                                       | Variante utilizada y si se completó el protocolo. No confundir con el histórico «flexiones seguidas» sin duración.                                                                  |
+| Sentadillas máximas en 1 minuto | Repeticiones válidas, con duración prescrita de 60 s                                       | Variante y condiciones definidas por el entrenador.                                                                                                                                 |
+| Press banca máximo, 1RM         | Carga lograda en kg; resultado marcado como medido                                         | Separar el 1RM medido de la estimación de fuerza que ya calcula la app. Si se incorpora un valor estimado, debe identificar método y serie de origen, en otra serie de comparación. |
+| Cooper con banda pectoral       | Distancia (m), duración del protocolo y registros de frecuencia cardiaca disponibles (lpm) | Superficie/equipo, protocolo e instrumento; media, máxima, final o recuperación solo si se recogieron. La recuperación incluye cuánto tiempo pasó desde el final.                   |
+
+La app registra lo realizado y el contexto. No añade baremos, diagnósticos, cálculo automático de VO₂máx, porcentaje de grasa por pliegues ni instrucciones para realizar esfuerzos máximos sin supervisión. Esas capacidades necesitarían un protocolo y validación específicos del profesional.
+
+### Experiencia del cliente
+
+- Se mantienen las pestañas, colores y tipografías actuales. Las nuevas funciones se integran en **Progreso**.
+- Primera vista: última valoración publicada, fecha, breve conclusión del entrenador y principales cambios seleccionados por él. Una acción principal: **«Ver mi evolución»**.
+- Comparación sencilla entre inicial y última valoración; se puede elegir otra fecha y abrir los datos completos. Mostrar unidades, origen y fechas de cada punto.
+- Fotos con selector de vista y dos fechas. Si solo existe una foto o no hay una vista coincidente, explicarlo sin rellenar huecos con imágenes de otras fechas.
+- Próxima revisión cuando esté programada y acceso a los registros cotidianos que correspondan. El cliente no recibe controles para configurar pliegues, instrumentos o pruebas profesionales.
+- En Inicio, un aviso de valoración publicada y las solicitudes que requieran una acción del cliente. Lectura persistida y autor identificable; sin crear otra bandeja de navegación.
+- Estado vacío y primer uso comprensibles; mostrar lo disponible de valoraciones parciales sin un porcentaje de progreso engañoso. Un valor desconocido no se convierte en cero.
+
+### Responsabilidades y arquitectura
+
+| Área                                | Responsabilidad                                                           | Dependencia                                                |
+| ----------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `identity` existente                | Acceso y alcance de clientes                                              | Ninguna nueva                                              |
+| `seguimiento-corporal` existente    | Plantillas, valoraciones, resultados, revisiones y consultas de evolución | `identity`                                                 |
+| Servicio interno de medios privados | Subida, verificación, lectura autorizada y eliminación de fotos           | `identity`; guarda dueño y metadatos, no calcula evolución |
+| `seguimiento-corporal` → medios     | Vincular solo medios confirmados y del mismo cliente                      | Medios privados                                            |
+| Pantallas de Inicio y Progreso      | Componer resultados publicados y tareas pautadas                          | Seguimiento, entrenamiento y nutrición existentes          |
+
+No se crea un segundo módulo de usuarios ni una tabla paralela de ejercicios. Los nuevos contratos se aíslan en `packages/shared/src/valoraciones.ts` y, para fotos, `medios.ts`, exportados desde el índice compartido. Los archivos nuevos citados en este plan son propuestas; no existen todavía.
+
+Modelo propuesto:
+
+- **PlantillaValoracion:** documento validado, versión y revisión para controlar la concurrencia. Campos y protocolos con IDs estables.
+- **Valoracion:** cliente, profesional, fecha de toma, inicial/revisión, referencia opcional a la anterior, estado, revisión y documento con copia de la plantilla y resultados. Identificar por separado fecha de toma, creación y publicación.
+- **Publicación:** versión inmutable de la valoración, conclusión visible y autor/fecha. Corregir crea una nueva versión vinculada; se identifica como corrección y no duplica puntos de la gráfica. El cliente nunca recibe el documento interno del borrador.
+- **Medio privado:** dueño, autor, clave de objeto, tipo/tamaño verificados, estado de carga y metadatos mínimos. La base no guarda enlaces firmados caducados ni rutas públicas.
+- **Solicitud de revisión/fotos:** cliente, fecha o intervalo, bloques/vistas solicitados y estado. Al completar, se vincula la valoración o aportación; idempotencia evita solicitudes repetidas por reintentos.
+- **Lectura de novedades de seguimiento:** identificador estable de publicación/solicitud y actor que la leyó. Abrir una valoración no publica, corrige ni marca revisadas las fotos. Integrar estos avisos en Inicio sin almacenarlos en tablas que exijan un `sesionId` de entrenamiento ficticio.
+
+Las migraciones serán aditivas. `MedidaCorporal`, `PruebaFisica` y los registros diarios actuales permanecen legibles. La consulta de evolución adapta el histórico y los nuevos documentos sin duplicarlos; los datos antiguos sin método o protocolo se etiquetan como históricos no clasificados. No se deduce una valoración completa agrupando automáticamente filas que coincidan en fecha.
+
+### Contratos de API propuestos
+
+Mantener las rutas actuales de seguimiento. Añadir rutas bajo `/seguimiento/clientes/:clienteId`:
+
+| Ruta                                  | Comportamiento y acceso                                                                                                                         |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET/PUT plantilla-valoracion`        | Lectura propia/asignada; modificación profesional con `revision`. El cliente recibe únicamente la definición que necesite para tareas pautadas. |
+| `POST valoraciones`                   | Crear borrador profesional con `operacionId`.                                                                                                   |
+| `GET valoraciones`                    | Historial paginado: cliente solo publicaciones; profesional también sus borradores según alcance.                                               |
+| `GET/PUT valoraciones/:id`            | Lectura filtrada por rol; edición de borrador exclusiva del entrenador con `revision`.                                                          |
+| `POST valoraciones/:id/publicaciones` | Publicar una revisión concreta; mismo `operacionId` devuelve el mismo resultado. Una corrección debe indicar qué publicación sustituye.         |
+| `GET evolucion`                       | Datos publicados y legado, con procedencia, unidades, comparabilidad y paginación/período.                                                      |
+| `GET/PUT proxima-revision`            | Consultar la pauta y actualizarla como entrenador, con `revision`; permite dejar sin fecha.                                                     |
+| `GET/POST solicitudes-fotos`          | Consultar solicitudes; el entrenador las crea. El cliente aporta únicamente a las suyas.                                                        |
+| `GET/POST valoraciones/:id/fotos`     | Listar/vincular fotos autorizadas y confirmadas; no acepta una clave ajena ni un objeto pendiente.                                              |
+
+Medios: `POST /medios/subidas`, `POST /medios/:id/confirmacion`, `GET /medios/:id/acceso` y `DELETE /medios/:id`. Validar rol, propietario y estado en todas las operaciones, incluidas miniaturas y confirmación. La creación de una intención de subida no concede permiso de lectura permanente. Las solicitudes del cliente pueden vincular fotos antes de que exista una valoración; el entrenador las incorpora posteriormente sin duplicar el objeto.
+
+Un UUID de operación se reutiliza al reintentar la misma acción y contenido; reutilizarlo con contenido distinto devuelve conflicto. Los PUT llevan revisión. Publicación y vínculo de resultados son transaccionales. Una respuesta perdida no crea dos valoraciones, publicaciones ni fotos. No se confunde «Guardado» con «Publicado» ni «Foto recibida» con «Revisada».
+
+Para corregir, `POST valoraciones` acepta `corrigePublicacionId`: el servidor crea un borrador de corrección desde esa publicación, con identidad y revisión propias. Publicar sustituye la versión vigente de esa misma valoración, preserva la anterior como auditoría y genera una única novedad de corrección. Para **repetir** la valoración se crea una visita nueva que copia solo definiciones, nunca resultados. Ambas acciones tienen rótulos y contratos distintos.
+
+Permisos de esta entrega: entrenador con alcance, lectura/escritura de valoración y notas internas; cliente, lectura de publicaciones propias y escritura únicamente de las aportaciones solicitadas; nutricionista asignado, lectura de resultados corporales publicados y de la configuración pertinente. Por defecto, el nutricionista no recibe fotos, notas internas ni borradores. Ampliar ese acceso requiere una decisión expresa; no se hereda por compartir el controlador actual.
+
+### Fotografías privadas
+
+Seguir el patrón técnico del [ADR 0005](../docs/adr/0005-almacenamiento-de-fotos.md): almacenamiento compatible con S3 y acceso temporal tras comprobar permisos. La elección de proveedor sigue pendiente; el desarrollo usa un servicio local de pruebas compatible, sin contratar servicios ni subir imágenes reales a terceros durante las pruebas.
+
+- Primera entrega: selección de imágenes, orientación y reducción de tamaño conservando calidad útil; retirar metadatos de localización. Los formatos admitidos y límites se declaran en el contrato y se validan en servidor, no solo por extensión.
+- Flujo visible: seleccionada → subiendo → confirmando → disponible, o error recuperable. Reintentar la misma subida no duplica la foto; cancelar libera la intención.
+- Confirmar exige que el objeto esperado exista y cumpla formato/tamaño antes de asociarlo. La URL de subida caduca y restringe el objeto autorizado.
+- Borradores fotográficos profesionales son privados hasta publicarse. Las aportaciones del cliente son visibles para él y el entrenador responsable; el nutricionista no recibe fotos en esta entrega. No ampliar permisos por reutilizar un DTO.
+- No cachear fotos corporales para uso sin conexión en esta primera entrega ni incluirlas en logs, analítica o fixtures reales. Tras salir de la cuenta, retirar referencias de la UI y cachés de imágenes controladas por la app.
+- Eliminar una foto requiere una acción explícita y retira original y miniaturas; registrar estado pendiente si falla el almacenamiento. La limpieza de subidas incompletas no elimina objetos ya vinculados ni se interpreta como eliminación de una valoración entera.
+
+### Orden de ejecución
+
+1. **C00–C03:** resolver el acceso y completar la revisión incremental pendiente: pantallas reales, RIR por serie y acceso a cintura pautada.
+2. **V01–V04:** contratos, persistencia, API y primera valoración básica guardable de extremo a extremo.
+3. **M01–M03:** plantilla corporal, pliegues y bioimpedancia integrados.
+4. **P01–P02:** protocolos y registro de las cinco pruebas.
+5. **V05–V07:** publicación/corrección, presentación al cliente y revisiones repetibles.
+6. **F01–F05:** fotografías privadas, solicitudes y comparación.
+7. **E01–E02:** comparaciones completas y avisos de valoraciones y solicitudes.
+8. **D01, D02, D04, D05, D06 y D07:** ampliaciones de registro, recuperación, prioridades y fases aprobadas tras revisar los PDF. D03 (nuevo registro de K-1) queda fuera.
+9. **E03:** revisión final de los recorridos del cliente, incluidas las ampliaciones D aprobadas.
+10. **Q01–Q03:** compatibilidad, controles completos, móvil físico y usabilidad observada.
+
+Las tareas, archivos previstos, criterios y comandos se detallan en [todo.md](todo.md). Se verifica cada tramo antes de ampliar. Las tareas que excedan cinco archivos se subdividen antes de escribir código; no se acumula una implementación incompleta detrás de una pantalla que parezca terminada.
+
+### Mejoras de los PDF aprobadas: todo salvo K-1
+
+David respondió «todo menos k1» a la consulta sobre estas propuestas. D01, D02, D04, D05, D06 y D07 entran en el encargo; D03 queda excluido. Esto no autoriza cambios de tema, menú de perfil ni otros extras de una maqueta antigua. Tampoco elimina los datos de deportes que ya estén en planes existentes.
+
+**D01 · Ejercicios por distancia.** Extender las series con una variante de distancia en metros. Mostrar «m» y la carga solo si corresponde, sin representar metros como repeticiones o segundos. El farmer carry podrá registrarse como carga y distancia. Actualizar editor, duplicación, publicación, registro local, envío, resumen y lectura del entrenador. Los contratos antiguos siguen funcionando; una copia cuyo tipo de medición cambie conserva el respaldo y no convierte unidades por su cuenta.
+
+**D02 · Cardio.** El entrenador selecciona qué pautar y qué registrar: duración, velocidad en km/h, inclinación en porcentaje y esfuerzo percibido del tramo. Las referencias pueden ser rangos; los resultados son valores de la ejecución. Mostrar un bloque compacto solo cuando haya cardio, con el mínimo de campos necesario. Distinguir duración del tramo y tiempo total de sesión, y esfuerzo del cardio y RPE global del cierre. Si el cliente omite el cardio, queda registrado como omitido, no como cero minutos realizados.
+
+**D04 · Chequeo previo.** Configuración profesional por cliente: sensación actual, energía previa, motivación, calidad del sueño y agujetas por zona según lo que se necesite. Mantener el chequeo actual como valor inicial; ampliar solo los campos habilitados. Reutilizar la duración del sueño ya registrada hoy, sin pedirla dos veces ni sobrescribirla al responder sobre su calidad. La vista inicial tendrá pocas preguntas; detalle por zonas solo si la respuesta lo necesita. Responder seguirá siendo opcional. La configuración no añade una pregunta de K-1.
+
+**D05 · Recuperación profesional.** Resumen semanal que reúna registros disponibles de sueño, chequeos, esfuerzo, molestias y rendimiento comparable. Mostrar fechas y ausencia de datos; no interpretar silencio como buena recuperación. Presentar cambios entre sesiones comparables y respuestas fechadas de energía, sueño y agujetas, con cobertura visible. Esta entrega ofrece un resumen descriptivo; no incorpora otro editor de umbrales ni una clasificación automática de recuperación. No diagnosticar ni recortar automáticamente volumen, cardio o cargas. El entrenador confirma y publica cualquier ajuste. Los porcentajes y umbrales personales de los PDF no se convierten en reglas globales.
+
+**D06 · Prioridades cuando falta tiempo.** El entrenador puede indicar prioridad de ejercicios/bloques y una instrucción breve. El cliente encuentra esa indicación en el recorrido activo y, al omitir, puede señalar «Falta de tiempo». Reutilizar la omisión y el feedback existentes; no crear un selector libre de nueva rutina ni reordenar automáticamente la prescripción. El entrenador recibe motivo y trabajo no realizado.
+
+**D07 · Fases y descarga.** Permitir al entrenador definir cambios de series, rango/RIR y descanso por fase y previsualizar las sesiones afectadas sin escribir. La acción explícita **«Aplicar y publicar»** confirma la propuesta sobre las revisiones de prescripción vigentes, de forma transaccional e idempotente. No se reutiliza `SesionEntrenamiento.borrador`: ese documento pertenece a la ejecución privada del cliente, no a la edición profesional. Separar las notas informativas del bloque de los cambios efectivos de prescripción. Actuar solo sobre sesiones elegibles futuras; conservar las empezadas, enviadas y con envío pendiente conocido, y detectar conflictos de revisión. Si existe un borrador offline aún desconocido por el servidor, el cliente conserva las dos versiones y usa la recuperación ya implementada. La app no modifica resultados pasados ni sube/baja cargas por decisión propia. Se reutiliza la propuesta actual de doble progresión.
+
+Estas extensiones deben seguir la misma disciplina de envío, guardado, privacidad e idempotencia del entrenamiento actual. Los nuevos registros se integran en el resultado que recibe el entrenador; no basta con dibujar campos que no se envíen ni con guardar valores que luego ninguna pantalla consulte.
+
+### Riesgos y decisiones abiertas resueltas para planificar
+
+| Riesgo o desconocido                          | Tratamiento en esta entrega                                                                        |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Puntos de pliegues y perímetros sin definir   | Plantilla configurable; ningún listado concreto se presenta como aprobado por el entrenador.       |
+| Modelo de báscula y banda sin especificar     | Registro manual e instrumento identificado; no prometer sincronización automática.                 |
+| Variantes o duración distinta de una prueba   | Versionar el protocolo y separar las series no comparables.                                        |
+| Peso y grasa de varias fuentes                | Origen explícito y selección de serie; no sobrescribir ni promediar entre métodos.                 |
+| Demasiados controles para el cliente          | Progreso de consulta; solo los registros y aportaciones expresamente solicitados se editan.        |
+| Pérdida de datos al repetir o corregir        | Copiar definiciones, nunca resultados; publicaciones versionadas y correcciones identificadas.     |
+| Fotos privadas expuestas o cargas abandonadas | Alcance en API, enlaces temporales, validación de objetos y limpieza controlada.                   |
+| Elección de almacenamiento de producción      | Adaptador local para probar; proveedor, región y coste se deciden antes de desplegar fotos reales. |
+
+### Fuera de esta ampliación
+
+Integración Bluetooth de dispositivos, importación automática de informes de básculas, análisis corporal por IA, baremos clínicos, fórmulas fisiológicas sin protocolo validado, exportación PDF, pagos, leads, fichajes y cambios generales de diseño. La foto de perfil puede reutilizar el servicio de medios posteriormente, pero no se mezcla con la entrega de evolución corporal.
+
+### Entrega verificable
+
+Un entrenador puede completar una valoración inicial, guardar y continuar, publicar, programar y realizar una revisión con medidas/pruebas/fotos distintas. El cliente ve exactamente lo publicado y compara resultados equivalentes, con acceso al historial previo. No puede editar el protocolo ni los resultados profesionales ni consultar otro cliente. Los reintentos, el uso simultáneo de dos dispositivos y los cambios de versión no pierden ni duplican datos.
+
+Las pruebas de código, visuales y físicas se registran por separado. Se siguen pendientes hasta existir evidencia real, incluidas las comprobaciones T05/T06/T17 de la entrega anterior. Preparar este plan no ejecuta migraciones, modifica cuentas, publica valoraciones ni introduce datos de salud de prueba en la cuenta principal.
