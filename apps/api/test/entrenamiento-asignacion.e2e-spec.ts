@@ -124,13 +124,15 @@ describe("Asignación y acceso a entrenamientos", () => {
   it("rechaza ejercicios retirados y cuerpos inválidos sin crear planes", async () => {
     const { app, como, ids, plan, prisma } = entorno
     await prisma.ejercicio.update({ where: { id: ids.ejercicio }, data: { estado: "retirado" } })
-    const antes = await prisma.planEntrenamiento.count()
+    // Solo los planes de este cliente: otras suites crean planes en paralelo.
+    const suyos = { where: { clienteId: ids.cliente } }
+    const antes = await prisma.planEntrenamiento.count(suyos)
     await request(app.getHttpServer())
       .post(`/entrenamiento/clientes/${ids.cliente}/planes`)
       .set(como("entrenador"))
       .send(plan())
       .expect(400)
-    expect(await prisma.planEntrenamiento.count()).toBe(antes)
+    expect(await prisma.planEntrenamiento.count(suyos)).toBe(antes)
     await prisma.ejercicio.update({ where: { id: ids.ejercicio }, data: { estado: "publicado" } })
     await request(app.getHttpServer())
       .post(`/entrenamiento/clientes/${ids.cliente}/planes`)
