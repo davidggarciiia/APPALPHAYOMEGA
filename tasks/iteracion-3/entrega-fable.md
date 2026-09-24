@@ -480,7 +480,7 @@ datos reales en los tramos D1–D8 de `tasks/diseno/plan.md`, que recoge commits
 migraciones y lo que no se ha hecho y por qué (mensajería, «Proponer variante»,
 calorías medias, PDF solo en web, animación de press banca, «Salud»).
 
-**Verificación de D1–D8:** typecheck, lint y pruebas en cada commit (móvil 49
+**Verificación de D1–D8:** typecheck, lint y pruebas en cada commit (móvil 39
 suites / 206 pruebas; API unitarias y e2e 30 suites / 314). En la batería e2e
 completa en paralelo falla a veces `carrera-refresco` (Codex, ya conocida);
 `entrenamiento-asignacion` contaba planes de toda la base y se acotó en
