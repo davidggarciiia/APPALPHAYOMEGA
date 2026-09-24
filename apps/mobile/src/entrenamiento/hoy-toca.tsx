@@ -156,7 +156,8 @@ const s = StyleSheet.create({
     lineHeight: 52,
     textTransform: "uppercase",
   },
-  nombre: { color: tema.texto, fontFamily: tema.fuenteTexto },
+  // David (24-09): el nombre de la sesión, en dorado como «Hoy toca».
+  nombre: { color: tema.acento, fontFamily: tema.fuenteTexto },
   detalle: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 16 },
   accion: {
     ...degradadoOro,
