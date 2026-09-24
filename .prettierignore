@@ -14,3 +14,7 @@ apps/mobile/expo-env.d.ts
 # escribimos a mano con un formato que Prettier no debe tocar.
 **/prisma/migrations/
 **/.prisma/
+
+# Pantallas exportadas tal cual de Claude Design. Si Prettier las reformatea,
+# los números de línea que cita la auditoría dejan de coincidir.
+docs/diseno/pantallas/
