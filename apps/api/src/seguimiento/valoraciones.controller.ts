@@ -17,13 +17,16 @@ import {
   GuardarPlantillaValoracionSchema,
   GuardarProximaRevisionSchema,
   PublicarValoracionSchema,
+  VincularFotoSchema,
   type CambiarValoracion,
   type ConsultarValoraciones,
   type CrearValoracion,
   type GuardarPlantillaValoracion,
   type GuardarProximaRevision,
+  type ListadoFotos,
   type ListadoValoraciones,
   type ListadoValoracionesPublicadas,
+  type MedioFoto,
   type PlantillaValoracion,
   type ProximaRevision,
   type PublicacionValoracion,
@@ -31,6 +34,7 @@ import {
   type ValoracionCliente,
   type ValoracionCorporal,
   type ValoracionProfesional,
+  type VincularFoto,
 } from "@alpha-omega/shared"
 import { z } from "zod"
 
@@ -134,6 +138,27 @@ export class ValoracionesController {
     @Body(new EntradaApiPipe(PublicarValoracionSchema)) datos: PublicarValoracion,
   ): Promise<PublicacionValoracion> {
     return this.valoraciones.publicar(this.actor(peticion), clienteId, id, datos)
+  }
+
+  @Roles("entrenador")
+  @Post("valoraciones/:id/fotos")
+  vincularFoto(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Param("id", new EntradaApiPipe(IdSchema)) id: string,
+    @Body(new EntradaApiPipe(VincularFotoSchema)) datos: VincularFoto,
+  ): Promise<MedioFoto> {
+    return this.valoraciones.vincularFoto(clienteId, id, datos.medioId)
+  }
+
+  /** El nutricionista no recibe fotos en esta entrega. */
+  @Roles("cliente", "entrenador")
+  @Get("valoraciones/:id/fotos")
+  fotos(
+    @Req() peticion: PeticionAutenticada,
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Param("id", new EntradaApiPipe(IdSchema)) id: string,
+  ): Promise<ListadoFotos> {
+    return this.valoraciones.fotos(this.actor(peticion), clienteId, id)
   }
 
   @Roles("entrenador")

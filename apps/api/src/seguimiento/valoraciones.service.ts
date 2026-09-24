@@ -16,8 +16,10 @@ import {
   type DocumentoValoracion,
   type EstadoValoracion,
   type GuardarProximaRevision,
+  type ListadoFotos,
   type ListadoValoraciones,
   type ListadoValoracionesPublicadas,
+  type MedioFoto,
   type PlantillaValoracion,
   type ProximaRevision,
   type PublicacionValoracion,
@@ -37,6 +39,7 @@ import {
 import { fechaSql } from "../agenda/fechas.js"
 import { conflicto, hashPeticion, invalida } from "../entrenamiento/documentos.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
+import { medioPublico } from "../medios/medios.service.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { PlantillasValoracionService } from "./plantillas-valoracion.service.js"
 
@@ -480,6 +483,10 @@ export class ValoracionesService {
             documento: publico,
           },
         })
+        await tx.medioFoto.updateMany({
+          where: { valoracionId: id, estado: "disponible", publicadaEn: null },
+          data: { publicadaEn: nueva.publicadaEn },
+        })
         await tx.operacionValoracion.create({
           data: {
             autorId: actor.sub,
@@ -556,6 +563,61 @@ export class ValoracionesService {
       if (esCodigo(error, "P2002") || esCodigo(error, "P2025")) throw obsoleta()
       throw error
     }
+  }
+
+  /**
+   * Incorpora a la visita una foto ya confirmada del mismo cliente: una del
+   * entrenador subida para ella o una aportación del cliente, sin volver a
+   * subirla ni cambiar su autor. Queda privada hasta la próxima publicación.
+   */
+  async vincularFoto(clienteId: string, id: string, medioId: string): Promise<MedioFoto> {
+    await this.clienteActivo(clienteId)
+    const fila = await this.fila(clienteId, id)
+    if (!fila.borradores[0])
+      throw conflicto("estado_incompatible", "Abre una corrección para añadir fotos a esta visita")
+    const medio = await this.prisma.medioFoto.findFirst({
+      where: { id: medioId, clienteId },
+      include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
+    })
+    if (!medio) throw new NotFoundException("Foto no disponible")
+    if (medio.estado !== "disponible")
+      throw conflicto("estado_incompatible", "Solo se incorporan fotos confirmadas")
+    if (medio.valoracionId === id) return medioPublico(medio)
+    if (medio.valoracionId !== null)
+      throw conflicto("estado_incompatible", "Esa foto ya pertenece a otra visita")
+    const vinculada = await this.prisma.medioFoto.updateMany({
+      where: { id: medioId, valoracionId: null, estado: "disponible" },
+      data: { valoracionId: id },
+    })
+    if (vinculada.count !== 1) {
+      const actual = await this.prisma.medioFoto.findUniqueOrThrow({ where: { id: medioId } })
+      if (actual.valoracionId !== id)
+        throw conflicto("estado_incompatible", "Esa foto ya pertenece a otra visita")
+    }
+    return medioPublico({ ...medio, valoracionId: id })
+  }
+
+  /**
+   * Fotos de la visita. El cliente solo ve las ya publicadas; una foto retirada
+   * aparece como tal, sin volver a servirse.
+   */
+  async fotos(actor: IdentidadVerificada, clienteId: string, id: string): Promise<ListadoFotos> {
+    const soloPublicadas = actor.rol !== "entrenador"
+    const visita = await this.prisma.valoracion.findFirst({
+      where: { id, clienteId, ...(soloPublicadas && { publicaciones: { some: {} } }) },
+      select: { id: true },
+    })
+    if (!visita) throw new NotFoundException("Valoración no disponible")
+    const filas = await this.prisma.medioFoto.findMany({
+      where: {
+        valoracionId: id,
+        estado: { not: "pendiente" },
+        ...(soloPublicadas && { publicadaEn: { not: null } }),
+      },
+      include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
+      orderBy: [{ vista: "asc" }, { fechaToma: "asc" }, { creadoEn: "asc" }],
+    })
+    return { fotos: filas.map(medioPublico) }
   }
 
   async cambiar(
