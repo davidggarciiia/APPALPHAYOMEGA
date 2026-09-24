@@ -1,6 +1,7 @@
-import barlow from "../assets/fonts/Barlow-Regular.ttf"
-import barlowBold from "../assets/fonts/Barlow-Bold.ttf"
-import barlowCondensed from "../assets/fonts/BarlowCondensed-Bold.ttf"
+import anton from "../assets/fonts/Anton-Regular.ttf"
+import archivo from "../assets/fonts/Archivo-Regular.ttf"
+import archivoSemi from "../assets/fonts/Archivo-SemiBold.ttf"
+import archivoBold from "../assets/fonts/Archivo-Bold.ttf"
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useFonts } from "expo-font"
@@ -8,7 +9,7 @@ import { useEffect } from "react"
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
 
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
-import { tema } from "../src/tema"
+import { degradadoOro, fondoDeMarca, tema } from "../src/tema"
 import { Armazon } from "../src/componentes/armazon"
 
 /** Rutas a las que se llega sin sesion. Activar y recuperar estan aqui porque,
@@ -89,21 +90,22 @@ function Enrutador(): React.JSX.Element {
   )
 }
 
+/** Todo el diseño es oscuro: la barra de estado va siempre en claro. */
 function BarraDeEstado(): React.JSX.Element {
-  const { estado, sinConexion } = useSesion()
-  return <StatusBar style={estado.fase === "fuera" && !sinConexion ? "light" : "dark"} />
+  return <StatusBar style="light" />
 }
 
 export default function DisposicionRaiz(): React.JSX.Element {
   const [fuentes, errorFuentes] = useFonts({
-    Barlow: barlow,
-    BarlowBold: barlowBold,
-    BarlowCondensed: barlowCondensed,
+    Anton: anton,
+    Archivo: archivo,
+    ArchivoSemiBold: archivoSemi,
+    ArchivoBold: archivoBold,
   })
   if (!fuentes && !errorFuentes)
     return (
       <View style={estilos.centrado}>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
         <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando aplicación" />
       </View>
     )
@@ -120,9 +122,10 @@ const estilos = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: tema.fondo,
     padding: 24,
+    ...fondoDeMarca,
   },
+  // Sin fuentes propias todavía: la carga de fuentes puede no haber terminado.
   marca: {
     color: tema.acento,
     fontSize: 20,
@@ -133,13 +136,13 @@ const estilos = StyleSheet.create({
   aviso: { color: tema.texto, fontSize: 16, textAlign: "center" },
   detalle: { color: tema.textoTenue, fontSize: 13, textAlign: "center", marginTop: 8 },
   boton: {
-    borderColor: tema.acento,
-    borderWidth: 1,
-    borderRadius: 8,
+    ...degradadoOro,
+    borderRadius: 14,
     marginTop: 28,
+    minHeight: 52,
     paddingHorizontal: 32,
-    paddingVertical: 14,
+    justifyContent: "center",
   },
-  botonPulsado: { opacity: 0.6 },
-  textoBoton: { color: tema.acento, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
+  botonPulsado: { opacity: 0.85 },
+  textoBoton: { color: tema.sobreAcento, fontSize: 16, fontWeight: "700" },
 })

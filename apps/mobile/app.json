@@ -5,7 +5,7 @@
     "version": "0.0.0",
     "scheme": "alphaomega",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "plugins": ["expo-router", "expo-secure-store", "expo-video"],
     "ios": {
