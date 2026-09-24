@@ -79,7 +79,8 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
               { ruta: "/perfil", nombre: "Perfil", icono: "perfil" },
             ] satisfies Destino[])
   const enPrincipal = PRINCIPALES.includes(ruta)
-  const sesionCompleta = esCliente && /^\/entrenamiento\/[^/]+$/.test(ruta)
+  // A pantalla completa, con su propio botón de volver: la sesión y cada comida.
+  const sesionCompleta = esCliente && /^\/(entrenamiento\/[^/]+|nutricion\/comida)$/.test(ruta)
   const titulo =
     principal === "" && esCliente
       ? `Hola, ${usuario.nombre.split(" ")[0] ?? ""}`

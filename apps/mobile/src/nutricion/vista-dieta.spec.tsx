@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react-native"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import type { DietaPublicada, DocumentoDieta } from "@alpha-omega/shared"
 import type { AlmacenLocal } from "../entrenamiento/almacen-local"
 import { ErrorDeRed } from "../lib/http"
@@ -113,6 +113,9 @@ function api(vigente: ApiNutricion["vigente"]): ApiNutricion {
     descartar: falta,
     historico: falta,
     delHistorico: falta,
+    comidas: async () => ({ comidas: [] }),
+    registrarComida: falta,
+    quitarComida: falta,
   }
 }
 
@@ -128,8 +131,8 @@ it("«Hoy» sigue el día de Madrid al pasar de domingo a lunes", async () => {
   const domingo = await render(
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
-  expect(await screen.findByRole("header", { name: "Hoy · Descanso" })).toBeOnTheScreen()
-  expect(screen.getByText("2100")).toBeOnTheScreen()
+  // Un día sin comidas enseña el objetivo, como «Nutrición sin nutricionista».
+  expect(await screen.findByText("2.100")).toBeOnTheScreen()
   expect(screen.getByText("kcal al día")).toBeOnTheScreen()
   expect(screen.queryByText(/Proteína/)).toBeNull()
   await domingo.unmount()
@@ -138,7 +141,8 @@ it("«Hoy» sigue el día de Madrid al pasar de domingo a lunes", async () => {
   await render(
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
-  expect(await screen.findByRole("header", { name: "Hoy · Entreno" })).toBeOnTheScreen()
+  expect(await screen.findByRole("header", { name: "Hoy" })).toBeOnTheScreen()
+  expect(screen.getByText("0 de 2")).toBeOnTheScreen()
 })
 
 it("muestra alternativas, intercambio e indicaciones tal como se escribieron", async () => {
@@ -152,6 +156,7 @@ it("muestra alternativas, intercambio e indicaciones tal como se escribieron", a
       almacen={almacenEnMemoria()}
     />,
   )
+  await fireEvent.press(await screen.findByRole("button", { name: "Ver la dieta de la semana" }))
   expect(await screen.findByText("2300")).toBeOnTheScreen()
   expect(screen.getByText("160 g")).toBeOnTheScreen()
   expect(screen.getByText("Opciones dulces")).toBeOnTheScreen()
@@ -180,7 +185,7 @@ it("sin conexión enseña la última copia y, si no hay, pide conexión", async 
   const primera = await render(
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
-  expect(await screen.findByText("Plan de octubre")).toBeOnTheScreen()
+  expect(await screen.findByText("Dieta de tu entrenador")).toBeOnTheScreen()
   await primera.unmount()
   expect(almacen.datos.has("dieta-vigente")).toBe(true)
 
@@ -189,7 +194,8 @@ it("sin conexión enseña la última copia y, si no hay, pide conexión", async 
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
   expect(await screen.findByText(/Sin conexión · copia del/)).toBeOnTheScreen()
-  expect(screen.getByText("Plan de octubre")).toBeOnTheScreen()
+  // Sin conexión se ve la dieta, pero no se marca nada.
+  expect(screen.getByRole("checkbox", { name: "Desayuno hecha" })).toBeDisabled()
   await sinRed.unmount()
 
   await render(
@@ -201,4 +207,37 @@ it("sin conexión enseña la última copia y, si no hay, pide conexión", async 
     />,
   )
   expect(await screen.findByText(/Necesitas conexión para descargar tu dieta/)).toBeOnTheScreen()
+})
+
+it("marca una comida como hecha y la cuenta en el progreso", async () => {
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date("2026-09-21T08:30:00Z")) // lunes 10:30 en Madrid
+  const registrarComida = jest.fn(async (_c: string, fecha: string, comidaId: string) => ({
+    fecha,
+    comidaId,
+    dietaId: publicada().id,
+    eleccion: { tipo: "hecha" as const },
+    registradaEn: "2026-09-21T08:30:00.000Z",
+  }))
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={{
+        ...api(jest.fn().mockResolvedValue({ dieta: publicada(), deNutricionista: true })),
+        registrarComida,
+      }}
+      almacen={almacenEnMemoria()}
+    />,
+  )
+  expect(await screen.findByText("Dieta de tu nutricionista")).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: /^Desayuno, ahora: / })).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Desayuno hecha" }))
+  await waitFor(() => expect(screen.getByText("1 de 2")).toBeOnTheScreen())
+  expect(registrarComida).toHaveBeenCalledWith(
+    CUENTA,
+    "2026-09-21",
+    "00000000-0000-4000-8000-000000000010",
+    { dietaId: publicada().id, eleccion: { tipo: "hecha" } },
+  )
 })

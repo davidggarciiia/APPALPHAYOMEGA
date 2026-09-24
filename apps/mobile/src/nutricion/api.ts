@@ -1,5 +1,11 @@
 import { useMemo } from "react"
 import {
+  ComidaRegistradaSchema,
+  ListadoComidasRegistradasSchema,
+  RegistrarComidaSchema,
+  type ComidaRegistrada,
+  type ListadoComidasRegistradas,
+  type RegistrarComida,
   BorradorDietaSchema,
   DietaDelHistoricoSchema,
   DietaPublicadaSchema,
@@ -33,6 +39,14 @@ export type ApiNutricion = {
   descartar: (clienteId: string, revision: number) => Promise<void>
   historico: (clienteId: string, desplazamiento: number) => Promise<ListadoDietas>
   delHistorico: (clienteId: string, dietaId: string) => Promise<DietaDelHistorico>
+  comidas: (clienteId: string, desde: string, hasta: string) => Promise<ListadoComidasRegistradas>
+  registrarComida: (
+    clienteId: string,
+    fecha: string,
+    comidaId: string,
+    datos: RegistrarComida,
+  ) => Promise<ComidaRegistrada>
+  quitarComida: (clienteId: string, fecha: string, comidaId: string) => Promise<void>
 }
 
 const ruta = (clienteId: string): string => `/nutricion/clientes/${encodeURIComponent(clienteId)}`
@@ -66,6 +80,24 @@ export function crearApiNutricion(pedir: PeticionAutenticada): ApiNutricion {
       ),
     delHistorico: (clienteId, dietaId) =>
       pedir(`${ruta(clienteId)}/dietas/${encodeURIComponent(dietaId)}`, DietaDelHistoricoSchema),
+    comidas: (clienteId, desde, hasta) =>
+      pedir(
+        `${ruta(clienteId)}/comidas?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`,
+        ListadoComidasRegistradasSchema,
+      ),
+    registrarComida: (clienteId, fecha, comidaId, datos) =>
+      pedir(
+        `${ruta(clienteId)}/comidas/${encodeURIComponent(fecha)}/${encodeURIComponent(comidaId)}`,
+        ComidaRegistradaSchema,
+        { method: "PUT", body: JSON.stringify(RegistrarComidaSchema.parse(datos)) },
+      ),
+    quitarComida: async (clienteId, fecha, comidaId) => {
+      await pedir(
+        `${ruta(clienteId)}/comidas/${encodeURIComponent(fecha)}/${encodeURIComponent(comidaId)}`,
+        z.null(),
+        { method: "DELETE" },
+      )
+    },
   }
 }
 

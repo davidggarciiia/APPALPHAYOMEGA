@@ -1,7 +1,19 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native"
-import type { DietaPublicada, DocumentoDieta } from "@alpha-omega/shared"
+import type {
+  Comida,
+  ComidaRegistrada,
+  DiaDeSeguimiento,
+  DietaPublicada,
+  DocumentoDieta,
+  Suplemento,
+} from "@alpha-omega/shared"
+import type { ApiSeguimiento } from "../seguimiento/api"
+import { Enlace } from "../entrenamiento/sesion/controles"
+import { faltaDe } from "../lib/errores"
+import { esCreatina } from "./hoy-modelo"
+import { HoyNutricion } from "./hoy-nutricion"
 import type { AlmacenLocal } from "../entrenamiento/almacen-local"
 import { hoyAgenda } from "../entrenamiento/fechas"
 import { ErrorDeRed } from "../lib/http"
@@ -26,7 +38,22 @@ function fechaCorta(iso: string): string {
 type Estado =
   | { fase: "cargando" }
   | { fase: "error"; mensaje: string }
-  | { fase: "lista"; dieta: DietaPublicada | null; copiaDel: string | null }
+  | {
+      fase: "lista"
+      dieta: DietaPublicada | null
+      deNutricionista: boolean
+      copiaDel: string | null
+    }
+
+/** «HH:MM» en la zona de la agenda. */
+function horaActual(): string {
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date())
+}
 
 /** Documento de una dieta publicada, con «Hoy» y «Semana». Lo usan cliente y profesional. */
 export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): React.JSX.Element {
@@ -103,14 +130,24 @@ export function VistaDieta({
   cuenta,
   api,
   almacen,
+  seguimiento,
+  abrirComida,
 }: {
   clienteId: string
   cuenta: string
   api: ApiNutricion
   almacen: AlmacenLocal
+  /** Para los suplementos del día. Sin él, la vista es de solo lectura. */
+  seguimiento?: ApiSeguimiento
+  abrirComida?: (comida: Comida) => void
 }): React.JSX.Element {
   const [estado, setEstado] = useState<Estado>({ fase: "cargando" })
   const [intento, setIntento] = useState(0)
+  const [semana, setSemana] = useState(false)
+  const [registradas, setRegistradas] = useState<ComidaRegistrada[] | null>(null)
+  const [dia, setDia] = useState<DiaDeSeguimiento | null>(null)
+  const [aviso, setAviso] = useState("")
+  const hoy = hoyAgenda()
 
   useFocusEffect(
     useCallback(() => {
@@ -118,9 +155,18 @@ export function VistaDieta({
       const cancelacion = new AbortController()
       const cargar = async (): Promise<void> => {
         try {
-          const { dieta } = await api.vigente(clienteId, cancelacion.signal)
+          const { dieta, deNutricionista } = await api.vigente(clienteId, cancelacion.signal)
           if (!vigente) return
-          setEstado({ fase: "lista", dieta, copiaDel: null })
+          setEstado({ fase: "lista", dieta, deNutricionista, copiaDel: null })
+          // Lo marcado hoy. Sin ello, la dieta se ve igual pero no se marca.
+          void api
+            .comidas(clienteId, hoy, hoy)
+            .then(({ comidas }) => vigente && setRegistradas(comidas))
+            .catch(() => vigente && setRegistradas(null))
+          void seguimiento
+            ?.dias(clienteId, hoy, hoy)
+            .then(({ dias }) => vigente && setDia(dias[0] ?? null))
+            .catch(() => undefined)
           // Si falla el guardado local, la dieta se sigue viendo: solo se pierde la copia.
           await guardarCopia(almacen, cuenta, dieta).catch(() => undefined)
         } catch (error) {
@@ -130,7 +176,12 @@ export function VistaDieta({
             if (!vigente) return
             setEstado(
               copia
-                ? { fase: "lista", dieta: copia.dieta, copiaDel: copia.actualizadaEn }
+                ? {
+                    fase: "lista",
+                    dieta: copia.dieta,
+                    deNutricionista: false,
+                    copiaDel: copia.actualizadaEn,
+                  }
                 : {
                     fase: "error",
                     mensaje:
@@ -151,7 +202,7 @@ export function VistaDieta({
         cancelacion.abort()
         actividad.remove()
       }
-    }, [api, almacen, clienteId, cuenta, intento]),
+    }, [api, almacen, clienteId, cuenta, intento, seguimiento, hoy]),
   )
 
   if (estado.fase === "cargando") {
@@ -178,13 +229,81 @@ export function VistaDieta({
           Tu dieta aún no está publicada. Cuando tu profesional la publique aparecerá aquí.
         </Text>
       ) : (
-        <>
-          <View>
-            <Text style={s.nombre}>{estado.dieta.documento.nombre}</Text>
-            <Text style={s.tenue}>Publicada el {fechaCorta(estado.dieta.publicadaEn)}</Text>
-          </View>
-          <DocumentoVisible documento={estado.dieta.documento} />
-        </>
+        (() => {
+          const dieta = estado.dieta
+          const enLinea = estado.copiaDel === null
+          const marcarComida = async (comida: Comida, hecha: boolean): Promise<void> => {
+            setAviso("")
+            try {
+              if (hecha) {
+                const nueva = await api.registrarComida(clienteId, hoy, comida.id, {
+                  dietaId: dieta.id,
+                  eleccion: { tipo: "hecha" },
+                })
+                setRegistradas((actual) => [
+                  ...(actual ?? []).filter((r) => r.comidaId !== comida.id),
+                  nueva,
+                ])
+              } else {
+                await api.quitarComida(clienteId, hoy, comida.id)
+                setRegistradas((actual) => (actual ?? []).filter((r) => r.comidaId !== comida.id))
+              }
+            } catch (error) {
+              setAviso(faltaDe(error, "No se pudo guardar la comida.").texto)
+            }
+          }
+          const tomarSuplemento = async (
+            suplemento: Suplemento,
+            tomado: boolean,
+          ): Promise<void> => {
+            if (!seguimiento) return
+            setAviso("")
+            const otros = (dia?.suplementos ?? []).filter((n) => n !== suplemento.nombre)
+            try {
+              setDia(
+                await seguimiento.cambiarDia(
+                  clienteId,
+                  hoy,
+                  esCreatina(suplemento)
+                    ? { creatina: tomado }
+                    : { suplementos: tomado ? [...otros, suplemento.nombre] : otros },
+                ),
+              )
+            } catch (error) {
+              setAviso(faltaDe(error, "No se pudo guardar el suplemento.").texto)
+            }
+          }
+          return semana ? (
+            <>
+              <Enlace texto="‹ Volver a hoy" onPress={() => setSemana(false)} />
+              <View>
+                <Text style={s.nombre}>{dieta.documento.nombre}</Text>
+                <Text style={s.tenue}>Publicada el {fechaCorta(dieta.publicadaEn)}</Text>
+              </View>
+              <DocumentoVisible documento={dieta.documento} />
+            </>
+          ) : (
+            <>
+              {aviso !== "" && <AvisoDeError mensaje={aviso} />}
+              <HoyNutricion
+                documento={dieta.documento}
+                deNutricionista={estado.deNutricionista}
+                hoy={hoy}
+                hora={horaActual()}
+                registradas={registradas ?? []}
+                dia={dia}
+                puedeMarcar={
+                  enLinea && registradas !== null && dieta.documento.registroComidas !== false
+                }
+                puedeTomar={enLinea && seguimiento !== undefined}
+                abrirComida={(comida) => (abrirComida ? abrirComida(comida) : setSemana(true))}
+                marcarComida={(comida, hecha) => void marcarComida(comida, hecha)}
+                tomarSuplemento={(suplemento, tomado) => void tomarSuplemento(suplemento, tomado)}
+                verSemana={() => setSemana(true)}
+              />
+            </>
+          )
+        })()
       )}
     </View>
   )

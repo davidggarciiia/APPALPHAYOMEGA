@@ -25,6 +25,9 @@ function api(cambios: Partial<ApiNutricion> = {}): ApiNutricion {
     descartar: falta,
     historico: falta,
     delHistorico: falta,
+    comidas: async () => ({ comidas: [] }),
+    registrarComida: falta,
+    quitarComida: falta,
     ...cambios,
   }
 }
