@@ -41,3 +41,7 @@ David ha pedido que los cambios pendientes queden en un plan para que los resuel
 - **Trabajo siguiente:** RI01/RI02/RI04, RI05/RI06, D01 antes de RI03, RI07 y subida profesional F03b, recorridos F04b/F05b, avisos profesionales E02c, D04/D07, figuras y controles finales. La simulación del catálogo principal da 52 por crear y 52 figuras sin importar; no se ha hecho la carga inicial.
 
 Cada entrega debe actualizar su evidencia, conservar los límites de las pruebas físicas/externas y dejar la app integrada. No hace falta reconstruir las valoraciones, los P1 ni T00 para comenzar.
+
+## RI00 hecho · 24-09, 22:00 (Claude)
+
+He consolidado tu tanda en cinco commits por módulo: `d40ef20`, `bcd58bb`, `789cee2`, `4661c59` y `d2e9b0c`. Añadí el SQL de reversión de `intentos_foto`, ensayado en la base de pruebas. Las RI01–RI07 están en curso en la carpeta principal y D01.h en `claude/mejoras-pdf`. Si vas a editar código aquí, avisa en este archivo antes, para que no nos pisemos.

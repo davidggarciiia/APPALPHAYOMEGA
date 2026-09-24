@@ -28,11 +28,24 @@ Cada RI tiene escenario en el informe y desglose ejecutable a continuación. **C
 
 **Entrega:** identificar las instantáneas de la carpeta principal y de `claude/mejoras-pdf`, preservar las correcciones de Codex y preparar la integración de D01. **Dependencias:** ninguna. **Tamaño:** S de coordinación; si aparecen conflictos de producto, crear subtareas por módulo antes de resolverlos.
 
-- [ ] Ejecutar `git status --short`, `git log -5 --oneline`, `git worktree list` y `git log --oneline codex/cliente-intuitivo..claude/mejoras-pdf`. Leer el estado local de ambos worktrees y `tasks/coordinacion-claude-codex.md`.
-- [ ] Revisar/consolidar en commits acotados los cambios de la carpeta principal que aún están sin commit. No usar `git add .`, `reset --hard`, `clean` ni sobreescribir documentos/archivos del usuario. Mantener las pruebas de consentimiento pendiente y los intentos recuperables de foto. La nueva petición de David autoriza continuar la corrección con Claude; la nota antigua de esperar otro commit no obliga a desechar este árbol.
-- [ ] Reconciliar el alcance y guardar los SHA efectivamente usados. La integración de metros debe conservar ambos cambios de `registros.service.ts`: unidad de distancia y comprobación transaccional del consentimiento. No sustituir `todo.md` por la copia antigua del worktree.
+- [x] Ejecutar `git status --short`, `git log -5 --oneline`, `git worktree list` y `git log --oneline codex/cliente-intuitivo..claude/mejoras-pdf`. Leer el estado local de ambos worktrees y `tasks/coordinacion-claude-codex.md`.
+- [x] Revisar/consolidar en commits acotados los cambios de la carpeta principal que aún están sin commit. No usar `git add .`, `reset --hard`, `clean` ni sobreescribir documentos/archivos del usuario. Mantener las pruebas de consentimiento pendiente y los intentos recuperables de foto. La nueva petición de David autoriza continuar la corrección con Claude; la nota antigua de esperar otro commit no obliga a desechar este árbol.
+- [x] Reconciliar el alcance y guardar los SHA efectivamente usados. La integración de metros debe conservar ambos cambios de `registros.service.ts`: unidad de distancia y comprobación transaccional del consentimiento. No sustituir `todo.md` por la copia antigua del worktree.
 
 **Archivos de coordinación:** `tasks/coordinacion-claude-codex.md`, `tasks/evidencia-valoraciones.md`. **Verificar:** cambios identificados por módulo, ningún archivo perdido y ningún pendiente marcado por inercia. No repetir T00, no volver a integrar Fable desde una base antigua.
+
+**Evidencia 24-09-2026, 22:00 (Claude):**
+
+- **Base de partida.** Carpeta principal en `f931b5c`, con 21 archivos modificados y 12 nuevos sin commit (tanda de Codex). La rama `claude/mejoras-pdf` estaba en `dc27dcb`: D01 completo e integración de `f931b5c` sin conflictos; ahí sigue en curso D01.h, dos ajustes de la revisión de D01.
+- **Árbol comprobado antes de consolidar.** `npm run typecheck` y `npm run lint` salen con 0. `npm test`: 188 pruebas API en 23 suites y 452 móviles en 65 suites. HTTP de fotos, consentimiento y registro en `alpha_omega_e2e_codex` (`medios`, `medios-persistencia`, `consentimiento`, `consentimiento-pendientes`, `valoraciones-fotos`, `solicitudes-fotos` y `entrenamiento-registro`): 7 suites y 46 pruebas.
+- **Commits por módulo, con archivos explícitos:**
+  - `d40ef20`: consentimiento dentro de la escritura del entrenamiento.
+  - `bcd58bb`: intentos de foto con clave privada por intento, más `apps/api/prisma/rollback/intentos_foto.sql`, que faltaba. Esa reversión se ensayó en `alpha_omega_e2e_codex`: aplicar, revertir y volver a aplicar.
+  - `789cee2`: evolución, comparador y aportación del cliente en Progreso.
+  - `4661c59`: avisos en Inicio (E02b).
+  - `d2e9b0c`: documentación de la revisión y el encargo.
+- **Resultado.** Ningún archivo perdido; solo quedan sin seguimiento los archivos personales de David (`PDF/`, `compass_artifact_*.md` y el HTML de pantallas). Alcance de los PDF: D01, D04 y D07, según la decisión posterior registrada en `a79cfc5` y en la coordinación.
+- **Figuras (adelanto de FIG01).** La simulación sin `--confirmar` desde esta carpeta detecta las 52 figuras: «52 creados, 52 figuras asociadas, 0 figuras sin importar». `MEDIOS_DIR` apunta a `%LOCALAPPDATA%\alpha-omega\medios`, que tiene 104 archivos. La revisión de Codex no veía esa carpeta desde su entorno.
 
 ### RI01 · Mostrar el cierre comprometido
 
