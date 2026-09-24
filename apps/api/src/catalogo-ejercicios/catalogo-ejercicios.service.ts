@@ -4,18 +4,30 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common"
+import { existsSync } from "node:fs"
 import type {
+  AsignarFigura,
   BuscarEjercicios,
   CrearEjercicio,
   EditarEjercicio,
   Ejercicio,
   ErrorDeApi,
+  Figura,
   ListadoEjercicios,
+  ListadoMedios,
   Rol,
 } from "@alpha-omega/shared"
 import type { Prisma } from "@prisma/client"
 
 import { PrismaService } from "../prisma/prisma.service.js"
+
+import {
+  carpetaDeMedios,
+  mediosDisponibles,
+  rutaDelPoster,
+  rutaDelVideo,
+} from "./almacen-medios.js"
+import { medioDelIndice } from "./medios.js"
 
 /**
  * La forma en que se compara un nombre con otro.
@@ -35,6 +47,7 @@ export function normalizarNombre(nombre: string): string {
  */
 const CON_SECUNDARIOS = {
   gruposSecundarios: { select: { grupo: true }, orderBy: { grupo: "asc" } },
+  contenidos: { where: { tipo: "figura" } },
 } satisfies Prisma.EjercicioInclude
 
 type Fila = Prisma.EjercicioGetPayload<{ include: typeof CON_SECUNDARIOS }>
@@ -44,8 +57,8 @@ type Fila = Prisma.EjercicioGetPayload<{ include: typeof CON_SECUNDARIOS }>
  *
  * Campo a campo y no con un spread: `nombreNormalizado` y las fechas son asunto
  * del servidor, y el contrato es estricto precisamente para que no se escapen.
- * Figura y video van como ausentes y no omitidos: la ficha dibuja su hueco
- * desde el primer dia aunque esta entrega no guarde medios.
+ * El video va siempre como ausente y no omitido: la ficha dibuja su hueco desde
+ * el primer dia. La figura sale del indice de medios cuando hay una asociada.
  */
 function aEjercicio(fila: Fila): Ejercicio {
   return {
@@ -55,8 +68,21 @@ function aEjercicio(fila: Fila): Ejercicio {
     gruposSecundarios: fila.gruposSecundarios.map((secundario) => secundario.grupo),
     instrucciones: fila.instrucciones,
     estado: fila.estado,
-    figura: null,
+    figura: aFigura(fila.contenidos[0]),
     video: null,
+  }
+}
+
+/** La figura asociada, si su medio sigue en el índice. La clave no sale del servidor. */
+function aFigura(contenido: Fila["contenidos"][number] | undefined): Figura | null {
+  const medio = contenido === undefined ? undefined : medioDelIndice(contenido.claveDeObjeto)
+  if (contenido === undefined || medio === undefined) return null
+  return {
+    medioId: medio.id,
+    version: medio.version,
+    origen: contenido.origen,
+    licencia: contenido.licencia ?? medio.licencia,
+    sinConexion: medio.sinConexion,
   }
 }
 
@@ -198,6 +224,72 @@ export class CatalogoEjerciciosService {
   /** Retirar por error no puede exigir entrar en la base de datos a mano. */
   async reponer(id: string): Promise<Ejercicio> {
     return this.cambiarEstado(id, "retirado", { estado: "publicado", retiradoEn: null })
+  }
+
+  /** Las figuras del índice que este servidor tiene importadas. */
+  medios(): ListadoMedios {
+    const medios = mediosDisponibles().map((medio) => ({
+      id: medio.id,
+      nombre: medio.nombre,
+      fuente: medio.fuente,
+      licencia: medio.licencia,
+      sinConexion: medio.sinConexion,
+    }))
+    return { medios, total: medios.length }
+  }
+
+  /**
+   * Asocia una figura del índice, o la quita con `null`. Solo se aceptan medios
+   * importados en este servidor: nunca una URL ni un archivo arbitrario.
+   */
+  async asignarFigura(id: string, datos: AsignarFigura): Promise<Ejercicio> {
+    await this.leer(id)
+    if (datos.medioId === null) {
+      await this.prisma.contenidoDeEjercicio.deleteMany({
+        where: { ejercicioId: id, tipo: "figura" },
+      })
+      return this.leer(id)
+    }
+    const medio = mediosDisponibles().find((disponible) => disponible.id === datos.medioId)
+    if (medio === undefined) {
+      throw new ConflictException({
+        statusCode: 409,
+        codigo: "operacion_incompatible",
+        message: "Esa figura no está disponible en este servidor",
+      } satisfies ErrorDeApi)
+    }
+    const contenido = {
+      claveDeObjeto: medio.id,
+      origen: "licenciado" as const,
+      licencia: medio.licencia,
+      subidoEn: new Date(),
+    }
+    await this.prisma.contenidoDeEjercicio.upsert({
+      where: { ejercicioId_tipo: { ejercicioId: id, tipo: "figura" } },
+      create: { ejercicioId: id, tipo: "figura", ...contenido },
+      update: contenido,
+    })
+    return this.leer(id)
+  }
+
+  /**
+   * El archivo de la figura de un ejercicio, publicado o retirado (el histórico
+   * la sigue enseñando). 404 si no tiene figura o el archivo no está.
+   */
+  async archivoDeFigura(id: string, parte: "video" | "poster"): Promise<string> {
+    const figura = (await this.leer(id)).figura
+    const carpeta = carpetaDeMedios()
+    const medio = figura === null ? undefined : medioDelIndice(figura.medioId)
+    const ruta =
+      carpeta === null || medio === undefined
+        ? null
+        : parte === "video"
+          ? rutaDelVideo(carpeta, medio)
+          : rutaDelPoster(carpeta, medio)
+    if (ruta === null || !existsSync(ruta)) {
+      throw new NotFoundException("Este ejercicio no tiene figura disponible")
+    }
+    return ruta
   }
 
   /**
