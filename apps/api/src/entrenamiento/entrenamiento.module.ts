@@ -9,6 +9,7 @@ import { RutinasController } from "./rutinas.controller.js"
 import { RutinasService } from "./rutinas.service.js"
 import { MolestiasController } from "./molestias.controller.js"
 import { MolestiasService } from "./molestias.service.js"
+import { ComentariosService } from "./comentarios.service.js"
 
 @Module({
   imports: [AgendaModule],
@@ -20,6 +21,7 @@ import { MolestiasService } from "./molestias.service.js"
     AjustesService,
     RutinasService,
     MolestiasService,
+    ComentariosService,
   ],
 })
 export class EntrenamientoModule {}

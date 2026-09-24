@@ -74,14 +74,16 @@ model Usuario {
   dietasCreadas    Dieta[] @relation("DietasCreadas")
   dietasPublicadas Dieta[] @relation("DietasPublicadas")
 
-  molestias          Molestia[]         @relation("MolestiasCliente")
-  molestiasAtendidas Molestia[]         @relation("MolestiasAtendidas")
-  diasSeguimiento    DiaSeguimiento[]
-  medidas            MedidaCorporal[]   @relation("MedidasCliente")
-  medidasTomadas     MedidaCorporal[]   @relation("MedidasAutor")
-  pruebas            PruebaFisica[]     @relation("PruebasCliente")
-  pruebasTomadas     PruebaFisica[]     @relation("PruebasAutor")
-  comidasRegistradas ComidaRegistrada[]
+  molestias           Molestia[]         @relation("MolestiasCliente")
+  molestiasAtendidas  Molestia[]         @relation("MolestiasAtendidas")
+  diasSeguimiento     DiaSeguimiento[]
+  medidas             MedidaCorporal[]   @relation("MedidasCliente")
+  medidasTomadas      MedidaCorporal[]   @relation("MedidasAutor")
+  pruebas             PruebaFisica[]     @relation("PruebasCliente")
+  pruebasTomadas      PruebaFisica[]     @relation("PruebasAutor")
+  comidasRegistradas  ComidaRegistrada[]
+  comentariosSesion   ComentarioSesion[] @relation("ComentariosCliente")
+  comentariosEscritos ComentarioSesion[] @relation("ComentariosAutor")
 
   @@map("usuarios")
 }
@@ -325,6 +327,7 @@ model SesionEntrenamiento {
   referencias          ReferenciaEjercicio[]
   operaciones          OperacionEntrenamiento[]
   molestias            Molestia[]
+  comentarios          ComentarioSesion[]
 
   @@unique([id, clienteId])
   @@index([planId])
@@ -566,4 +569,24 @@ model ComidaRegistrada {
   @@id([clienteId, fecha, comidaId])
   @@index([dietaId])
   @@map("comidas_registradas")
+}
+
+/// Comentario sobre una sesión enviada, o sobre uno de sus ejercicios.
+model ComentarioSesion {
+  id                   String              @id @default(uuid())
+  sesionId             String
+  clienteId            String
+  sesion               SesionEntrenamiento @relation(fields: [sesionId, clienteId], references: [id, clienteId], onDelete: Restrict)
+  cliente              Usuario             @relation("ComentariosCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  autorId              String
+  autor                Usuario             @relation("ComentariosAutor", fields: [autorId], references: [id], onDelete: Restrict)
+  operacionId          String
+  ejercicioPrescritoId String?
+  ejercicio            String?             @db.VarChar(120)
+  texto                String              @db.VarChar(2000)
+  creadoEn             DateTime            @default(now())
+
+  @@unique([autorId, operacionId])
+  @@index([sesionId, creadoEn])
+  @@map("comentarios_sesion")
 }

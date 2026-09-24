@@ -10,6 +10,10 @@ import {
   UnauthorizedException,
 } from "@nestjs/common"
 import {
+  ComentarSesionSchema,
+  type ComentarSesion,
+  type ComentarioSesion,
+  type ListadoComentarios,
   AtenderMolestiaSchema,
   ConsultarMolestiasSchema,
   RegistrarMolestiaSchema,
@@ -24,11 +28,15 @@ import { z } from "zod"
 import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
 import type { IdentidadVerificada, PeticionAutenticada } from "../identity/peticion.js"
 import { Roles } from "../identity/roles.decorator.js"
+import { ComentariosService } from "./comentarios.service.js"
 import { MolestiasService } from "./molestias.service.js"
 
 @Controller("entrenamiento")
 export class MolestiasController {
-  constructor(private readonly molestias: MolestiasService) {}
+  constructor(
+    private readonly molestias: MolestiasService,
+    private readonly comentarios: ComentariosService,
+  ) {}
 
   private actor(peticion: PeticionAutenticada): IdentidadVerificada {
     if (!peticion.usuario) throw new UnauthorizedException()
@@ -66,5 +74,24 @@ export class MolestiasController {
     @Body(new EntradaApiPipe(AtenderMolestiaSchema)) datos: AtenderMolestia,
   ): Promise<Molestia> {
     return this.molestias.atender(this.actor(peticion), id, datos)
+  }
+
+  @Roles("cliente", "entrenador")
+  @Post("sesiones/:id/comentarios")
+  comentar(
+    @Req() peticion: PeticionAutenticada,
+    @Param("id", new EntradaApiPipe(z.uuid())) id: string,
+    @Body(new EntradaApiPipe(ComentarSesionSchema)) datos: ComentarSesion,
+  ): Promise<ComentarioSesion> {
+    return this.comentarios.comentar(this.actor(peticion), id, datos)
+  }
+
+  @Roles("cliente", "entrenador")
+  @Get("sesiones/:id/comentarios")
+  comentariosDeSesion(
+    @Req() peticion: PeticionAutenticada,
+    @Param("id", new EntradaApiPipe(z.uuid())) id: string,
+  ): Promise<ListadoComentarios> {
+    return this.comentarios.listar(this.actor(peticion), id)
   }
 }

@@ -18,6 +18,9 @@ import {
   type CambiarBloque,
   type PlanVigente,
   type ProgresionFuerza,
+  ConsultarResultadosSchema,
+  type ConsultarResultados,
+  type ListadoResultados,
   type PlanVigenteRespuesta,
   CambiarPrescripcionSchema,
   type CambiarPrescripcion,
@@ -134,6 +137,16 @@ export class EntrenamientoController {
     @Query(new EntradaApiPipe(ConsultarSemanaSchema)) consulta: ConsultarSemana,
   ): Promise<PlanVigenteRespuesta> {
     return this.planes.vigente(this.actor(peticion), clienteId, consulta.semana)
+  }
+
+  @Roles("cliente", "entrenador")
+  @Get("clientes/:clienteId/resultados")
+  resultados(
+    @Req() peticion: PeticionAutenticada,
+    @Param("clienteId", new EntradaApiPipe(z.uuid())) clienteId: string,
+    @Query(new EntradaApiPipe(ConsultarResultadosSchema)) consulta: ConsultarResultados,
+  ): Promise<ListadoResultados> {
+    return this.sesiones.resultados(this.actor(peticion), clienteId, consulta.limite)
   }
 
   @Roles("cliente", "entrenador")

@@ -41,6 +41,7 @@ export async function entornoEntrenamiento(nombre: string): Promise<{
       prisma.diaSeguimiento.deleteMany({ where: { clienteId } }),
       prisma.medidaCorporal.deleteMany({ where: { OR: [{ clienteId }, { autorId: clienteId }] } }),
       prisma.pruebaFisica.deleteMany({ where: { OR: [{ clienteId }, { autorId: clienteId }] } }),
+      prisma.comentarioSesion.deleteMany({ where: { sesionId } }),
       prisma.molestia.deleteMany({ where: { sesionId } }),
       prisma.operacionEntrenamiento.deleteMany({ where: { sesionId } }),
       prisma.referenciaEjercicio.deleteMany({ where: { sesionId } }),

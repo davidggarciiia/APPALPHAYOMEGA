@@ -6,6 +6,7 @@ import {
   SesionClienteSchema,
   SesionEntrenadorSchema,
   type ListadoAnteriores,
+  type ListadoResultados,
   type ProgresionFuerza,
   type ListadoSesiones,
   type ValoresEjecutados,
@@ -144,6 +145,32 @@ export class SesionesService {
       if (buscados.size === 0) break
     }
     return { anteriores }
+  }
+
+  /** Las últimas sesiones enviadas, con su resultado, para la ficha del cliente. */
+  async resultados(
+    identidad: IdentidadVerificada,
+    clienteId: string,
+    limite: number,
+  ): Promise<ListadoResultados> {
+    this.comprobarAcceso(identidad, clienteId)
+    const cliente = await this.prisma.usuario.findFirst({
+      where: { id: clienteId, rol: "cliente" },
+      select: { id: true },
+    })
+    if (!cliente) throw new NotFoundException("Cliente no disponible")
+    const filas = await this.prisma.sesionEntrenamiento.findMany({
+      where: { clienteId, resultado: { not: DbNull } },
+      include: { agenda: true },
+      orderBy: [{ enviadoEn: "desc" }, { id: "asc" }],
+      take: limite,
+    })
+    return {
+      resultados: filas.map((fila) => ({
+        agenda: agendaPublica(fila.agenda),
+        resultado: leerDocumento(fila.resultado, ResultadoEntrenamientoSchema, fila.version),
+      })),
+    }
   }
 
   /**

@@ -471,3 +471,39 @@ export const ListadoAnterioresSchema = z.strictObject({
   anteriores: z.array(AnteriorSchema).max(40),
 })
 export type ListadoAnteriores = z.infer<typeof ListadoAnterioresSchema>
+
+/** Las últimas sesiones enviadas de un cliente, con su resultado, para su ficha. */
+export const ConsultarResultadosSchema = z.strictObject({
+  limite: z.coerce.number().int().min(1).max(60).default(20),
+})
+export type ConsultarResultados = z.infer<typeof ConsultarResultadosSchema>
+export const ListadoResultadosSchema = z.strictObject({
+  resultados: z.array(
+    z.strictObject({ agenda: SesionProgramadaSchema, resultado: ResultadoEntrenamientoSchema }),
+  ),
+})
+export type ListadoResultados = z.infer<typeof ListadoResultadosSchema>
+
+/** «Comentario sobre la sesión»: de la sesión entera o de un ejercicio. */
+export const ComentarSesionSchema = z.strictObject({
+  operacionId: z.uuid(),
+  ejercicioPrescritoId: z.uuid().nullable(),
+  texto: z.string().trim().min(1).max(2000),
+})
+export type ComentarSesion = z.infer<typeof ComentarSesionSchema>
+
+export const ComentarioSesionSchema = z.strictObject({
+  id: z.uuid(),
+  sesionId: z.uuid(),
+  ejercicioPrescritoId: z.uuid().nullable(),
+  /** Nombre del ejercicio cuando se comentó, para «sobre el press banca». */
+  ejercicio: z.string().nullable(),
+  texto: z.string(),
+  autor: z.strictObject({ id: z.uuid(), nombre: z.string(), rol: z.enum(["cliente", "entrenador"]) }),
+  creadoEn: z.iso.datetime(),
+})
+export type ComentarioSesion = z.infer<typeof ComentarioSesionSchema>
+export const ListadoComentariosSchema = z.strictObject({
+  comentarios: z.array(ComentarioSesionSchema),
+})
+export type ListadoComentarios = z.infer<typeof ListadoComentariosSchema>
