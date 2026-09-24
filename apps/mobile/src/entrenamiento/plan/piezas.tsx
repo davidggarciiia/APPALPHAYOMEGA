@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 
 import { tema } from "../../tema"
 
@@ -14,7 +14,13 @@ export function Pestanas<T extends string>({
   cambiar: (valor: T) => void
 }): React.JSX.Element {
   return (
-    <View style={s.pestanas} accessibilityRole="tablist">
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={s.pestanas}
+      contentContainerStyle={s.filaPestanas}
+      accessibilityRole="tablist"
+    >
       {opciones.map((opcion) => {
         const elegida = opcion.valor === activa
         return (
@@ -29,7 +35,7 @@ export function Pestanas<T extends string>({
           </Pressable>
         )
       })}
-    </View>
+    </ScrollView>
   )
 }
 
@@ -70,12 +76,8 @@ export function Fila({
 }
 
 const s = StyleSheet.create({
-  pestanas: {
-    flexDirection: "row",
-    gap: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: tema.borde,
-  },
+  pestanas: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: tema.borde },
+  filaPestanas: { flexDirection: "row", gap: 24 },
   pestana: {
     minHeight: 44,
     justifyContent: "center",

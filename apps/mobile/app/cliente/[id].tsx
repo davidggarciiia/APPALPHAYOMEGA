@@ -340,7 +340,7 @@ export default function FichaDeCliente(): React.JSX.Element {
               texto="Entrenamientos"
               onPress={() =>
                 router.push({
-                  pathname: "/entrenador/cliente/[id]/entrenos",
+                  pathname: "/entrenador/cliente/[id]",
                   params: { id: ficha.id },
                 })
               }

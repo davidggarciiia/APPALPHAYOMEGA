@@ -17,6 +17,14 @@ import {
   MolestiaSchema,
   RegistrarMolestiaSchema,
   PlanVigenteRespuestaSchema,
+  ListadoResultadosSchema,
+  ComentarSesionSchema,
+  ComentarioSesionSchema,
+  ListadoComentariosSchema,
+  type ListadoResultados,
+  type ComentarSesion,
+  type ComentarioSesion,
+  type ListadoComentarios,
   PlanVigenteSchema,
   CambiarBloqueSchema,
   type CambiarBloque,
@@ -64,6 +72,10 @@ export type ApiEntrenamiento = {
   /** El plan que cubre la semana (su bloque, fases y notas), o null. */
   plan: (clienteId: string, semana: string) => Promise<PlanVigenteRespuesta>
   cambiarBloque: (planId: string, datos: CambiarBloque) => Promise<PlanVigente>
+  /** Las últimas sesiones enviadas, con su resultado. */
+  resultados: (clienteId: string, limite?: number) => Promise<ListadoResultados>
+  comentar: (sesionId: string, datos: ComentarSesion) => Promise<ComentarioSesion>
+  comentarios: (sesionId: string) => Promise<ListadoComentarios>
 }
 
 export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamiento {
@@ -145,5 +157,21 @@ export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamie
         method: "PATCH",
         body: JSON.stringify(CambiarBloqueSchema.parse(datos)),
       }),
+    resultados: (clienteId, limite = 20) =>
+      pedir(
+        `/entrenamiento/clientes/${encodeURIComponent(clienteId)}/resultados?limite=${limite}`,
+        ListadoResultadosSchema,
+      ),
+    comentar: (sesionId, datos) =>
+      pedir(
+        `/entrenamiento/sesiones/${encodeURIComponent(sesionId)}/comentarios`,
+        ComentarioSesionSchema,
+        { method: "POST", body: JSON.stringify(ComentarSesionSchema.parse(datos)) },
+      ),
+    comentarios: (sesionId) =>
+      pedir(
+        `/entrenamiento/sesiones/${encodeURIComponent(sesionId)}/comentarios`,
+        ListadoComentariosSchema,
+      ),
   }
 }
