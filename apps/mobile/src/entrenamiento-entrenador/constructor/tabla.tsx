@@ -18,13 +18,8 @@ export const UNIDADES_DE_FILA = {
   { nombre: string; columna: string; corta: string; marcador: string }
 >
 
-/** Las unidades que se ofrecen al pautar. D01.g añade «distancia» al activar los metros. */
-const UNIDADES_OFRECIDAS: readonly TipoMedicion[] = ["repeticiones", "tiempo"]
-
-/** Las ofrecidas y, si la fila ya usa otra, también esa: se muestra marcada y no se pierde. */
-function unidadesDe(actual: TipoMedicion): readonly TipoMedicion[] {
-  return UNIDADES_OFRECIDAS.includes(actual) ? UNIDADES_OFRECIDAS : [...UNIDADES_OFRECIDAS, actual]
-}
+/** Las unidades que se ofrecen al pautar; los metros, desde D01.g. */
+const UNIDADES_OFRECIDAS: readonly TipoMedicion[] = ["repeticiones", "tiempo", "distancia"]
 
 /** «8–10», «30 s» o «20 m»: las repeticiones van sin unidad, como en el diseño. */
 export function objetivoConUnidad(e: Pick<EjercicioDelConstructor, "tipo" | "objetivo">): string {
@@ -318,7 +313,7 @@ export function PanelEjercicio({
       </View>
       <Text style={s.etiquetaPanel}>Se mide en</Text>
       <View style={s.opcionesPanel}>
-        {unidadesDe(ejercicio.tipo).map((unidad) => (
+        {UNIDADES_OFRECIDAS.map((unidad) => (
           <Enlace
             key={unidad}
             texto={`${ejercicio.tipo === unidad ? "✓ " : ""}${UNIDADES_DE_FILA[unidad].nombre}`}

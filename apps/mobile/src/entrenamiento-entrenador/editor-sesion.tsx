@@ -15,13 +15,8 @@ const NOMBRE_DE_UNIDAD = {
   distancia: "Metros",
 } as const satisfies Record<TipoMedicion, string>
 
-/** Las unidades que se ofrecen al pautar. D01.g añade «distancia» al activar los metros. */
-const UNIDADES_OFRECIDAS: readonly TipoMedicion[] = ["repeticiones", "tiempo"]
-
-/** Las ofrecidas y, si la serie ya usa otra, también esa: se muestra marcada y no se pierde. */
-function unidadesDe(actual: TipoMedicion): readonly TipoMedicion[] {
-  return UNIDADES_OFRECIDAS.includes(actual) ? UNIDADES_OFRECIDAS : [...UNIDADES_OFRECIDAS, actual]
-}
+/** Las unidades que se ofrecen al pautar; los metros, desde D01.g. */
+const UNIDADES_OFRECIDAS: readonly TipoMedicion[] = ["repeticiones", "tiempo", "distancia"]
 
 export function EditorSesion({
   valor,
@@ -159,7 +154,7 @@ export function EditorSesion({
                   Serie {numero + 1}
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  {unidadesDe(s.tipoMedicion).map((unidad) => (
+                  {UNIDADES_OFRECIDAS.map((unidad) => (
                     <BotonSecundario
                       key={unidad}
                       texto={`${s.tipoMedicion === unidad ? "✓ " : ""}${NOMBRE_DE_UNIDAD[unidad]}`}

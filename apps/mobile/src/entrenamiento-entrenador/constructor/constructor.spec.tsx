@@ -1,5 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
-import { SeriePrescritaDistanciaSchema, type AsignarPlan } from "@alpha-omega/shared"
+import {
+  AsignarPlanSchema,
+  SeriePrescritaDistanciaSchema,
+  type AsignarPlan,
+} from "@alpha-omega/shared"
 
 import { crearApiEntrenamiento } from "../../entrenamiento/api"
 import type { AlmacenLocal } from "../../entrenamiento/almacen-local"
@@ -180,7 +184,7 @@ it("«Qué buscamos» deja escribir la línea siguiente tras un salto", async ()
   )
 })
 
-describe("unidad de cada fila (D01, metros aún sin publicar)", () => {
+describe("unidad de cada fila (D01)", () => {
   const GRANJERO = "10000000-0000-4000-8000-000000000011"
   // Datos sintéticos: un transporte con carga guardado en metros.
   const guardada: SesionConDistancia = {
@@ -288,7 +292,7 @@ describe("unidad de cada fila (D01, metros aún sin publicar)", () => {
     expect(cambiar).toHaveBeenLastCalledWith(granjero().id, { tipo: "repeticiones", objetivo: "" })
   })
 
-  it("al pautar aún no se ofrecen metros", async () => {
+  it("al pautar se ofrecen las tres unidades y cambiar vacía el objetivo", async () => {
     const cambiar = jest.fn()
     const fila = banca()
     await render(
@@ -302,7 +306,9 @@ describe("unidad de cada fila (D01, metros aún sin publicar)", () => {
     expect(
       screen.getByRole("button", { name: "Medir Press banca con barra en repeticiones" }),
     ).toHaveTextContent("✓ Repeticiones")
-    expect(screen.queryByRole("button", { name: /en metros$/ })).toBeNull()
+    expect(
+      screen.getAllByRole("button", { name: /^Medir Press banca con barra en / }),
+    ).toHaveLength(3)
     // Tocar la unidad que ya tiene no borra el objetivo.
     await fireEvent.press(
       screen.getByRole("button", { name: "Medir Press banca con barra en repeticiones" }),
@@ -312,6 +318,73 @@ describe("unidad de cada fila (D01, metros aún sin publicar)", () => {
       screen.getByRole("button", { name: "Medir Press banca con barra en segundos" }),
     )
     expect(cambiar).toHaveBeenLastCalledWith(fila.id, { tipo: "tiempo", objetivo: "" })
+    // «8–10» nunca pasa a 8 m.
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Medir Press banca con barra en metros" }),
+    )
+    expect(cambiar).toHaveBeenLastCalledWith(fila.id, { tipo: "distancia", objetivo: "" })
+  })
+
+  it("pauta un transporte en metros desde el panel y lo publica con su carga", async () => {
+    const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))
+    const asignar = jest
+      .spyOn(api, "asignar")
+      .mockImplementation(
+        async (_c, datos: AsignarPlan) =>
+          ({ id: randomUUID(), operacionId: datos.operacionId, sesiones: [] }) as never,
+      )
+    const terminado = jest.fn()
+    await render(
+      <ConstructorPlan
+        clienteId="20000000-0000-4000-8000-000000000011"
+        cuentaId="30000000-0000-4000-8000-000000000012"
+        nombreCliente="Cliente de prueba"
+        almacen={almacenEnMemoria()}
+        api={api}
+        catalogo={catalogoEnMemoria([
+          ejercicioDePrueba(GRANJERO, "Paseo del granjero", "antebrazos", []),
+        ])}
+        rutinas={{ listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() }}
+        nuevoId={randomUUID}
+        terminado={terminado}
+        volver={jest.fn()}
+      />,
+    )
+    await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Bloque de prueba")
+    await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Transportes")
+    await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
+    await fireEvent.press(await screen.findByRole("button", { name: "Añadir Paseo del granjero" }))
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Paseo del granjero: editar detalles" }),
+    )
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Con carga externa de Paseo del granjero" }),
+    )
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Medir Paseo del granjero en metros" }),
+    )
+    await fireEvent.changeText(screen.getByLabelText("Series de Paseo del granjero"), "2")
+    await fireEvent.changeText(screen.getByLabelText("Metros de Paseo del granjero"), "20")
+    await fireEvent.press(
+      screen.getByRole("button", { name: /Carga inicial de Paseo del granjero: calibrar/ }),
+    )
+    await fireEvent.changeText(
+      screen.getByLabelText("Carga inicial de Paseo del granjero en kg"),
+      "32",
+    )
+
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+    await waitFor(() => expect(terminado).toHaveBeenCalled())
+    const datos = AsignarPlanSchema.parse(asignar.mock.calls[0]![1])
+    const [transporte] = datos.patron.sesiones[0]!.ejercicios
+    expect(transporte).toEqual(
+      expect.objectContaining({ ejercicioId: GRANJERO, tipoCarga: "conCargaExterna" }),
+    )
+    expect(transporte!.series).toEqual([
+      { id: expect.any(String), tipoMedicion: "distancia", pesoKg: 32, metros: 20 },
+      { id: expect.any(String), tipoMedicion: "distancia", pesoKg: 32, metros: 20 },
+    ])
   })
 
   it("la lista de calentamiento o final nombra la unidad de cada ejercicio", async () => {

@@ -927,3 +927,73 @@ donde es correcto: `fuerzaEstimada`, `rangosValidos`, el rótulo «reps» de
   `sesion/modelo.spec.ts`, `sesion/partes.spec.tsx`, `tabla-series.spec.tsx`,
   `ficha-modelo.spec.ts` y `detalle.spec.tsx`. Solo es el nombre; sus casos no
   dependen del contrato.
+
+## D01.g2
+
+**Cambio realizado.** El entrenador ya puede pautar en metros desde las dos
+pantallas que D01.g prevé:
+
+- `editor-sesion.tsx` («Ajustar esta sesión» y el editor de patrón):
+  `UNIDADES_OFRECIDAS` pasa a repeticiones, segundos y metros. Cada serie
+  muestra «Repeticiones», «Segundos» y «Metros». Se retira `unidadesDe`, que
+  solo servía para enseñar marcada una unidad no ofrecida y ya no hace nada.
+- `constructor/tabla.tsx` (panel del ejercicio, «Se mide en»): el mismo cambio,
+  con la etiqueta accesible «Medir … en metros».
+- Sin cambios en la regla de D01.e/D01.e2: cambiar de unidad conserva id y
+  kilos y vacía la cantidad, así que «12» repeticiones u «8–10» nunca se
+  publican como metros. Las series y filas nuevas siguen naciendo en
+  repeticiones.
+
+**Archivos:** `apps/mobile/src/entrenamiento-entrenador/editor-sesion.tsx`,
+`editor-sesion.spec.tsx` (mismo directorio),
+`apps/mobile/src/entrenamiento-entrenador/constructor/tabla.tsx`,
+`constructor/constructor.spec.tsx` y `tasks/evidencia-mejoras-pdf.md`. Son
+cuatro archivos de código.
+
+**Pruebas** (datos sintéticos; el constructor usa «Cliente de prueba»):
+
+- `editor-sesion.spec.tsx`:
+  - el cierre «al pautar aún no se ofrecen metros» pasa a «al pautar se
+    ofrecen metros, sin arrastrar las repeticiones escritas». Una serie con
+    «12» pasa a «✓ Metros» con el campo vacío. Con 20 m y 32 kg,
+    `convertirSesion` produce una sesión que cumple `SesionEnRutinaSchema`, con
+    el mismo id de serie y `tipoCarga: "conCargaExterna"`.
+  - nueva: cada campo nombra su unidad y cada serie, también una añadida,
+    ofrece las tres unidades.
+- `constructor.spec.tsx`:
+  - el cierre del panel pasa a «se ofrecen las tres unidades y cambiar vacía el
+    objetivo». Tocar la unidad actual no cambia nada; pasar a segundos o a
+    metros envía `{ tipo, objetivo: "" }`.
+  - nueva, de principio a fin con `ConstructorPlan`: añadir «Paseo del
+    granjero» desde la biblioteca, marcar carga externa, «Medir … en metros»,
+    2 series de 20 m y 32 kg, y «Publicar plan». Lo que llega a `api.asignar`
+    cumple `AsignarPlanSchema` y lleva dos series
+    `{ tipoMedicion: "distancia", pesoKg: 32, metros: 20 }`.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                                                                   | Resultado                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/mobile -- --runInBand editor-sesion.spec.tsx constructor.spec.tsx` con las pruebas nuevas y sin implementación | 2 suites fallidas: 4 fallidas, 12 correctas (rojo esperado: no existe el botón de metros) |
+| Mismo comando tras implementar                                                                                                            | 2 suites, 16 pruebas en verde                                                             |
+| `npm test --workspace apps/mobile -- --runInBand editor-sesion.spec.tsx tabla-series.spec.tsx registro-control.spec.ts` (verificación)    | 3 suites, 33 pruebas en verde                                                             |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                                                              | 51 suites, 350 pruebas en verde                                                           |
+| `npm run typecheck`                                                                                                                       | Correcto (shared, api y mobile)                                                           |
+| `npx eslint` sobre los cuatro archivos de código                                                                                          | Sin avisos                                                                                |
+| `npx prettier --write` sobre los cuatro archivos de código y esta evidencia                                                               | Aplicado                                                                                  |
+
+**Pendiente:**
+
+- Sin recorrido autenticado (C00) ni prueba en móvil físico o navegador: los
+  botones «Metros» del editor y del panel, y la publicación real con la API,
+  no se han revisado en pantalla. La publicación desde el constructor solo se
+  ha comprobado con `api.asignar` simulada; la API real se cubre aparte con las
+  pruebas HTTP de D01.g.
+- Sin cambiar, del editor anterior: en `editor-sesion.tsx`, tocar la unidad que
+  la serie ya tiene también vacía la cantidad (el panel del constructor no lo
+  hace), y «+ Añadir serie» crea la serie nueva en repeticiones aunque las
+  anteriores sean metros. No convierte nada, pero obliga a elegir la unidad en
+  cada serie.
+- **Decisión para confirmar con David**, ya señalada en D01.d y D01.e: el RIR se
+  sigue ofreciendo en series de metros y el cliente lee «Repeticiones que te
+  quedaban».
