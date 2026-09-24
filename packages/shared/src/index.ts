@@ -9,6 +9,7 @@ export * from "./molestias"
 export * from "./seguimiento"
 export * from "./valoraciones"
 export * from "./pruebas-valoracion"
+export * from "./medios"
 
 /**
  * Vocabulario y contratos compartidos por la app y el servidor.
