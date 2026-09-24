@@ -49,7 +49,7 @@ import {
   type EjercicioDelConstructor,
 } from "./modelo"
 import { EditorDeBloque, ListaDeSeccion } from "./partes"
-import { PanelEjercicio, TablaPrincipal } from "./tabla"
+import { objetivoConUnidad, PanelEjercicio, TablaPrincipal } from "./tabla"
 
 /** La misma clave que el editor anterior: una asignación pendiente se recupera en ambos. */
 const PendienteSchema = z.strictObject({
@@ -146,7 +146,7 @@ function exportarPdf(nombre: string, cliente: string, dias: DiaDelConstructor[])
     dia.ejercicios
       .map(
         (e) =>
-          `<tr><td>${escapar(e.nombre)}</td><td>${e.seccion === "principal" ? escapar(`${e.series} × ${e.objetivo}`) : escapar(e.dosis || e.objetivo)}</td><td>${escapar(e.rir)}</td><td>${escapar(e.descanso)}</td><td>${e.calibrar ? "Calibrar" : escapar(e.carga ? `${e.carga} kg` : "")}</td><td>${escapar(e.subida ? `${e.subida} kg` : "")}</td></tr>`,
+          `<tr><td>${escapar(e.nombre)}</td><td>${e.seccion === "principal" ? escapar(`${e.series} × ${objetivoConUnidad(e)}`) : escapar(e.dosis || objetivoConUnidad(e))}</td><td>${escapar(e.rir)}</td><td>${escapar(e.descanso)}</td><td>${e.calibrar ? "Calibrar" : escapar(e.carga ? `${e.carga} kg` : "")}</td><td>${escapar(e.subida ? `${e.subida} kg` : "")}</td></tr>`,
       )
       .join("")
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapar(nombre)}</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{margin:0 0 4px}h2{margin:28px 0 8px}p{color:#555;margin:0}table{border-collapse:collapse;width:100%;margin-top:8px}td,th{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;font-size:13px}th{color:#666}</style></head><body><h1>${escapar(nombre)}</h1><p>${escapar(cliente)}</p>${[

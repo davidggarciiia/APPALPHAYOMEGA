@@ -6,7 +6,7 @@ import { INICIALES_DE_DIA } from "../../entrenamiento/plan/modelo"
 import { Enlace } from "../../entrenamiento/sesion/controles"
 import { degradadoOro, tema } from "../../tema"
 import type { EjercicioDelConstructor } from "./modelo"
-import { Celda } from "./tabla"
+import { Celda, UNIDADES_DE_FILA } from "./tabla"
 
 /** Calentamiento, circuito o final: una lista con la dosis de cada ejercicio. */
 export function ListaDeSeccion({
@@ -43,11 +43,11 @@ export function ListaDeSeccion({
             marcador="1×8 por lado"
           />
           <Celda
-            etiqueta={`${e.tipo === "tiempo" ? "Segundos" : "Repeticiones"} de ${e.nombre}`}
+            etiqueta={`${UNIDADES_DE_FILA[e.tipo].nombre} de ${e.nombre}`}
             valor={e.objetivo}
             cambiar={(v) => cambiar(e.id, { objetivo: v })}
             ancho={64}
-            marcador={e.tipo === "tiempo" ? "s" : "reps"}
+            marcador={UNIDADES_DE_FILA[e.tipo].corta}
           />
           <Enlace texto="Quitar" etiqueta={`Quitar ${e.nombre}`} onPress={() => quitar(e.id)} />
         </View>

@@ -533,3 +533,121 @@ en `plan/pantallas.spec.tsx`, donde ya se probaba `Guia`.
   segundos, el editor y la ficha se ven igual, como comprueban las pruebas
   existentes (`editor-plan.spec.tsx` usa las etiquetas «Repeticiones — …»). La
   guía tiene un tema más, que no se ha revisado en pantalla real.
+
+## D01.e2
+
+**Alcance.** Segunda parte de D01.e: el constructor de planes. Cubre
+`constructor/tabla.tsx`, prevista en D01.e, y dos consumidores que no
+figuraban en el inventario de D01.a:
+
+- `constructor/partes.tsx:46,50`: la lista de calentamiento, circuito y final.
+  Lo señaló D01.b.
+- `constructor/constructor.tsx:149` («Exportar PDF», solo en la web):
+  escribía «2 × 20» bajo «Series × reps». Encontrado al revisar el
+  constructor en esta subtarea.
+
+**Cambio realizado.** El constructor nombra la unidad de cada fila y el panel
+ya no reduce la unidad a «segundos sí o no». Los metros siguen sin ofrecerse al
+pautar.
+
+- `tabla.tsx`:
+  - `UNIDADES_DE_FILA` da el nombre, la columna, la abreviatura y el marcador
+    de cada unidad. Lo usan la tabla, la lista y el PDF.
+  - Tabla principal:
+    - La columna del objetivo dice «Reps», «Seg», «Metros» o la mezcla
+      («Reps / Metros»).
+    - El campo se llama «Metros de Paseo del granjero» (o «Segundos de …»),
+      con marcador «m» o «s». Antes todos se llamaban «Repeticiones de …» y
+      mostraban «8–10».
+    - Bajo el nombre se lee «En segundos» o «En metros». Una fila de
+      repeticiones no lleva etiqueta: una tabla solo de repeticiones se ve
+      igual.
+  - Panel del ejercicio:
+    - El interruptor «Se mide en segundos» se cambia por «Se mide en», una
+      lista de opciones como «Tipo de carga». Ofrece `UNIDADES_OFRECIDAS`
+      (repeticiones y segundos) y, si la fila ya está en metros, «✓ Metros».
+    - Antes, una fila en metros aparecía como «apagado» (repeticiones), y
+      tocar el interruptor la pasaba a segundos o repeticiones con la misma
+      cifra.
+    - Cambiar de unidad conserva id, carga e ids de series y vacía el
+      objetivo, como en el editor de sesión. Tocar la unidad actual no borra
+      nada.
+  - `objetivoConUnidad` devuelve «8–10», «30 s» o «20 m».
+- `partes.tsx`: la lista usa la misma tabla de unidades: «Metros de …» con
+  marcador «m». Repeticiones («reps») y segundos («s») no cambian.
+- `constructor.tsx`: «Exportar PDF» escribe el objetivo con
+  `objetivoConUnidad`: «4 × 6», «3 × 30 s», «2 × 20 m» y, fuera de la parte
+  principal, «30 m» si no hay dosis. La cabecera sigue siendo «Series × reps».
+
+No hay migración ni cambios en `packages/shared` ni en `constructor/modelo.ts`.
+
+**Archivos:** `apps/mobile/src/entrenamiento-entrenador/constructor/tabla.tsx`,
+`partes.tsx`, `constructor.tsx`, `constructor.spec.tsx` (mismo directorio) y
+`tasks/evidencia-mejoras-pdf.md`. Son cuatro archivos de código.
+
+**Pruebas nuevas** (`constructor.spec.tsx`, bloque «unidad de cada fila (D01,
+metros aún sin publicar)», datos sintéticos validados con
+`SeriePrescritaDistanciaSchema`). Las filas salen de `desdeSesionEnRutina` o
+`nuevoEjercicio`.
+
+- Tabla principal:
+  - Mezcla: «Reps / Metros» y «En metros». «Metros de Paseo del granjero»
+    tiene 20 y marcador «m», y la carga inicial, 32. El press banca conserva
+    «Repeticiones de …» con «8–10».
+  - Solo repeticiones: cabecera «Reps» y ninguna etiqueta «En …».
+  - Segundos: «Seg», «En segundos» y «Segundos de Plancha» con 30, nunca
+    «Repeticiones de Plancha».
+- Panel:
+  - Una fila en metros muestra «✓ Metros» y no el interruptor anterior. Pasar
+    a repeticiones solo cambia `{ tipo, objetivo: "" }`.
+  - Una fila en repeticiones no ofrece metros. Tocar su unidad no cambia nada;
+    pasar a segundos vacía el objetivo.
+- Lista de calentamiento o final: «Metros de …» (20, «m»), «Segundos de …»
+  («s») y «Repeticiones de …» («reps»).
+- `objetivoConUnidad`: «8–10», «30 s», «20 m» y vacío si no hay objetivo.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                                            | Resultado                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/mobile -- --runInBand constructor.spec.tsx` con las pruebas nuevas y sin implementación | 1 suite fallida: 6 fallidas, 4 correctas. Rojo esperado; ya pasaba la de «solo repeticiones» |
+| `npm test --workspace apps/mobile -- --runInBand constructor.spec.tsx`                                             | 1 suite, 10 pruebas en verde                                                                 |
+| `npm test --workspace apps/mobile -- --runInBand editor-sesion.spec.tsx constructor.spec.tsx ficha-modelo.spec.ts` | 3 suites, 20 pruebas en verde (verificación de D01.e completa)                               |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                                       | 51 suites, 344 pruebas en verde                                                              |
+| `npm run typecheck`                                                                                                | Correcto (shared, api y mobile)                                                              |
+| `npx eslint` sobre los cuatro archivos de código                                                                   | Sin avisos                                                                                   |
+| `npx prettier --write` sobre los cuatro archivos de código y esta evidencia                                        | Aplicado                                                                                     |
+
+Inventario tras D01.e y D01.e2: en `apps/mobile/src` y `apps/mobile/app` no
+queda ningún ternario de dos unidades. Lo comprueba
+`rg '=== "tiempo"|!== "tiempo"|"tiempo" \?|tipo: v \?'` fuera de las pruebas,
+que solo encuentra `apps/api/src/entrenamiento/sesiones.service.ts:27` y
+`registros.service.ts:155` (D01.f). Las lecturas directas de `.repeticiones`
+fuera de un `switch` quedan en `seguimiento/progreso.tsx:368,377`, que depende
+de la mejor serie de la API (D01.f).
+
+**Pendiente:**
+
+- **Cambio de comportamiento para repeticiones y segundos:** en el panel del
+  constructor, cambiar entre repeticiones y segundos vacía el objetivo. Antes
+  el interruptor lo conservaba, así que «8–10» pasaba a publicarse como 8 s. Es
+  la regla de D01.b («sin arrastrar la cantidad de la otra») y la del editor de
+  sesión. La etiqueta accesible «Se mide en segundos» desaparece; ninguna
+  prueba ni pantalla la usaba.
+- D01.g: añadir `"distancia"` a `UNIDADES_OFRECIDAS` de `tabla.tsx` (archivo
+  ya previsto en D01.g). `partes.tsx` y `constructor.tsx` no necesitan más
+  cambios.
+- Sin cambiar, ya señalado en D01.b: `faltaEnDia` (`constructor/modelo.ts`)
+  sigue aceptando un rango en segundos («30–40» → 30 s) y, con el objetivo
+  vacío en segundos, dice «escribe las repeticiones». Ahora la celda se llama
+  «Segundos de …», así que el aviso contradice la etiqueta. Conviene corregirlo
+  en una subtarea propia. Tocaría `constructor/modelo.ts` y su prueba, y
+  cambiaría qué se puede publicar en segundos.
+- La cabecera «Series × reps» del PDF no se ha cambiado. Una fila en metros
+  se lee «2 × 20 m» debajo.
+- «Exportar PDF» solo existe en la web (`Platform.OS === "web"`) y abre
+  `window.print()`. Se prueba `objetivoConUnidad`, no el HTML generado ni la
+  impresión.
+- Sin recorrido autenticado ni prueba en móvil físico o navegador: la tabla,
+  el panel con sus opciones de unidad y la etiqueta «En segundos» no se han
+  revisado en pantalla real, en ancha ni en estrecha.

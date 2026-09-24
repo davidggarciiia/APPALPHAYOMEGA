@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
-import type { AsignarPlan } from "@alpha-omega/shared"
+import { SeriePrescritaDistanciaSchema, type AsignarPlan } from "@alpha-omega/shared"
 
 import { crearApiEntrenamiento } from "../../entrenamiento/api"
 import type { AlmacenLocal } from "../../entrenamiento/almacen-local"
@@ -8,7 +8,11 @@ import {
   catalogoEnMemoria,
   ejercicioDePrueba,
 } from "../../catalogo-ejercicios/pruebas/catalogo-en-memoria"
+import type { SesionConDistancia } from "../editor-modelo"
 import { ConstructorPlan } from "./constructor"
+import { desdeSesionEnRutina, nuevoEjercicio, type EjercicioDelConstructor } from "./modelo"
+import { ListaDeSeccion } from "./partes"
+import { objetivoConUnidad, PanelEjercicio, TablaPrincipal } from "./tabla"
 
 jest.mock("expo-crypto", () => ({
   randomUUID: jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID,
@@ -174,4 +178,170 @@ it("«Qué buscamos» deja escribir la línea siguiente tras un salto", async ()
     "value",
     "Bajar grasa sin perder músculo\n",
   )
+})
+
+describe("unidad de cada fila (D01, metros aún sin publicar)", () => {
+  const GRANJERO = "10000000-0000-4000-8000-000000000011"
+  // Datos sintéticos: un transporte con carga guardado en metros.
+  const guardada: SesionConDistancia = {
+    id: "20000000-0000-4000-8000-000000000011",
+    nombre: "Fuerza",
+    diaSemana: 1,
+    ejercicios: [
+      {
+        id: "30000000-0000-4000-8000-000000000011",
+        ejercicioId: GRANJERO,
+        indicaciones: null,
+        tipoCarga: "conCargaExterna",
+        series: [1, 2].map((n) =>
+          SeriePrescritaDistanciaSchema.parse({
+            id: `40000000-0000-4000-8000-00000000001${n}`,
+            tipoMedicion: "distancia",
+            pesoKg: 32,
+            metros: 20,
+          }),
+        ),
+      },
+    ],
+  }
+  const granjero = (): EjercicioDelConstructor =>
+    desdeSesionEnRutina(guardada, { [GRANJERO]: "Paseo del granjero" }).ejercicios[0]!
+  const banca = (): EjercicioDelConstructor =>
+    nuevoEjercicio(
+      { id: "10000000-0000-4000-8000-000000000012", nombre: "Press banca con barra" },
+      "principal",
+      randomUUID,
+    )
+  const plancha = (): EjercicioDelConstructor => ({
+    ...nuevoEjercicio(
+      { id: "10000000-0000-4000-8000-000000000013", nombre: "Plancha" },
+      "principal",
+      randomUUID,
+    ),
+    tipo: "tiempo",
+    objetivo: "30",
+  })
+  const tabla = async (ejercicios: EjercicioDelConstructor[]): Promise<void> => {
+    await render(
+      <TablaPrincipal
+        ejercicios={ejercicios}
+        elegido={null}
+        elegir={jest.fn()}
+        cambiar={jest.fn()}
+        quitar={jest.fn()}
+        mover={jest.fn()}
+        ancha
+      />,
+    )
+  }
+
+  it("la tabla principal nombra la unidad de cada fila y conserva la carga en metros", async () => {
+    await tabla([banca(), granjero()])
+    expect(screen.getByText("Reps / Metros")).toBeOnTheScreen()
+    expect(screen.getByText("En metros")).toBeOnTheScreen()
+    const metros = screen.getByLabelText("Metros de Paseo del granjero")
+    expect(metros).toHaveProp("value", "20")
+    expect(metros).toHaveProp("placeholder", "m")
+    expect(screen.getByLabelText("Carga inicial de Paseo del granjero en kg")).toHaveProp(
+      "value",
+      "32",
+    )
+    expect(screen.queryByLabelText(/^(Repeticiones|Segundos) de Paseo/)).toBeNull()
+    expect(screen.getByLabelText("Repeticiones de Press banca con barra")).toHaveProp(
+      "placeholder",
+      "8–10",
+    )
+  })
+
+  it("una tabla solo de repeticiones se ve como antes", async () => {
+    await tabla([banca()])
+    expect(screen.getByText("Reps")).toBeOnTheScreen()
+    expect(screen.queryByText(/^En (segundos|metros)$/)).toBeNull()
+  })
+
+  it("una fila en segundos se nombra en segundos, no en repeticiones", async () => {
+    await tabla([plancha()])
+    expect(screen.getByText("Seg")).toBeOnTheScreen()
+    expect(screen.getByText("En segundos")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Segundos de Plancha")).toHaveProp("value", "30")
+    expect(screen.queryByLabelText("Repeticiones de Plancha")).toBeNull()
+  })
+
+  it("el panel marca los metros de la fila y cambiar de unidad no arrastra la cantidad", async () => {
+    const cambiar = jest.fn()
+    await render(
+      <PanelEjercicio
+        ejercicio={granjero()}
+        nombreCliente="Cliente de prueba"
+        cambiar={cambiar}
+        verTecnica={jest.fn()}
+      />,
+    )
+    expect(
+      screen.getByRole("button", { name: "Medir Paseo del granjero en metros" }),
+    ).toHaveTextContent("✓ Metros")
+    expect(screen.queryByLabelText("Se mide en segundos")).toBeNull()
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Medir Paseo del granjero en repeticiones" }),
+    )
+    // La carga y los ids no se tocan; los 20 m nunca pasan a 20 repeticiones.
+    expect(cambiar).toHaveBeenLastCalledWith(granjero().id, { tipo: "repeticiones", objetivo: "" })
+  })
+
+  it("al pautar aún no se ofrecen metros", async () => {
+    const cambiar = jest.fn()
+    const fila = banca()
+    await render(
+      <PanelEjercicio
+        ejercicio={fila}
+        nombreCliente="Cliente de prueba"
+        cambiar={cambiar}
+        verTecnica={jest.fn()}
+      />,
+    )
+    expect(
+      screen.getByRole("button", { name: "Medir Press banca con barra en repeticiones" }),
+    ).toHaveTextContent("✓ Repeticiones")
+    expect(screen.queryByRole("button", { name: /en metros$/ })).toBeNull()
+    // Tocar la unidad que ya tiene no borra el objetivo.
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Medir Press banca con barra en repeticiones" }),
+    )
+    expect(cambiar).not.toHaveBeenCalled()
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Medir Press banca con barra en segundos" }),
+    )
+    expect(cambiar).toHaveBeenLastCalledWith(fila.id, { tipo: "tiempo", objetivo: "" })
+  })
+
+  it("la lista de calentamiento o final nombra la unidad de cada ejercicio", async () => {
+    await render(
+      <ListaDeSeccion
+        ejercicios={[
+          { ...granjero(), nombre: "Zancadas caminando", seccion: "final", tipoCarga: "sinCarga" },
+          { ...plancha(), seccion: "final" },
+          { ...banca(), nombre: "Sentadilla goblet", seccion: "calentamiento" },
+        ]}
+        elegido={null}
+        elegir={jest.fn()}
+        cambiar={jest.fn()}
+        quitar={jest.fn()}
+      />,
+    )
+    const metros = screen.getByLabelText("Metros de Zancadas caminando")
+    expect(metros).toHaveProp("value", "20")
+    expect(metros).toHaveProp("placeholder", "m")
+    expect(screen.getByLabelText("Segundos de Plancha")).toHaveProp("placeholder", "s")
+    expect(screen.getByLabelText("Repeticiones de Sentadilla goblet")).toHaveProp(
+      "placeholder",
+      "reps",
+    )
+  })
+
+  it("«Exportar PDF» escribe el objetivo con su unidad", () => {
+    expect(objetivoConUnidad(banca())).toBe("8–10")
+    expect(objetivoConUnidad(plancha())).toBe("30 s")
+    expect(objetivoConUnidad(granjero())).toBe("20 m")
+    expect(objetivoConUnidad({ ...plancha(), objetivo: "" })).toBe("")
+  })
 })

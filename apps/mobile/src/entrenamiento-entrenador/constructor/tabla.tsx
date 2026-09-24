@@ -3,9 +3,44 @@ import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-nati
 import { Icono } from "../../componentes/iconos"
 import { Enlace } from "../../entrenamiento/sesion/controles"
 import { tema } from "../../tema"
+import type { TipoMedicion } from "../editor-modelo"
 import type { EjercicioDelConstructor } from "./modelo"
 
 type Cambio = (id: string, cambio: Partial<EjercicioDelConstructor>) => void
+
+/** Cómo se nombra el objetivo en cada unidad: campo, columna, abreviatura y marcador. */
+export const UNIDADES_DE_FILA = {
+  repeticiones: { nombre: "Repeticiones", columna: "Reps", corta: "reps", marcador: "8–10" },
+  tiempo: { nombre: "Segundos", columna: "Seg", corta: "s", marcador: "s" },
+  distancia: { nombre: "Metros", columna: "Metros", corta: "m", marcador: "m" },
+} as const satisfies Record<
+  TipoMedicion,
+  { nombre: string; columna: string; corta: string; marcador: string }
+>
+
+/** Las unidades que se ofrecen al pautar. D01.g añade «distancia» al activar los metros. */
+const UNIDADES_OFRECIDAS: readonly TipoMedicion[] = ["repeticiones", "tiempo"]
+
+/** Las ofrecidas y, si la fila ya usa otra, también esa: se muestra marcada y no se pierde. */
+function unidadesDe(actual: TipoMedicion): readonly TipoMedicion[] {
+  return UNIDADES_OFRECIDAS.includes(actual) ? UNIDADES_OFRECIDAS : [...UNIDADES_OFRECIDAS, actual]
+}
+
+/** «8–10», «30 s» o «20 m»: las repeticiones van sin unidad, como en el diseño. */
+export function objetivoConUnidad(e: Pick<EjercicioDelConstructor, "tipo" | "objetivo">): string {
+  if (e.tipo === "repeticiones" || e.objetivo.trim() === "") return e.objetivo
+  return `${e.objetivo} ${UNIDADES_DE_FILA[e.tipo].corta}`
+}
+
+/** «Reps», «Seg», «Metros» o, si la tabla mezcla unidades, «Reps / Metros». */
+function columnaDeObjetivo(ejercicios: EjercicioDelConstructor[]): string {
+  const unidades = new Set(ejercicios.map((e) => e.tipo))
+  if (unidades.size === 0) return UNIDADES_DE_FILA.repeticiones.columna
+  return (["repeticiones", "tiempo", "distancia"] as const)
+    .filter((unidad) => unidades.has(unidad))
+    .map((unidad) => UNIDADES_DE_FILA[unidad].columna)
+    .join(" / ")
+}
 
 /** Celda de texto compacta de la tabla. */
 export function Celda({
@@ -38,9 +73,10 @@ export function Celda({
   )
 }
 
+/** `null` es la columna del objetivo, que se nombra según la unidad de las filas. */
 const COLUMNAS = [
   ["Series", 56],
-  ["Reps", 70],
+  [null, 70],
   ["RIR", 56],
   ["Descanso", 84],
   ["Carga inicial", 96],
@@ -71,8 +107,8 @@ export function TablaPrincipal({
         <View style={[s.fila, s.cabecera]} accessible={false}>
           <Text style={[s.flex, s.etiqueta]}>Ejercicio</Text>
           {COLUMNAS.map(([texto, ancho]) => (
-            <Text key={texto} style={[s.etiqueta, { width: ancho }]}>
-              {texto}
+            <Text key={texto ?? "objetivo"} style={[s.etiqueta, { width: ancho }]}>
+              {texto ?? columnaDeObjetivo(ejercicios)}
             </Text>
           ))}
         </View>
@@ -89,11 +125,11 @@ export function TablaPrincipal({
               teclado="number-pad"
             />
             <Celda
-              etiqueta={`Repeticiones de ${e.nombre}`}
+              etiqueta={`${UNIDADES_DE_FILA[e.tipo].nombre} de ${e.nombre}`}
               valor={e.objetivo}
               cambiar={(v) => cambiar(e.id, { objetivo: v })}
               ancho={70}
-              marcador="8–10"
+              marcador={UNIDADES_DE_FILA[e.tipo].marcador}
             />
             <Celda
               etiqueta={`RIR de ${e.nombre}`}
@@ -158,6 +194,10 @@ export function TablaPrincipal({
               style={ancha ? s.flex : undefined}
             >
               <Text style={s.nombre}>{e.nombre}</Text>
+              {/* Las repeticiones son lo habitual; otra unidad se dice en la fila. */}
+              {e.tipo !== "repeticiones" && (
+                <Text style={s.tenue}>En {UNIDADES_DE_FILA[e.tipo].nombre.toLowerCase()}</Text>
+              )}
               {e.compuesto && <Text style={s.tenue}>Compuesto</Text>}
             </Pressable>
             {ancha ? (
@@ -276,15 +316,19 @@ export function PanelEjercicio({
           thumbColor={tema.texto}
         />
       </View>
-      <View style={s.conmutador}>
-        <Text style={[s.tenue, s.flex]}>Se mide en segundos</Text>
-        <Switch
-          accessibilityLabel="Se mide en segundos"
-          value={ejercicio.tipo === "tiempo"}
-          onValueChange={(v) => cambiar(ejercicio.id, { tipo: v ? "tiempo" : "repeticiones" })}
-          trackColor={{ true: tema.acento, false: tema.superficieAlta }}
-          thumbColor={tema.texto}
-        />
+      <Text style={s.etiquetaPanel}>Se mide en</Text>
+      <View style={s.opcionesPanel}>
+        {unidadesDe(ejercicio.tipo).map((unidad) => (
+          <Enlace
+            key={unidad}
+            texto={`${ejercicio.tipo === unidad ? "✓ " : ""}${UNIDADES_DE_FILA[unidad].nombre}`}
+            etiqueta={`Medir ${ejercicio.nombre} en ${UNIDADES_DE_FILA[unidad].nombre.toLowerCase()}`}
+            // El objetivo de otra unidad no se reutiliza: 20 m nunca pasan a 20 repeticiones.
+            onPress={() => {
+              if (unidad !== ejercicio.tipo) cambiar(ejercicio.id, { tipo: unidad, objetivo: "" })
+            }}
+          />
+        ))}
       </View>
       <Text style={s.etiquetaPanel}>Nota para {primerNombre}</Text>
       <TextInput
