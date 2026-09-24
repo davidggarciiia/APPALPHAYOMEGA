@@ -185,7 +185,7 @@ it("un campo vacío queda pendiente, no a cero, y un valor fuera de rango no se 
   await abrirNueva(falsa)
   await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "900")
   await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
-  expect(screen.getByText(/Peso: escribe un valor entre 0 y 400 kg/)).toBeTruthy()
+  expect(screen.getByText(/Peso: escribe un valor entre 30 y 400 kg/)).toBeTruthy()
   expect(falsa.cambiar).not.toHaveBeenCalled()
   await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "")
   await fireEvent.press(screen.getByRole("checkbox", { name: "No realizado — Altura" }))

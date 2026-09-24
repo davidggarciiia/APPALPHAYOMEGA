@@ -1,14 +1,12 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import {
-  RANGO_POR_UNIDAD,
-  type CambiarValoracion,
-  type DefinicionCorporal,
-  type ListadoValoraciones,
-  type PlantillaValoracion,
-  type ResultadoCorporal,
-  type ValoracionProfesional,
+import type {
+  CambiarValoracion,
+  DefinicionCorporal,
+  ListadoValoraciones,
+  PlantillaValoracion,
+  ValoracionProfesional,
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
@@ -18,92 +16,21 @@ import { Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePeticion } from "../lib/http"
 import { tema } from "../tema"
-import { leerDecimal } from "./modelo"
+import {
+  CAMPO_CORPORAL_VACIO,
+  cambioDe,
+  edicionDe,
+  type CampoCorporal,
+  type EdicionValoracion,
+} from "./valoracion-modelo"
 import type { ApiValoraciones } from "./valoraciones-api"
 
-type Campos = Record<string, { texto: string; noRealizado: boolean }>
-type Edicion = { fechaToma: string; campos: Campos }
 type Estado = "guardado" | "cambios" | "guardando" | "error" | "conflicto"
-
-const decimal = (valor: number): string => String(valor).replace(".", ",")
-
-/** Lo editable de la visita, tal como lo confirmó el servidor. */
-function edicionDe(valoracion: ValoracionProfesional): Edicion {
-  const documento = valoracion.borrador!.documento
-  const campos: Campos = {}
-  for (const r of documento.corporales)
-    campos[r.definicionId] = {
-      texto: r.estado === "registrado" ? decimal(r.valor) : "",
-      noRealizado: r.estado === "noRealizado",
-    }
-  return { fechaToma: valoracion.borrador!.fechaToma, campos }
-}
 
 function medidasDe(valoracion: ValoracionProfesional): DefinicionCorporal[] {
   return valoracion.borrador!.documento.definiciones.corporales.filter(
     (d) => d.bloque === "medidas",
   )
-}
-
-/**
- * Convierte la edición en el cambio que se envía. Un campo vacío es «pendiente»,
- * nunca un cero; conserva intactos los resultados que este editor no muestra.
- */
-function cambioDe(
-  valoracion: ValoracionProfesional,
-  edicion: Edicion,
-): CambiarValoracion | { error: string } {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(edicion.fechaToma) || Number.isNaN(Date.parse(edicion.fechaToma)))
-    return { error: "Escribe la fecha de toma como AAAA-MM-DD." }
-  const borrador = valoracion.borrador!
-  const documento = borrador.documento
-  const medidas = new Map(medidasDe(valoracion).map((d) => [d.id, d]))
-  const corporales: ResultadoCorporal[] = []
-  for (const r of documento.corporales) {
-    const d = medidas.get(r.definicionId)
-    const campo = edicion.campos[r.definicionId]
-    if (!d || !campo) {
-      corporales.push(r)
-      continue
-    }
-    if (campo.noRealizado) {
-      corporales.push({
-        definicionId: d.id,
-        estado: "noRealizado",
-        motivo: r.estado === "noRealizado" ? r.motivo : null,
-      })
-      continue
-    }
-    const valor = leerDecimal(campo.texto)
-    if (valor === null) {
-      corporales.push({ definicionId: d.id, estado: "pendiente" })
-      continue
-    }
-    const rango = RANGO_POR_UNIDAD[d.unidad]
-    if (Number.isNaN(valor) || valor < rango.min || valor > rango.max)
-      return {
-        error: `${d.nombre}: escribe un valor entre ${rango.min} y ${rango.max} ${d.unidad}.`,
-      }
-    corporales.push({
-      definicionId: d.id,
-      estado: "registrado",
-      valor: Math.round(valor * 100) / 100,
-    })
-  }
-  return {
-    borradorId: borrador.id,
-    revision: borrador.revision,
-    fechaToma: edicion.fechaToma,
-    contenido: {
-      bloques: documento.bloques,
-      corporales,
-      pruebas: documento.pruebas,
-      grasaPorPliegues: documento.grasaPorPliegues,
-      destacados: documento.destacados,
-      conclusion: documento.conclusion,
-      notasInternas: documento.notasInternas,
-    },
-  }
 }
 
 const TEXTO_DE_ESTADO: Record<Estado, string> = {
@@ -133,16 +60,16 @@ function EditorValoracion({
   const medidas = medidasDe(valoracion)
   const bloqueado = estado === "guardando"
 
-  const editar = (cambio: Partial<Edicion>): void => {
+  const editar = (cambio: Partial<EdicionValoracion>): void => {
     if (enCurso.current) return
     setEdicion((actual) => ({ ...actual, ...cambio }))
     if (estado !== "conflicto") setEstado("cambios")
   }
-  const campo = (id: string, cambio: Partial<Campos[string]>): void =>
+  const campo = (id: string, cambio: Partial<CampoCorporal>): void =>
     editar({
-      campos: {
-        ...edicion.campos,
-        [id]: { texto: "", noRealizado: false, ...edicion.campos[id], ...cambio },
+      corporales: {
+        ...edicion.corporales,
+        [id]: { ...CAMPO_CORPORAL_VACIO, ...edicion.corporales[id], ...cambio },
       },
     })
 
@@ -223,7 +150,7 @@ function EditorValoracion({
         ) : (
           <Tarjeta>
             {medidas.map((d, n) => {
-              const valor = edicion.campos[d.id] ?? { texto: "", noRealizado: false }
+              const valor = edicion.corporales[d.id] ?? CAMPO_CORPORAL_VACIO
               const nombre = [d.nombre, d.zona, d.lateralidad].filter(Boolean).join(" · ")
               return (
                 <Fila key={d.id} primera={n === 0}>
