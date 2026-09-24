@@ -7,7 +7,19 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "plugins": ["expo-router", "expo-secure-store", "expo-video"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Alpha & Omega usa tus fotos solo para enviar a tu entrenador las fotos de evolución que te pida. Quedan privadas.",
+          "cameraPermission": "Alpha & Omega usa la cámara solo para las fotos de evolución que te pida tu entrenador. Quedan privadas.",
+          "microphonePermission": false
+        }
+      ]
+    ],
     "ios": {
       "bundleIdentifier": "com.alphaomegatraining.app",
       "supportsTablet": false
