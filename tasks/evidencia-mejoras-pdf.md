@@ -1076,3 +1076,88 @@ igual que en D01.g.
 - Decisiones abiertas de D01.c y D01.f para David: «La próxima vez» propone
   subir cuando se alcanzan los metros pautados, y «Anterior» compara la carga
   entre unidades.
+
+## Punto de control D01
+
+**Alcance.** Revisión del tramo D01 completo, de `ffdd20c` (D01.a) a `2ff2594`
+(D01.g3), sobre `07665e5`. No cambia código: ninguna comprobación ha fallado
+por un cambio del tramo, así que no hay commit `fix`. El único archivo e2e
+creado o tocado en el tramo es `test/entrenamiento-distancia.e2e-spec.ts`.
+
+**Comandos y resultado real** (desde la raíz del worktree, base desechable
+`alpha_omega_e2e_claude_d`):
+
+| Comando                                                                                                                                                                                                            | Resultado                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                                                                                                                                                                                                | Correcto: build de shared, `tsc` raíz, api, mobile y shared                                                                                                                           |
+| `npm run lint` (`eslint .` y `prettier --check .`)                                                                                                                                                                 | Correcto: sin avisos; «All matched files use Prettier code style!»                                                                                                                    |
+| `npm test` (1.ª ejecución)                                                                                                                                                                                         | API: 17 suites, 104 pruebas en verde. Móvil: 1 suite fallida de 51; 1 fallida y 351 correctas de 352. Falla por tiempo (5000 ms) «avisa de que está cargando…» en `catalogo.spec.tsx` |
+| `npm test --workspace apps/mobile -- --runInBand catalogo.spec.tsx`                                                                                                                                                | 1 suite, 12 pruebas en verde                                                                                                                                                          |
+| `npm test` (2.ª ejecución, sin cambios)                                                                                                                                                                            | API: 17 suites, 104 pruebas en verde. Móvil: 51 suites, 352 pruebas en verde                                                                                                          |
+| `npm run test:e2e --workspace apps/api -- --runTestsByPath test/entrenamiento-distancia.e2e-spec.ts test/entrenamiento-registro.e2e-spec.ts`                                                                       | 2 suites, 18 pruebas en verde, ninguna omitida                                                                                                                                        |
+| `npm run test:e2e … entrenamiento-concurrencia entrenamiento-novedades entrenamiento-rutinas entrenamiento-limites entrenamiento-asignacion ficha-entrenador seguimiento` (regresión de los dos servicios tocados) | 7 suites, 24 pruebas en verde                                                                                                                                                         |
+| `git diff --check` (árbol) y `git diff --check 07665e5..HEAD` (tramo)                                                                                                                                              | Sin salida en ambos                                                                                                                                                                   |
+| Búsqueda en el diff del tramo de `.skip(`, `.only(`, `.todo(`, `eslint-disable`, `@ts-ignore` y `@ts-expect-error` añadidos                                                                                        | Ninguno; tampoco quedan `skip` en las dos pruebas HTTP                                                                                                                                |
+
+**Fallo ajeno al tramo.** `apps/mobile/src/catalogo-ejercicios/catalogo.spec.tsx`
+no se toca en D01 (último cambio en `6eb86fe`). Su primera prueba agotó los
+5000 ms en la ejecución en paralelo; sola y en la segunda ejecución completa
+pasa. Es una prueba sensible a la carga de la máquina, no un error del tramo:
+no se ha tocado. `carrera-refresco` no se ha ejecutado porque no entra en el
+tramo.
+
+**Revisión de los puntos de control de `tasks/todo.md`** (no se marcan aquí;
+los integra el responsable principal):
+
+- **D1-A · D01.a–D01.b.**
+  - Contratos auxiliares y preparación del editor pasan: `contratos.spec.ts`
+    (API) dentro de las 104 pruebas; `editor-modelo.spec.ts` y
+    `constructor/modelo.spec.ts` dentro de las 352 del móvil.
+  - Unidades antiguas operativas: `entrenamiento-registro.e2e-spec.ts` y la
+    regresión HTTP en verde.
+  - Sin documentos nuevos a medias antes de tiempo: comprobado en el historial.
+    Las uniones públicas (`SeriePrescritaSchema`, `SerieRegistradaSchema` y
+    `ValoresEjecutadosSchema`) solo tienen `repeticiones` y `tiempo` en
+    `fdcff65`, `3cdc070` y `b67582e`; la variante de distancia entra en
+    `e47e763` (D01.g). El editor y el constructor ofrecen «Metros» solo desde
+    `c5d22f4` (D01.g2).
+- **D1-B · D01.c–D01.d.**
+  - Copias y formularios no confunden unidades: `registro-control.spec.ts`
+    (cambiar la pauta a segundos o metros deja la serie pendiente, vacía y con
+    respaldo), `tabla-series.spec.tsx` y `sesion/partes.spec.tsx` en verde.
+  - Errores y recuperación: recuperación sin conexión y reenvío de la misma
+    operación en metros (`registro-control.spec.ts`), y reintento, 409 y
+    `revision_obsoleta` en `entrenamiento-distancia.e2e-spec.ts`.
+  - Metros no se publicaba desde un editor incompleto: mismo historial que
+    D1-A.
+- **D1-C · D01.e–D01.g.**
+  - Metros de prescripción a resultado: cubierto con pruebas HTTP (10 en
+    `entrenamiento-distancia.e2e-spec.ts`) y de editor, constructor y modelos.
+    **Solo en pruebas**: no se ha visto en pantalla real.
+  - Legado, copias locales y fuerza conservan su significado: registro HTTP
+    anterior en verde; `fuerzaEstimada` solo usa repeticiones con kilos.
+  - Ninguna conversión implícita: la búsqueda de D01.g
+    (`=== "tiempo"`, `!== "tiempo"`, `"tiempo" ?`, `.segundos ??` y
+    `.repeticiones ??`) en código de producción no encuentra nada.
+    `=== "repeticiones"` o `!== "repeticiones"` solo aparece en
+    `rangosValidos` (shared), el rótulo «reps» de `tabla-series.tsx`, la
+    etiqueta de `constructor/tabla.tsx` y `fuerzaEstimada`, todos correctos.
+    Cambiar de unidad vacía la cantidad.
+
+**Pendiente del tramo:**
+
+- **Recorrido completo autenticado (C00) y móvil físico: no hechos.** Lo pide
+  la verificación de D01.g; nada de metros se ha revisado en pantalla real.
+- Limpieza sin hacer, heredada de D01.g: los tipos `…ConDistancia` y
+  `ValoresEnUnidad` ya equivalen a los públicos, y siguen comentarios que dicen
+  que el contrato no acepta metros «hasta D01.g» (`resultado.tsx`,
+  `registro-modelo.ts`, `ficha-modelo.ts` y `editor-modelo.ts`). Cinco bloques
+  de prueba siguen titulados «(D01, aún sin publicar)»
+  (`tabla-series.spec.tsx`, `ficha-modelo.spec.ts`, `sesion/modelo.spec.ts`,
+  `sesion/partes.spec.tsx` y `detalle.spec.tsx`). No fallan; conviene
+  corregirlos en una subtarea propia.
+- Decisiones abiertas para David: RIR ofrecido en series de metros (D01.g2);
+  «La próxima vez» propone subir al alcanzar los metros pautados (D01.c); y
+  «Anterior» compara la carga entre unidades (D01.f).
+- `catalogo.spec.tsx` agota a veces el tiempo en la ejecución en paralelo;
+  ajeno a D01.
