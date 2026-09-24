@@ -11,19 +11,34 @@ export function TablaSeries({
   series,
   bloqueado,
   cambiar,
+  verTecnica,
 }: {
   ejercicio: EjercicioPrescrito
   series: SerieReal[]
   bloqueado: boolean
   cambiar: (id: string, cambio: Partial<SerieReal>) => void
+  /** Ver la técnica no edita nada: sigue disponible con el registro bloqueado. */
+  verTecnica?: () => void
 }): React.JSX.Element {
   const unidades = new Set(ejercicio.series.map((s) => s.tipoMedicion))
   const columna = unidades.size > 1 ? "REP / S" : unidades.has("tiempo") ? "SEG" : "REP"
   return (
     <View style={s.tarjeta}>
-      <Text accessibilityRole="header" style={s.nombre}>
-        {ejercicio.nombre}
-      </Text>
+      <View style={s.cabecera}>
+        <Text accessibilityRole="header" style={s.nombre}>
+          {ejercicio.nombre}
+        </Text>
+        {verTecnica && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Ver técnica — ${ejercicio.nombre}`}
+            onPress={verTecnica}
+            style={s.tecnica}
+          >
+            <Text style={s.textoTecnica}>Ver técnica</Text>
+          </Pressable>
+        )}
+      </View>
       {ejercicio.indicaciones && <Text style={s.indicaciones}>{ejercicio.indicaciones}</Text>}
       <View style={s.fila} accessible={false}>
         <Text style={[s.etiqueta, s.numero]}>SERIE</Text>
@@ -94,7 +109,23 @@ const s = StyleSheet.create({
     padding: 12,
     gap: 10,
   },
-  nombre: { fontFamily: tema.fuenteBoton, fontSize: 17, color: tema.texto, paddingHorizontal: 4 },
+  cabecera: { flexDirection: "row", alignItems: "center", gap: 8 },
+  nombre: {
+    flex: 1,
+    fontFamily: tema.fuenteBoton,
+    fontSize: 17,
+    color: tema.texto,
+    paddingHorizontal: 4,
+  },
+  tecnica: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    justifyContent: "center",
+  },
+  textoTecnica: { fontFamily: tema.fuenteBoton, fontSize: 13, color: tema.acento },
   indicaciones: {
     fontFamily: tema.fuenteTexto,
     fontSize: 13,

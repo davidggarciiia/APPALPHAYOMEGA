@@ -3,6 +3,7 @@ import { useFocusEffect } from "expo-router"
 import { randomUUID } from "expo-crypto"
 import { AppState, Modal, ScrollView, Text, View } from "react-native"
 import { ZodError } from "zod"
+import type { EjercicioPrescrito } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import { RegistroControl } from "./registro-control"
@@ -10,6 +11,9 @@ import { registroParaEnviar, type EdicionRegistro } from "./registro-modelo"
 import { FechaSesion } from "./fecha-sesion"
 import { TablaSeries } from "./tabla-series"
 import { PrescripcionVisible } from "./resultado"
+import { VerTecnica } from "./ver-tecnica"
+import { useAccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
+import { useCatalogo } from "../catalogo-ejercicios/use-catalogo"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { tema } from "../tema"
 
@@ -28,6 +32,9 @@ export function RegistroCliente({
   const [intento, setIntento] = useState(0)
   const [resumen, setResumen] = useState(false)
   const [ocupado, setOcupado] = useState(false)
+  const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
+  const catalogo = useCatalogo()
+  const acceso = useAccesoAFiguras()
   useFocusEffect(
     useCallback(() => {
       let vigente = true,
@@ -244,8 +251,20 @@ export function RegistroCliente({
           series={documento.edicion.series}
           bloqueado={bloqueado}
           cambiar={serie}
+          verTecnica={() => setTecnica(ejercicio)}
         />
       ))}
+      {tecnica && (
+        <VerTecnica
+          cuenta={cuenta}
+          ejercicioId={tecnica.ejercicioId}
+          nombre={tecnica.nombre}
+          leer={catalogo.leer}
+          almacen={almacenDispositivo}
+          acceso={acceso}
+          cerrar={() => setTecnica(null)}
+        />
+      )}
       <FechaSesion
         agenda={documento.sesion.agenda}
         api={api}
