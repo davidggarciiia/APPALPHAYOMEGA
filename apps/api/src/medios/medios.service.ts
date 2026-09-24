@@ -11,6 +11,7 @@ import {
   type AccesoMedio,
   type FormatoFoto,
   type IntencionSubida,
+  type ListadoFotos,
   type MedioFoto,
   type SolicitarSubida,
 } from "@alpha-omega/shared"
@@ -338,6 +339,28 @@ export class MediosService {
       data: { estado: "eliminado", eliminadoEn: new Date() },
     })
     return medioPublico(await this.medio(id))
+  }
+
+  /**
+   * Todas las fotos del cliente que puede ver quien pregunta, para compararlas
+   * por vista y fecha. Sin las que aún no se han confirmado; las retiradas
+   * aparecen como tales. El cliente ve las suyas y las del entrenador ya
+   * publicadas.
+   */
+  async deCliente(actor: IdentidadVerificada, clienteId: string): Promise<ListadoFotos> {
+    await this.exigirAlcance(actor, clienteId)
+    const filas = await this.prisma.medioFoto.findMany({
+      where: {
+        clienteId,
+        estado: { not: "pendiente" },
+        ...(actor.rol === "cliente" && {
+          OR: [{ origen: "cliente" as const }, { publicadaEn: { not: null } }],
+        }),
+      },
+      include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
+      orderBy: [{ vista: "asc" }, { fechaToma: "asc" }, { creadoEn: "asc" }],
+    })
+    return { fotos: filas.map(medioPublico) }
   }
 
   /** Lectura temporal tras comprobar permisos; nunca de una foto no confirmada. */

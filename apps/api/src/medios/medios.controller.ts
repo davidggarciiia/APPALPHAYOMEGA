@@ -16,11 +16,13 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UseGuards,
 } from "@nestjs/common"
 import {
   SolicitarSubidaSchema,
   type AccesoMedio,
   type IntencionSubida,
+  type ListadoFotos,
   type MedioFoto,
   type SolicitarSubida,
 } from "@alpha-omega/shared"
@@ -28,13 +30,32 @@ import type { IncomingMessage } from "node:http"
 import { z } from "zod"
 
 import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
+import { AlcanceClienteGuard } from "../identity/alcance-cliente.guard.js"
 import type { IdentidadVerificada, PeticionAutenticada } from "../identity/peticion.js"
 import { Publico } from "../identity/publico.decorator.js"
+import { RequiereConsentimientoDeSalud } from "../identity/consentimiento.guard.js"
 import { Roles } from "../identity/roles.decorator.js"
 import { ALMACEN_OBJETOS, AlmacenLocal, type AlmacenObjetos } from "./almacen-objetos.js"
 import { MediosService } from "./medios.service.js"
 
 const IdSchema = z.uuid()
+
+/** Las fotos de un cliente, para el comparador de Progreso y de la ficha. */
+@Controller("seguimiento/clientes/:clienteId")
+export class FotosClienteController {
+  constructor(private readonly medios: MediosService) {}
+
+  @Roles("cliente", "entrenador")
+  @UseGuards(AlcanceClienteGuard)
+  @Get("fotos")
+  fotos(
+    @Req() peticion: PeticionAutenticada,
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+  ): Promise<ListadoFotos> {
+    if (!peticion.usuario) throw new UnauthorizedException()
+    return this.medios.deCliente(peticion.usuario, clienteId)
+  }
+}
 
 /** Fotos privadas. El alcance por cliente se comprueba en el servicio, con el medio leído. */
 @Controller("medios")
@@ -47,6 +68,7 @@ export class MediosController {
   }
 
   @Roles("cliente", "entrenador")
+  @RequiereConsentimientoDeSalud()
   @Post("subidas")
   solicitarSubida(
     @Req() peticion: PeticionAutenticada,

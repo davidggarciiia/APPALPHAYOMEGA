@@ -1,8 +1,12 @@
 import {
   CambiarValoracionSchema,
+  ConsultarEvolucionSchema,
   CrearValoracionSchema,
+  EvolucionSchema,
   GuardarPlantillaValoracionSchema,
   GuardarProximaRevisionSchema,
+  LeerAvisosSeguimientoSchema,
+  ListadoAvisosSeguimientoSchema,
   ListadoValoracionesPublicadasSchema,
   ListadoValoracionesSchema,
   PlantillaValoracionSchema,
@@ -12,9 +16,12 @@ import {
   ValoracionClienteSchema,
   ValoracionProfesionalSchema,
   type CambiarValoracion,
+  type ConsultarEvolucion,
   type CrearValoracion,
+  type Evolucion,
   type GuardarPlantillaValoracion,
   type GuardarProximaRevision,
+  type ListadoAvisosSeguimiento,
   type ListadoValoraciones,
   type ListadoValoracionesPublicadas,
   type PlantillaValoracion,
@@ -68,9 +75,19 @@ export type ApiValoracionesCliente = {
   proximaRevision: (clienteId: string) => Promise<ProximaRevision>
 }
 
+/**
+ * Evolución (cliente, entrenador y nutricionista) y avisos de Inicio (cliente y
+ * entrenador). Leer un aviso no revisa nada.
+ */
+export type ApiEvolucionAvisos = {
+  evolucion: (clienteId: string, periodo?: ConsultarEvolucion) => Promise<Evolucion>
+  avisos: (clienteId: string) => Promise<ListadoAvisosSeguimiento>
+  leerAvisos: (clienteId: string, avisoIds: string[]) => Promise<ListadoAvisosSeguimiento>
+}
+
 export function crearApiValoraciones(
   pedir: PeticionAutenticada,
-): ApiValoraciones & ApiValoracionesCliente {
+): ApiValoraciones & ApiValoracionesCliente & ApiEvolucionAvisos {
   const base = (clienteId: string): string =>
     `/seguimiento/clientes/${encodeURIComponent(clienteId)}`
   const visita = (clienteId: string, id: string): string =>
@@ -119,5 +136,19 @@ export function crearApiValoraciones(
         ListadoValoracionesPublicadasSchema,
       ),
     leerPublicada: (clienteId, id) => pedir(visita(clienteId, id), ValoracionClienteSchema),
+    evolucion: (clienteId, periodo = {}) => {
+      const { desde, hasta } = ConsultarEvolucionSchema.parse(periodo)
+      const consulta = new URLSearchParams({
+        ...(desde && { desde }),
+        ...(hasta && { hasta }),
+      }).toString()
+      return pedir(`${base(clienteId)}/evolucion${consulta ? `?${consulta}` : ""}`, EvolucionSchema)
+    },
+    avisos: (clienteId) => pedir(`${base(clienteId)}/avisos`, ListadoAvisosSeguimientoSchema),
+    leerAvisos: (clienteId, avisoIds) =>
+      pedir(`${base(clienteId)}/avisos/leidos`, ListadoAvisosSeguimientoSchema, {
+        method: "POST",
+        body: JSON.stringify(LeerAvisosSeguimientoSchema.parse({ avisoIds })),
+      }),
   }
 }

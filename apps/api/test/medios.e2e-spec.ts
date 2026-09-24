@@ -575,6 +575,42 @@ describe("Retirar fotos y limpiar subidas abandonadas (F05a)", () => {
     expect((await confirmar(reintento.medio.id, "cliente")).estado).toBe("disponible")
   })
 
+  it("el listado del cliente reúne sus fotos según quién pregunta, sin las pendientes", async () => {
+    const delEntrenador = await fotoDeVisita()
+    const delCliente = await aportacion()
+    const pendiente = (await intencion("cliente", clienteId(), { tipo: "solicitud", solicitudId }))
+      .medio
+    const listado = async (rol: string) =>
+      ListadoFotosSchema.parse(
+        (
+          await request(http())
+            .get(`/seguimiento/clientes/${clienteId()}/fotos`)
+            .set(entorno.como(rol))
+            .expect(200)
+        ).body,
+      ).fotos.map((foto) => foto.id)
+
+    const vistasPorEntrenador = await listado("entrenador")
+    expect(vistasPorEntrenador).toEqual(expect.arrayContaining([delEntrenador.id, delCliente.id]))
+    expect(vistasPorEntrenador).not.toContain(pendiente.id)
+    // El cliente no ve una foto del entrenador hasta que se publica la visita.
+    const vistasPorCliente = await listado("cliente")
+    expect(vistasPorCliente).toContain(delCliente.id)
+    expect(vistasPorCliente).not.toContain(delEntrenador.id)
+    expect(vistasPorCliente).not.toContain(pendiente.id)
+    await entorno.prisma.medioFoto.update({
+      where: { id: delEntrenador.id },
+      data: { publicadaEn: new Date() },
+    })
+    expect(await listado("cliente")).toContain(delEntrenador.id)
+
+    for (const rol of ["nutricionista", "otro", "empleado"])
+      await request(http())
+        .get(`/seguimiento/clientes/${clienteId()}/fotos`)
+        .set(entorno.como(rol))
+        .expect(403)
+  })
+
   it("la limpieza se programa según MEDIOS_LIMPIEZA_MINUTOS, nunca en pruebas, y se detiene al cerrar", () => {
     const antes = {
       NODE_ENV: process.env.NODE_ENV,

@@ -30,6 +30,8 @@ export type ApiMedios = {
   acceso: (medioId: string) => Promise<AccesoMedio>
   borrar: (medioId: string) => Promise<MedioFoto>
   fotosDeValoracion: (clienteId: string, valoracionId: string) => Promise<ListadoFotos>
+  /** Todas las fotos del cliente que puede ver quien pregunta, sin las pendientes. */
+  fotosDeCliente: (clienteId: string) => Promise<ListadoFotos>
   vincularFoto: (clienteId: string, valoracionId: string, medioId: string) => Promise<MedioFoto>
   solicitudes: (clienteId: string) => Promise<ListadoSolicitudesFotos>
   pedirFotos: (clienteId: string, datos: CrearSolicitudFotos) => Promise<SolicitudFotos>
@@ -53,6 +55,7 @@ export function crearApiMedios(pedir: PeticionAutenticada): ApiMedios {
       pedir(`${medio(medioId)}/confirmacion`, MedioFotoSchema, { method: "POST" }),
     acceso: (medioId) => pedir(`${medio(medioId)}/acceso`, AccesoMedioSchema),
     borrar: (medioId) => pedir(medio(medioId), MedioFotoSchema, { method: "DELETE" }),
+    fotosDeCliente: (clienteId) => pedir(`${cliente(clienteId)}/fotos`, ListadoFotosSchema),
     fotosDeValoracion: (clienteId, valoracionId) =>
       pedir(
         `${cliente(clienteId)}/valoraciones/${encodeURIComponent(valoracionId)}/fotos`,
