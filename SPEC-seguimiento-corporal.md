@@ -42,6 +42,26 @@ El nutricionista no recibe fotos, notas internas ni borradores; ampliarlo requie
 
 **Próxima revisión.** `pauta: null` es «Sin programar»; si existe, lleva fecha **o** intervalo en semanas y los bloques que se repetirán. Se guarda con `revision`. No se fija una frecuencia por defecto ni se repiten automáticamente todas las pruebas. Solo crear una revisión con `cumplePauta` (la revisión vigente de la pauta) la marca cumplida y guarda `cumplidaPorId`; abrirla no. Guardar una pauta nueva la deja otra vez pendiente.
 
+## Fotos de evolución
+
+Detalle técnico en el [ADR 0005](docs/adr/0005-almacenamiento-de-fotos.md). Una foto tiene vista (`frente`, `espalda`, `perfilIzquierdo`, `perfilDerecho` u `otra` con etiqueta), fecha de toma, autor, origen (`profesional` en una visita, `cliente` en una solicitud) y estado (`pendiente`, `disponible`, `eliminando`, `eliminado`). Solo `disponible` es una foto confirmada.
+
+- **Subir:** `POST /medios/subidas` con `operacionId` → enlace de subida → `POST /medios/:id/confirmacion`. Repetir la misma operación devuelve el mismo medio y renueva el enlace. Una confirmación tardía responde `409` y se vuelve a subir con la misma operación.
+- **Ver:** `GET /medios/:id/acceso` da una lectura de 5 minutos. `GET seguimiento/clientes/:clienteId/fotos` lista las que puede ver quien pregunta, sin las pendientes: el entrenador, todas; el cliente, las suyas y las del entrenador ya publicadas. El nutricionista recibe `403`.
+- **Solicitudes:** el entrenador pide vistas (`solicitudes-fotos`). El cliente aporta aunque aún no exista la visita, y el entrenador incorpora lo recibido sin volver a subirlo. «Recibida» y «revisada» son estados distintos; revisar es una acción explícita.
+- **Retirar:** `DELETE /medios/:id`. El entrenador retira cualquier foto de su cliente; el cliente, solo lo que aportó. Si el almacén falla, queda `eliminando` sin acceso y se puede repetir. Una foto retirada sigue en su visita como retirada. Las subidas sin confirmar se descartan solas.
+- **Comparar:** dos fechas de la misma vista, nunca de vistas distintas. Una vista con una sola foto se explica; el hueco no se rellena con otra vista ni otra fecha.
+
+## Evolución y avisos
+
+`GET seguimiento/clientes/:clienteId/evolucion?desde&hasta` devuelve series de puntos. Una serie solo junta valores comparables: misma definición y versión, misma métrica y unidad, y protocolo completo o no. Los formatos de clave están en `SerieEvolucionSchema`. El histórico anterior a las valoraciones sale sin clasificar y no se compara con las visitas. Una corrección sustituye el punto de su visita. La lee el cliente, el entrenador y el nutricionista asignado, este sin pruebas físicas. La app muestra la diferencia solo entre dos puntos de la misma serie y con lectura neutral.
+
+`GET seguimiento/clientes/:clienteId/avisos` y `POST …/avisos/leidos` avisan al cliente de valoraciones publicadas o corregidas y de fotos solicitadas, y al entrenador de fotos recibidas. Los avisos salen de las publicaciones y solicitudes, sin tabla propia. La lectura va por usuario y es idempotente, y leer un aviso no revisa nada.
+
+## Consentimiento de datos de salud
+
+Sin consentimiento vigente del cliente (`packages/shared/src/consentimiento.ts`), la API rechaza con `409 consentimiento_pendiente` cualquier escritura de sus datos de salud: medidas, días, pruebas, valoraciones, fotos, molestias y comidas. Da igual que la haga él o su equipo. El cliente lo da y lo retira desde la app (`GET/POST/DELETE /consentimiento`). El entrenador y el nutricionista asignado lo consultan (`GET seguimiento/clientes/:clienteId/consentimiento`). Retirarlo no borra lo guardado antes. El texto es un borrador pendiente de revisión legal.
+
 ## Aceptación
 
 1. El entrenador configura y reabre los indicadores, frecuencia, objetivo y pruebas de un cliente; el cliente ve exactamente lo publicado.
