@@ -272,7 +272,7 @@ export class RegistroControl {
     )
     const actuales = new Map(
       local.sesion.prescripcion.ejercicios.flatMap((e) =>
-        e.series.map((s) => [s.id, s.tipoMedicion] as const),
+        e.series.map((s) => [s.id, { serie: s, tipoCarga: e.tipoCarga }] as const),
       ),
     )
     const valores = new Map(local.respaldo.edicion.series.map((s) => [s.serieId, s]))
@@ -280,9 +280,23 @@ export class RegistroControl {
     const edicion = {
       ...base,
       ...local.respaldo.edicion,
-      series: base.series.map((s) =>
-        anteriores.get(s.serieId) === actuales.get(s.serieId) ? (valores.get(s.serieId) ?? s) : s,
-      ),
+      series: base.series.map((s) => {
+        const actual = actuales.get(s.serieId)
+        const anterior = valores.get(s.serieId)
+        if (!actual || !anterior || anteriores.get(s.serieId) !== actual.serie.tipoMedicion)
+          return s
+        // Una carga oculta o ausente dejaría una serie hecha imposible de enviar.
+        // La ejecución incompatible permanece en el respaldo, sin sustituir la pauta nueva.
+        const tienePeso = anterior.peso.trim() !== ""
+        if (actual.tipoCarga === "sinCarga" && tienePeso) return s
+        if (
+          anterior.hecha &&
+          !tienePeso &&
+          (actual.tipoCarga === "conCargaExterna" || actual.serie.pesoKg !== null)
+        )
+          return s
+        return anterior
+      }),
     }
     await this.editar(edicion)
   }

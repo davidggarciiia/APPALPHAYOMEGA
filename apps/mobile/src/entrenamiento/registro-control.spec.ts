@@ -6,6 +6,7 @@ import { crearPeticionAutenticada } from "../lib/peticion-autenticada"
 import { DocumentoSesionSchema, claveSesion, hayCambiosLocales } from "./documento-local"
 import type { Borrador, SesionCliente, ResultadoEntrenamiento } from "@alpha-omega/shared"
 import { iniciarTramo } from "./sesion/tiempo"
+import { registroParaEnviar } from "./registro-modelo"
 
 jest.mock("../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 const cuenta = randomUUID(),
@@ -252,6 +253,59 @@ it("recupera offline y reutiliza la operación cuya respuesta se perdió", async
     (await almacen.leer(cuenta, claveSesion(id), DocumentoSesionSchema))?.pendiente?.peticion,
   ).toEqual(primera)
 })
+
+it.each(["sinCarga", "conCargaExterna"] as const)(
+  "no recupera una serie hecha incompatible con la nueva pauta %s y conserva la copia",
+  async (tipoCarga) => {
+    const { control, api } = preparar()
+    jest.mocked(api.leerCliente).mockResolvedValue({
+      ...sesion,
+      prescripcion: {
+        ...sesion.prescripcion,
+        ejercicios: sesion.prescripcion.ejercicios.map((ejercicio) => ({
+          ...ejercicio,
+          tipoCarga: tipoCarga === "sinCarga" ? "conCargaExterna" : "sinCarga",
+          series: ejercicio.series.map((serie) => ({
+            ...serie,
+            pesoKg: tipoCarga === "sinCarga" ? 20 : null,
+          })),
+        })),
+      },
+    })
+    await control.abrir()
+    const pesoAnterior = tipoCarga === "sinCarga" ? "20" : ""
+    await control.editar({
+      notas: "mi ejecución anterior",
+      series: [{ serieId, peso: pesoAnterior, valor: "10", hecha: true }],
+    })
+    expect(() =>
+      registroParaEnviar(control.documento!.sesion.prescripcion, control.documento!.edicion),
+    ).not.toThrow()
+    jest.mocked(api.leerCliente).mockResolvedValue({
+      ...sesion,
+      revisionPrescripcion: 1,
+      prescripcion: {
+        ...sesion.prescripcion,
+        ejercicios: sesion.prescripcion.ejercicios.map((ejercicio) => ({
+          ...ejercicio,
+          tipoCarga,
+          series: ejercicio.series.map((serie) => ({ ...serie, pesoKg: null })),
+        })),
+      },
+    })
+    await control.recuperarServidor()
+    await control.recuperarCopia()
+
+    expect(control.documento?.edicion.series[0]).toMatchObject({ hecha: false, peso: "" })
+    expect(control.documento?.respaldo?.edicion.series[0]).toMatchObject({
+      hecha: true,
+      peso: pesoAnterior,
+    })
+    expect(() =>
+      registroParaEnviar(control.documento!.sesion.prescripcion, control.documento!.edicion),
+    ).not.toThrow()
+  },
+)
 
 it("conserva la intención de enviar cuando el primer guardado falla sin conexión", async () => {
   const { control, api, almacen } = preparar()

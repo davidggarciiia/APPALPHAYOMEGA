@@ -464,7 +464,7 @@ export function RegistroCliente({
         <View>
           <Text style={e.nota}>
             Tu copia anterior sigue guardada. Al recuperarla se aplican las series que aún conservan
-            la misma unidad.
+            la misma unidad y admiten la carga registrada. Las demás quedan pendientes.
           </Text>
           <BotonSecundario
             texto="Recuperar mi copia anterior"
