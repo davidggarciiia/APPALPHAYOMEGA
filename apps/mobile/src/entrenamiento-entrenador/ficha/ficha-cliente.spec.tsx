@@ -4,6 +4,7 @@ import type { FichaDeUsuario } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import type { ApiNutricion } from "../../nutricion/api"
 import type { ApiSeguimiento } from "../../seguimiento/api"
+import type { ApiMedios } from "../../seguimiento/medios-api"
 import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { FichaCliente } from "./ficha-cliente"
 
@@ -54,6 +55,7 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
       api={api}
       seguimiento={seguimiento}
       valoraciones={{} as ApiValoraciones}
+      medios={{} as ApiMedios}
       nutricion={nutricion}
       nuevoId={() => "50000000-0000-4000-8000-000000000000"}
       editarPlan={jest.fn()}

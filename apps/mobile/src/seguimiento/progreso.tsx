@@ -22,7 +22,9 @@ import type { ApiSeguimiento } from "./api"
 import { EditorConfiguracionSeguimiento } from "./configuracion"
 import { AnadirMedida, AnadirPrueba } from "./formularios"
 import { Grafica } from "./grafica"
+import type { ApiMedios } from "./medios-api"
 import { ValoracionesCliente } from "./resumen-valoracion"
+import { SolicitudesFotos } from "./solicitudes-fotos"
 import type { ApiValoracionesCliente } from "./valoraciones-api"
 import {
   edadEn,
@@ -69,6 +71,7 @@ export function ProgresoCliente({
   seguimiento,
   entrenamiento,
   valoraciones,
+  medios,
   modo = "cliente",
 }: {
   clienteId: string
@@ -76,6 +79,8 @@ export function ProgresoCliente({
   entrenamiento: ApiEntrenamiento
   /** Valoraciones publicadas del cliente; en la ficha profesional van aparte. */
   valoraciones?: ApiValoracionesCliente
+  /** Solicitudes de fotos del cliente; solo consulta mientras no haya subida desde el móvil. */
+  medios?: ApiMedios
   modo?: "cliente" | "entrenador"
 }): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>()
@@ -129,6 +134,9 @@ export function ProgresoCliente({
     <View style={s.contenido}>
       {modo === "cliente" && valoraciones && (
         <ValoracionesCliente clienteId={clienteId} api={valoraciones} />
+      )}
+      {modo === "cliente" && medios && (
+        <SolicitudesFotos clienteId={clienteId} api={medios} modo="cliente" nuevoId={() => ""} />
       )}
       {modo === "entrenador" && datos && (
         <EditorConfiguracionSeguimiento

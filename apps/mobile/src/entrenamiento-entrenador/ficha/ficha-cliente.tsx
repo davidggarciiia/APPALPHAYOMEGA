@@ -25,6 +25,7 @@ import type { ApiSeguimiento } from "../../seguimiento/api"
 import { edadEn, miles, pesoLegible } from "../../seguimiento/modelo"
 import { ValoracionesProfesional } from "../../seguimiento/editor-valoracion"
 import { ProgresoCliente } from "../../seguimiento/progreso"
+import type { ApiMedios } from "../../seguimiento/medios-api"
 import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { degradadoOro, tema } from "../../tema"
 import { resumenDeResultado } from "../ficha-modelo"
@@ -63,6 +64,7 @@ export function FichaCliente({
   api,
   seguimiento,
   valoraciones,
+  medios,
   nutricion,
   nuevoId,
   editarPlan,
@@ -75,6 +77,7 @@ export function FichaCliente({
   api: ApiEntrenamiento
   seguimiento: ApiSeguimiento
   valoraciones: ApiValoraciones
+  medios: ApiMedios
   nutricion: ApiNutricion
   nuevoId: () => string
   editarPlan: () => void
@@ -240,7 +243,12 @@ export function FichaCliente({
 
       {pestana === "progreso" && (
         <View style={s.contenido}>
-          <ValoracionesProfesional clienteId={clienteId} api={valoraciones} nuevoId={nuevoId} />
+          <ValoracionesProfesional
+            clienteId={clienteId}
+            api={valoraciones}
+            medios={medios}
+            nuevoId={nuevoId}
+          />
           <ProgresoCliente
             clienteId={clienteId}
             seguimiento={seguimiento}

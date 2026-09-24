@@ -9,6 +9,7 @@ import { useEntrenamiento } from "../../../../src/entrenamiento/use-entrenamient
 import { FichaCliente } from "../../../../src/entrenamiento-entrenador/ficha/ficha-cliente"
 import { useNutricion } from "../../../../src/nutricion/api"
 import { useSeguimiento } from "../../../../src/seguimiento/use-seguimiento"
+import { useMedios } from "../../../../src/seguimiento/use-medios"
 import { useValoraciones } from "../../../../src/seguimiento/use-valoraciones"
 import { useSesion } from "../../../../src/sesion"
 import { tema } from "../../../../src/tema"
@@ -20,6 +21,7 @@ export default function FichaDelCliente(): React.JSX.Element {
   const api = useEntrenamiento()
   const seguimiento = useSeguimiento()
   const valoraciones = useValoraciones()
+  const medios = useMedios()
   const nutricion = useNutricion()
   const router = useRouter()
   const leerFicha = useCallback(
@@ -36,6 +38,7 @@ export default function FichaDelCliente(): React.JSX.Element {
           api={api}
           seguimiento={seguimiento}
           valoraciones={valoraciones}
+          medios={medios}
           nutricion={nutricion}
           nuevoId={randomUUID}
           editarPlan={() =>

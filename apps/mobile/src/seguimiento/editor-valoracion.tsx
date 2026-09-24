@@ -20,6 +20,8 @@ import { BorradorValoracion } from "./borrador-valoracion"
 import { EditorPautaRevision, textoDePauta } from "./pauta-revision"
 import { EditorPlantilla } from "./plantilla-valoracion"
 import type { ReferenciaPrueba } from "./pruebas-valoracion"
+import type { ApiMedios } from "./medios-api"
+import { SolicitudesFotos } from "./solicitudes-fotos"
 import type { ApiValoraciones } from "./valoraciones-api"
 
 type Vista =
@@ -142,10 +144,13 @@ function VisitaPublicada({
 export function ValoracionesProfesional({
   clienteId,
   api,
+  medios,
   nuevoId,
 }: {
   clienteId: string
   api: ApiValoraciones
+  /** Sin él no se muestran las solicitudes de fotos (por ejemplo, en pruebas aisladas). */
+  medios?: ApiMedios
   nuevoId: () => string
 }): React.JSX.Element {
   const [listado, setListado] = useState<ListadoValoraciones | null>(null)
@@ -411,6 +416,15 @@ export function ValoracionesProfesional({
         <Text style={s.tenue}>
           Mostrando {listado.valoraciones.length} de {listado.total}.
         </Text>
+      )}
+      {medios && (
+        <SolicitudesFotos
+          clienteId={clienteId}
+          api={medios}
+          modo="entrenador"
+          nuevoId={nuevoId}
+          valoracionAbiertaId={enCurso?.id ?? null}
+        />
       )}
     </View>
   )
