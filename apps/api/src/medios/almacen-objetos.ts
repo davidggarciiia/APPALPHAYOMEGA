@@ -38,6 +38,10 @@ export const ALMACEN_OBJETOS = Symbol("AlmacenObjetos")
 export const MINUTOS_ENLACE_SUBIDA = 15
 export const MINUTOS_ENLACE_LECTURA = 5
 
+/** Destino temporal del PUT: ninguna foto nueva confirmada se sirve desde esta clave. */
+export const claveTemporalFoto = (clienteId: string, medioId: string): string =>
+  `clientes/${clienteId}/${medioId}`
+
 type Operacion = "subir" | "leer"
 
 export type PermisoLocal = { operacion: Operacion; tipoMime: FormatoFoto; bytes: number }

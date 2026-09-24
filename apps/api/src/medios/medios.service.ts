@@ -21,16 +21,19 @@ import { randomUUID } from "node:crypto"
 import { fechaSql } from "../agenda/fechas.js"
 import { conflicto, invalida } from "../entrenamiento/documentos.js"
 import { AlcanceClienteService } from "../identity/alcance-cliente.service.js"
+import { ConsentimientoService } from "../identity/consentimiento.service.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import {
   ALMACEN_OBJETOS,
   MINUTOS_ENLACE_LECTURA,
   MINUTOS_ENLACE_SUBIDA,
+  claveTemporalFoto,
   type AlmacenObjetos,
 } from "./almacen-objetos.js"
 import { formatoReal, sinMetadatos } from "./imagenes.js"
 import { MARGEN_LIMPIEZA_MS } from "./limpieza-medios.js"
+import { limpiarIntentoFoto, VIDA_INTENTO_FOTO_MS } from "./intentos-foto.js"
 
 const minutos = (n: number): Date => new Date(Date.now() + n * 60_000)
 const fecha = (valor: Date): string => valor.toISOString().slice(0, 10)
@@ -72,6 +75,7 @@ export class MediosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly alcance: AlcanceClienteService,
+    private readonly consentimiento: ConsentimientoService,
     @Inject(ALMACEN_OBJETOS) private readonly almacen: AlmacenObjetos,
   ) {}
 
@@ -150,7 +154,7 @@ export class MediosService {
           fechaToma: fechaSql(datos.fechaToma),
           tipoMime: datos.tipoMime,
           bytes: datos.bytes,
-          clave: `clientes/${datos.clienteId}/${id}`,
+          clave: claveTemporalFoto(datos.clienteId, id),
           subidaCaducaEn: caducaEn,
           valoracionId: destino.tipo === "valoracion" ? destino.valoracionId : null,
           solicitudId: destino.tipo === "solicitud" ? destino.solicitudId : null,
@@ -245,9 +249,18 @@ export class MediosService {
     if (fila.estado === "disponible") return medioPublico(fila)
     if (fila.estado !== "pendiente")
       throw conflicto("estado_incompatible", "Esta foto se ha retirado")
+    await this.consentimiento.exigirVigente(fila.clienteId, actor.sub)
     const contenido = await this.almacen.leer(fila.clave)
-    if (!contenido || contenido.length === 0)
+    if (!contenido || contenido.length === 0) {
+      // Otra confirmación puede haber terminado y limpiado el temporal después
+      // de que leyéramos la fila pendiente. Su resultado sigue siendo válido.
+      const actual = await this.prisma.medioFoto.findUnique({
+        where: { id },
+        include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
+      })
+      if (actual?.estado === "disponible") return medioPublico(actual)
       throw conflicto("estado_incompatible", "La foto aún no ha llegado: vuelve a subirla")
+    }
     if (contenido.length > fila.bytes || formatoReal(contenido) !== fila.tipoMime) {
       await this.almacen.borrar(fila.clave)
       throw invalida("El archivo no es una imagen del formato y tamaño anunciados")
@@ -259,34 +272,69 @@ export class MediosService {
       await this.almacen.borrar(fila.clave)
       throw invalida("La imagen está dañada: vuelve a subirla")
     }
-    await this.almacen.reemplazar(fila.clave, limpio)
-    const ahora = new Date()
-    const confirmada = await this.prisma.$transaction(async (tx) => {
-      // Una intención que la limpieza ya puede descartar no pasa a disponible:
-      // si lo hiciera, la limpieza podría borrar su objeto a la vez.
-      const cambiadas = await tx.medioFoto.updateMany({
-        where: {
-          id,
-          estado: "pendiente",
-          subidaCaducaEn: { gte: new Date(ahora.getTime() - MARGEN_LIMPIEZA_MS) },
-        },
-        data: { estado: "disponible", confirmadoEn: ahora, bytes: limpio.length },
-      })
-      if (cambiadas.count === 1 && fila.solicitudId)
-        await tx.solicitudFotos.updateMany({
-          where: { id: fila.solicitudId, estado: "pendiente" },
-          data: { estado: "recibida", recibidaEn: ahora },
-        })
-      return tx.medioFoto.findUnique({
-        where: { id },
-        include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
-      })
+    // Cada intento escribe una clave nueva y duradera antes de tocar el almacén.
+    // Nunca se reutiliza una clave final, aunque una operación externa tarde.
+    const claveFinal = `clientes/${fila.clienteId}/verificadas/${id}-${randomUUID()}`
+    await this.prisma.intentoFoto.create({
+      data: {
+        clave: claveFinal,
+        medioId: id,
+        reintentarEn: new Date(Date.now() + VIDA_INTENTO_FOTO_MS),
+      },
     })
+    let confirmada: FilaConAutor | null
+    try {
+      await this.almacen.reemplazar(claveFinal, limpio)
+      confirmada = await this.prisma.$transaction(async (tx) => {
+        const ahora = new Date()
+        // Esta escritura bloquea la fila frente al descarte hasta el commit.
+        // No hay I/O del almacén dentro de la transacción.
+        const activo = await tx.intentoFoto.updateMany({
+          where: { clave: claveFinal, descartadoEn: null, reintentarEn: { gt: ahora } },
+          data: { descartadoEn: null },
+        })
+        if (activo.count === 0)
+          return tx.medioFoto.findUnique({
+            where: { id },
+            include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
+          })
+        await this.consentimiento.exigirVigente(fila.clienteId, actor.sub, tx)
+        // Una intención que la limpieza ya puede descartar no pasa a disponible.
+        const cambiadas = await tx.medioFoto.updateMany({
+          where: {
+            id,
+            estado: "pendiente",
+            subidaCaducaEn: { gte: new Date(ahora.getTime() - MARGEN_LIMPIEZA_MS) },
+          },
+          data: {
+            estado: "disponible",
+            confirmadoEn: ahora,
+            bytes: limpio.length,
+            clave: claveFinal,
+          },
+        })
+        if (cambiadas.count === 1 && fila.solicitudId)
+          await tx.solicitudFotos.updateMany({
+            where: { id: fila.solicitudId, estado: "pendiente" },
+            data: { estado: "recibida", recibidaEn: ahora },
+          })
+        if (cambiadas.count === 1) await tx.intentoFoto.delete({ where: { clave: claveFinal } })
+        return tx.medioFoto.findUnique({
+          where: { id },
+          include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
+        })
+      })
+    } catch (error) {
+      // Si se perdió la respuesta del commit, la fila del ganador ya no existe
+      // y el descarte no tiene permiso para borrar su clave.
+      await this.descartarIntento(id, claveFinal)
+      throw error
+    }
+    if (confirmada?.clave !== claveFinal) await this.descartarIntento(id, claveFinal)
     if (confirmada?.estado !== "disponible") {
-      // Se retiró, se limpió o caducó mientras se verificaba: que no quede el
-      // objeto reescrito. Si caducó, la misma operación renueva la subida.
+      // Se retiró, se limpió o caducó mientras se verificaba.
       await this.almacen.borrar(fila.clave).catch(() => {
-        this.registro.warn(`No se pudo borrar el objeto de la foto ${id} tras retirarse`)
+        this.registro.warn(`No se pudo borrar el temporal de la foto ${id}`)
       })
       throw conflicto(
         "estado_incompatible",
@@ -295,7 +343,20 @@ export class MediosService {
           : "Esta foto se ha retirado",
       )
     }
+    // Un PUT repetido puede recrear el temporal hasta que caduque su enlace.
+    // LimpiezaMedios lo vuelve a eliminar después de esa caducidad.
+    await this.almacen.borrar(fila.clave).catch(() => {
+      this.registro.warn(`No se pudo borrar el temporal de la foto ${id}; se limpiará al caducar`)
+    })
     return medioPublico(confirmada)
+  }
+
+  private async descartarIntento(id: string, clave: string): Promise<void> {
+    try {
+      await limpiarIntentoFoto(this.prisma, this.almacen, clave)
+    } catch {
+      this.registro.warn(`No se pudo comprobar o limpiar el intento de confirmación de ${id}`)
+    }
   }
 
   /**
@@ -326,6 +387,7 @@ export class MediosService {
     })
     try {
       await this.almacen.borrar(fila.clave)
+      await this.almacen.borrar(claveTemporalFoto(fila.clienteId, id))
     } catch (error) {
       this.registro.warn(
         `No se pudo borrar el objeto de la foto ${id}: ${error instanceof Error ? error.message : "error desconocido"}`,

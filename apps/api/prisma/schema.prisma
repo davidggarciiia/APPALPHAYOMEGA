@@ -856,6 +856,22 @@ model MedioFoto {
   @@map("medios_fotos")
 }
 
+/// Copias por intento, registradas antes de escribir al almacén. Sin FK: una
+/// limpieza pendiente debe sobrevivir a la retirada de la intención original.
+/// Al publicar se elimina esta fila en la misma transacción; descartar la
+/// conserva para recuperar borrados fallidos o escrituras externas tardías.
+model IntentoFoto {
+  clave         String    @id
+  medioId       String
+  creadoEn      DateTime  @default(now())
+  descartadoEn  DateTime?
+  reintentarEn  DateTime
+
+  @@index([reintentarEn, clave])
+  @@index([medioId])
+  @@map("intentos_foto")
+}
+
 /// Fotos que el entrenador pide al cliente. Recibirlas no las marca revisadas.
 model SolicitudFotos {
   id                  String               @id @default(uuid())

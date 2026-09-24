@@ -52,6 +52,16 @@ del servidor, así que se pierden al reinstalarlo y no tienen copia.
   y `GET` y la cabecera `Content-Type`. La app nativa no lo necesita.
 - Las subidas que nunca se confirman las borra la propia API
   (`limpieza-medios.ts`).
+- La confirmación escribe una clave nueva por intento; ningún enlace de subida
+  apunta a la foto final. Aplicar `20260924210000_intentos_foto` antes de iniciar
+  esta versión. Las copias fallidas quedan registradas para reintento, y los
+  temporales se eliminan al confirmar y después de caducar el enlace.
+- Mantener activa la limpieza (`MEDIOS_LIMPIEZA_MINUTOS`, 60 por defecto).
+  Ensayar con el proveedor real el PUT repetido, la respuesta perdida, el
+  borrado fallido y la escritura tardía. La retención/ciclo de vida del bucket
+  sigue pendiente de configuración: **no** aplicar una regla de expiración al
+  prefijo general `clientes/`, que también contiene las fotos confirmadas.
+  Véanse los límites y la transición de enlaces antiguos en el ADR 0005.
 
 ## Primera instalación
 
@@ -73,8 +83,10 @@ npx prisma migrate deploy
 
 Solo `migrate deploy`. **Nunca** `migrate dev`, `migrate reset` ni `db:reset`
 contra producción, porque borran o reescriben datos. Todas las migraciones son
-aditivas. Cada una tiene su SQL de marcha atrás en `apps/api/prisma/rollback/`,
-que solo se aplica a mano tras una copia de seguridad.
+aditivas. Los scripts disponibles en `apps/api/prisma/rollback/` solo se aplican
+a mano tras una copia de seguridad. No hay que retirar la tabla `intentos_foto`
+al revertir una versión: conserva la información necesaria para limpiar copias
+fallidas y operaciones de almacenamiento que puedan terminar tarde.
 
 ### 2. Cuenta del entrenador
 

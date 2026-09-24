@@ -23,6 +23,9 @@ export async function limpiarValoraciones(prisma: PrismaService, ids: string[]):
   const clienteId = { in: ids }
   const valoracion = { clienteId }
   await prisma.lecturaAvisoSeguimiento.deleteMany({ where: { usuarioId: { in: ids } } })
+  await prisma.intentoFoto.deleteMany({
+    where: { OR: ids.map((id) => ({ clave: { startsWith: `clientes/${id}/` } })) },
+  })
   await prisma.medioFoto.deleteMany({ where: { OR: [{ clienteId }, { autorId: { in: ids } }] } })
   await prisma.solicitudFotos.deleteMany({
     where: { OR: [{ clienteId }, { autorId: { in: ids } }] },

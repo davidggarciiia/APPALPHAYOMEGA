@@ -116,6 +116,178 @@ describe("Fotos privadas: subida, confirmación y acceso (F02b)", () => {
     await request(http()).get(`/medios/${medio.id}/acceso`).set(entorno.como("otro")).expect(404)
   })
 
+  it("un enlace de subida reutilizado no puede reemplazar la foto ya confirmada", async () => {
+    const { medio, subida } = IntencionSubidaSchema.parse((await intencion().expect(201)).body)
+    await subir(subida!, jpeg).expect(204)
+    await request(http())
+      .post(`/medios/${medio.id}/confirmacion`)
+      .set(entorno.como("entrenador"))
+      .expect(200)
+
+    const { lectura } = AccesoMedioSchema.parse(
+      (
+        await request(http())
+          .get(`/medios/${medio.id}/acceso`)
+          .set(entorno.como("entrenador"))
+          .expect(200)
+      ).body,
+    )
+    const limpia = Buffer.from(
+      (await request(http()).get(ruta(lectura)).expect(200)).body as Buffer,
+    )
+    expect(limpia.toString("latin1")).not.toContain("GPS")
+
+    // La firma sigue vigente, pero solo permite escribir el temporal de subida.
+    const reemplazo = Buffer.from(jpeg)
+    reemplazo[reemplazo.length - 3] = 0x79
+    await subir(subida!, reemplazo).expect(204)
+    const final = await request(http()).get(ruta(lectura)).expect(200)
+    expect(Buffer.from(final.body as Buffer)).toEqual(limpia)
+    expect(Buffer.from(final.body as Buffer).toString("latin1")).not.toContain("GPS")
+
+    const almacen = entorno.app.get<AlmacenObjetos>(ALMACEN_OBJETOS)
+    const temporal = decodeURIComponent(new URL(subida!.url).pathname.split("/").pop()!)
+    expect(await almacen.leer(temporal)).not.toBeNull()
+    const limpieza = entorno.app.get(LimpiezaMedios)
+    const despuesDeCaducar = new Date(Date.now() + 2 * 60 * 60_000)
+    const borrar = almacen.borrar.bind(almacen)
+    const espia = jest.spyOn(almacen, "borrar").mockImplementation(async (clave) => {
+      if (clave === temporal) throw new Error("Fallo de limpieza simulado")
+      return borrar(clave)
+    })
+    try {
+      await limpieza.limpiar(despuesDeCaducar)
+      expect(await almacen.leer(temporal)).not.toBeNull()
+    } finally {
+      espia.mockRestore()
+    }
+    await limpieza.limpiar(despuesDeCaducar)
+    expect(await almacen.leer(temporal)).toBeNull()
+    expect(
+      Buffer.from((await request(http()).get(ruta(lectura)).expect(200)).body as Buffer),
+    ).toEqual(limpia)
+    expect(
+      (await entorno.prisma.medioFoto.findUniqueOrThrow({ where: { id: medio.id } })).estado,
+    ).toBe("disponible")
+  })
+
+  it("una escritura lenta no reemplaza la foto que confirmó otro intento", async () => {
+    const { medio, subida } = IntencionSubidaSchema.parse((await intencion().expect(201)).body)
+    await subir(subida!, jpeg).expect(204)
+    const almacen = entorno.app.get<AlmacenObjetos>(ALMACEN_OBJETOS)
+    const reemplazar = almacen.reemplazar.bind(almacen)
+    const transaccion = entorno.prisma.$transaction.bind(entorno.prisma)
+    // Reproduce el vencimiento real de una transacción sin esperar 30 segundos.
+    const reloj = jest
+      .spyOn(entorno.prisma, "$transaction")
+      .mockImplementation(((
+        operacion: Parameters<typeof transaccion>[0],
+        opciones?: Parameters<typeof transaccion>[1],
+      ) => transaccion(operacion, { ...opciones, timeout: 150 })) as typeof transaccion)
+    let avisar!: () => void
+    let continuar!: () => void
+    const escribiendo = new Promise<void>((resolve) => {
+      avisar = resolve
+    })
+    const retenida = new Promise<void>((resolve) => {
+      continuar = resolve
+    })
+    const escritura = jest
+      .spyOn(almacen, "reemplazar")
+      .mockImplementationOnce(async (objeto, datos) => {
+        avisar()
+        await retenida
+        await reemplazar(objeto, datos)
+      })
+    const primera = request(http())
+      .post(`/medios/${medio.id}/confirmacion`)
+      .set(entorno.como("entrenador"))
+      .on("response", avisar)
+      .then((respuesta) => respuesta)
+    try {
+      await escribiendo
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      const otraFoto = Buffer.from(jpeg)
+      otraFoto[otraFoto.length - 3] = 0x79
+      await subir(subida!, otraFoto).expect(204)
+      let segunda!: request.Response
+      const recibida = new Promise<void>((resolve) => {
+        void request(http())
+          .post(`/medios/${medio.id}/confirmacion`)
+          .set(entorno.como("entrenador"))
+          .on("response", (respuesta) => {
+            segunda = respuesta
+            resolve()
+          })
+          .then(() => undefined)
+      })
+      await recibida
+      expect(segunda.status).toBe(200)
+      const ganadora = await entorno.prisma.medioFoto.findUniqueOrThrow({ where: { id: medio.id } })
+      const contenidoGanador = await almacen.leer(ganadora.clave)
+      continuar()
+      await primera
+      expect(await almacen.leer(ganadora.clave)).toEqual(contenidoGanador)
+    } finally {
+      continuar()
+      await primera
+      escritura.mockRestore()
+      reloj.mockRestore()
+    }
+  })
+
+  it("dos confirmaciones solapadas conservan la misma foto aunque se limpie su temporal", async () => {
+    const { medio, subida } = IntencionSubidaSchema.parse((await intencion().expect(201)).body)
+    await subir(subida!, jpeg).expect(204)
+    const almacen = entorno.app.get<AlmacenObjetos>(ALMACEN_OBJETOS)
+    const leer = almacen.leer.bind(almacen)
+    let avisarSegunda = () => {}
+    let liberarSegunda = () => {}
+    const segundaDentro = new Promise<void>((resolver) => {
+      avisarSegunda = resolver
+    })
+    const primeraTerminada = new Promise<void>((resolver) => {
+      liberarSegunda = resolver
+    })
+    let lecturas = 0
+    const espia = jest.spyOn(almacen, "leer").mockImplementation(async (clave) => {
+      lecturas += 1
+      if (lecturas === 1) await segundaDentro
+      else if (lecturas === 2) {
+        avisarSegunda()
+        await primeraTerminada
+      }
+      return leer(clave)
+    })
+    const confirmar = () =>
+      request(http())
+        .post(`/medios/${medio.id}/confirmacion`)
+        .set(entorno.como("entrenador"))
+        .on("response", () => {
+          // Supertest espera a cerrar su servidor antes de resolver la promesa;
+          // el evento HTTP permite terminar la otra petición que sigue abierta.
+          avisarSegunda()
+          liberarSegunda()
+        })
+        .then((respuesta) => respuesta)
+    const primera = confirmar()
+    const segunda = confirmar()
+    try {
+      const una = await Promise.race([primera, segunda])
+      expect(una.status).toBe(200)
+      liberarSegunda()
+      for (const otra of await Promise.all([primera, segunda])) {
+        expect(otra.status).toBe(200)
+        expect(otra.body).toEqual(una.body)
+      }
+    } finally {
+      avisarSegunda()
+      liberarSegunda()
+      await Promise.allSettled([primera, segunda])
+      espia.mockRestore()
+    }
+  })
+
   it("rechaza firmas ajenas o caducadas, tamaños excesivos y formatos falseados", async () => {
     const { medio, subida } = IntencionSubidaSchema.parse((await intencion().expect(201)).body)
     const url = new URL(subida!.url)
@@ -262,6 +434,84 @@ describe("Retirar fotos y limpiar subidas abandonadas (F05a)", () => {
     request(http()).get(`/medios/${id}/acceso`).set(entorno.como(rol))
   const fila = (id: string) => entorno.prisma.medioFoto.findUnique({ where: { id } })
   const clave = async (id: string) => (await fila(id))!.clave
+
+  it("recupera la limpieza de una copia sin confirmar si fallaron la escritura y el borrado", async () => {
+    const { medio, subida } = await intencion("entrenador", clienteId(), {
+      tipo: "valoracion",
+      valoracionId,
+    })
+    await subir(subida!)
+    let copia: string | undefined
+    const reemplazar = almacen().reemplazar.bind(almacen())
+    const borrar = almacen().borrar.bind(almacen())
+    const escritura = jest
+      .spyOn(almacen(), "reemplazar")
+      .mockImplementationOnce(async (objeto, datos) => {
+        copia = objeto
+        await reemplazar(objeto, datos)
+        throw new Error("Fallo simulado después de escribir la copia")
+      })
+    const retirada = jest.spyOn(almacen(), "borrar").mockImplementation(async (objeto) => {
+      if (objeto === copia) throw new Error("Borrado temporalmente indisponible")
+      return borrar(objeto)
+    })
+    try {
+      await request(http())
+        .post(`/medios/${medio.id}/confirmacion`)
+        .set(entorno.como("entrenador"))
+        .expect(500)
+    } finally {
+      escritura.mockRestore()
+      retirada.mockRestore()
+    }
+    expect(copia).toBeDefined()
+    expect(await almacen().leer(copia!)).not.toBeNull()
+    expect((await fila(medio.id))!.estado).toBe("pendiente")
+    await caducadaHaceDosHoras(medio.id)
+    await entorno.app.get(LimpiezaMedios).limpiar()
+    expect(await fila(medio.id)).toBeNull()
+    expect(await almacen().leer(copia!)).toBeNull()
+    // El registro sobrevive a la intención. Incluso un PUT que acaba después
+    // del borrado (o de una caída del proceso) se recupera en otro pase.
+    expect(await entorno.prisma.intentoFoto.findUnique({ where: { clave: copia! } })).not.toBeNull()
+    await reemplazar(copia!, jpeg)
+    await entorno.app.get(LimpiezaMedios).limpiar(new Date(Date.now() + 25 * 60 * 60_000))
+    expect(await almacen().leer(copia!)).toBeNull()
+  })
+
+  it("perder la respuesta del commit no borra la foto confirmada", async () => {
+    const { medio, subida } = await intencion("entrenador", clienteId(), {
+      tipo: "valoracion",
+      valoracionId,
+    })
+    await subir(subida!)
+    const transaccion = entorno.prisma.$transaction.bind(entorno.prisma)
+    const commit = jest.spyOn(entorno.prisma, "$transaction").mockImplementationOnce((async (
+      operacion: Parameters<typeof transaccion>[0],
+      opciones?: Parameters<typeof transaccion>[1],
+    ) => {
+      await transaccion(operacion, opciones)
+      throw new Error("Respuesta del commit perdida (simulado)")
+    }) as unknown as typeof transaccion)
+    try {
+      await request(http())
+        .post(`/medios/${medio.id}/confirmacion`)
+        .set(entorno.como("entrenador"))
+        .expect(500)
+    } finally {
+      commit.mockRestore()
+    }
+    const final = (await fila(medio.id))!
+    expect(final.estado).toBe("disponible")
+    expect(
+      await entorno.prisma.intentoFoto.findUnique({ where: { clave: final.clave } }),
+    ).toBeNull()
+    const contenido = await almacen().leer(final.clave)
+    expect(contenido).not.toBeNull()
+    await confirmar(medio.id, "entrenador")
+    await entorno.app.get(LimpiezaMedios).limpiar(new Date(Date.now() + 48 * 60 * 60_000))
+    expect(await almacen().leer(final.clave)).toEqual(contenido)
+  })
 
   it("retirar una foto disponible quita acceso y objeto, y su visita la sigue mostrando retirada", async () => {
     const foto = await fotoDeVisita()

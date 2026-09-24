@@ -87,7 +87,8 @@ Ver [PENDIENTE-PARA-PRODUCCION.md](../PENDIENTE-PARA-PRODUCCION.md), punto 5.
 
 ## Implementación (2026-09-24)
 
-Lo decidido arriba está en código. Solo falta elegir el proveedor:
+El flujo del servidor está implementado. Quedan la elección y el ensayo del
+proveedor, y las comprobaciones físicas y de interfaz indicadas en `tasks/todo.md`:
 
 - **Contrato `AlmacenObjetos`** (`apps/api/src/medios/almacen-objetos.ts`), con dos
   implementaciones que se eligen con `ALMACEN`:
@@ -101,12 +102,30 @@ Lo decidido arriba está en código. Solo falta elegir el proveedor:
 - **Flujo:** la app pide una intención (`POST /medios/subidas`) y sube directo
   con un enlace de 15 minutos que firma el tipo y el tamaño. Después confirma, y
   la API relee el objeto, comprueba el formato por su firma de bytes y quita los
-  metadatos (ubicación, cámara) por lista blanca antes de darlo por
-  disponible. La lectura es otro enlace, de 5 minutos, sin caché
+  metadatos (ubicación, cámara) por lista blanca. Guarda el resultado en una
+  clave privada nueva, que ninguna URL de subida autoriza a escribir, y cambia
+  la referencia de la base al confirmarlo. Los intentos simultáneos conservan
+  la referencia ganadora. La lectura es otro enlace, de 5 minutos, sin caché
   (`private, no-store`).
+- **Intentos recuperables:** cada copia tiene UUID propio y se registra antes
+  del PUT en `intentos_foto` (migración `20260924210000_intentos_foto`). La
+  publicación bloquea ese registro activo y lo elimina en la misma transacción
+  que guarda la referencia ganadora. Descartar confirma primero el cambio en la
+  base y después borra del almacén; una fila ausente nunca permite borrar.
+  Ninguna transacción mantiene un bloqueo durante operaciones del almacén.
+  Así, un PUT o DELETE tardío solo afecta a su propia copia.
+- **Limpieza de copias:** los intentos activos caducan tras una hora. Los fallos
+  de borrado quedan para el siguiente pase; las claves descartadas se conservan
+  y se repasan diariamente, incluso si se eliminó la intención original. Esto
+  permite retirar un objeto que termine de escribirse después de un error o
+  una caída del proceso. Son metadatos de limpieza, sin imágenes ni enlaces;
+  no se debe vaciar esa tabla como parte de un rollback rutinario.
 - **Nada público ni persistido:** la base guarda la clave del objeto, nunca una
-  URL. La app no guarda enlaces ni fotos. En Android descarga la foto a memoria
-  y la pinta como `data:`, así no queda en la caché de disco de Fresco.
+  URL. El visor no guarda enlaces ni fotos para uso sin conexión. En Android
+  descarga la foto a memoria y la pinta como `data:`, evitando la caché de disco
+  de Fresco. La selección/preparación nativa sí genera archivos de caché: su
+  borrado explícito al terminar/cancelar sigue pendiente en F03a; no equivale
+  a afirmar que no queda ningún archivo en el dispositivo.
 - **Quién ve qué:** el entrenador ve todas las fotos de sus clientes. El cliente
   ve las suyas y las del entrenador ya publicadas. El nutricionista no ve
   ninguna.
@@ -114,5 +133,19 @@ Lo decidido arriba está en código. Solo falta elegir el proveedor:
   después se borra el objeto; si el almacén falla, se puede repetir. Las
   intenciones que nadie confirma se descartan una hora después de caducar
   (`MEDIOS_LIMPIEZA_MINUTOS`). Una foto aún sin confirmar no se puede retirar:
-  la descarta la limpieza.
+  la descarta la limpieza. Al confirmar se elimina el temporal. Como el enlace
+  de subida aún puede recrearlo, la limpieza vuelve a eliminarlo después de
+  caducar, también si la foto ya se retiró. Si falla, repite ese intervalo; al
+  reiniciar revisa el histórico una vez. Nunca borra la clave de una foto
+  confirmada antigua que todavía use la ruta original.
+- **Consentimiento pendiente:** confirmar identifica al cliente por el medio,
+  comprueba su consentimiento antes de leer el archivo y de nuevo dentro de la
+  transacción que lo hace disponible. La retirada y la confirmación se coordinan
+  mediante el bloqueo de la fila de consentimiento.
 - **La app reduce la imagen** antes de subirla y el servidor rechaza más de 8 MB.
+
+**Transición de versiones:** los objetos ya confirmados se conservan donde
+estaban. Los enlaces emitidos por una versión anterior mantienen su autorización
+hasta caducar; antes de abrir un despliegue que tuviera enlaces antiguos de
+subida se debe dejar transcurrir su validez (15 minutos). La prueba con el
+proveedor real sigue pendiente.
