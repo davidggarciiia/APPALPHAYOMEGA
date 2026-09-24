@@ -7,6 +7,7 @@ import { configurarCuerposHttp } from "../src/config/http.js"
 import { AppModule } from "../src/app.module.js"
 import { PrismaService } from "../src/prisma/prisma.service.js"
 import { cifrarContrasena } from "../src/identity/contrasenas.js"
+import { darConsentimiento } from "./valoraciones-ayuda.js"
 
 /** Cuentas sintéticas de cada caso de la matriz de permisos de SPEC-nutricion.md. */
 const CUENTAS = {
@@ -42,6 +43,7 @@ export async function entornoNutricion(nombre: string): Promise<{
     })
     const ids = usuarios.map((fila) => fila.id)
     await prisma.$transaction([
+      prisma.consentimientoSalud.deleteMany({ where: { usuarioId: { in: ids } } }),
       prisma.comidaRegistrada.deleteMany({ where: { clienteId: { in: ids } } }),
       prisma.dieta.deleteMany({ where: { clienteId: { in: ids } } }),
       prisma.usuario.deleteMany({ where: { id: { in: ids } } }),
@@ -72,6 +74,7 @@ export async function entornoNutricion(nombre: string): Promise<{
       tokens.set(clave, login.body.tokenAcceso)
     }
   }
+  await darConsentimiento(prisma, [ids.cliente, ids.otro])
   // El nutricionista ve al cliente, al pendiente y al dado de baja. La baja le corta
   // el acceso igualmente, que es justo lo que se comprueba.
   await prisma.asignacionNutricionista.createMany({

@@ -41,6 +41,7 @@ import { z } from "zod"
 import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
 import { AlcanceClienteGuard } from "../identity/alcance-cliente.guard.js"
 import type { IdentidadVerificada, PeticionAutenticada } from "../identity/peticion.js"
+import { RequiereConsentimientoDeSalud } from "../identity/consentimiento.guard.js"
 import { Roles } from "../identity/roles.decorator.js"
 import { PlantillasValoracionService } from "./plantillas-valoracion.service.js"
 import { ValoracionesService } from "./valoraciones.service.js"
@@ -100,6 +101,7 @@ export class ValoracionesController {
   }
 
   @Roles("entrenador")
+  @RequiereConsentimientoDeSalud()
   @Post("valoraciones")
   crear(
     @Req() peticion: PeticionAutenticada,
@@ -130,6 +132,7 @@ export class ValoracionesController {
   }
 
   @Roles("entrenador")
+  @RequiereConsentimientoDeSalud()
   @Post("valoraciones/:id/publicaciones")
   publicar(
     @Req() peticion: PeticionAutenticada,
@@ -141,6 +144,7 @@ export class ValoracionesController {
   }
 
   @Roles("entrenador")
+  @RequiereConsentimientoDeSalud()
   @Post("valoraciones/:id/fotos")
   vincularFoto(
     @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
@@ -162,6 +166,7 @@ export class ValoracionesController {
   }
 
   @Roles("entrenador")
+  @RequiereConsentimientoDeSalud()
   @Put("valoraciones/:id")
   cambiar(
     @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,

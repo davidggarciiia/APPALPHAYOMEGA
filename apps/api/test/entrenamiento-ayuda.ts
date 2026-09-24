@@ -8,7 +8,7 @@ import { ROLES, type AsignarPlan } from "@alpha-omega/shared"
 import { AppModule } from "../src/app.module.js"
 import { PrismaService } from "../src/prisma/prisma.service.js"
 import { cifrarContrasena } from "../src/identity/contrasenas.js"
-import { limpiarValoraciones } from "./valoraciones-ayuda.js"
+import { darConsentimiento, limpiarValoraciones } from "./valoraciones-ayuda.js"
 
 export async function entornoEntrenamiento(nombre: string): Promise<{
   app: INestApplication
@@ -85,6 +85,7 @@ export async function entornoEntrenamiento(nombre: string): Promise<{
       tokens.set(clave, login.body.tokenAcceso)
     }
   }
+  await darConsentimiento(prisma, [ids.cliente!, ids.otro!])
   const ejercicio = await prisma.ejercicio.create({
     data: {
       nombre: prefijo,

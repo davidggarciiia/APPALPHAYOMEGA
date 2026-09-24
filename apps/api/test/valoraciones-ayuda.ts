@@ -1,7 +1,20 @@
+import { VERSION_CONSENTIMIENTO } from "@alpha-omega/shared"
+
 import type { PrismaService } from "../src/prisma/prisma.service.js"
 
 /**
- * Borra las valoraciones, fotos y solicitudes de los usuarios de prueba. Las publicaciones y visitas
+ * Los clientes de prueba que guardan datos de salud necesitan el
+ * consentimiento vigente, igual que uno real. Son cuentas sintéticas.
+ */
+export async function darConsentimiento(prisma: PrismaService, ids: string[]): Promise<void> {
+  await prisma.consentimientoSalud.createMany({
+    data: ids.map((usuarioId) => ({ usuarioId, version: VERSION_CONSENTIMIENTO })),
+    skipDuplicates: true,
+  })
+}
+
+/**
+ * Borra las valoraciones, fotos, solicitudes y consentimientos de los usuarios de prueba. Las publicaciones y visitas
  * se referencian entre sí con RESTRICT (auditoría), así que se retiran primero
  * las que nadie sustituye o toma como anterior.
  */
@@ -28,4 +41,5 @@ export async function limpiarValoraciones(prisma: PrismaService, ids: string[]):
   while ((await prisma.valoracion.count({ where: valoracion })) > 0)
     await prisma.valoracion.deleteMany({ where: { ...valoracion, siguientes: { none: {} } } })
   await prisma.plantillaValoracion.deleteMany({ where: { clienteId } })
+  await prisma.consentimientoSalud.deleteMany({ where: { usuarioId: { in: ids } } })
 }

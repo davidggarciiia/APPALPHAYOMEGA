@@ -27,6 +27,7 @@ import { z } from "zod"
 
 import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
 import type { IdentidadVerificada, PeticionAutenticada } from "../identity/peticion.js"
+import { RequiereConsentimientoDeSalud } from "../identity/consentimiento.guard.js"
 import { Roles } from "../identity/roles.decorator.js"
 import { ComentariosService } from "./comentarios.service.js"
 import { MolestiasService } from "./molestias.service.js"
@@ -45,6 +46,7 @@ export class MolestiasController {
 
   /** El cliente avisa desde su sesión. Repetir la operación devuelve el mismo aviso. */
   @Roles("cliente")
+  @RequiereConsentimientoDeSalud()
   @Post("sesiones/:id/molestias")
   registrar(
     @Req() peticion: PeticionAutenticada,

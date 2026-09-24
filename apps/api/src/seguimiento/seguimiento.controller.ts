@@ -35,6 +35,7 @@ import { z } from "zod"
 import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
 import { AlcanceClienteGuard } from "../identity/alcance-cliente.guard.js"
 import type { IdentidadVerificada, PeticionAutenticada } from "../identity/peticion.js"
+import { RequiereConsentimientoDeSalud } from "../identity/consentimiento.guard.js"
 import { Roles } from "../identity/roles.decorator.js"
 import { SeguimientoService } from "./seguimiento.service.js"
 
@@ -74,6 +75,7 @@ export class SeguimientoController {
   }
 
   @Roles("cliente")
+  @RequiereConsentimientoDeSalud()
   @Put("dias/:fecha")
   cambiarDia(
     @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
@@ -93,6 +95,7 @@ export class SeguimientoController {
   }
 
   @Roles("cliente", "entrenador", "nutricionista")
+  @RequiereConsentimientoDeSalud()
   @Post("medidas")
   registrarMedida(
     @Req() peticion: PeticionAutenticada,
@@ -111,6 +114,7 @@ export class SeguimientoController {
   }
 
   @Roles("cliente", "entrenador")
+  @RequiereConsentimientoDeSalud()
   @Post("pruebas")
   registrarPrueba(
     @Req() peticion: PeticionAutenticada,

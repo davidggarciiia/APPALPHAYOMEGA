@@ -41,6 +41,7 @@ import {
 import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
 import { AlcanceClienteGuard } from "../identity/alcance-cliente.guard.js"
 import type { IdentidadVerificada, PeticionAutenticada } from "../identity/peticion.js"
+import { RequiereConsentimientoDeSalud } from "../identity/consentimiento.guard.js"
 import { Roles } from "../identity/roles.decorator.js"
 
 import { ComidasService } from "./comidas.service.js"
@@ -134,6 +135,7 @@ export class NutricionController {
 
   /** Marcar una comida del día como hecha, con lo que eligió. Solo el cliente. */
   @Roles("cliente")
+  @RequiereConsentimientoDeSalud()
   @Put("comidas/:fecha/:comidaId")
   registrarComida(
     @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
