@@ -135,6 +135,9 @@ export class RegistrosService {
         revisionPrescripcion: fila.revisionPrescripcion,
         enviadoEn: new Date().toISOString(),
         notas: datos.registro.notas,
+        checkin: datos.registro.checkin ?? null,
+        cierre: datos.registro.cierre ?? null,
+        inicio: datos.registro.inicio ?? null,
         series: prescripcion.ejercicios.flatMap((e) =>
           e.series.map((objetivo) => {
             const real = registradas.get(objetivo.id)
@@ -145,6 +148,7 @@ export class RegistrosService {
               valores: {
                 tipoMedicion: real.tipoMedicion,
                 pesoKg: real.pesoKg,
+                rir: real.rir ?? null,
                 ...(real.tipoMedicion === "tiempo"
                   ? { segundos: real.segundos }
                   : { repeticiones: real.repeticiones }),

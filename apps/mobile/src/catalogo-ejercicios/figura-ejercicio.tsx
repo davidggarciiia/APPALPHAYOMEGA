@@ -140,13 +140,18 @@ export function FiguraDeEjercicio({
   ejercicioId,
   figura,
   nombre,
+  alto,
 }: {
   acceso: AccesoAFiguras
   ejercicioId: string
   figura: Figura
   nombre: string
+  /** Alto fijo en lugar del lienzo cuadrado: la tarjeta «Hoy toca» usa 184. */
+  alto?: number
 }): React.JSX.Element {
   const [intento, setIntento] = useState(0)
+  const tamano =
+    alto === undefined ? null : { height: alto, aspectRatio: undefined, maxWidth: undefined }
   const [fallo, setFallo] = useState(false)
   const [reintentando, setReintentando] = useState(false)
   const fuente = useFuente(acceso, ejercicioId, figura, intento)
@@ -188,14 +193,20 @@ export function FiguraDeEjercicio({
 
   if (fuente.fase === "cargando") {
     return (
-      <View style={[estilos.lienzo, estilos.centro]}>
+      <View style={[estilos.lienzo, tamano, estilos.centro]}>
         <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando la animación" />
       </View>
     )
   }
 
   return (
-    <Reproductor key={fuente.clave} fuente={fuente.fuente} nombre={nombre} alFallar={alFallar} />
+    <Reproductor
+      key={fuente.clave}
+      fuente={fuente.fuente}
+      nombre={nombre}
+      alFallar={alFallar}
+      alto={alto}
+    />
   )
 }
 
@@ -203,11 +214,15 @@ function Reproductor({
   fuente,
   nombre,
   alFallar,
+  alto,
 }: {
   fuente: VideoSource
   nombre: string
   alFallar: () => void
+  alto?: number
 }): React.JSX.Element {
+  const tamano =
+    alto === undefined ? null : { height: alto, aspectRatio: undefined, maxWidth: undefined }
   // La fuente se fija al montar: un token renovado no debe reiniciar el clip.
   const [inicial] = useState(fuente)
   const jugador = useVideoPlayer(inicial, (nuevo) => {
@@ -263,9 +278,9 @@ function Reproductor({
   }
 
   return (
-    <View style={estilos.marco}>
+    <View style={[estilos.marco, alto !== undefined && estilos.marcoCompleto]}>
       <View
-        style={estilos.lienzo}
+        style={[estilos.lienzo, tamano, alto !== undefined && estilos.lienzoCompleto]}
         accessible
         accessibilityRole="image"
         accessibilityLabel={`Animación de la técnica: ${nombre}`}
@@ -298,6 +313,8 @@ function Reproductor({
 const estilos = StyleSheet.create({
   // El botón de pausa va encima del clip, arriba a la derecha, como en el diseño.
   marco: { width: "100%", maxWidth: 420, alignSelf: "center" },
+  marcoCompleto: { maxWidth: undefined },
+  lienzoCompleto: { borderRadius: 14 },
   lienzo: {
     aspectRatio: 1,
     width: "100%",

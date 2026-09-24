@@ -16,11 +16,23 @@ export const GRUPOS_MUSCULARES = [
 export const GrupoMuscularSchema = z.enum(GRUPOS_MUSCULARES)
 export type GrupoMuscular = z.infer<typeof GrupoMuscularSchema>
 
+/** Un consejo de la ficha de técnica: «Respira», «Aproximaciones», «Para si»… */
+export const ConsejoSchema = z.strictObject({
+  titulo: z.string().trim().min(1).max(40),
+  texto: z.string().trim().min(1).max(300),
+})
+export type Consejo = z.infer<typeof ConsejoSchema>
+
 const CamposEjercicio = {
   nombre: z.string().trim().min(1).max(120),
   grupoPrincipal: GrupoMuscularSchema,
   gruposSecundarios: z.array(GrupoMuscularSchema).max(10),
   instrucciones: z.string().trim().min(1).max(4000),
+  /** «Cómo hacerlo», paso a paso. Vacío: la ficha enseña las instrucciones. */
+  pasos: z.array(z.string().trim().min(1).max(200)).max(10).default([]),
+  /** «Evita»: los errores típicos, en una frase. */
+  evita: z.string().trim().max(500).nullable().default(null),
+  consejos: z.array(ConsejoSchema).max(6).default([]),
 }
 
 function gruposValidos(ejercicio: {
@@ -39,11 +51,12 @@ export const CrearEjercicioSchema = z.strictObject(CamposEjercicio).refine(grupo
   message: "Los grupos secundarios no pueden repetirse ni incluir el principal",
   path: ["gruposSecundarios"],
 })
-export type CrearEjercicio = z.infer<typeof CrearEjercicioSchema>
+/** Lo que se envía: pasos, evita y consejos pueden faltar y toman su valor vacío. */
+export type CrearEjercicio = z.input<typeof CrearEjercicioSchema>
 
 // La edición envía la ficha textual completa para validar los grupos conjuntamente.
 export const EditarEjercicioSchema = CrearEjercicioSchema
-export type EditarEjercicio = z.infer<typeof EditarEjercicioSchema>
+export type EditarEjercicio = z.input<typeof EditarEjercicioSchema>
 
 /**
  * Figura animada de un ejercicio. Identifica el medio del índice del servidor,

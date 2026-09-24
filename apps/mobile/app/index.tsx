@@ -1,8 +1,11 @@
+import { useMemo } from "react"
 import { useRouter, type Href } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
 import { Icono } from "../src/componentes/iconos"
 import { SemanaEntrenamiento } from "../src/entrenamiento/semana"
+import { useAccesoAFiguras } from "../src/catalogo-ejercicios/figura-ejercicio"
+import { useCatalogo } from "../src/catalogo-ejercicios/use-catalogo"
 import { useEntrenamiento } from "../src/entrenamiento/use-entrenamiento"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
@@ -10,7 +13,13 @@ import { tema } from "../src/tema"
 export default function Inicio(): React.JSX.Element {
   const { estado, salir } = useSesion()
   const api = useEntrenamiento()
+  const catalogo = useCatalogo()
+  const accesoFiguras = useAccesoAFiguras()
   const router = useRouter()
+  const detalle = useMemo(
+    () => ({ leerSesion: api.leerCliente, leerEjercicio: catalogo.leer, acceso: accesoFiguras }),
+    [api, catalogo, accesoFiguras],
+  )
   if (estado.fase !== "dentro") return <View />
   const { usuario } = estado
   const acceso = (
@@ -40,6 +49,7 @@ export default function Inicio(): React.JSX.Element {
           api={api}
           copiaLocal
           resumenHoy
+          detalle={detalle}
           abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
         />
       ) : (

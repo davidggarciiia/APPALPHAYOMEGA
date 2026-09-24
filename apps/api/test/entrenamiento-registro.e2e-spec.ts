@@ -53,6 +53,90 @@ describe("Borrador privado y envío atómico", () => {
     }
     return { id, borrador, base: `/entrenamiento/sesiones/${id}` }
   }
+  it("lleva la prescripción del diseño hasta el resultado: partes, RIR, check-in y cierre", async () => {
+    const { app, como } = entorno
+    const datos = entorno.plan()
+    const sesion = datos.patron.sesiones[0]!
+    const ejercicio = sesion.ejercicios[0]!
+    const primera = ejercicio.series[0]!
+    Object.assign(sesion, {
+      duracion: "100–115 min",
+      nota: "Banca: 60 kg de inicio para 4×6",
+      partes: { calentamiento: "8–10", fuerza: "70–85", cardio: "15", calma: "5" },
+    })
+    Object.assign(ejercicio, {
+      seccion: "principal",
+      rir: { min: 2, max: 3 },
+      descanso: "2–3 min",
+      subidaKg: 2.5,
+      alternativas: ["Press en multipower"],
+      compuesto: true,
+    })
+    if (primera.tipoMedicion === "repeticiones") Object.assign(primera, { repeticionesMax: 12 })
+    const asignado = await request(app.getHttpServer())
+      .post(`/entrenamiento/clientes/${entorno.ids.cliente}/planes`)
+      .set(como("entrenador"))
+      .send(datos)
+      .expect(201)
+    const id = PlanAsignadoSchema.parse(asignado.body).sesiones[0]!.agenda.id
+    const base = `/entrenamiento/sesiones/${id}`
+    const leida = await request(app.getHttpServer()).get(base).set(como("cliente")).expect(200)
+    expect(leida.body.prescripcion).toMatchObject({
+      duracion: "100–115 min",
+      partes: { fuerza: "70–85" },
+      ejercicios: [{ rir: { min: 2, max: 3 }, descanso: "2–3 min", subidaKg: 2.5 }],
+    })
+    expect(leida.body.prescripcion.ejercicios[0].series[0].repeticionesMax).toBe(12)
+
+    const inicio = new Date().toISOString()
+    const registro = {
+      notas: null,
+      checkin: { sensacion: 4, molestia: "agujetas" as const },
+      inicio,
+      series: [
+        {
+          serieId: primera.id,
+          tipoMedicion: "repeticiones" as const,
+          pesoKg: 20,
+          repeticiones: 10,
+          rir: 2,
+          hecha: true,
+        },
+      ],
+    }
+    await request(app.getHttpServer())
+      .put(`${base}/borrador`)
+      .set(como("cliente"))
+      .send({ operacionId: randomUUID(), revisionPrescripcion: 0, revisionBorrador: 0, registro })
+      .expect(200)
+    const enviado = await request(app.getHttpServer())
+      .post(`${base}/enviar`)
+      .set(como("cliente"))
+      .send({
+        operacionId: randomUUID(),
+        revisionPrescripcion: 0,
+        revisionBorrador: 1,
+        registro: { ...registro, cierre: { esfuerzo: 7, energia: 3, incomodo: false } },
+      })
+      .expect(200)
+    const resultado = ResultadoEntrenamientoSchema.parse(enviado.body)
+    expect(resultado).toMatchObject({
+      checkin: { sensacion: 4, molestia: "agujetas" },
+      cierre: { esfuerzo: 7, energia: 3, incomodo: false },
+      inicio,
+    })
+    expect(resultado.series[0]).toMatchObject({ hecha: true, valores: { rir: 2 } })
+
+    const rango = entorno.plan()
+    const serieMala = rango.patron.sesiones[0]!.ejercicios[0]!.series[0]!
+    if (serieMala.tipoMedicion === "repeticiones") Object.assign(serieMala, { repeticionesMax: 1 })
+    await request(app.getHttpServer())
+      .post(`/entrenamiento/clientes/${entorno.ids.cliente}/planes`)
+      .set(como("entrenador"))
+      .send(rango)
+      .expect(400)
+  })
+
   it("sincroniza solo para el propietario sin filtrar valores al entrenador", async () => {
     const { base, borrador } = await preparar()
     const { app, como } = entorno

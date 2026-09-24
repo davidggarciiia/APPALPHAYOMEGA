@@ -229,6 +229,10 @@ model Ejercicio {
   nombreNormalizado String          @unique
   grupoPrincipal    GrupoMuscular
   instrucciones     String          @db.VarChar(4000)
+  /// «Cómo hacerlo» paso a paso, «evita» y consejos de la ficha de técnica (Design.html).
+  pasos             Json            @default("[]")
+  evita             String?         @db.VarChar(500)
+  consejos          Json            @default("[]")
   estado            EstadoEjercicio @default(publicado)
   retiradoEn        DateTime?
   creadoEn          DateTime        @default(now())

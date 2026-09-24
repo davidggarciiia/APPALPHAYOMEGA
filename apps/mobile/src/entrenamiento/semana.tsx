@@ -1,4 +1,5 @@
 import { AgendaSemanal } from "./agenda-semanal"
+import type { DetalleDeHoy } from "./hoy-toca"
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { AppState, Text, View } from "react-native"
@@ -15,12 +16,14 @@ export function SemanaEntrenamiento({
   abrir,
   copiaLocal = false,
   resumenHoy = false,
+  detalle,
 }: {
   clienteId: string
   api: ApiEntrenamiento
   abrir: (id: string) => void
   copiaLocal?: boolean
   resumenHoy?: boolean
+  detalle?: DetalleDeHoy
 }): React.JSX.Element {
   const [semana, setSemana] = useState(lunesDeSemana)
   const semanaActual = useRef(lunesDeSemana())
@@ -99,6 +102,7 @@ export function SemanaEntrenamiento({
         listado={listado}
         abrir={abrir}
         resumenHoy={resumenHoy}
+        detalle={detalle}
         cambiarSemana={(dias) => setSemana((actual) => sumarDias(actual, dias))}
       />
     </View>

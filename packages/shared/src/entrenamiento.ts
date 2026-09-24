@@ -15,6 +15,8 @@ export const SeriePrescritaSchema = z.discriminatedUnion("tipoMedicion", [
     tipoMedicion: z.literal("repeticiones"),
     pesoKg: PesoSchema,
     repeticiones: RepeticionesSchema,
+    /** Tope del rango («8–10»): la doble progresión sube carga al alcanzarlo. */
+    repeticionesMax: RepeticionesSchema.optional(),
   }),
   z.strictObject({
     id: z.uuid(),
@@ -25,11 +27,78 @@ export const SeriePrescritaSchema = z.discriminatedUnion("tipoMedicion", [
 ])
 export type SeriePrescrita = z.infer<typeof SeriePrescritaSchema>
 
+/** Partes de una sesión, en el orden en que se hacen (Design.html). */
+export const SECCIONES_DE_SESION = ["calentamiento", "principal", "circuito", "final"] as const
+export const SeccionDeSesionSchema = z.enum(SECCIONES_DE_SESION)
+export type SeccionDeSesion = z.infer<typeof SeccionDeSesionSchema>
+const RirSchema = z.number().int().min(0).max(5)
+const TextoCorto = (max: number) => z.string().trim().min(1).max(max)
+
+/**
+ * Lo que el diseño añade a cada ejercicio de la sesión. Todo es opcional: una
+ * prescripción anterior sigue siendo válida y se lee como parte principal.
+ */
+const CamposPrescripcionAmpliada = {
+  seccion: SeccionDeSesionSchema.optional(),
+  /** RIR objetivo: «RIR 3» es { min: 3, max: 3 }; «RIR 2–3», { min: 2, max: 3 }. */
+  rir: z.strictObject({ min: RirSchema, max: RirSchema }).optional(),
+  descanso: TextoCorto(30).optional(),
+  /** Cómo se hace en calentamiento o final: «1×8 por lado», «3–4 min». */
+  dosis: TextoCorto(60).optional(),
+  /** Sin carga fijada: el cliente la busca las primeras sesiones. */
+  calibrar: z.boolean().optional(),
+  /** Cuánto sube la carga cuando toca: 2,5 kg, 1,25 kg… */
+  subidaKg: z.number().positive().max(50).optional(),
+  nota: TextoCorto(300).optional(),
+  alternativas: z.array(TextoCorto(80)).max(5).optional(),
+  /** Los compuestos nunca se recortan al bajar volumen. */
+  compuesto: z.boolean().optional(),
+}
+
 const CamposEjercicioEnRutina = {
   id: z.uuid(),
   ejercicioId: z.uuid(),
   indicaciones: NotasSchema,
   series: z.array(SeriePrescritaSchema).min(1).max(30),
+  ...CamposPrescripcionAmpliada,
+}
+
+/** Datos de la sesión entera que enseña el diseño. Opcionales por la misma razón. */
+const CamposSesionAmpliada = {
+  /** «100–115 min». */
+  duracion: TextoCorto(30).optional(),
+  /** Nota del entrenador para esta sesión: «Banca: 60 kg de inicio para 4×6». */
+  nota: TextoCorto(300).optional(),
+  /** Minutos de cada parte, como texto: «8–10». */
+  partes: z
+    .strictObject({
+      calentamiento: TextoCorto(20).optional(),
+      fuerza: TextoCorto(20).optional(),
+      cardio: TextoCorto(20).optional(),
+      calma: TextoCorto(20).optional(),
+    })
+    .optional(),
+  circuito: z
+    .strictObject({
+      vueltas: z.number().int().min(1).max(10),
+      descanso: TextoCorto(30).optional(),
+    })
+    .optional(),
+}
+
+function rangosValidos(sesion: {
+  ejercicios: Array<{ rir?: { min: number; max: number }; series: SeriePrescrita[] }>
+}): boolean {
+  return sesion.ejercicios.every(
+    (ejercicio) =>
+      (ejercicio.rir === undefined || ejercicio.rir.min <= ejercicio.rir.max) &&
+      ejercicio.series.every(
+        (serie) =>
+          serie.tipoMedicion !== "repeticiones" ||
+          serie.repeticionesMax === undefined ||
+          serie.repeticionesMax >= serie.repeticiones,
+      ),
+  )
 }
 export const EjercicioEnRutinaSchema = z.strictObject(CamposEjercicioEnRutina)
 export type EjercicioEnRutina = z.infer<typeof EjercicioEnRutinaSchema>
@@ -49,11 +118,13 @@ export const PrescripcionSchema = z
   .strictObject({
     nombre: NombreSchema,
     ejercicios: z.array(EjercicioPrescritoSchema).min(1).max(40),
+    ...CamposSesionAmpliada,
   })
   .refine(
     idsDeSesionUnicos,
     "Los identificadores de ejercicios y series deben ser únicos dentro de la sesión",
   )
+  .refine(rangosValidos, "Un rango no puede acabar antes de empezar")
 export type Prescripcion = z.infer<typeof PrescripcionSchema>
 
 export const SesionEnRutinaSchema = z
@@ -62,8 +133,10 @@ export const SesionEnRutinaSchema = z
     nombre: NombreSchema,
     diaSemana: z.number().int().min(1).max(7),
     ejercicios: z.array(EjercicioEnRutinaSchema).min(1).max(40),
+    ...CamposSesionAmpliada,
   })
   .refine(idsDeSesionUnicos, "Hay identificadores repetidos en la sesión")
+  .refine(rangosValidos, "Un rango no puede acabar antes de empezar")
 export type SesionEnRutina = z.infer<typeof SesionEnRutinaSchema>
 
 export const PatronRutinaSchema = z
@@ -128,11 +201,19 @@ export const CambiarPrescripcionSchema = z
     revisionPrescripcion: RevisionSchema,
     nombre: NombreSchema,
     ejercicios: z.array(EjercicioEnRutinaSchema).min(1).max(40),
+    ...CamposSesionAmpliada,
   })
   .refine(idsDeSesionUnicos, "Hay identificadores repetidos en la sesión")
+  .refine(rangosValidos, "Un rango no puede acabar antes de empezar")
 export type CambiarPrescripcion = z.infer<typeof CambiarPrescripcionSchema>
 
-const CamposRegistroSerie = { serieId: z.uuid(), pesoKg: PesoSchema, hecha: z.boolean() }
+const CamposRegistroSerie = {
+  serieId: z.uuid(),
+  pesoKg: PesoSchema,
+  hecha: z.boolean(),
+  /** «¿Cuántas te quedaban?»: 0 a 5, donde 5 es «5 o más». */
+  rir: RirSchema.nullable().optional(),
+}
 export const SerieRegistradaSchema = z
   .discriminatedUnion("tipoMedicion", [
     z.strictObject({
@@ -156,10 +237,33 @@ export const SerieRegistradaSchema = z
   )
 export type SerieRegistrada = z.infer<typeof SerieRegistradaSchema>
 
+/** Antes de empezar: cómo llega el cliente. */
+export const CheckinSchema = z.strictObject({
+  sensacion: z.number().int().min(1).max(5),
+  molestia: z.enum(["nada", "agujetas", "dolor"]),
+})
+export type Checkin = z.infer<typeof CheckinSchema>
+
+/** Al terminar: esfuerzo global, cómo acaba y si algo fue incómodo. */
+export const CierreSchema = z.strictObject({
+  esfuerzo: z.number().int().min(0).max(10),
+  energia: z.number().int().min(1).max(5),
+  incomodo: z.boolean(),
+})
+export type Cierre = z.infer<typeof CierreSchema>
+
+const CamposSesionVivida = {
+  checkin: CheckinSchema.nullable().optional(),
+  cierre: CierreSchema.nullable().optional(),
+  /** Cuándo empezó: el cronómetro y la duración salen de aquí. */
+  inicio: z.iso.datetime().nullable().optional(),
+}
+
 export const RegistroSchema = z
   .strictObject({
     series: z.array(SerieRegistradaSchema).max(1200),
     notas: NotasSchema,
+    ...CamposSesionVivida,
   })
   .refine(
     (registro) =>
@@ -248,11 +352,13 @@ export const ValoresEjecutadosSchema = z.discriminatedUnion("tipoMedicion", [
     tipoMedicion: z.literal("repeticiones"),
     pesoKg: PesoSchema,
     repeticiones: RepeticionesSchema,
+    rir: RirSchema.nullable().optional(),
   }),
   z.strictObject({
     tipoMedicion: z.literal("tiempo"),
     pesoKg: PesoSchema,
     segundos: SegundosSchema,
+    rir: RirSchema.nullable().optional(),
   }),
 ])
 export type ValoresEjecutados = z.infer<typeof ValoresEjecutadosSchema>
@@ -270,6 +376,7 @@ export const ResultadoEntrenamientoSchema = z
     enviadoEn: z.iso.datetime(),
     notas: NotasSchema,
     series: z.array(ResultadoSerieSchema).min(1).max(1200),
+    ...CamposSesionVivida,
   })
   .refine((resultado) => {
     const prescritas = new Map(

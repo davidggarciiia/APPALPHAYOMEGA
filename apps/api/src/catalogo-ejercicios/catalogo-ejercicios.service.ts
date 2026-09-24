@@ -18,6 +18,8 @@ import type {
   Rol,
 } from "@alpha-omega/shared"
 import type { Prisma } from "@prisma/client"
+import { z } from "zod"
+import { ConsejoSchema } from "@alpha-omega/shared"
 
 import { PrismaService } from "../prisma/prisma.service.js"
 
@@ -67,11 +69,18 @@ function aEjercicio(fila: Fila): Ejercicio {
     grupoPrincipal: fila.grupoPrincipal,
     gruposSecundarios: fila.gruposSecundarios.map((secundario) => secundario.grupo),
     instrucciones: fila.instrucciones,
+    pasos: PasosGuardados.parse(fila.pasos),
+    evita: fila.evita,
+    consejos: ConsejosGuardados.parse(fila.consejos),
     estado: fila.estado,
     figura: aFigura(fila.contenidos[0]),
     video: null,
   }
 }
+
+// Lo guardado ya pasó el contrato; si una fila antigua trae otra cosa, se lee vacía.
+const PasosGuardados = z.array(z.string()).catch([])
+const ConsejosGuardados = z.array(ConsejoSchema).catch([])
 
 /** La figura asociada, si su medio sigue en el índice. La clave no sale del servidor. */
 function aFigura(contenido: Fila["contenidos"][number] | undefined): Figura | null {
@@ -84,6 +93,13 @@ function aFigura(contenido: Fila["contenidos"][number] | undefined): Figura | nu
     licencia: contenido.licencia ?? medio.licencia,
     sinConexion: medio.sinConexion,
   }
+}
+
+/** La técnica tal como llega del contrato, con sus valores vacíos si faltan. */
+function tecnica(
+  datos: CrearEjercicio,
+): Pick<Prisma.EjercicioCreateInput, "pasos" | "evita" | "consejos"> {
+  return { pasos: datos.pasos ?? [], evita: datos.evita ?? null, consejos: datos.consejos ?? [] }
 }
 
 /** El codigo de un error conocido de Prisma, o nada si es otra cosa. */
@@ -174,6 +190,7 @@ export class CatalogoEjerciciosService {
           nombreNormalizado: normalizarNombre(datos.nombre),
           grupoPrincipal: datos.grupoPrincipal,
           instrucciones: datos.instrucciones,
+          ...tecnica(datos),
           gruposSecundarios: { create: datos.gruposSecundarios.map((grupo) => ({ grupo })) },
         },
         include: CON_SECUNDARIOS,
@@ -198,6 +215,7 @@ export class CatalogoEjerciciosService {
           nombreNormalizado: normalizarNombre(datos.nombre),
           grupoPrincipal: datos.grupoPrincipal,
           instrucciones: datos.instrucciones,
+          ...tecnica(datos),
           // Una sola escritura anidada: o cambian ficha y secundarios, o nada.
           gruposSecundarios: {
             deleteMany: {},

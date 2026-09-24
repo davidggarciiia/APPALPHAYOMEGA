@@ -1,11 +1,11 @@
 import { useState } from "react"
-import { Image, Pressable, StyleSheet, Text, View } from "react-native"
+import { Pressable, StyleSheet, Text, View } from "react-native"
 import type { ListadoSesiones } from "@alpha-omega/shared"
 import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
 import { BotonSecundario } from "../componentes/formulario"
 import { Icono } from "../componentes/iconos"
-import { degradadoExito, degradadoOro, degradadoSesion, tema } from "../tema"
-import entrenamiento from "../../assets/entrenamiento.webp"
+import { degradadoExito, degradadoSesion, tema } from "../tema"
+import { TarjetaHoy, type DetalleDeHoy } from "./hoy-toca"
 
 const DIAS = ["L", "M", "X", "J", "V", "S", "D"]
 
@@ -20,12 +20,15 @@ export function AgendaSemanal({
   cambiarSemana,
   abrir,
   resumenHoy,
+  detalle,
 }: {
   semana: string
   listado: ListadoSesiones | null
   cambiarSemana: (dias: number) => void
   abrir: (id: string) => void
   resumenHoy: boolean
+  /** Para la animación del primer ejercicio de hoy. Sin él, la foto de la sesión. */
+  detalle?: DetalleDeHoy
 }): React.JSX.Element {
   const [dia, setDia] = useState<string | null>(null)
   const hoy = hoyAgenda()
@@ -53,43 +56,15 @@ export function AgendaSemanal({
   return (
     <View style={s.contenedor}>
       {resumenHoy && estaSemana && listado && (
-        <View style={s.destacado}>
-          {sesionHoy && (
-            <View style={s.medio}>
-              <Image source={entrenamiento} style={s.imagen} accessible={false} />
-            </View>
-          )}
-          <View style={s.cuerpo}>
-            <View style={s.bloque}>
-              <Text accessibilityRole="header" style={s.hoyToca}>
-                Hoy toca:
-              </Text>
-              <Text style={s.nombreHoy}>
-                {sesionHoy?.nombre ??
-                  (sesiones.some((s) => s.agenda.fechaActual === hoy)
-                    ? "Trabajo completado"
-                    : "Descanso")}
-              </Text>
-              <Text style={s.detalleHoy}>{fechaLegible(hoy)}</Text>
-              {sesionHoy && sesionHoy.agenda.fechaActual !== sesionHoy.agenda.fechaOriginal && (
-                <Text style={s.detalleHoy}>
-                  Movido desde {fechaLegible(sesionHoy.agenda.fechaOriginal)}. Tu entrenador ve el
-                  cambio.
-                </Text>
-              )}
-            </View>
-            {sesionHoy && (
-              <Pressable
-                style={({ pressed }) => [s.accion, pressed && s.pulsado]}
-                accessibilityRole="button"
-                accessibilityLabel={`Empezar ${sesionHoy.nombre}`}
-                onPress={() => abrir(sesionHoy.agenda.id)}
-              >
-                <Text style={s.textoAccion}>Empezar entreno</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
+        <TarjetaHoy
+          sesion={sesionHoy}
+          sinSesion={
+            sesiones.some((s) => s.agenda.fechaActual === hoy) ? "Trabajo completado" : "Descanso"
+          }
+          hoy={hoy}
+          abrir={abrir}
+          detalle={detalle}
+        />
       )}
       <View style={s.seccion}>
         <View style={s.fila}>
@@ -279,6 +254,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  pulsado: { opacity: 0.8 },
   vacio: {
     color: tema.textoTenue,
     fontFamily: tema.fuenteTexto,
@@ -286,35 +262,4 @@ const s = StyleSheet.create({
     padding: 20,
     textAlign: "center",
   },
-  destacado: {
-    borderRadius: 20,
-    backgroundColor: tema.superficie,
-    borderWidth: 1,
-    borderColor: tema.bordeDestacado,
-    padding: 12,
-    gap: 20,
-  },
-  medio: { height: 184, borderRadius: 14, backgroundColor: tema.hundido, overflow: "hidden" },
-  imagen: { width: "100%", height: "100%", resizeMode: "cover" },
-  cuerpo: { paddingHorizontal: 8, paddingBottom: 8, gap: 20 },
-  bloque: { gap: 6 },
-  hoyToca: {
-    color: tema.acento,
-    fontFamily: tema.fuenteTitulo,
-    fontSize: 48,
-    lineHeight: 52,
-    textTransform: "uppercase",
-  },
-  nombreHoy: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 44, lineHeight: 50 },
-  detalleHoy: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 16 },
-  accion: {
-    ...degradadoOro,
-    minHeight: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-  },
-  pulsado: { opacity: 0.8 },
-  textoAccion: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 16 },
 })

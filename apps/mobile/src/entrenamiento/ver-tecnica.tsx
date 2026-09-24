@@ -129,9 +129,44 @@ export function VerTecnica({
                 </Text>
               )}
               <View style={estilos.bloque}>
-                <Text style={estilos.subtitulo}>Cómo hacerlo</Text>
-                <Text style={estilos.texto}>{carga.ejercicio.instrucciones}</Text>
+                <Text style={estilos.subtitulo} accessibilityRole="header">
+                  Cómo hacerlo
+                </Text>
+                {carga.ejercicio.pasos.length === 0 ? (
+                  <Text style={estilos.texto}>{carga.ejercicio.instrucciones}</Text>
+                ) : (
+                  carga.ejercicio.pasos.map((paso, n) => (
+                    <View key={`${n}-${paso}`} style={estilos.paso}>
+                      <Text style={estilos.numero}>{n + 1}</Text>
+                      <Text style={[estilos.texto, estilos.flexible]}>{paso}</Text>
+                    </View>
+                  ))
+                )}
               </View>
+              {carga.ejercicio.evita !== null && (
+                <View style={estilos.bloque}>
+                  <Text style={estilos.subtitulo} accessibilityRole="header">
+                    Evita
+                  </Text>
+                  <Text style={estilos.texto}>{carga.ejercicio.evita}</Text>
+                </View>
+              )}
+              {carga.ejercicio.consejos.length > 0 && (
+                <View style={estilos.consejos}>
+                  {carga.ejercicio.consejos.map((consejo, n) => (
+                    <View
+                      key={`${n}-${consejo.titulo}`}
+                      style={[
+                        estilos.consejo,
+                        n < carga.ejercicio.consejos.length - 1 && estilos.separado,
+                      ]}
+                    >
+                      <Text style={estilos.tituloConsejo}>{consejo.titulo}</Text>
+                      <Text style={estilos.nota}>{consejo.texto}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </>
           )}
         </ScrollView>
@@ -178,4 +213,17 @@ const estilos = StyleSheet.create({
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 22 },
   nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
   aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 13, lineHeight: 19 },
+  paso: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
+  numero: {
+    color: tema.acento,
+    fontFamily: tema.fuenteBoton,
+    fontSize: 15,
+    lineHeight: 22,
+    width: 12,
+  },
+  flexible: { flex: 1 },
+  consejos: { backgroundColor: tema.superficie, borderRadius: 20, paddingHorizontal: 16 },
+  consejo: { paddingVertical: 14, gap: 2 },
+  separado: { borderBottomWidth: 1, borderBottomColor: tema.borde },
+  tituloConsejo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
 })

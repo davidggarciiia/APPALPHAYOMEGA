@@ -55,11 +55,18 @@ export async function catalogoParaPrescribir(
 }
 
 export function prescripcionConNombres(
-  sesion: { nombre: string; ejercicios: EjercicioEnRutina[] },
+  sesion: Pick<Prescripcion, "nombre" | "duracion" | "nota" | "partes" | "circuito"> & {
+    ejercicios: EjercicioEnRutina[]
+  },
   nombres: Map<string, string>,
 ): Prescripcion {
   return PrescripcionSchema.parse({
     nombre: sesion.nombre,
+    // Los datos de la sesión del diseño viajan con ella; los ausentes, ausentes.
+    duracion: sesion.duracion,
+    nota: sesion.nota,
+    partes: sesion.partes,
+    circuito: sesion.circuito,
     ejercicios: sesion.ejercicios.map((ejercicio) => ({
       ...ejercicio,
       nombre: nombres.get(ejercicio.ejercicioId),

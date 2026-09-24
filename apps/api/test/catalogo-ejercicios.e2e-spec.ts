@@ -101,6 +101,31 @@ describe("Catalogo de ejercicios", () => {
     expect(ErrorDeApiSchema.parse(respuesta.body).codigo).toBe("solicitud_invalida")
   })
 
+  it("guarda la técnica del diseño y la deja vacía si no se envía", async () => {
+    const tecnica = {
+      pasos: ["Pies firmes y escápulas atrás.", "Baja controlado al pecho."],
+      evita: "Rebotar o despegar glúteos.",
+      consejos: [{ titulo: "Respira", texto: "Coge aire arriba, suéltalo al subir." }],
+    }
+    const conTecnica = await crear({ ...ficha("con técnica"), ...tecnica })
+    expect(conTecnica).toMatchObject(tecnica)
+
+    const leido = await request(app.getHttpServer())
+      .get(`/ejercicios/${conTecnica.id}`)
+      .set(como("cliente"))
+      .expect(200)
+    expect(EjercicioSchema.parse(leido.body)).toMatchObject(tecnica)
+
+    const sinTecnica = await crear(ficha("sin técnica"))
+    expect(sinTecnica).toMatchObject({ pasos: [], evita: null, consejos: [] })
+
+    await request(app.getHttpServer())
+      .post("/ejercicios")
+      .set(como("entrenador"))
+      .send({ ...ficha("demasiados pasos"), pasos: Array.from({ length: 11 }, () => "Paso") })
+      .expect(400)
+  })
+
   it("guarda nombres válidos cuya normalización Unicode ocupa más caracteres", async () => {
     const nombre = `${PREFIJO}${"İ".repeat(120 - PREFIJO.length)}`
     const respuesta = await request(app.getHttpServer())

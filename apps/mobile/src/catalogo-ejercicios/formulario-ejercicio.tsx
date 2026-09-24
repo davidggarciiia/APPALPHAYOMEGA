@@ -24,6 +24,12 @@ import { ErrorDeNombreDuplicado, type ApiDeCatalogo } from "./api"
 import { ETIQUETA_DE_GRUPO } from "./catalogo"
 import type { AccesoAFiguras } from "./figura-ejercicio"
 import { SelectorDeFigura } from "./selector-figura"
+import {
+  TECNICA_VACIA,
+  tecnicaDesdeTexto,
+  tecnicaEnTexto,
+  type TecnicaEnTexto,
+} from "./tecnica-texto"
 
 type Carga = { fase: "cargando" } | { fase: "lista" } | { fase: "error"; fallo: Falta }
 
@@ -57,6 +63,8 @@ export function FormularioDeEjercicio({
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
   // La ficha tal como la tiene el servidor, para la animación.
   const [ficha, setFicha] = useState<Ejercicio | null>(null)
+  // La técnica se escribe línea a línea y se convierte al guardar.
+  const [tecnica, setTecnica] = useState<TecnicaEnTexto>(TECNICA_VACIA)
 
   const {
     control,
@@ -91,6 +99,7 @@ export function FormularioDeEjercicio({
         })
         setEstado(ejercicio.estado)
         setFicha(ejercicio)
+        setTecnica(tecnicaEnTexto(ejercicio))
         setCarga({ fase: "lista" })
       })
       .catch((error: unknown) => {
@@ -106,9 +115,15 @@ export function FormularioDeEjercicio({
 
   const enviar = handleSubmit(async (datos) => {
     setErrorGeneral(null)
+    const tecnicaLista = tecnicaDesdeTexto(tecnica)
+    if ("error" in tecnicaLista) {
+      setErrorGeneral(tecnicaLista.error)
+      return
+    }
+    const completo = { ...datos, ...tecnicaLista }
 
     try {
-      onGuardado(id === undefined ? await api.crear(datos) : await api.editar(id, datos))
+      onGuardado(id === undefined ? await api.crear(completo) : await api.editar(id, completo))
     } catch (error) {
       if (error instanceof ErrorDeNombreDuplicado) {
         setError("nombre", { type: "duplicado" })
@@ -280,6 +295,32 @@ export function FormularioDeEjercicio({
             error={errors.instrucciones !== undefined ? "Escribe las instrucciones" : undefined}
           />
         )}
+      />
+
+      <Campo
+        etiqueta="Cómo hacerlo, un paso por línea (opcional)"
+        value={tecnica.pasos}
+        onChangeText={(pasos) => setTecnica((actual) => ({ ...actual, pasos }))}
+        multiline
+        numberOfLines={4}
+        textAlignVertical="top"
+        placeholder={"Pies firmes y escápulas atrás.\nBaja controlado al pecho."}
+      />
+      <Campo
+        etiqueta="Evita (opcional)"
+        value={tecnica.evita}
+        onChangeText={(evita) => setTecnica((actual) => ({ ...actual, evita }))}
+        maxLength={500}
+        placeholder="Rebotar, despegar glúteos o abrir codos."
+      />
+      <Campo
+        etiqueta="Consejos, uno por línea como «Título: texto» (opcional)"
+        value={tecnica.consejos}
+        onChangeText={(consejos) => setTecnica((actual) => ({ ...actual, consejos }))}
+        multiline
+        numberOfLines={3}
+        textAlignVertical="top"
+        placeholder={"Respira: coge aire arriba, suéltalo al subir.\nPara si: pinchazo o dolor."}
       />
 
       {acceso !== undefined && ficha !== null && (
