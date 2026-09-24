@@ -1,4 +1,11 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common"
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common"
 import {
   MedioFotoSchema,
   type AccesoMedio,
@@ -22,6 +29,7 @@ import {
   type AlmacenObjetos,
 } from "./almacen-objetos.js"
 import { formatoReal, sinMetadatos } from "./imagenes.js"
+import { MARGEN_LIMPIEZA_MS } from "./limpieza-medios.js"
 
 const minutos = (n: number): Date => new Date(Date.now() + n * 60_000)
 const fecha = (valor: Date): string => valor.toISOString().slice(0, 10)
@@ -58,6 +66,8 @@ export function medioPublico(fila: FilaConAutor): MedioFoto {
  */
 @Injectable()
 export class MediosService {
+  private readonly registro = new Logger(MediosService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly alcance: AlcanceClienteService,
@@ -118,7 +128,11 @@ export class MediosService {
       where: { autorId_operacionId: { autorId: actor.sub, operacionId: datos.operacionId } },
       include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
     })
-    if (previa) return this.repetida(previa, datos)
+    if (previa) {
+      const repetida = await this.repetida(previa, datos)
+      // Si la limpieza se la llevó entretanto, la operación queda libre: se crea de nuevo.
+      if (repetida) return repetida
+    }
 
     const id = randomUUID()
     const caducaEn = minutos(MINUTOS_ENLACE_SUBIDA)
@@ -158,14 +172,23 @@ export class MediosService {
           where: { autorId_operacionId: { autorId: actor.sub, operacionId: datos.operacionId } },
           include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
         })
-        if (ganadora) return this.repetida(ganadora, datos)
+        const repetida = ganadora && (await this.repetida(ganadora, datos))
+        if (repetida) return repetida
       }
       throw error
     }
   }
 
-  /** Reintento de una intención: mismo medio y, si sigue pendiente, un enlace nuevo. */
-  private repetida(fila: FilaConAutor, datos: SolicitarSubida): IntencionSubida {
+  /**
+   * Reintento de una intención: mismo medio y, si sigue pendiente, un enlace
+   * nuevo. Renovar el enlace renueva la intención: su caducidad se guarda antes
+   * de firmar, porque la limpieza decide por ella. Devuelve `null` si la
+   * intención ya no existe (se limpió mientras tanto).
+   */
+  private async repetida(
+    fila: FilaConAutor,
+    datos: SolicitarSubida,
+  ): Promise<IntencionSubida | null> {
     const destino = datos.destino
     const igual =
       fila.clienteId === datos.clienteId &&
@@ -178,17 +201,29 @@ export class MediosService {
         : fila.solicitudId === destino.solicitudId)
     if (!igual)
       throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
+    if (fila.estado !== "pendiente") return { medio: medioPublico(fila), subida: null }
+
+    const caducaEn = minutos(MINUTOS_ENLACE_SUBIDA)
+    const renovadas = await this.prisma.medioFoto.updateMany({
+      where: { id: fila.id, estado: "pendiente" },
+      data: { subidaCaducaEn: caducaEn },
+    })
+    if (renovadas.count === 0) {
+      // Se confirmó, se retiró o se limpió entretanto: sin enlace nuevo.
+      const actual = await this.prisma.medioFoto.findUnique({
+        where: { id: fila.id },
+        include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
+      })
+      return actual && { medio: medioPublico(actual), subida: null }
+    }
     return {
       medio: medioPublico(fila),
-      subida:
-        fila.estado === "pendiente"
-          ? this.almacen.enlaceDeSubida(
-              fila.clave,
-              fila.tipoMime as FormatoFoto,
-              fila.bytes,
-              minutos(MINUTOS_ENLACE_SUBIDA),
-            )
-          : null,
+      subida: this.almacen.enlaceDeSubida(
+        fila.clave,
+        fila.tipoMime as FormatoFoto,
+        fila.bytes,
+        caducaEn,
+      ),
     }
   }
 
@@ -221,8 +256,14 @@ export class MediosService {
     await this.almacen.reemplazar(fila.clave, limpio)
     const ahora = new Date()
     const confirmada = await this.prisma.$transaction(async (tx) => {
+      // Una intención que la limpieza ya puede descartar no pasa a disponible:
+      // si lo hiciera, la limpieza podría borrar su objeto a la vez.
       const cambiadas = await tx.medioFoto.updateMany({
-        where: { id, estado: "pendiente" },
+        where: {
+          id,
+          estado: "pendiente",
+          subidaCaducaEn: { gte: new Date(ahora.getTime() - MARGEN_LIMPIEZA_MS) },
+        },
         data: { estado: "disponible", confirmadoEn: ahora, bytes: limpio.length },
       })
       if (cambiadas.count === 1 && fila.solicitudId)
@@ -230,14 +271,68 @@ export class MediosService {
           where: { id: fila.solicitudId, estado: "pendiente" },
           data: { estado: "recibida", recibidaEn: ahora },
         })
-      return tx.medioFoto.findUniqueOrThrow({
+      return tx.medioFoto.findUnique({
         where: { id },
         include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
       })
     })
-    if (confirmada.estado !== "disponible")
-      throw conflicto("estado_incompatible", "Esta foto se ha retirado")
+    if (confirmada?.estado !== "disponible") {
+      // Se retiró, se limpió o caducó mientras se verificaba: que no quede el
+      // objeto reescrito. Si caducó, la misma operación renueva la subida.
+      await this.almacen.borrar(fila.clave).catch(() => {
+        this.registro.warn(`No se pudo borrar el objeto de la foto ${id} tras retirarse`)
+      })
+      throw conflicto(
+        "estado_incompatible",
+        confirmada?.estado === "pendiente"
+          ? "La subida ha caducado: vuelve a subirla"
+          : "Esta foto se ha retirado",
+      )
+    }
     return medioPublico(confirmada)
+  }
+
+  /**
+   * Retira una foto: primero la marca «eliminando» (sin acceso desde ese
+   * momento) y después borra el objeto. Si el almacén falla, queda así y la
+   * misma orden se puede repetir; nunca se da por retirada sin haberla borrado.
+   * La foto sigue en su visita o solicitud con su estado, sin volver a servirse.
+   */
+  async eliminar(actor: IdentidadVerificada, id: string): Promise<MedioFoto> {
+    const fila = await this.medio(id)
+    await this.exigirAlcance(actor, fila.clienteId)
+    if (actor.rol === "cliente") {
+      if (!this.visibleParaCliente(fila)) throw new NotFoundException("Foto no disponible")
+      if (fila.origen !== "cliente" || fila.autorId !== actor.sub)
+        throw new ForbiddenException("Solo puedes retirar las fotos que aportaste tú")
+    }
+    if (fila.estado === "eliminado") return medioPublico(fila)
+    if (fila.estado === "pendiente")
+      throw conflicto(
+        "estado_incompatible",
+        "Esta foto aún no se ha confirmado; si no se completa, se descarta sola",
+      )
+
+    // La decisión y el cambio de estado van en la misma escritura.
+    await this.prisma.medioFoto.updateMany({
+      where: { id, estado: "disponible" },
+      data: { estado: "eliminando" },
+    })
+    try {
+      await this.almacen.borrar(fila.clave)
+    } catch (error) {
+      this.registro.warn(
+        `No se pudo borrar el objeto de la foto ${id}: ${error instanceof Error ? error.message : "error desconocido"}`,
+      )
+      throw new ServiceUnavailableException(
+        "No se ha podido retirar la foto ahora mismo. Queda sin acceso; vuelve a intentarlo.",
+      )
+    }
+    await this.prisma.medioFoto.updateMany({
+      where: { id, estado: "eliminando" },
+      data: { estado: "eliminado", eliminadoEn: new Date() },
+    })
+    return medioPublico(await this.medio(id))
   }
 
   /** Lectura temporal tras comprobar permisos; nunca de una foto no confirmada. */

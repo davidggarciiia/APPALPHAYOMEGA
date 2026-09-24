@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
@@ -71,6 +72,16 @@ export class MediosController {
     @Param("id", new EntradaApiPipe(IdSchema)) id: string,
   ): Promise<AccesoMedio> {
     return this.medios.acceso(this.actor(peticion), id)
+  }
+
+  /** Acción explícita. Si el almacén falla responde 503 y la misma orden se puede repetir. */
+  @Roles("cliente", "entrenador")
+  @Delete(":id")
+  eliminar(
+    @Req() peticion: PeticionAutenticada,
+    @Param("id", new EntradaApiPipe(IdSchema)) id: string,
+  ): Promise<MedioFoto> {
+    return this.medios.eliminar(this.actor(peticion), id)
   }
 }
 
