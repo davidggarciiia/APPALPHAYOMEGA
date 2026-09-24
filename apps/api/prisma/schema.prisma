@@ -96,6 +96,10 @@ model Usuario {
   operacionesValoracion    OperacionValoracion[]
   proximaRevision          ProximaRevisionValoracion?
   lecturasAvisos           LecturaAvisoSeguimiento[]
+  fotos                    MedioFoto[]                @relation("FotosCliente")
+  fotosAportadas           MedioFoto[]                @relation("FotosAutor")
+  solicitudesFotos         SolicitudFotos[]           @relation("SolicitudesFotosCliente")
+  solicitudesFotosCreadas  SolicitudFotos[]           @relation("SolicitudesFotosAutor")
 
   @@map("usuarios")
 }
@@ -687,6 +691,7 @@ model Valoracion {
   publicaciones PublicacionValoracion[]
   operaciones   OperacionValoracion[]
   pautaCumplida ProximaRevisionValoracion?
+  fotos         MedioFoto[]
 
   @@index([clienteId, creadaEn])
   @@map("valoraciones")
@@ -783,4 +788,92 @@ model LecturaAvisoSeguimiento {
 
   @@id([usuarioId, avisoId])
   @@map("lecturas_avisos_seguimiento")
+}
+
+enum VistaFoto {
+  frente
+  espalda
+  perfilIzquierdo
+  perfilDerecho
+  otra
+}
+
+enum EstadoMedio {
+  pendiente
+  disponible
+  eliminando
+  eliminado
+}
+
+enum OrigenMedio {
+  profesional
+  cliente
+}
+
+enum EstadoSolicitudFotos {
+  pendiente
+  recibida
+  revisada
+}
+
+/// Foto privada de evolución (ADR 0005). `clave` es la ubicación del objeto en el
+/// almacén: nunca sale en una respuesta ni se guarda una URL firmada.
+model MedioFoto {
+  id             String          @id @default(uuid())
+  clienteId      String
+  cliente        Usuario         @relation("FotosCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  autorId        String
+  autor          Usuario         @relation("FotosAutor", fields: [autorId], references: [id], onDelete: Restrict)
+  operacionId    String
+  origen         OrigenMedio
+  vista          VistaFoto
+  etiqueta       String?         @db.VarChar(40)
+  fechaToma      DateTime        @db.Date
+  estado         EstadoMedio     @default(pendiente)
+  tipoMime       String          @db.VarChar(20)
+  bytes          Int
+  clave          String          @unique
+  /// Hasta cuándo vale la intención de subida; después se limpia si sigue pendiente.
+  subidaCaducaEn DateTime
+  /// Visita a la que pertenece. Incorporar una aportación no cambia su autor ni su origen.
+  valoracionId   String?
+  valoracion     Valoracion?     @relation(fields: [valoracionId], references: [id], onDelete: Restrict)
+  /// Solicitud del entrenador a la que respondió el cliente.
+  solicitudId    String?
+  solicitud      SolicitudFotos? @relation(fields: [solicitudId], references: [id], onDelete: Restrict)
+  /// Visible para el cliente desde que se publicó la visita que la incluye.
+  publicadaEn    DateTime?
+  creadoEn       DateTime        @default(now())
+  confirmadoEn   DateTime?
+  eliminadoEn    DateTime?
+
+  @@unique([autorId, operacionId])
+  @@index([clienteId, vista, fechaToma])
+  @@index([valoracionId])
+  @@index([solicitudId])
+  @@index([estado, subidaCaducaEn])
+  @@map("medios_fotos")
+}
+
+/// Fotos que el entrenador pide al cliente. Recibirlas no las marca revisadas.
+model SolicitudFotos {
+  id                  String               @id @default(uuid())
+  clienteId           String
+  cliente             Usuario              @relation("SolicitudesFotosCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  autorId             String
+  autor               Usuario              @relation("SolicitudesFotosAutor", fields: [autorId], references: [id], onDelete: Restrict)
+  operacionId         String
+  vistas              VistaFoto[]
+  fechaLimite         DateTime?            @db.Date
+  mensaje             String?              @db.VarChar(200)
+  estado              EstadoSolicitudFotos @default(pendiente)
+  creadaEn            DateTime             @default(now())
+  recibidaEn          DateTime?
+  revisadaEn          DateTime?
+  revisionOperacionId String?
+  medios              MedioFoto[]
+
+  @@unique([autorId, operacionId])
+  @@index([clienteId, creadaEn])
+  @@map("solicitudes_fotos")
 }

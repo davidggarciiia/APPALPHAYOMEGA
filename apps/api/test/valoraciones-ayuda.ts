@@ -1,7 +1,7 @@
 import type { PrismaService } from "../src/prisma/prisma.service.js"
 
 /**
- * Borra las valoraciones de los usuarios de prueba. Las publicaciones y visitas
+ * Borra las valoraciones, fotos y solicitudes de los usuarios de prueba. Las publicaciones y visitas
  * se referencian entre sí con RESTRICT (auditoría), así que se retiran primero
  * las que nadie sustituye o toma como anterior.
  */
@@ -10,6 +10,10 @@ export async function limpiarValoraciones(prisma: PrismaService, ids: string[]):
   const clienteId = { in: ids }
   const valoracion = { clienteId }
   await prisma.lecturaAvisoSeguimiento.deleteMany({ where: { usuarioId: { in: ids } } })
+  await prisma.medioFoto.deleteMany({ where: { OR: [{ clienteId }, { autorId: { in: ids } }] } })
+  await prisma.solicitudFotos.deleteMany({
+    where: { OR: [{ clienteId }, { autorId: { in: ids } }] },
+  })
   await prisma.operacionValoracion.deleteMany({
     where: { OR: [{ valoracion }, { autorId: { in: ids } }] },
   })
