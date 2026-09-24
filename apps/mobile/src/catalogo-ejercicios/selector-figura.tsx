@@ -17,7 +17,11 @@ type Lista =
 
 /** "Sentadilla búlgara" se encuentra escribiendo "bulgara". */
 function plegar(texto: string): string {
-  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es").trim()
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es")
+    .trim()
 }
 
 /**

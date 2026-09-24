@@ -30,12 +30,14 @@ const POSTER = Buffer.from("poster-de-prueba")
 
 /** Supertest solo acumula el cuerpo de tipos que conoce; un MP4 hay que pedirlo. */
 function binario(
-  respuesta: NodeJS.ReadableStream,
+  respuesta: request.Response,
   alTerminar: (error: Error | null, cuerpo: Buffer) => void,
 ): void {
+  // En Node, superagent pasa aquí el flujo de la respuesta HTTP sin leer.
+  const flujo = respuesta as unknown as NodeJS.ReadableStream
   const trozos: Buffer[] = []
-  respuesta.on("data", (trozo: Buffer) => trozos.push(trozo))
-  respuesta.on("end", () => alTerminar(null, Buffer.concat(trozos)))
+  flujo.on("data", (trozo: Buffer) => trozos.push(trozo))
+  flujo.on("end", () => alTerminar(null, Buffer.concat(trozos)))
 }
 
 describe("Figuras de ejercicio", () => {
