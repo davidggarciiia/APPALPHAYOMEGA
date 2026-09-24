@@ -13,6 +13,10 @@ cargarEntornoLocal()
 async function arrancar(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule)
   configurarCuerposHttp(app)
+  // Con SIGTERM (reinicio del gestor de procesos o del contenedor) Nest llama a
+  // los ganchos de cierre: se desconecta de la base y para la limpieza de fotos
+  // en lugar de cortar a medias.
+  app.enableShutdownHooks()
   const registro = new Logger("arranque")
 
   /**
