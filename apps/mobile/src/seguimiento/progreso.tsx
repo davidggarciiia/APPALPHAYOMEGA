@@ -22,6 +22,8 @@ import type { ApiSeguimiento } from "./api"
 import { EditorConfiguracionSeguimiento } from "./configuracion"
 import { AnadirMedida, AnadirPrueba } from "./formularios"
 import { Grafica } from "./grafica"
+import { ValoracionesCliente } from "./resumen-valoracion"
+import type { ApiValoracionesCliente } from "./valoraciones-api"
 import {
   edadEn,
   masaLibre,
@@ -66,11 +68,14 @@ export function ProgresoCliente({
   clienteId,
   seguimiento,
   entrenamiento,
+  valoraciones,
   modo = "cliente",
 }: {
   clienteId: string
   seguimiento: ApiSeguimiento
   entrenamiento: ApiEntrenamiento
+  /** Valoraciones publicadas del cliente; en la ficha profesional van aparte. */
+  valoraciones?: ApiValoracionesCliente
   modo?: "cliente" | "entrenador"
 }): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>()
@@ -122,6 +127,9 @@ export function ProgresoCliente({
 
   return (
     <View style={s.contenido}>
+      {modo === "cliente" && valoraciones && (
+        <ValoracionesCliente clienteId={clienteId} api={valoraciones} />
+      )}
       {modo === "entrenador" && datos && (
         <EditorConfiguracionSeguimiento
           valor={datos.configuracion}
