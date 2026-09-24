@@ -760,3 +760,89 @@ export const GuardarProximaRevisionSchema = z.strictObject({
   pauta: PautaRevisionSchema.nullable(),
 })
 export type GuardarProximaRevision = z.infer<typeof GuardarProximaRevisionSchema>
+
+/**
+ * Evolución: series de puntos comparables. Una serie reúne solo datos de la
+ * misma definición y versión (o, en el histórico, del mismo campo y origen);
+ * variantes, unidades, instrumentos o métodos distintos son series distintas.
+ */
+export const OrigenPuntoSchema = z.enum(["valoracion", "autorregistro", "historico"])
+export type OrigenPunto = z.infer<typeof OrigenPuntoSchema>
+
+export const PuntoEvolucionSchema = z.strictObject({
+  fecha: FechaAgendaSchema,
+  valor: z.number(),
+  /** Publicación vigente de la visita; `null` en registros que no son valoraciones. */
+  publicacionId: z.uuid().nullable(),
+  valoracionId: z.uuid().nullable(),
+  /** El punto procede de una versión corregida: sustituye al anterior, no se suma. */
+  corregido: z.boolean(),
+})
+export type PuntoEvolucion = z.infer<typeof PuntoEvolucionSchema>
+
+export const SerieEvolucionSchema = z.strictObject({
+  /** Identidad estable de la serie (definición + versión + métrica, o campo histórico). */
+  clave: z.string().min(1).max(200),
+  nombre: z.string().min(1).max(120),
+  unidad: z.string().min(1).max(20),
+  bloque: BloqueValoracionSchema.nullable(),
+  origen: OrigenPuntoSchema,
+  /** Instrumento, protocolo o variante que la distingue; `null` si no consta. */
+  metodo: z.string().max(400).nullable(),
+  /** `false` en el histórico sin método ni protocolo: se muestra, pero no se compara con visitas. */
+  clasificada: z.boolean(),
+  puntos: z.array(PuntoEvolucionSchema),
+})
+export type SerieEvolucion = z.infer<typeof SerieEvolucionSchema>
+
+export const ConsultarEvolucionSchema = z
+  .strictObject({ desde: FechaAgendaSchema.optional(), hasta: FechaAgendaSchema.optional() })
+  .refine((c) => !c.desde || !c.hasta || c.desde <= c.hasta, "El periodo está invertido")
+export type ConsultarEvolucion = z.infer<typeof ConsultarEvolucionSchema>
+
+export const EvolucionSchema = z.strictObject({ series: z.array(SerieEvolucionSchema) })
+export type Evolucion = z.infer<typeof EvolucionSchema>
+
+/**
+ * Avisos de seguimiento en Inicio. Se derivan de publicaciones y solicitudes;
+ * cada usuario guarda su propia lectura. Leer un aviso no revisa nada.
+ */
+export const TipoAvisoSeguimientoSchema = z.enum([
+  "valoracionPublicada",
+  "valoracionCorregida",
+  "fotosSolicitadas",
+  "fotosRecibidas",
+])
+export type TipoAvisoSeguimiento = z.infer<typeof TipoAvisoSeguimientoSchema>
+
+export const AvisoSeguimientoSchema = z.strictObject({
+  /** Id de la publicación o de la solicitud de la que nace. */
+  id: z.uuid(),
+  tipo: TipoAvisoSeguimientoSchema,
+  clienteId: z.uuid(),
+  autor: AutorSchema,
+  creadoEn: z.iso.datetime(),
+  destino: z.discriminatedUnion("tipo", [
+    z.strictObject({ tipo: z.literal("valoracion"), valoracionId: z.uuid() }),
+    z.strictObject({ tipo: z.literal("solicitud"), solicitudId: z.uuid() }),
+  ]),
+  /** `false` si la publicación ya se sustituyó o la solicitud ya no pide nada. */
+  vigente: z.boolean(),
+  leidoEn: z.iso.datetime().nullable(),
+})
+export type AvisoSeguimiento = z.infer<typeof AvisoSeguimientoSchema>
+
+export const ListadoAvisosSeguimientoSchema = z.strictObject({
+  avisos: z.array(AvisoSeguimientoSchema),
+  sinLeer: z.number().int().nonnegative(),
+})
+export type ListadoAvisosSeguimiento = z.infer<typeof ListadoAvisosSeguimientoSchema>
+
+export const LeerAvisosSeguimientoSchema = z.strictObject({
+  avisoIds: z
+    .array(z.uuid())
+    .min(1)
+    .max(50)
+    .refine((ids) => new Set(ids).size === ids.length, "Aviso repetido"),
+})
+export type LeerAvisosSeguimiento = z.infer<typeof LeerAvisosSeguimientoSchema>
