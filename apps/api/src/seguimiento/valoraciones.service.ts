@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common"
 import {
   BorradorValoracionSchema,
   DocumentoValoracionSchema,
+  ProximaRevisionSchema,
   PublicacionValoracionSchema,
   ValoracionProfesionalSchema,
   problemasDelDocumento,
@@ -14,18 +15,20 @@ import {
   type DefinicionesValoracion,
   type DocumentoValoracion,
   type EstadoValoracion,
+  type GuardarProximaRevision,
   type ListadoValoraciones,
   type ListadoValoracionesPublicadas,
   type PlantillaValoracion,
+  type ProximaRevision,
   type PublicacionValoracion,
   type PublicarValoracion,
   type ValoracionCliente,
   type ValoracionCorporal,
   type ValoracionProfesional,
 } from "@alpha-omega/shared"
-import type {
-  BorradorValoracion as FilaBorrador,
+import {
   Prisma,
+  type BorradorValoracion as FilaBorrador,
   PublicacionValoracion as FilaPublicacion,
   Usuario,
   Valoracion as FilaValoracion,
@@ -108,6 +111,23 @@ function publicacion(fila: FilaPublicacionCompleta): PublicacionValoracion {
     },
     publicadaEn: fila.publicadaEn.toISOString(),
     documento: fila.documento,
+  })
+}
+
+function proxima(
+  fila: {
+    revision: number
+    pauta: Prisma.JsonValue
+    cumplidaPorId: string | null
+    actualizadoEn: Date
+  } | null,
+): ProximaRevision {
+  if (!fila) return { revision: 0, pauta: null, cumplidaPorId: null, actualizadaEn: null }
+  return ProximaRevisionSchema.parse({
+    revision: fila.revision,
+    pauta: fila.pauta,
+    cumplidaPorId: fila.cumplidaPorId,
+    actualizadaEn: fila.actualizadoEn.toISOString(),
   })
 }
 
@@ -248,8 +268,6 @@ export class ValoracionesService {
   ): Promise<ValoracionProfesional> {
     await this.clienteActivo(clienteId)
     if ("corrigePublicacionId" in datos) return this.corregir(actor, clienteId, datos)
-    if (datos.tipo === "revision" && datos.cumplePauta !== null)
-      throw conflicto("estado_incompatible", "Aún no hay una próxima revisión pautada que cumplir")
     const { operacionId, ...peticion } = datos
     const huella = hashPeticion({ clienteId, ...peticion })
     const repetida = async (): Promise<ValoracionProfesional | null> => {
@@ -285,6 +303,8 @@ export class ValoracionesService {
             anteriorId: peticion.tipo === "revision" ? peticion.anteriorId : null,
           },
         })
+        if (peticion.tipo === "revision" && peticion.cumplePauta !== null)
+          await this.cumplirPauta(tx, clienteId, peticion.cumplePauta, valoracion.id)
         const borrador = await tx.borradorValoracion.create({
           data: {
             valoracionId: valoracion.id,
@@ -481,6 +501,59 @@ export class ValoracionesService {
         if (ganadora) return ganadora
         throw obsoleta()
       }
+      throw error
+    }
+  }
+
+  /** Solo esta acción marca cumplida la pauta; leerla o abrirla no. */
+  private async cumplirPauta(
+    tx: Prisma.TransactionClient,
+    clienteId: string,
+    revision: number,
+    valoracionId: string,
+  ): Promise<void> {
+    const actual = await tx.proximaRevisionValoracion.findUnique({ where: { clienteId } })
+    if (!actual || actual.pauta === null)
+      throw conflicto("estado_incompatible", "No hay una próxima revisión pautada que cumplir")
+    if (actual.revision !== revision)
+      throw conflicto("revision_obsoleta", "La próxima revisión ha cambiado. Recarga.")
+    if (actual.cumplidaPorId)
+      throw conflicto("estado_incompatible", "Esa revisión pautada ya se realizó")
+    const cumplida = await tx.proximaRevisionValoracion.updateMany({
+      where: { clienteId, revision, cumplidaPorId: null },
+      data: { cumplidaPorId: valoracionId, revision: { increment: 1 } },
+    })
+    if (cumplida.count !== 1)
+      throw conflicto("revision_obsoleta", "La próxima revisión ha cambiado. Recarga.")
+  }
+
+  async proximaRevision(clienteId: string): Promise<ProximaRevision> {
+    const fila = await this.prisma.proximaRevisionValoracion.findUnique({ where: { clienteId } })
+    return proxima(fila)
+  }
+
+  /** Guardar una pauta nueva (o quitarla) la deja otra vez pendiente. */
+  async guardarProximaRevision(
+    clienteId: string,
+    datos: GuardarProximaRevision,
+  ): Promise<ProximaRevision> {
+    await this.clienteActivo(clienteId)
+    const obsoleta = () =>
+      conflicto("revision_obsoleta", "La próxima revisión ha cambiado. Recarga antes de guardar.")
+    const pauta = datos.pauta ?? Prisma.DbNull
+    try {
+      const fila =
+        datos.revision === 0
+          ? await this.prisma.proximaRevisionValoracion.create({
+              data: { clienteId, revision: 1, pauta },
+            })
+          : await this.prisma.proximaRevisionValoracion.update({
+              where: { clienteId, revision: datos.revision },
+              data: { revision: { increment: 1 }, pauta, cumplidaPorId: null },
+            })
+      return proxima(fila)
+    } catch (error) {
+      if (esCodigo(error, "P2002") || esCodigo(error, "P2025")) throw obsoleta()
       throw error
     }
   }

@@ -5,6 +5,7 @@ import {
   ListadoValoracionesPublicadasSchema,
   ListadoValoracionesSchema,
   PlantillaValoracionSchema,
+  ProximaRevisionSchema,
   PublicacionValoracionSchema,
   ValoracionClienteSchema,
   ValoracionCorporalSchema,
@@ -681,5 +682,190 @@ describe("Valoraciones: publicar y corregir (V05)", () => {
     expect(lista.valoraciones.filter((f) => f.id === v.id)).toEqual([
       expect.objectContaining({ numeroPublicacion: 2 }),
     ])
+  })
+})
+
+describe("Valoraciones: próxima revisión y repetición (V07a)", () => {
+  let entorno: Awaited<ReturnType<typeof entornoEntrenamiento>>
+  let inicial: ValoracionProfesional
+  beforeAll(async () => {
+    entorno = await entornoEntrenamiento("valoraciones-revision")
+    const http = entorno.app.getHttpServer()
+    const base = `/seguimiento/clientes/${entorno.ids.cliente!}`
+    await request(http)
+      .put(`${base}/plantilla-valoracion`)
+      .set(entorno.como("entrenador"))
+      .send({ revision: 0, corporales: [peso], pruebas: [flexiones] })
+      .expect(200)
+    const creada = ValoracionProfesionalSchema.parse(
+      (
+        await request(http)
+          .post(`${base}/valoraciones`)
+          .set(entorno.como("entrenador"))
+          .send({
+            operacionId: randomUUID(),
+            tipo: "inicial",
+            fechaToma: "2026-09-24",
+            bloques: ["medidas", "pruebas"],
+          })
+          .expect(201)
+      ).body,
+    )
+    inicial = ValoracionProfesionalSchema.parse(
+      (
+        await request(http)
+          .put(`${base}/valoraciones/${creada.id}`)
+          .set(entorno.como("entrenador"))
+          .send({
+            borradorId: creada.borrador!.id,
+            revision: creada.borrador!.revision,
+            fechaToma: "2026-09-24",
+            contenido: {
+              bloques: ["medidas", "pruebas"],
+              corporales: [{ definicionId: peso.id, estado: "registrado", valor: 90 }],
+              pruebas: [
+                {
+                  definicionId: flexiones.id,
+                  estado: "registrado",
+                  valores: { repeticiones: 15 },
+                  protocoloCompleto: true,
+                  fecha: null,
+                  notas: null,
+                },
+              ],
+              grasaPorPliegues: null,
+              destacados: [],
+              conclusion: null,
+              notasInternas: null,
+            },
+          })
+          .expect(200)
+      ).body,
+    )
+  })
+  afterAll(async () => {
+    await entorno?.cerrar()
+  })
+  const http = () => entorno.app.getHttpServer()
+  const ruta = (resto: string) => `/seguimiento/clientes/${entorno.ids.cliente!}/${resto}`
+  const pauta = { fecha: null, intervaloSemanas: 6, bloques: ["medidas", "pruebas"] }
+
+  it("la pauta empieza sin programar, se guarda con revisión y se puede quitar", async () => {
+    const url = ruta("proxima-revision")
+    expect(
+      ProximaRevisionSchema.parse(
+        (await request(http()).get(url).set(entorno.como("cliente")).expect(200)).body,
+      ),
+    ).toEqual({ revision: 0, pauta: null, cumplidaPorId: null, actualizadaEn: null })
+    await request(http()).get(url).set(entorno.como("nutricionista")).expect(403)
+    await request(http())
+      .put(url)
+      .set(entorno.como("cliente"))
+      .send({ revision: 0, pauta })
+      .expect(403)
+    const guardada = ProximaRevisionSchema.parse(
+      (
+        await request(http())
+          .put(url)
+          .set(entorno.como("entrenador"))
+          .send({ revision: 0, pauta })
+          .expect(200)
+      ).body,
+    )
+    expect(guardada).toMatchObject({ revision: 1, pauta, cumplidaPorId: null })
+    const conflicto = await request(http())
+      .put(url)
+      .set(entorno.como("entrenador"))
+      .send({ revision: 0, pauta: null })
+      .expect(409)
+    expect(ErrorDeApiSchema.parse(conflicto.body).codigo).toBe("revision_obsoleta")
+    const quitada = ProximaRevisionSchema.parse(
+      (
+        await request(http())
+          .put(url)
+          .set(entorno.como("entrenador"))
+          .send({ revision: 1, pauta: null })
+          .expect(200)
+      ).body,
+    )
+    expect(quitada).toMatchObject({ revision: 2, pauta: null })
+    expect(
+      ProximaRevisionSchema.parse(
+        (await request(http()).get(url).set(entorno.como("cliente")).expect(200)).body,
+      ).pauta,
+    ).toBeNull()
+  })
+
+  it("solo crear la revisión vinculada cumple la pauta; reintentar no la duplica", async () => {
+    const url = ruta("proxima-revision")
+    const actual = ProximaRevisionSchema.parse(
+      (await request(http()).get(url).set(entorno.como("entrenador")).expect(200)).body,
+    )
+    const programada = ProximaRevisionSchema.parse(
+      (
+        await request(http())
+          .put(url)
+          .set(entorno.como("entrenador"))
+          .send({
+            revision: actual.revision,
+            pauta: { ...pauta, fecha: "2026-11-05", intervaloSemanas: null },
+          })
+          .expect(200)
+      ).body,
+    )
+    const crearRevision = (operacionId: string, cumplePauta: number | null) =>
+      request(http())
+        .post(ruta("valoraciones"))
+        .set(entorno.como("entrenador"))
+        .send({
+          operacionId,
+          tipo: "revision",
+          fechaToma: "2026-11-05",
+          bloques: ["medidas", "pruebas"],
+          anteriorId: inicial.id,
+          cumplePauta,
+        })
+    const obsoleta = await crearRevision(randomUUID(), programada.revision - 1).expect(409)
+    expect(ErrorDeApiSchema.parse(obsoleta.body).codigo).toBe("revision_obsoleta")
+    expect(
+      await entorno.prisma.valoracion.count({ where: { clienteId: entorno.ids.cliente! } }),
+    ).toBe(1)
+
+    const operacionId = randomUUID()
+    const revision = ValoracionProfesionalSchema.parse(
+      (await crearRevision(operacionId, programada.revision).expect(201)).body,
+    )
+    const doc = revision.borrador!.documento
+    expect(doc.definiciones.corporales.map((d) => d.id)).toEqual([peso.id])
+    expect([...doc.corporales, ...doc.pruebas].every((r) => r.estado === "pendiente")).toBe(true)
+    const cumplida = ProximaRevisionSchema.parse(
+      (await request(http()).get(url).set(entorno.como("cliente")).expect(200)).body,
+    )
+    expect(cumplida).toMatchObject({
+      cumplidaPorId: revision.id,
+      revision: programada.revision + 1,
+    })
+
+    const repetida = ValoracionProfesionalSchema.parse(
+      (await crearRevision(operacionId, programada.revision).expect(201)).body,
+    )
+    expect(repetida.id).toBe(revision.id)
+    const segunda = await crearRevision(randomUUID(), cumplida.revision).expect(409)
+    expect(ErrorDeApiSchema.parse(segunda.body).codigo).toBe("estado_incompatible")
+    expect(
+      await entorno.prisma.valoracion.count({ where: { clienteId: entorno.ids.cliente! } }),
+    ).toBe(2)
+
+    // Programar otra vez deja la pauta pendiente.
+    const nueva = ProximaRevisionSchema.parse(
+      (
+        await request(http())
+          .put(url)
+          .set(entorno.como("entrenador"))
+          .send({ revision: cumplida.revision, pauta })
+          .expect(200)
+      ).body,
+    )
+    expect(nueva.cumplidaPorId).toBeNull()
   })
 })

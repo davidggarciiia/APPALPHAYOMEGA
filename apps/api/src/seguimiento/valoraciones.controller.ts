@@ -15,14 +15,17 @@ import {
   ConsultarValoracionesSchema,
   CrearValoracionSchema,
   GuardarPlantillaValoracionSchema,
+  GuardarProximaRevisionSchema,
   PublicarValoracionSchema,
   type CambiarValoracion,
   type ConsultarValoraciones,
   type CrearValoracion,
   type GuardarPlantillaValoracion,
+  type GuardarProximaRevision,
   type ListadoValoraciones,
   type ListadoValoracionesPublicadas,
   type PlantillaValoracion,
+  type ProximaRevision,
   type PublicacionValoracion,
   type PublicarValoracion,
   type ValoracionCliente,
@@ -73,6 +76,23 @@ export class ValoracionesController {
     @Body(new EntradaApiPipe(GuardarPlantillaValoracionSchema)) datos: GuardarPlantillaValoracion,
   ): Promise<PlantillaValoracion> {
     return this.plantillas.guardar(clienteId, datos)
+  }
+
+  @Roles("cliente", "entrenador")
+  @Get("proxima-revision")
+  proximaRevision(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+  ): Promise<ProximaRevision> {
+    return this.valoraciones.proximaRevision(clienteId)
+  }
+
+  @Roles("entrenador")
+  @Put("proxima-revision")
+  guardarProximaRevision(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Body(new EntradaApiPipe(GuardarProximaRevisionSchema)) datos: GuardarProximaRevision,
+  ): Promise<ProximaRevision> {
+    return this.valoraciones.guardarProximaRevision(clienteId, datos)
   }
 
   @Roles("entrenador")
