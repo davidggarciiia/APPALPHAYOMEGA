@@ -8,24 +8,29 @@ Se publicará en App Store y Google Play.
 
 ## Estado
 
-La segunda iteración de entrenamiento está integrada y verificada en web con
-API y PostgreSQL reales. Las pantallas aplican la referencia de diseño en blanco
-y negro. La comprobación física Android/iOS sigue pendiente.
+La carpeta principal integra entrenamiento guiado, nutrición y seguimiento con
+valoraciones. Las pantallas conservan el diseño vigente. La app sigue en
+desarrollo: quedan correcciones de uso, partes del flujo de fotos, integración de
+otra rama y comprobación física Android/iOS. El estado comprobado está en la
+[revisión integral del 24-09-2026](tasks/revision-integral-2026-09-24.md).
 
-| Módulo                                           | Estado                                                                  |
-| ------------------------------------------------ | ----------------------------------------------------------------------- |
-| identity                                         | 17 de 21 tareas; sesión offline y renovación integradas                 |
-| catalogo-ejercicios                              | Catálogo textual, búsqueda, alta, edición, retirada y reposición        |
-| agenda                                           | Sesiones por día completo y cambios auditados dentro de su semana       |
-| entrenamiento                                    | Rutinas, planes de varias semanas, registro privado, envío y resultados |
-| nutricion, seguimiento-corporal, leads, fichajes | Pendientes                                                              |
+| Módulo               | Estado                                                                        |
+| -------------------- | ----------------------------------------------------------------------------- |
+| identity             | 17 de 21 tareas; sesión offline y renovación integradas                       |
+| catalogo-ejercicios  | Catálogo textual, búsqueda, alta, edición, retirada y reposición              |
+| agenda               | Sesiones por día completo y cambios auditados dentro de su semana             |
+| entrenamiento        | Rutinas, planes de varias semanas, registro privado, envío y resultados       |
+| nutricion            | Dietas profesionales, platos/intercambios, comidas y suplementos              |
+| seguimiento-corporal | Indicadores, valoraciones, pruebas y evolución; fotos parcialmente integradas |
+| leads, fichajes      | Fuera de la entrega actual                                                    |
 
 El entrenador prepara desde cero o adapta una rutina guardada, asigna varias
 semanas y consulta los resultados enviados. El cliente puede mover su sesión,
 escribir peso y repeticiones o segundos, marcar series y enviar al terminar.
 Sus borradores son privados; las sesiones descargadas admiten edición sin red.
-Las figuras animadas, vídeos y mapa muscular del catálogo quedan fuera de esta
-iteración. La investigación está en [docs/animaciones-ejercicios.md](docs/animaciones-ejercicios.md).
+Hay soporte para figuras animadas y un catálogo inicial de 52 ejercicios;
+los archivos y su carga en la base principal todavía requieren comprobación.
+Licencias y restricciones en [docs/animaciones-ejercicios.md](docs/animaciones-ejercicios.md).
 
 ## Cómo arrancarlo
 
@@ -56,11 +61,13 @@ no hay que escribir ninguna IP a mano.
 npm run typecheck
 npm run lint
 npm test                    # unitarios
-npm run test:e2e            # de extremo a extremo, necesita la base levantada
+# HTTP: solo contra una base dedicada, nunca contra la base habitual.
+# En PowerShell: $env:POSTGRES_DB='alpha_omega_e2e_codex'
+npm run test:e2e            # necesita esa base levantada y migrada
 ```
 
-La verificación de la segunda iteración registra 76 pruebas unitarias de API,
-85 móviles y 261 HTTP (422 en total). Los tests de extremo a extremo hablan con una base de datos
+La verificación del 24-09-2026 registra 188 pruebas unitarias de API,
+452 móviles y 448 HTTP. Los tests de extremo a extremo hablan con una base de datos
 de verdad y nunca salen a la red: el envío de correo se sustituye por un doble en
 memoria.
 

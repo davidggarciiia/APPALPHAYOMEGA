@@ -2,6 +2,228 @@
 
 > [Plan y decisiones](plan.md). Marcar una tarea hecha solo con criterios y verificación demostrados. El archivo de planes anteriores conserva sus pendientes históricos sin declararlos terminados.
 
+## Revisión integral posterior · 24-09-2026
+
+El [informe de revisión integral](revision-integral-2026-09-24.md) consolida fallos, integración y comprobaciones pendientes. No da por terminadas las tareas físicas ni reabre funciones aplazadas en la coordinación con Claude.
+
+- [ ] **RI01:** cierre de entrenamiento que muestre/congele exactamente la intención de envío.
+- [ ] **RI02:** proteger la edición de medidas y pruebas mientras se guardan.
+- [ ] **RI03:** registrar ejecución parcial, omisiones y RIR de calentamiento/vuelta a la calma.
+- [ ] **RI04:** distinguir comida sin registro habilitado de falta de conexión.
+- [ ] **RI05:** evitar cálculos y fechas que mezclen medidas de tomas diferentes.
+- [ ] **RI06:** conservar acceso a medidas/pruebas recientes e históricas al superar 500.
+- [ ] **RI07:** retirar explícitamente archivos temporales de fotos en Android/iOS.
+
+Cada RI tiene escenario en el informe y desglose ejecutable a continuación. **Claude es el responsable de esta nueva pasada, por petición de David.** No se han corregido estas RI como parte del parche ya verificado de fotos/consentimiento.
+
+### Método y controles comunes de la nueva pasada
+
+- Trabajar con Agent Skills: especificación vigente → tarea pequeña → regresión que falle → cambio mínimo → pruebas → revisión → commit acotado. No tocar código de otra tarea para hacer pasar una prueba.
+- Cada tarea enumera hasta cinco archivos de lógica/pruebas. Cambios de especificación y evidencia se registran junto a ella; si aparece otro consumidor de lógica, subdividir antes de editarlo.
+- Después de cada tarea: su prueba focal, `npm run typecheck` y `git diff --check`. Resultado esperado: salida 0, ninguna regresión. Registrar resultado real, no el esperado.
+- Las rutas citadas son relativas a `C:/Users/david/Desktop/APP-ALPHA_OMEGA`. Los archivos marcados **nuevo** se crean; los restantes se han localizado en esta revisión.
+- HTTP en una terminal de pruebas: `$env:POSTGRES_DB='alpha_omega_e2e_codex'`, `$env:ALMACEN='local'`, `$env:MEDIOS_LIMPIEZA_MINUTOS='0'` y un `ALMACEN_LOCAL_DIR` temporal propio. Verificar destino antes de migrar. No arrancar la API habitual desde esa terminal con el entorno de pruebas heredado.
+
+### RI00 · Consolidar la base sin perder trabajo
+
+**Entrega:** identificar las instantáneas de la carpeta principal y de `claude/mejoras-pdf`, preservar las correcciones de Codex y preparar la integración de D01. **Dependencias:** ninguna. **Tamaño:** S de coordinación; si aparecen conflictos de producto, crear subtareas por módulo antes de resolverlos.
+
+- [ ] Ejecutar `git status --short`, `git log -5 --oneline`, `git worktree list` y `git log --oneline codex/cliente-intuitivo..claude/mejoras-pdf`. Leer el estado local de ambos worktrees y `tasks/coordinacion-claude-codex.md`.
+- [ ] Revisar/consolidar en commits acotados los cambios de la carpeta principal que aún están sin commit. No usar `git add .`, `reset --hard`, `clean` ni sobreescribir documentos/archivos del usuario. Mantener las pruebas de consentimiento pendiente y los intentos recuperables de foto. La nueva petición de David autoriza continuar la corrección con Claude; la nota antigua de esperar otro commit no obliga a desechar este árbol.
+- [ ] Reconciliar el alcance y guardar los SHA efectivamente usados. La integración de metros debe conservar ambos cambios de `registros.service.ts`: unidad de distancia y comprobación transaccional del consentimiento. No sustituir `todo.md` por la copia antigua del worktree.
+
+**Archivos de coordinación:** `tasks/coordinacion-claude-codex.md`, `tasks/evidencia-valoraciones.md`. **Verificar:** cambios identificados por módulo, ningún archivo perdido y ningún pendiente marcado por inercia. No repetir T00, no volver a integrar Fable desde una base antigua.
+
+### RI01 · Mostrar el cierre comprometido
+
+**Entrega:** al enviar o reintentar se ve exactamente el feedback que contiene la intención. **Dependencia:** RI00. **Tamaño:** M, 4 archivos.
+
+**Archivos:** `apps/mobile/src/entrenamiento/sesion/cierre.tsx`, `apps/mobile/src/entrenamiento/sesion/pantallas.spec.tsx`, `apps/mobile/src/entrenamiento/registro-cliente.tsx`; **nuevo:** `apps/mobile/src/entrenamiento/registro-cliente.spec.tsx`.
+
+- [ ] Añadir una regresión del cierre con `cierreInicial={{ esfuerzo: 8, energia: 2, incomodo: true }}`, notas «Me cansé», `pendiente=true`: se muestran esos valores sin controles editables y reintentar no exige responder otra vez. Añadir casos enviando y cierre antiguo ausente; comprobar el fallo antes del cambio.
+- [ ] Añadir `cierreInicial` al componente y alimentarlo desde `envioPendiente.registro`, después `intencionEnvio.registro`, después la edición. Mostrar un resumen de consulta al estar pendiente; mientras se envía, proteger los valores elegidos. El reintento conserva UUID y payload; no cambiar la lógica de `ControlRegistro.enviar` para aceptar una edición tardía.
+- [ ] Probar en integración abrir/cerrar el resumen, intentar enviar sin red, volver y reintentar: nota, esfuerzo, energía y molestia visibles coinciden con el payload original. Sin cierre histórico: texto neutral y reintento válido, sin datos inventados.
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand src/entrenamiento/sesion/pantallas.spec.tsx src/entrenamiento/registro-cliente.spec.tsx src/entrenamiento/registro-control.spec.ts`. Recorrido manual posterior: cerrar entreno → perder conexión → volver → continuar envío.
+
+### RI02 · Proteger medidas y pruebas durante el guardado
+
+**Entrega:** ni una respuesta lenta ni un reintento pierden una edición o crean dobles registros. **Dependencia:** RI00. **Tamaño:** M, 4 archivos; las dos partes comparten el mismo formulario y no añaden endpoints.
+
+**Archivos:** `apps/mobile/src/seguimiento/formularios.tsx`, **nuevo:** `apps/mobile/src/seguimiento/formularios.spec.tsx`, `apps/mobile/src/entrenamiento/sesion/controles.tsx`, `apps/mobile/src/entrenamiento/sesion/pantallas.spec.tsx`.
+
+- [ ] Reproducir con una promesa controlada: escribir 70,5 kg, guardar, intentar escribir 80 y cancelar antes de responder. Hacer lo mismo con una prueba. Comprobar que el formulario actual admite esos cambios; fijar la expectativa de campos y cancelación bloqueados.
+- [ ] Añadir `ocupado?: boolean` al `Dialogo`, por defecto falso, para deshabilitar Confirmar/Cancelar y `onRequestClose` mientras guarda. Propagar el estado a `Campo.editable`, botones de prueba y accesibilidad. Una referencia síncrona impide arrancar dos escrituras en el mismo ciclo; al fallar se desbloquea y conserva datos/error.
+- [ ] Fijar el ID por contenido intentado: repetir los mismos datos tras error reutiliza UUID; una edición distinta crea otro. Probar pérdida de respuesta, cambio de valor y reintento; éxito limpia solo el formulario que estaba bloqueado, una sola vez. No alterar diálogos ajenos cuando `ocupado` se omite.
+
+**Regresión de arranque para el archivo nuevo:**
+
+```tsx
+import { describe, expect, it, jest } from "@jest/globals"
+import { act, fireEvent, render, screen } from "@testing-library/react-native"
+import { AnadirMedida } from "./formularios"
+
+jest.mock("expo-crypto", () => ({
+  randomUUID: () => "11111111-1111-4111-8111-111111111111",
+}))
+
+describe("guardado protegido", () => {
+  it("no admite cambios ni cancelación mientras guarda", async () => {
+    let resolver!: () => void
+    const esperando = new Promise<void>((resolve) => {
+      resolver = resolve
+    })
+    const registrar = jest.fn(() => esperando)
+    const cerrar = jest.fn()
+    await render(<AnadirMedida visible cerrar={cerrar} registrar={registrar} />)
+    await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "70,5")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    expect(screen.getByLabelText("Peso (kg)").props.editable).toBe(false)
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled()
+    expect(cerrar).not.toHaveBeenCalled()
+    await act(async () => resolver())
+    expect(registrar).toHaveBeenCalledTimes(1)
+    expect(cerrar).toHaveBeenCalledTimes(1)
+  })
+})
+```
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand src/seguimiento/formularios.spec.tsx src/seguimiento/pantallas.spec.tsx src/entrenamiento/sesion/pantallas.spec.tsx`. Reutilizar el mock de `expo-crypto` de los tests de pantallas cuando lo requiera el entorno del archivo nuevo.
+
+### RI04 · Mostrar el motivo real de solo consulta en comidas
+
+**Entrega:** una dieta sin registro habilitado no se anuncia como desconectada ni ofrece guardar sin efecto. **Dependencia:** RI00. **Tamaño:** M, 4 archivos.
+
+**Archivos:** `apps/mobile/app/nutricion/comida.tsx`, `apps/mobile/src/nutricion/comida-del-dia.tsx`, `apps/mobile/src/nutricion/comida-del-dia.spec.tsx`; **nuevo:** `apps/mobile/src/nutricion/comida-ruta.spec.tsx`.
+
+- [ ] En la prueba de componente usar la comida sintética existente y un motivo `registroDesactivado`: no aparece «Sin conexión» ni «Registrar comida» y no se escribe nada. En la ruta reproducir `enLinea=true`, `documento.registroComidas=false`.
+- [ ] Sustituir el booleano ambiguo por `motivoSoloLectura?: "sinConexion" | "registroDesactivado"`. Mostrar texto y controles según el motivo; propagar el bloqueo al botón de registrar de ambos formatos. Con registro desactivado: «Tu profesional ha dejado esta comida solo para consultar». Con falta de red: conservar la elección y permitir reintentar la carga/conexión sin fingir guardado.
+- [ ] Cubrir plato único, varios platos e intercambio en los tres estados; con conexión y registro habilitado mantener confirmación real del servidor y corrección de la comida. Retirar `soloLectura` solo después de actualizar todos sus consumidores localizados con `rg`.
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand comida-del-dia.spec.tsx comida-ruta.spec.tsx`. No modificar contratos de dieta ni activar el registro desde la app cliente.
+
+### Control A · RI01, RI02 y RI04
+
+- [ ] Pruebas focales, tipos y lint pasan; los campos bloqueados comunican su estado al lector de pantalla.
+- [ ] Recorrido autenticado con red lenta: el cliente ve el contenido que se guarda/envía; no puede efectuar una acción sin efecto. Si falta sesión, registrar exactamente esa verificación como pendiente.
+
+### RI05 · Mostrar medidas de una misma toma
+
+**Entrega:** el punto inicial no fabrica composición corporal mezclando meses. **Dependencia:** RI00. **Tamaño:** M, 4 archivos.
+
+**Archivos:** `apps/mobile/src/seguimiento/progreso.tsx`, `apps/mobile/src/seguimiento/pantallas.spec.tsx`; **nuevos:** `apps/mobile/src/seguimiento/punto-de-partida.ts`, `apps/mobile/src/seguimiento/punto-de-partida.spec.ts`.
+
+- [ ] Reproducir peso 80 kg en enero y grasa 20 % en septiembre: no debe aparecer 64 kg de masa libre como dato de enero. Probar también peso/grasa de una misma fila, campos vacíos, mismo día con dos tomas y fechas coincidentes de autores distintos.
+- [ ] Extraer una función pura que seleccione la toma inicial y devuelva valores con fecha/ID de origen. Calcular masa libre solo si esa misma toma contiene peso y grasa; si se muestran valores independientes posteriores, cada uno conserva su fecha y no alimenta el cálculo combinado.
+- [ ] Integrarla únicamente en el bloque de punto de partida. Mantener medidas previas, nacimiento/edad calculada para la fecha pertinente, orden y acceso a registros cotidianos. La ausencia queda como ausencia.
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand punto-de-partida.spec.ts pantallas.spec.tsx evolucion-valoraciones.spec.tsx`. Comprobar que una corrección de publicación no introduce un punto inicial duplicado por reutilizar datos de otra fuente.
+
+### RI06a · Leer páginas de histórico sin perder lo reciente
+
+**Entrega:** API con paginación estable y permisos existentes; endpoints anteriores compatibles. **Dependencia:** RI00; ejecutar con contratos exclusivamente a cargo del integrador. **Tamaño:** M, 5 archivos.
+
+**Archivos:** `packages/shared/src/seguimiento.ts`, `apps/api/src/seguimiento/seguimiento.controller.ts`, `apps/api/src/seguimiento/seguimiento.service.ts`; **nuevos:** `apps/api/src/seguimiento/paginacion-seguimiento.ts`, `apps/api/test/seguimiento-paginacion.e2e-spec.ts`.
+
+- [ ] Preparar en la base dedicada 501 medidas y 501 pruebas sintéticas, incluidas fechas iguales. Escribir pruebas que recorran las páginas y recuperen los 501 IDs sin duplicados, incluido el más reciente. Antes del cambio debe fallar la ruta/contrato nuevo; demostrar también la omisión de lo reciente en la ruta actual.
+- [ ] Implementar los contratos y rutas definidos en `plan.md`. Cursor opaco validado de fecha/creación/ID; consulta por cliente, orden descendente, `limite + 1` y cursor siguiente solo si quedan filas. Cursor inválido: 400; acceso a otro cliente: mismo rechazo del alcance vigente. Una fila eliminada entre páginas no impide seguir por la tupla del cursor.
+- [ ] Mantener los esquemas estrictos y campos de las rutas antiguas. Si hay que limitar la respuesta antigua, incluir los 500 más recientes y devolverlos en el orden histórico que esperaba su cliente; la nueva API da acceso al resto. No ejecutar una migración de datos ni eliminar/reescribir resultados.
+
+**Verificar:** `npm run build:shared`; `npm run test:e2e --workspace apps/api -- --runTestsByPath test/seguimiento-paginacion.e2e-spec.ts test/seguimiento.e2e-spec.ts --testTimeout=30000`. Incluir 0/1/500/501 filas, cursores inválidos, cambio de cliente, nutricionista según alcance y orden con empates. Si `index.ts` no exporta por wildcard el módulo actual, separar la actualización de exportación antes de exceder el tamaño.
+
+### RI06b · Consumir todo el histórico desde la app
+
+**Entrega:** Inicio/Progreso siguen recibiendo el formato actual con los resultados recientes y antiguos. **Dependencia:** RI06a y RI05. **Tamaño:** M, 4 archivos.
+
+**Archivos:** `apps/mobile/src/seguimiento/api.ts`, `apps/mobile/src/seguimiento/api.spec.ts`, `apps/mobile/src/seguimiento/pantallas.spec.tsx`; **nuevo:** `apps/mobile/src/seguimiento/paginas.ts`.
+
+- [ ] Probar dos páginas de 500 + 1, página vacía, error en la segunda y cursor repetido. Afirmar que `api.medidas(clienteId)` incluye los 501 IDs ordenados y que el último indicador usa el más reciente; repetir con pruebas de nombres distintos.
+- [ ] Añadir recorrido de páginas al adaptador, deduplicación por ID y orden final explícito. No cambiar las firmas consumidas por Inicio/Progreso. Propagar fallo de página y conservar la salida recuperable actual; no tratar como completo un resultado parcial.
+- [ ] Medir carga y render con 5.000 registros sintéticos y documentar tiempo/peticiones; comprobar que salir de la pantalla no la repuebla al finalizar una petición antigua. Si la medida muestra un bloqueo de uso, dividir una tarea de lectura bajo demanda con sus contratos antes de esconder datos mediante otro límite silencioso.
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand src/seguimiento/api.spec.ts src/seguimiento/pantallas.spec.tsx hoy-inicio.spec.tsx`. Repetir HTTP focal si cambia el contrato. La prueba de rendimiento lleva datos sintéticos y resultados medidos, no una cifra supuesta.
+
+### Control B · RI05, RI06a y RI06b
+
+- [ ] El dato más reciente aparece después de más de 500 registros y el inicial conserva su fecha/origen; la consulta ofrece acceso al histórico completo.
+- [ ] Compatibilidad, permisos, tipos y pruebas pasan. Una página fallida tiene recuperación explícita, no gráficos parciales presentados como definitivos.
+
+### RI03 · Registrar parcialmente calentamiento y vuelta a la calma
+
+**Entrega:** permitir corregir series sin perder la presentación compacta. **Dependencia:** RI01 y D01 integrado/verificado; no pisar la tabla mientras Claude activa metros. **Tamaño:** M, 5 archivos.
+
+**Archivos:** `apps/mobile/src/entrenamiento/sesion/partes.tsx`, `apps/mobile/src/entrenamiento/sesion/partes.spec.tsx`, `apps/mobile/src/entrenamiento/registro-cliente.tsx`, `apps/mobile/src/entrenamiento/registro-cliente.spec.tsx`, `apps/mobile/src/entrenamiento/tabla-series.tsx`.
+
+- [ ] Reproducir un calentamiento con dos series: una hecha y otra omitida, distinto tiempo/repeticiones y RIR opcional. Una pulsación en el ejercicio no debe borrar una ejecución parcial ni inventar que se hicieron ambas series.
+- [ ] Añadir acceso «Registrar series» en el bloque compacto y reutilizar `TablaSeries` y las operaciones existentes. Mantener el atajo de completar lo pautado para el caso uniforme y explícito; al corregir/omitir conservar estado por serie y orden del bloque.
+- [ ] Cubrir tiempo, repeticiones, metros, carga externa/calibración, RIR desactivado/final/por serie y registro bloqueado. Guardar → salir → continuar → enviar conserva la misma ejecución y la prescripción intacta.
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand partes.spec.tsx registro-cliente.spec.tsx tabla-series.spec.tsx registro-control.spec.ts`. Si integrar requiere un componente nuevo, dividir presentación e integración antes de sobrepasar cinco archivos.
+
+### Control C · D01 y RI03
+
+- [ ] Registrar y enviar un ejercicio en metros y un calentamiento parcial funciona de profesional a cliente y de vuelta; el historial anterior sigue legible.
+- [ ] No hay segundo modelo de series, validación duplicada ni controles que queden activos tras comprometer el envío.
+
+### RI07a · Liberar únicamente archivos temporales propios
+
+**Entrega:** borrado nativo explícito, con propiedad del archivo comprobada. **Dependencia:** RI00. **Tamaño:** M, 4 archivos.
+
+**Archivos:** `apps/mobile/package.json`, `package-lock.json`, `apps/mobile/src/seguimiento/preparar-foto.ts`, `apps/mobile/src/seguimiento/preparar-foto.spec.ts`.
+
+- [ ] Reproducir que `liberarFoto` en Android/iOS no borra el temporal preparado. Añadir pruebas de copia en caché propia, original de galería, URI `content:`/`ph:`, archivo inexistente, error de borrado y web `blob:`.
+- [ ] Leer la API de archivos compatible con el SDK Expo instalado y declarar `expo-file-system` como dependencia directa mediante `npx expo install expo-file-system` desde `apps/mobile` si se usa. Identificar explícitamente las copias creadas por selección/preparación y borrar solo esas. No borrar rutas arbitrarias ni el original de la fototeca; no usar rutas proporcionadas por el servidor para eliminar archivos.
+- [ ] Hacer el borrado idempotente y esperar o gestionar su resultado sin rechazos no controlados. Mantener reducción, orientación, JPEG y límite de bytes existentes. Documentar la conducta frente a un error real de almacenamiento del dispositivo, sin afirmar que se borró si falló.
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand preparar-foto.spec.ts`; `npm run typecheck`. Instalar/compilar no sustituye una comprobación física de cámara, galería y caché.
+
+### RI07b · Integrar la limpieza con reintentos y cierre de pantalla
+
+**Entrega:** conservar la copia mientras permita reintentar y retirarla cuando ya no hace falta. **Dependencia:** RI07a. **Tamaño:** M, hasta 4 archivos.
+
+**Archivos:** `apps/mobile/src/seguimiento/solicitudes-fotos.tsx`, `apps/mobile/src/seguimiento/solicitudes-fotos.spec.tsx`, `apps/mobile/src/seguimiento/preparar-foto.ts`, `apps/mobile/src/seguimiento/preparar-foto.spec.ts`.
+
+- [ ] Probar éxito, fallo de red con reintento idéntico, elección de otra imagen, cancelación y desmontaje durante preparación/subida. Una preparación que termina después de desmontar debe limpiar su copia y no repoblar la pantalla.
+- [ ] Integrar la liberación con el estado de cada intento. No borrar una copia usada por un PUT activo ni crear otra operación al reintentar el mismo contenido; al terminar/descartar ya no se conserva un temporal innecesario.
+- [ ] Volver a probar varias vistas de una solicitud y la retirada desde el comparador. Registrar qué queda confirmado en servidor y qué es solo selección local.
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand solicitudes-fotos.spec.tsx preparar-foto.spec.ts comparador-fotos.spec.tsx`; cámara/galería reales quedan en Q03.
+
+### Continuación F/E · Completar los flujos existentes
+
+No duplicar los desgloses F03b/F04b/F05b/E01b/E02b de abajo. Ejecutarlos después de RI07 y usar su aceptación original. Dividir la integración que exceda cinco archivos:
+
+- [ ] **F03b-1 · Subida profesional reutilizable.** Nuevos `apps/mobile/src/seguimiento/subida-fotos.tsx` y `subida-fotos.spec.tsx`, más `medios-api.ts` si hace falta: destino de valoración, vista/fecha, misma operación al reintentar, estados seleccionada/subiendo/confirmando/disponible/error. Tests con doble pulsación, respuesta perdida y consentimiento retirado. Verificar con `npm test --workspace apps/mobile -- --runInBand subida-fotos.spec.tsx`.
+- [ ] **F03b-2 · Conexión al borrador.** `editor-valoracion.tsx` y `editor-valoracion.spec.tsx`: asociar solo medios confirmados a la revisión correcta; conservar el borrador ante error/conflicto. Verificar `npm test --workspace apps/mobile -- --runInBand editor-valoracion.spec.tsx` y HTTP `test/valoraciones-fotos.e2e-spec.ts` / `test/medios.e2e-spec.ts`. Cliente no ve la foto profesional antes de publicar.
+
+### Control D · RI07 y F03b
+
+- [ ] Entrenador sube/guarda/publica, cliente consulta y compara, cancelación/reintento no duplican ni pierden medios.
+- [ ] La limpieza de archivos propios está probada en código; el ensayo físico sigue pendiente hasta observarlo. Las regresiones de consentimiento y almacenamiento permanecen verdes.
+
+### E02c · Avisos de seguimiento en la ficha profesional
+
+**Entrega:** entrenador encuentra las fotos recibidas con lectura individual y destino funcional. **Dependencia:** F03b/F04b y E02b. **Tamaño:** M, 4 archivos.
+
+**Archivos:** `apps/mobile/src/entrenamiento-entrenador/ficha/ficha-cliente.tsx`, `ficha-cliente.spec.tsx` en ese directorio; `apps/mobile/src/seguimiento/valoraciones-novedades.tsx`, `valoraciones-novedades.spec.tsx`.
+
+- [ ] Reproducir que la API ofrece el aviso de fotos recibidas pero no se monta en la ficha. Añadir caso con permiso profesional, aviso sin leer y destino a solicitudes/valoración del mismo cliente.
+- [ ] Montar el componente existente en modo profesional con la API de valoraciones que ya recibe la ficha. Seleccionar la pestaña/destino útil; marcar lectura solo para el usuario actual. Un fallo permite reintentar y no marca la solicitud revisada.
+- [ ] Probar volver/recargar, cliente sin novedades y cambio de cliente sin reutilizar datos anteriores. Revisar no leído tras fotos adicionales: si la API actual no genera un aviso nuevo, documentarlo y resolver el contrato en subtarea antes de prometer esa actualización en UI.
+
+**Verificar:** `npm test --workspace apps/mobile -- --runInBand ficha-cliente.spec.tsx valoraciones-novedades.spec.tsx`; HTTP `test/valoraciones-novedades.e2e-spec.ts`. Recorrido profesional recibe → abre → revisa explícitamente → cliente consulta.
+
+### Integración, catálogo y cierre
+
+- [ ] **D01:** integrar el HEAD final verificado de `claude/mejoras-pdf`, conservando el parche de consentimiento y las RI. Repetir `test/entrenamiento-distancia.e2e-spec.ts` y las pruebas del controlador, tabla y constructor. Si aún hay trabajo activo en esa rama, fijar qué commit se integra; no asumir que su HEAD deja de cambiar.
+- [ ] **D04/D07:** continuar sus desgloses existentes según la decisión posterior registrada en coordinación. No ejecutar D02/D03/D05/D06 a partir de un párrafo histórico. Actualizar especificaciones y estado al integrar, conservando lo aplazado como tal.
+- [ ] **FIG01 · Diagnóstico de figuras.** `docs/animaciones-ejercicios.md`, `tasks/evidencia-valoraciones.md`: localizar originales gratuitos/licencias y carpeta efectiva, contrastar `MEDIOS_DIR` con los archivos y ejecutar `node apps/api/dist/catalogo-ejercicios/preparar-catalogo.js` sin `--confirmar`. Registrar cobertura real. No declarar listos 52 ejercicios por tener un índice de 52 entradas.
+- [ ] **FIG02 · Activación comprobada.** Tras disponer de los archivos permitidos y la autorización de carga inicial de PR3, importar/asociar sin sobrescribir contenido del entrenador y comprobar reproducción desde la guía/registro. Respetar streaming y restricciones sin conexión de cada medio. Si falta proveedor/archivo/licencia, el ejercicio muestra el recurso técnico disponible sin un control vacío.
+- [ ] **E03/Q01/Q02:** ejecutar los recorridos y controles ya definidos abajo después de todas las integraciones; actualizar README/especificaciones y retirar solo código sustituido sin consumidores. Mantener una lista de fallos concretos si aparece una regresión.
+- [ ] **Q03 y producción:** registrar resultados físicos/observados, bucket real, correo/enlaces HTTPS, restauración de copia y distribución. Lo externo que falte no se da por resuelto por ejecutar tests.
+
+**Puerta de entrega:** `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e` en base dedicada, `npm run build --workspace apps/api` y `git diff --check`, todos con salida 0 y evidencia de la revisión final de código. Distinguir implementación, navegador, dispositivo y producción; los puntos de control no autorizan cuentas externas, publicación o siembra de la base por sí solos.
+
 ## Base
 
 - [x] **T00 · Integración y archivo.** Base Fable integrada por avance directo; rama `codex/cliente-intuitivo` creada; 21 documentos históricos archivados con índice y referencias actualizadas. Los HTML, PDF, scripts y archivos del usuario permanecen. Evidencia: avance directo desde `d7d8ef0`, `git diff --check` sin errores.
@@ -78,11 +300,20 @@ Encargo de David: «termina la aplicación, que quede para producción, acuérda
 - [x] **PR3 · Figuras animadas («muñecos») y catálogo inicial.** `catalogo-inicial.ts` tiene 52 ejercicios, uno por figura de Vital Free50 y MoveKit, con textos propios y sin cifras. `preparar-catalogo.js` los crea con su figura; sin `--confirmar` solo informa, y nunca cambia ni borra nada. `catalogo-inicial.e2e-spec.ts`: 60 pruebas en la base desechable. Entorno principal: figuras copiadas a `%LOCALAPPDATA%\alpha-omega\medios\figuras` (104 archivos, 12 MB) y `MEDIOS_DIR` en el `.env` local. **Pendiente de David:** ejecutar `preparar-catalogo.js --confirmar` contra `alpha_omega`. No se ha hecho, porque la regla prohíbe sembrar esa base sin su permiso.
 - [x] **PR4 · Despliegue.** `docs/DESPLIEGUE.md`: variables, bucket, migraciones solo con `migrate deploy`, cuenta del entrenador, figuras, arranque, actualización, app con EAS y copias. La API activa los ganchos de cierre (`SIGTERM`). `PENDIENTE-PARA-PRODUCCION.md` queda actualizado con el estado real de los puntos 4, 5, 6, 9, 9b, 9c y 9d.
 
+### Correcciones de la revisión de producción · Codex · 24-09-2026
+
+- [x] **PR1a · Consentimiento en operaciones pendientes.** La confirmación de fotos y los nuevos borradores/envíos de entrenamiento comprueban el cliente propietario y el consentimiento vigente dentro de la transacción. Un bloqueo compartido de la fila coordina la escritura con la retirada. Los reintentos ya completados conservan su respuesta histórica sin crear registros nuevos. `consentimiento-pendientes.e2e-spec.ts`: 6 pruebas de retirada anterior o simultánea. La prueba anterior que dependía del estado de otra se sustituyó por casos aislados; `consentimiento.e2e-spec.ts` conserva sus 4 pruebas originales.
+- [x] **PR2a · Foto final separada de la subida.** Cada intento usa una clave UUID registrada antes del PUT; solo la ganadora se publica. Descartar confirma el estado antes del borrado externo, sin mantener transacciones durante I/O. La tabla aditiva `intentos_foto` conserva las claves descartadas para reintentar fallos y recuperar escrituras tardías aun si la intención original se borró. Se mantiene la limpieza del temporal tras caducar y la compatibilidad con fotos antiguas. `medios.e2e-spec.ts`: 18 pruebas, incluidas sustitución de contenido/metadatos, confirmaciones solapadas, escritura más lenta que la transacción, error tras escribir, limpieza fallida y pérdida de respuesta del commit. Migración: `20260924210000_intentos_foto`; transición y límites en ADR 0005.
+
+**Verificación de este tramo:** suite completa `npm test`: 188 pruebas API en 23 suites y 452 móviles en 65 suites. HTTP completo: 448 pruebas en 42 suites, únicamente contra `alpha_omega_e2e_codex` con imágenes sintéticas y almacén temporal. `npm run typecheck` y `npm run build --workspace apps/api`: correctos. Revisión independiente del parche final sin nuevos hallazgos. Las pruebas no sustituyen la comprobación física o con un bucket real. La comprobación global y los pendientes se consolidan en [revisión integral](revision-integral-2026-09-24.md).
+
 ## Ampliación propuesta · valoración inicial y revisiones · 24-09-2026
 
 **Estado: planificación; todas las tareas siguientes están pendientes.** Este desglose amplía el mismo trabajo y conserva T05, T06, T17 y la prueba observada pendientes hasta obtener su evidencia. No autoriza por sí mismo implementar, ejecutar migraciones sobre la base principal ni desplegar. El encargo actual consiste en preparar la entrega para Claude con Agent Skills.
 
 **Decisión de David sobre los PDF: «todo menos k1».** Se incorporan al alcance planificado D01, D02 y D04–D07 del [informe de revisión](revision-pdfs.md); D03 queda expresamente excluido. La aprobación amplía el plan para Claude, no cambia el encargo actual de solo documentación. Los tres PDF revisados no aportan una ficha con puntos de pliegues ni resultados desglosados de bioimpedancia. Siguen pendientes la selección concreta de perímetros, puntos, lateralidad e instrumento: usar plantilla configurable sin inventarlos. No copiar datos personales, credenciales ni fotografías reales a documentación o fixtures.
+
+**Nota de vigencia:** el párrafo anterior conserva la primera decisión. La decisión posterior registrada en coordinación limita las mejoras a D01/D04/D07; la ejecución actual comienza en RI00. Los puntos de la valoración ya verificados siguen hechos y los excluidos no se reactivan.
 
 ### Instrucciones de ejecución para Claude
 
@@ -476,6 +707,8 @@ Encargo de David: «termina la aplicación, que quede para producción, acuérda
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand preparar-foto.spec.ts`; probar imagen sintética girada, metadatos de ubicación sintéticos, selección cancelada y tamaño final; comprobar selección real en los entornos web/móvil soportados.
 
+**Evidencia provisional 24-09-2026 (Codex):** `preparar-foto.ts` y sus pruebas se integraron al envío de solicitudes del cliente. El formato, reducción, cancelación y permisos tienen pruebas sintéticas. La selección real en web y móvil sigue pendiente.
+
 **Dependencias:** F01a. **Responsable:** Claude principal, dueño de dependencias. **Archivos previstos:** `apps/mobile/package.json`, `package-lock.json`, `apps/mobile/src/seguimiento/preparar-foto.ts`, `preparar-foto.spec.ts` en el mismo directorio. **Tamaño:** M, 4 archivos.
 
 #### F03b · Mostrar y recuperar el proceso de subida
@@ -489,6 +722,8 @@ Encargo de David: «termina la aplicación, que quede para producción, acuérda
 - [ ] No se persisten URLs firmadas ni imágenes para modo sin conexión y una foto en borrador sigue privada hasta publicación.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand subida-fotos.spec.tsx editor-valoracion.spec.tsx`; simular interrupción de red en subida/confirmación, expiración y reintento; recorrido local adjuntar → guardar → publicar → consultar.
+
+**Evidencia provisional 24-09-2026 (Codex):** el envío desde una solicitud del cliente pide intención, sube con el enlace temporal y confirma; una prueba cubre el reintento con el mismo UUID y archivo en memoria. **Falta:** adjuntar fotos profesionales al borrador de valoración, estados del editor y recorrido guardar/publicar.
 
 **Dependencias:** F02c y F03a. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/medios-api.ts`, `subida-fotos.tsx`, `subida-fotos.spec.tsx`, `editor-valoracion.tsx` en el mismo directorio. **Tamaño:** M, 4 archivos.
 
@@ -527,6 +762,8 @@ Encargo de David: «termina la aplicación, que quede para producción, acuérda
 
 **Dependencias:** F04a, F03b y V06. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/solicitudes-fotos.tsx`, `solicitudes-fotos.spec.tsx`, `medios-api.ts`, `progreso.tsx`, `editor-valoracion.tsx` en el mismo directorio. **Tamaño:** M, 5 archivos.
 
+**Evidencia provisional 24-09-2026 (Codex):** el cliente aporta desde cámara o galería las vistas pedidas, reintenta sin volver a elegir la foto y puede completar las vistas pendientes aunque una primera ya conste como recibida. El entrenador conserva recepción, revisión e incorporación. Pruebas focales pasan; falta recorrer ambos roles en la app autenticada.
+
 **Punto de control F-D · F04a–F04b:** [ ] aportación solicitada funciona antes/después de una valoración; [ ] el mismo objeto se incorpora sin duplicar; [ ] recibir y revisar se distinguen en ambos roles.
 
 ### F05 · Comparar y retirar fotografías
@@ -562,6 +799,8 @@ Encargo de David: «termina la aplicación, que quede para producción, acuérda
 
 **Dependencias:** F05a y F04b. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/comparador-fotos.tsx`, `comparador-fotos.spec.tsx`, `progreso.tsx`, `medios-api.ts` en el mismo directorio; `apps/mobile/src/sesion.tsx`. **Tamaño:** M, 5 archivos.
 
+**Evidencia provisional 24-09-2026 (Claude y Codex):** el comparador está conectado a «Ver mi evolución» en Progreso y pasan sus pruebas focales de selección, enlaces y retirada. Falta comprobar logout, accesibilidad y tamaños 360/390 px en la app.
+
 **Punto de control F-E · F05a–F05b:** [ ] comparación no rellena huecos; [ ] eliminación/limpieza se comprueban con fallo del almacén; [ ] logout elimina referencias visibles y la autorización se revisa al renovar acceso.
 
 ### E01 · Comparar resultados equivalentes
@@ -595,6 +834,8 @@ Encargo de David: «termina la aplicación, que quede para producción, acuérda
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand evolucion-valoraciones.spec.tsx pantallas.spec.tsx`; comprobar dato único, parcial, fuentes diferentes, cero real y corrección; recorrido a 360/390 px.
 
 **Dependencias:** E01a, V06 y F05b. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/evolucion-valoraciones.tsx`, `evolucion-valoraciones.spec.tsx`, `progreso.tsx`, `valoraciones-api.ts` en el mismo directorio. **Tamaño:** M, 4 archivos.
+
+**Evidencia provisional 24-09-2026 (Claude y Codex):** «Ver mi evolución» abre bajo demanda el histórico en Progreso y permite ocultarlo sin quitar indicadores ni el resumen de valoraciones. Las pruebas focales de evolución y pantalla pasan; el recorrido visual autenticado a 360/390 px sigue pendiente.
 
 **Punto de control E-A · E01a–E01b:** [ ] legado y visitas nuevas conviven sin duplicados; [ ] solo equivalentes muestran diferencia; [ ] comparaciones vacías/parciales y móvil estrecho tienen evidencia.
 
@@ -630,11 +871,13 @@ Encargo de David: «termina la aplicación, que quede para producción, acuérda
 
 **Dependencias:** E02a y E01b. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/seguimiento/valoraciones-novedades.tsx`, `valoraciones-novedades.spec.tsx`, `valoraciones-api.ts` en el mismo directorio; `apps/mobile/app/index.tsx`. **Tamaño:** M, 4 archivos.
 
+**Evidencia provisional 24-09-2026 (Claude):** Inicio monta avisos de seguimiento junto a sus accesos actuales; lectura, persistencia y reintento tienen pruebas del componente. Falta comprobar navegación y lectura en una sesión autenticada real.
+
 **Punto de control E-B · E02a–E02b:** [ ] publicaciones y solicitudes se encuentran desde Inicio; [ ] lectura no equivale a revisión; [ ] avisos y destinos disponen de evidencia visual autenticada o pendientes explícitos.
 
-### Ampliaciones de los PDF aprobadas: D01, D02 y D04–D07
+### Ampliaciones de los PDF vigentes: D01, D04 y D07
 
-**Estado:** aprobadas para planificar, implementación pendiente. Decisión de David: «todo menos k1». Ejecutar este tramo después de E02b y antes de E03/Q. D03 no tiene tareas de implementación: no crear registro nuevo de K-1, ni importar sus datos personales. Conservar `DeporteDelPlanSchema`, el bloque «Otros deportes» y el histórico ya existente.
+**Estado actualizado:** D01 se integra desde la rama de mejoras; D04 y D07 siguen en el alcance. La decisión posterior registrada en coordinación y `a79cfc5` («solo el 6 y el 3», terminando metros) sustituye aquí la primera respuesta «todo menos k1». Los desgloses D02/D05/D06 se conservan como historial excluido: no se ejecutan, no se marcan hechos y no bloquean las tareas vigentes. Ejecutar este tramo después de E02b y antes de E03/Q, salvo D01, que se integra antes de RI03. D03 no tiene tareas de implementación: no crear registro nuevo de K-1, ni importar sus datos personales. Conservar `DeporteDelPlanSchema`, el bloque «Otros deportes» y el histórico ya existente.
 
 Los documentos JSON de prescripción/registro permiten ampliar estos campos de forma compatible; no crear tablas duplicadas si no hacen falta. Antes de activar cualquier nueva unión discriminada, preparar todos sus consumidores para mantener compilación y lectura histórica. Contratos, índices de exportación y archivos compartidos siguen siendo propiedad exclusiva de Claude principal. Los nombres de campos/rutas nuevos se fijan una vez en el primer contrato de cada D y se reutilizan en API/UI.
 
@@ -741,6 +984,8 @@ Los documentos JSON de prescripción/registro permiten ampliar estos campos de f
 
 ### D02 · Cardio pautado y realizado
 
+**Fuera de esta entrega según la decisión posterior registrada.** Se conserva el desglose histórico sin ejecutarlo ni exigirlo para D04/D07/E03/Q.
+
 **Descripción:** añadir registro estructurado de tiempo, velocidad km/h, inclinación % y RPE del cardio, con campos elegidos por el entrenador y objetivo separado de ejecución.
 
 #### D02.a · Contrato y validación de cardio
@@ -818,7 +1063,7 @@ No crear tareas, formulario, API, tabla ni señal de «actividad realizada» de 
 
 **Verificación:** `npm run build:shared`; `npm test --workspace apps/api -- --runInBand contratos.spec.ts`; cubrir configuración ausente, preguntas habilitadas, escalas y documentos históricos.
 
-**Dependencias:** D02.d. **Responsable:** Claude principal. **Archivos previstos:** `packages/shared/src/entrenamiento.ts`, `packages/shared/src/seguimiento.ts`, `apps/api/src/entrenamiento/contratos.spec.ts`, `apps/api/src/seguimiento/contratos.spec.ts`. **Tamaño:** M, 4 archivos.
+**Dependencias vigentes:** D01.g integrado y E02b; D02 está excluida y no bloquea el chequeo. **Responsable:** Claude principal. **Archivos previstos:** `packages/shared/src/entrenamiento.ts`, `packages/shared/src/seguimiento.ts`, `apps/api/src/entrenamiento/contratos.spec.ts`, `apps/api/src/seguimiento/contratos.spec.ts`. **Tamaño:** M, 4 archivos.
 
 #### D04.b · Guardar la configuración del cliente
 
@@ -893,6 +1138,8 @@ No crear tareas, formulario, API, tabla ni señal de «actividad realizada» de 
 
 ### D05 · Resumen semanal de recuperación profesional
 
+**Fuera de esta entrega según la decisión posterior registrada.** Se conserva el desglose histórico sin ejecutarlo ni exigirlo para E03/Q.
+
 **Descripción:** reunir datos disponibles para que el entrenador revise rendimiento, sueño, esfuerzo y molestias/agujetas; no generar diagnósticos ni cambiar prescripciones automáticamente.
 
 #### D05.a · Contrato del resumen
@@ -937,6 +1184,8 @@ No crear tareas, formulario, API, tabla ni señal de «actividad realizada» de 
 **Dependencias:** D05.b. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/entrenamiento-entrenador/recuperacion-api.ts`, `recuperacion-semanal.tsx`, `recuperacion-semanal.spec.tsx` en el mismo directorio; `apps/mobile/src/entrenamiento-entrenador/ficha/ficha-cliente.tsx`, `ficha-cliente.spec.tsx` en el mismo directorio. **Tamaño:** M, 5 archivos.
 
 ### D06 · Prioridades cuando falta tiempo
+
+**Fuera de esta entrega según la decisión posterior registrada.** Se conserva el desglose histórico sin ejecutarlo ni exigirlo para D07/E03/Q.
 
 **Descripción:** permitir que el entrenador indique prioridad de ejercicios/bloques y que el cliente comunique falta de tiempo sin que la app quite trabajo automáticamente.
 
@@ -998,7 +1247,7 @@ No crear tareas, formulario, API, tabla ni señal de «actividad realizada» de 
 
 **Verificación:** `npm run build:shared`; `npm test --workspace apps/api -- --runInBand fases-prescripcion.spec.ts`; casos fase descriptiva, ajustes elegidos, límites y documento anterior.
 
-**Dependencias:** D01.g, D02.d, D04.f y D06.c. **Responsable:** Claude principal. **Archivos previstos:** `packages/shared/src/entrenamiento.ts`, `apps/api/src/entrenamiento/fases-prescripcion.ts`, `apps/api/src/entrenamiento/fases-prescripcion.spec.ts`. **Tamaño:** M, 3 archivos.
+**Dependencias vigentes:** D01.g integrado y D04.f. D02/D06 están excluidas y no bloquean las fases. **Responsable:** Claude principal. **Archivos previstos:** `packages/shared/src/entrenamiento.ts`, `apps/api/src/entrenamiento/fases-prescripcion.ts`, `apps/api/src/entrenamiento/fases-prescripcion.spec.ts`. **Tamaño:** M, 3 archivos.
 
 #### D07.b · Previsualizar y aplicar con revisión
 
@@ -1039,7 +1288,7 @@ No crear tareas, formulario, API, tabla ni señal de «actividad realizada» de 
 
 **Verificación:** recorrido manual de ambos roles en la misma instancia con datos sintéticos; `npm test --workspace apps/mobile -- --runInBand pantallas.spec.tsx hoy-inicio.spec.tsx`; registrar capturas saneadas y pasos en el informe.
 
-**Dependencias:** C01, E01b, E02b, D05.c y D07.c (que incorpora D01/D02/D04/D06). **Responsable:** Claude principal. **Archivos previstos:** `tasks/evidencia-valoraciones.md`, `apps/mobile/src/seguimiento/pantallas.spec.tsx`. **Tamaño:** S, hasta 2 archivos.
+**Dependencias vigentes:** C01, E01b, E02b/E02c, RI01–RI07 y D07.c, con D01/D04 integrados. D02/D03/D05/D06 están excluidas y no bloquean esta revisión. **Responsable:** Claude principal. **Archivos previstos:** `tasks/evidencia-valoraciones.md`, `apps/mobile/src/seguimiento/pantallas.spec.tsx`. **Tamaño:** S, hasta 2 archivos.
 
 **Punto de control D7-B · D07.c y E03:** [ ] todas las D aprobadas funcionan junto al plan de valoración; [ ] no se implementó K-1 nuevo; [ ] cliente solo registra/consulta y entrenador decide/aplica/publica; [ ] revisión visual integral de E03 realizada antes de Q.
 
@@ -1049,7 +1298,7 @@ No crear tareas, formulario, API, tabla ni señal de «actividad realizada» de 
 
 **Criterios:**
 
-- [ ] Se leen registros antiguos y nuevos; cambios de plantilla, protocolo, unidad, fase y publicación no pierden resultados, crean equivalencias falsas ni duplican puntos; metros/cardio/check-in/prioridades conservan los documentos anteriores.
+- [ ] Se leen registros antiguos y nuevos; cambios de plantilla, protocolo, unidad, fase y publicación no pierden resultados, crean equivalencias falsas ni duplican puntos; metros/check-in/fases conservan los documentos anteriores. No exigir funciones de D02/D05/D06 excluidas.
 - [ ] Creación/guardado/publicación/vínculo/lectura con reintentos o concurrencia conserva un resultado consistente; cliente ajeno y nutricionista fuera de alcance no obtienen datos ni medios.
 - [ ] Logs/fixtures no contienen fotos reales, credenciales, notas privadas o enlaces firmados; pruebas se ejecutan contra base y almacenamiento aislados.
 

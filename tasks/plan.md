@@ -1,6 +1,105 @@
-# Alpha & Omega — experiencia del cliente y valoración integral
+# Alpha & Omega — plan de corrección e integración para Claude
 
-> **Ampliación del 24-09-2026:** plan completo solicitado por David con Agent Skills, preparado para que lo implemente Claude. Incluye valoración integral y mejoras detectadas en los PDF, aprobadas con «todo menos k1». Esta ampliación todavía no está implementada. Se amplía el mismo trabajo: los pendientes anteriores y sus evidencias permanecen en [todo.md](todo.md). Entrada para Claude: [para-claude.md](para-claude.md). Fuentes y decisión: [revision-pdfs.md](revision-pdfs.md).
+> **Encargo vigente del 24-09-2026:** David pide que Claude resuelva los cambios detectados en la revisión integral. Usar **Agent Skills**: `using-agent-skills` → `planning-and-task-breakdown` → `incremental-implementation` → `test-driven-development` → `code-review-and-quality`. Este es el único plan activo; se actualiza el mismo trabajo y se conservan sus tareas/evidencias anteriores. Entrada de ejecución: [para-claude.md](para-claude.md).
+
+**Objetivo:** que lo mostrado, lo registrado y lo enviado coincidan; cerrar los recorridos de fotos y las integraciones pendientes antes de validar el uso real.
+
+**Arquitectura:** reutilizar el controlador de entrenamiento, los contratos Zod y las APIs actuales. Corregir primero las interfaces que permiten ediciones ignoradas; después la lectura del histórico y los archivos temporales. El servidor decide permisos, revisiones y publicación; el cliente consulta y registra. Mantener migraciones aditivas y las copias privadas existentes.
+
+**Stack:** TypeScript, Expo/React Native, NestJS, Prisma/PostgreSQL, Zod, Jest y React Native Testing Library.
+
+## Primera parte que debe ejecutar Claude: revisión integral
+
+### Base real y protección del trabajo
+
+- Carpeta principal: `C:/Users/david/Desktop/APP-ALPHA_OMEGA`, rama `codex/cliente-intuitivo`, base revisada `f931b5c` más cambios locales. **No reiniciar T00 ni reemplazar esta carpeta por un worktree antiguo.**
+- Ya están corregidos los dos P1 de consentimiento/fotos; sus regresiones y la continuación móvil están en el árbol de trabajo. La migración nueva es `20260924210000_intentos_foto`. Preservar UUID por intento, descarte duradero y ausencia de I/O de almacenamiento dentro de transacciones. No reutilizar una clave final compartida.
+- `alpha_omega` y `alpha_omega_e2e_codex` tienen 26 migraciones aplicadas. API local reiniciada desde el build de la carpeta principal, puerto 3000; web 8181. Las pruebas HTTP nunca usan la base principal.
+- Evidencia de esta base: 188 pruebas API, 452 móviles y 448 HTTP; tipos, lint y build API correctos. Esto no verifica modificaciones posteriores ni el código de otra rama.
+- `claude/mejoras-pdf` continúa cambiando: últimos commits observados `e47e763`, `c5d22f4` y `2ff2594` activan y prueban metros. Volver a consultar su HEAD y cambios locales antes de integrar. No sobreescribir `registros.service.ts` ni copiar su `todo.md` entero, porque se perderían correcciones/estados de la carpeta principal.
+- Las referencias HTML/PDF y archivos del usuario se conservan. No añadir imágenes, cuentas reales, secretos ni URLs firmadas a fixtures o Git.
+
+### Decisiones de esta pasada
+
+1. **RI01 — Cierre congelado:** una intención pendiente se presenta como resumen de solo consulta con su contenido persistido y un botón de reintento. No se añade cancelación/reedición del envío en esta pasada; así se conserva el protocolo que ya evita duplicados.
+2. **RI02 — Guardado protegido:** bloquear edición, selección y cancelación mientras se guarda una medida/prueba; añadir guarda síncrona para dobles pulsaciones. Un fallo conserva el formulario. Cambiar el contenido después de un fallo no reutiliza un UUID vinculado a contenido anterior; un reintento idéntico sí lo reutiliza.
+3. **RI04 — Nutrición:** distinguir `sinConexion`, `registroDesactivado` y edición habilitada. Con registro desactivado mostrar la pauta sin el botón de registrar; sin conexión mantener la selección y explicar el reintento. No cambiar los formatos internos ni la dieta publicada.
+4. **RI05 — Origen de medidas:** una composición corporal calculada utiliza peso y grasa de la misma toma; mostrar las fechas reales si se presentan valores independientes. Un dato ausente no se rellena con otro mes ni con cero.
+5. **RI06 — Histórico completo:** paginar la lectura sin eliminar registros. Mantener el formato anterior de los endpoints existentes y añadir rutas paginadas de lectura, para que los clientes con Zod estricto no fallen por campos nuevos. La API móvil reunirá las páginas y entregará a sus consumidores el formato actual, con orden explícito; no devolverá éxito con un histórico parcial si falla otra página. Esta solución evita cambiar todos los componentes de Progreso a la vez. Medir después la carga con 5.000 registros sintéticos antes de darla por cerrada.
+6. **RI03 — Ejecución parcial:** conservar el acceso compacto de calentamiento/vuelta a la calma y reutilizar el registro por series al corregir. No crear otro modelo de series ni duplicar sus validaciones. Carga, tiempo, repeticiones, metros tras D01 y RIR conservan sus unidades/modos.
+7. **RI07 — Temporales de fotos:** solo se eliminan archivos creados o copiados por la app; nunca un original de galería. Mantener el archivo necesario mientras haya un reintento pendiente y liberarlo al terminar, cancelar o sustituir. El borrado nativo no puede reducirse a perder la URI de memoria.
+
+### Orden y dependencias
+
+```text
+RI00: consolidar instantáneas y preservar correcciones
+  ├─ RI01 → RI02 → RI04 → control A
+  ├─ RI05 → RI06a → RI06b → control B
+  └─ integrar D01 verificado → RI03 → control C
+RI07a → RI07b → F03b → F04b/F05b → control D
+E02b → E02c: avisos del entrenador → E03
+D04 y D07: continuar los desgloses existentes según alcance vigente
+Q01 → Q02 → Q03; producción se valida por separado
+```
+
+RI01, RI02 y RI04 son independientes en producto; ejecutarlas secuencialmente simplifica la revisión. Contratos compartidos, dependencias y migraciones tienen un único responsable. Si se delega, asignar archivos exclusivos; no ejecutar dos agentes sobre Progreso, el controlador de registro o el esquema a la vez.
+
+### Contratos de implementación que hay que conservar
+
+El cierre obtiene primero el contenido ya comprometido y solo usa la edición si no existe intención:
+
+```ts
+const comprometido = documento.envioPendiente?.registro ?? documento.intencionEnvio?.registro
+const cierreVisible = comprometido?.cierre ?? edicion.cierre ?? null
+const notasVisibles = comprometido?.notas ?? edicion.notas
+const pendiente = comprometido !== undefined
+```
+
+`CierreDeSesion` debe recibir `cierreInicial: Cierre | null` además de las notas, inicializar sus controles al abrir y mostrar un resumen fijo cuando esté pendiente. El botón de reintento llama al controlador sin exigir respuestas nuevas. Si un registro antiguo no contiene cierre, mostrar «Sin feedback registrado» y reintentar el contenido existente; no inventar esfuerzo o energía. Mientras el primer envío esté en curso, mostrar los valores enviados y bloquear cambios.
+
+Para los listados, preparar estos contratos adicionales en `packages/shared/src/seguimiento.ts`, exportados mediante el mecanismo actual de `packages/shared/src/index.ts`:
+
+```ts
+export const ConsultarPaginaSeguimientoSchema = z.strictObject({
+  cursor: z.string().min(1).max(1000).optional(),
+  limite: z.coerce.number().int().min(1).max(500).default(500),
+})
+export const PaginaMedidasSchema = z.strictObject({
+  medidas: z.array(MedidaSchema),
+  fechaNacimiento: FechaAgendaSchema.nullable(),
+  siguienteCursor: z.string().nullable(),
+})
+export const PaginaPruebasSchema = z.strictObject({
+  pruebas: z.array(PruebaFisicaSchema),
+  siguienteCursor: z.string().nullable(),
+})
+```
+
+Rutas nuevas: `GET /seguimiento/clientes/:clienteId/medidas/pagina` y `GET /seguimiento/clientes/:clienteId/pruebas/pagina`. Mantener los roles y `AlcanceClienteGuard` de sus listados actuales. Cursor opaco de fecha de toma, creación e ID, validado al decodificar; orden descendente por esa tupla y `limite + 1` para determinar si hay más. No depender de que siga existiendo la fila del cursor ni aceptar campos del cursor como nombre de tabla/columna. Un cursor manipulado nunca cambia el cliente filtrado. Las pruebas físicas se agrupan/ordenan por nombre al presentar el resultado, no al paginar por fecha.
+
+El adaptador móvil mantiene las firmas `medidas(clienteId)` y `pruebas(clienteId)`: reúne páginas, deduplica por ID, detecta un cursor repetido como error y ordena medidas por fecha/creación/ID ascendente y pruebas por nombre/fecha/ID. No transformar un fallo de página en una lista aparentemente completa. Los endpoints antiguos continúan aceptando sus peticiones sin parámetros y devolviendo únicamente su contrato anterior. Corregir en ellos el recorte que oculta lo reciente sin agregar campos; la aplicación actual usa las nuevas rutas para recuperar el histórico completo.
+
+### Criterios de cierre de esta parte
+
+- Cada RI tiene prueba que falla por el escenario descrito antes del cambio y pasa después; se conserva evidencia y un commit acotado. Los detalles, archivos y comandos están al principio de [todo.md](todo.md).
+- No hay acciones que acepten visualmente una edición pero entreguen otra, ni mezcla de fuentes/fechas en el progreso. Calentamiento admite registro parcial y las fotografías tienen un ciclo de vida recuperable.
+- El catálogo/figuras se comprueba en el servidor efectivo; no se da por instalado basándose en una nota anterior. Importar archivos y sembrar la base principal son acciones distintas; PR3 conserva su autorización pendiente para la carga inicial.
+- Tipos, lint, unitarias, HTTP y build pasan tras integrar todas las ramas. Los checkpoints muestran un recorrido completo cada dos o tres tareas; no son peticiones repetidas de permiso para acciones ya autorizadas.
+- T05/T06/T17, C01/E03 y Q03 siguen abiertos hasta obtener evidencia auténtica del navegador, móvil y participantes. Preparar infraestructura, texto legal o builds no equivale a desplegar ni a validar políticas de tienda.
+
+### Alcance de los PDF y trabajo ya planificado
+
+La decisión posterior registrada en `coordinacion-claude-codex.md` y `a79cfc5` reduce las D a **D01, D04 y D07**; D02/D03/D05/D06 figuran excluidas. Al integrar, reconciliar esa decisión con los párrafos históricos de abajo y conservar el rastro de lo aplazado. No volver a implementar la valoración inicial ya construida ni reabrir extras porque sobreviva su especificación en este archivo. Si otra sesión de David ha cambiado de nuevo el alcance, anotar su decisión antes del tramo afectado; las RI pueden completarse independientemente.
+
+### Producción y comprobaciones externas
+
+Después de Q02: sesión de prueba en la base correcta, 360/390 px, Android/iOS físico, tres personas, almacenamiento privado real, correo/dominio y enlaces asociados, copia/restauración y builds de distribución. Confirmar con los responsables el texto de consentimiento, privacidad y procedimiento de exportación/borrado. Estas tareas conservan sus límites en [la revisión integral](revision-integral-2026-09-24.md) y [la lista de producción](../docs/PENDIENTE-PARA-PRODUCCION.md); no contratar ni publicar servicios como consecuencia automática de este documento.
+
+---
+
+## Especificación de producto que se conserva
+
+El resto del documento recoge las decisiones y el diseño de las iteraciones anteriores de este mismo trabajo. Su estado de implementación se consulta en `todo.md`, y la primera parte de este plan fija el orden de la nueva pasada.
 
 > Iteración aprobada por David el 24-09-2026. Base: `d7d8ef0`, integrada mediante avance directo en `codex/cliente-intuitivo`. [Tareas y verificaciones](todo.md) · [Planes anteriores](planes%20antiguos/2026-09-24/INDEX.md).
 
@@ -26,7 +125,7 @@ El entrenador o nutricionista configura; el cliente entiende qué le toca, regis
 
 ## Arquitectura y compatibilidad
 
-`packages/shared` define contratos Zod opcionales y compatibles con documentos antiguos. Los campos nuevos de prescripción y registro se persisten en JSON existente cuando procede; las configuraciones, revisiones y lecturas requieren migraciones aditivas con rollback. `apps/api` valida rol y alcance de cliente; `apps/mobile` conserva su copia local y las revisiones optimistas. Las dos formas actuales de comida y sus IDs permanecen. Las cuentas, dietas, sesiones, medidas y registros existentes continúan legibles.
+`packages/shared` define contratos Zod opcionales y compatibles con documentos antiguos. Los campos nuevos de prescripción y registro se persisten en JSON existente cuando procede; las configuraciones, revisiones y lecturas requieren migraciones aditivas y una estrategia de recuperación verificada que conserve los datos. No se presupone que cada migración tenga una operación inversa segura. `apps/api` valida rol y alcance de cliente; `apps/mobile` conserva su copia local y las revisiones optimistas. Las dos formas actuales de comida y sus IDs permanecen. Las cuentas, dietas, sesiones, medidas y registros existentes continúan legibles.
 
 Interfaces nuevas: `PUT /entrenamiento/sesiones/:id/revision` (entrenador), `GET /entrenamiento/clientes/:clienteId/novedades` (alcance vigente), `POST /entrenamiento/sesiones/:id/novedades/leidas` (actor), `GET` y `PUT /seguimiento/clientes/:clienteId/configuracion` (lectura según alcance; escritura entrenador con revisión). Las rutas actuales de borrador, envío, fecha y comida siguen operativas.
 
@@ -206,7 +305,7 @@ Seguir el patrón técnico del [ADR 0005](../docs/adr/0005-almacenamiento-de-fot
 5. **V05–V07:** publicación/corrección, presentación al cliente y revisiones repetibles.
 6. **F01–F05:** fotografías privadas, solicitudes y comparación.
 7. **E01–E02:** comparaciones completas y avisos de valoraciones y solicitudes.
-8. **D01, D02, D04, D05, D06 y D07:** ampliaciones de registro, recuperación, prioridades y fases aprobadas tras revisar los PDF. D03 (nuevo registro de K-1) queda fuera.
+8. **D01, D04 y D07:** ampliaciones de metros, chequeo y fases según el alcance posterior registrado. D02/D05/D06 se conservan descritas como propuestas excluidas de esta entrega; D03 (nuevo registro de K-1) también queda fuera.
 9. **E03:** revisión final de los recorridos del cliente, incluidas las ampliaciones D aprobadas.
 10. **Q01–Q03:** compatibilidad, controles completos, móvil físico y usabilidad observada.
 
@@ -214,7 +313,7 @@ Las tareas, archivos previstos, criterios y comandos se detallan en [todo.md](to
 
 ### Mejoras de los PDF aprobadas: todo salvo K-1
 
-David respondió «todo menos k1» a la consulta sobre estas propuestas. D01, D02, D04, D05, D06 y D07 entran en el encargo; D03 queda excluido. Esto no autoriza cambios de tema, menú de perfil ni otros extras de una maqueta antigua. Tampoco elimina los datos de deportes que ya estén en planes existentes.
+La primera respuesta de David fue «todo menos k1». La decisión posterior registrada en coordinación y `a79cfc5` limita esta entrega a D01, D04 y D07; las descripciones D02/D05/D06 siguientes se conservan como historial, sin tareas obligatorias ni dependencias del cierre. D03 queda excluido. Esto no autoriza cambios de tema, menú de perfil ni otros extras de una maqueta antigua. Tampoco elimina los datos de deportes que ya estén en planes existentes.
 
 **D01 · Ejercicios por distancia.** Extender las series con una variante de distancia en metros. Mostrar «m» y la carga solo si corresponde, sin representar metros como repeticiones o segundos. El farmer carry podrá registrarse como carga y distancia. Actualizar editor, duplicación, publicación, registro local, envío, resumen y lectura del entrenador. Los contratos antiguos siguen funcionando; una copia cuyo tipo de medición cambie conserva el respaldo y no convierte unidades por su cuenta.
 
