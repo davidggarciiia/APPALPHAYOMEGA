@@ -10,6 +10,12 @@ import { degradadoOro, tema } from "../tema"
 type Alternativas = Extract<Comida, { forma: "alternativas" }>
 type Intercambio = Extract<Comida, { forma: "intercambio" }>
 
+/** Por qué la comida se ve pero no se registra: falta de red o decisión del profesional. */
+export type MotivoSoloLectura = "sinConexion" | "registroDesactivado"
+
+/** Lo que ocupa el sitio del botón de registrar en ambos formatos. */
+type Accion = (alRegistrar: () => void) => React.JSX.Element
+
 /** Pestañas del diseño: la elegida en dorado. */
 function Segmentos({
   opciones,
@@ -69,12 +75,12 @@ function ElegirAlternativa({
   comida,
   registrada,
   guardar,
-  enviando,
+  accion,
 }: {
   comida: Alternativas
   registrada?: ComidaRegistrada
   guardar: (eleccion: EleccionDeComida) => void
-  enviando: boolean
+  accion: Accion
 }): React.JSX.Element {
   const previa =
     registrada?.eleccion.tipo === "alternativa" ? registrada.eleccion.alternativaId : null
@@ -129,15 +135,11 @@ function ElegirAlternativa({
         })}
       </View>
       {aviso !== "" && <Text style={s.subtitulo}>{aviso}</Text>}
-      <BotonDorado
-        texto="Registrar comida"
-        ocupado={enviando}
-        onPress={() =>
-          elegida !== null
-            ? guardar({ tipo: "alternativa", alternativaId: elegida })
-            : setAviso("Elige un plato completo antes de guardar.")
-        }
-      />
+      {accion(() =>
+        elegida !== null
+          ? guardar({ tipo: "alternativa", alternativaId: elegida })
+          : setAviso("Elige un plato completo antes de guardar."),
+      )}
     </>
   )
 }
@@ -147,12 +149,12 @@ function ArmarPlato({
   comida,
   registrada,
   guardar,
-  enviando,
+  accion,
 }: {
   comida: Intercambio
   registrada?: ComidaRegistrada
   guardar: (eleccion: EleccionDeComida) => void
-  enviando: boolean
+  accion: Accion
 }): React.JSX.Element {
   const previos =
     registrada?.eleccion.tipo === "plato"
@@ -190,25 +192,21 @@ function ArmarPlato({
           ))}
         </View>
         {aviso !== "" && <Text style={s.subtitulo}>{aviso}</Text>}
-        <BotonDorado
-          texto="Registrar comida"
-          ocupado={enviando}
-          onPress={() => {
-            const pendiente = comida.columnas.findIndex((c) => !plato[c.nombre])
-            if (pendiente >= 0) {
-              setColumna(pendiente)
-              setAviso("Elige un alimento de cada grupo antes de guardar.")
-              return
-            }
-            guardar({
-              tipo: "plato",
-              elegidos: comida.columnas.map((c) => ({
-                columna: c.nombre,
-                alimento: plato[c.nombre]!,
-              })),
-            })
-          }}
-        />
+        {accion(() => {
+          const pendiente = comida.columnas.findIndex((c) => !plato[c.nombre])
+          if (pendiente >= 0) {
+            setColumna(pendiente)
+            setAviso("Elige un alimento de cada grupo antes de guardar.")
+            return
+          }
+          guardar({
+            tipo: "plato",
+            elegidos: comida.columnas.map((c) => ({
+              columna: c.nombre,
+              alimento: plato[c.nombre]!,
+            })),
+          })
+        })}
       </View>
       {comida.columnas.length > 1 && (
         <Segmentos
@@ -260,24 +258,48 @@ export function ComidaDelDia({
   registrar,
   quitar,
   volver,
-  soloLectura = false,
+  motivoSoloLectura,
+  reintentar,
 }: {
   comida: Comida
   registrada?: ComidaRegistrada
   registrar: (eleccion: EleccionDeComida) => Promise<void>
   quitar: () => Promise<void>
   volver: () => void
-  /** Sin conexión o sin registro de comidas: se ve, no se guarda. */
-  soloLectura?: boolean
+  /** Sin él se registra; con él se ve y se explica por qué no se guarda. */
+  motivoSoloLectura?: MotivoSoloLectura
+  /** Sin conexión: vuelve a cargar la comida sin perder lo elegido. */
+  reintentar?: () => Promise<void>
 }): React.JSX.Element {
   const [enviando, setEnviando] = useState(false)
+  const [reintentando, setReintentando] = useState(false)
+  const [sigueSinRed, setSigueSinRed] = useState(false)
   const [error, setError] = useState("")
   const [confirmada, setConfirmada] = useState<EleccionDeComida | null>(
     registrada?.eleccion ?? null,
   )
   const [mensaje, setMensaje] = useState(registrada ? "Comida registrada" : "")
+  // Al recuperar la conexión puede llegar lo que el servidor ya tenía registrado.
+  const [registradaVista, setRegistradaVista] = useState(registrada)
+  if (registrada && registrada !== registradaVista) {
+    setRegistradaVista(registrada)
+    setConfirmada(registrada.eleccion)
+    setMensaje("Comida registrada")
+  }
+  const volverAConectar = async (): Promise<void> => {
+    if (!reintentar || reintentando) return
+    setReintentando(true)
+    try {
+      await reintentar()
+    } catch {
+      // Sigue sin red: lo explica el aviso junto al botón.
+    } finally {
+      setReintentando(false)
+      setSigueSinRed(true)
+    }
+  }
   const ejecutar = async (accion: () => Promise<void>, alCompletar: () => void): Promise<void> => {
-    if (soloLectura) return
+    if (motivoSoloLectura) return
     setError("")
     setEnviando(true)
     try {
@@ -306,6 +328,27 @@ export function ComidaDelDia({
         : confirmada?.tipo === "hecha"
           ? "Hecha"
           : null
+  const accion: Accion = (alRegistrar) =>
+    motivoSoloLectura === "registroDesactivado" ? (
+      <Text style={s.subtitulo}>Tu profesional ha dejado esta comida solo para consultar.</Text>
+    ) : motivoSoloLectura === "sinConexion" ? (
+      <>
+        <Text style={s.subtitulo} accessibilityLiveRegion="polite">
+          {sigueSinRed
+            ? "Sigues sin conexión. Tu elección se conserva; vuelve a intentarlo en un momento."
+            : "Sin conexión: tu elección se conserva y podrás registrarla cuando vuelvas a tener red."}
+        </Text>
+        {reintentar && (
+          <BotonDorado
+            texto="Reintentar conexión"
+            ocupado={reintentando}
+            onPress={() => void volverAConectar()}
+          />
+        )}
+      </>
+    ) : (
+      <BotonDorado texto="Registrar comida" ocupado={enviando} onPress={alRegistrar} />
+    )
   return (
     <View style={s.contenido}>
       <Cabecera
@@ -320,10 +363,10 @@ export function ComidaDelDia({
           comida={comida}
           registrada={registrada}
           guardar={guardar}
-          enviando={enviando}
+          accion={accion}
         />
       ) : (
-        <ArmarPlato comida={comida} registrada={registrada} guardar={guardar} enviando={enviando} />
+        <ArmarPlato comida={comida} registrada={registrada} guardar={guardar} accion={accion} />
       )}
       {confirmada && (
         <View style={s.confirmacion} accessibilityLiveRegion="polite">
@@ -331,11 +374,8 @@ export function ComidaDelDia({
           {resumenConfirmado && <Text style={s.subtitulo}>{resumenConfirmado}</Text>}
         </View>
       )}
-      {soloLectura && (
-        <Text style={s.subtitulo}>Sin conexión: podrás guardarla cuando vuelvas a tener red.</Text>
-      )}
       {error !== "" && <AvisoDeError mensaje={error} />}
-      {confirmada && !soloLectura && (
+      {confirmada && !motivoSoloLectura && (
         <Enlace
           texto="Quitar de hechas"
           onPress={() =>

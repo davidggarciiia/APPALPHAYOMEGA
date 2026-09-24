@@ -35,47 +35,48 @@ export default function ComidaDeHoy(): React.JSX.Element {
   const hoy = hoyAgenda()
   const volver = (): void => (router.canGoBack() ? router.back() : router.replace("/nutricion"))
 
+  // Lee la comida del servidor o, sin red, de la última copia de la dieta.
+  const cargar = useCallback(
+    async (cliente: string): Promise<Estado> => {
+      const buscar = (dieta: DietaPublicada | null): Comida | undefined =>
+        dieta ? tipoDelDia(dieta.documento, hoy)?.comidas.find((c) => c.id === id) : undefined
+      try {
+        const [{ dieta }, { comidas }] = await Promise.all([
+          api.vigente(cliente),
+          api.comidas(cliente, hoy, hoy),
+        ])
+        const comida = buscar(dieta)
+        return dieta && comida
+          ? {
+              fase: "lista",
+              dieta,
+              comida,
+              registrada: comidas.find((c) => c.comidaId === comida.id),
+              enLinea: true,
+            }
+          : { fase: "error", mensaje: "Esta comida ya no está en tu dieta de hoy." }
+      } catch {
+        const copia = await leerCopia(almacenDispositivo, cliente).catch(() => null)
+        const comida = buscar(copia?.dieta ?? null)
+        return copia?.dieta && comida
+          ? { fase: "lista", dieta: copia.dieta, comida, enLinea: false }
+          : { fase: "error", mensaje: "Necesitas conexión para abrir esta comida." }
+      }
+    },
+    [api, hoy, id],
+  )
+
   useFocusEffect(
     useCallback(() => {
       if (clienteId === null) return
       let vigente = true
-      const buscar = (dieta: DietaPublicada | null): Comida | undefined =>
-        dieta ? tipoDelDia(dieta.documento, hoy)?.comidas.find((c) => c.id === id) : undefined
-      const cargar = async (): Promise<void> => {
-        try {
-          const [{ dieta }, { comidas }] = await Promise.all([
-            api.vigente(clienteId),
-            api.comidas(clienteId, hoy, hoy),
-          ])
-          const comida = buscar(dieta)
-          if (!vigente) return
-          setEstado(
-            dieta && comida
-              ? {
-                  fase: "lista",
-                  dieta,
-                  comida,
-                  registrada: comidas.find((c) => c.comidaId === comida.id),
-                  enLinea: true,
-                }
-              : { fase: "error", mensaje: "Esta comida ya no está en tu dieta de hoy." },
-          )
-        } catch {
-          const copia = await leerCopia(almacenDispositivo, clienteId).catch(() => null)
-          const comida = buscar(copia?.dieta ?? null)
-          if (!vigente) return
-          setEstado(
-            copia?.dieta && comida
-              ? { fase: "lista", dieta: copia.dieta, comida, enLinea: false }
-              : { fase: "error", mensaje: "Necesitas conexión para abrir esta comida." },
-          )
-        }
-      }
-      void cargar()
+      void cargar(clienteId).then((nuevo) => {
+        if (vigente) setEstado(nuevo)
+      })
       return () => {
         vigente = false
       }
-    }, [api, clienteId, hoy, id]),
+    }, [cargar, clienteId]),
   )
 
   return (
@@ -88,7 +89,16 @@ export default function ComidaDeHoy(): React.JSX.Element {
         <ComidaDelDia
           comida={estado.comida}
           registrada={estado.registrada}
-          soloLectura={!estado.enLinea || estado.dieta.documento.registroComidas === false}
+          // Primero la decisión del profesional: con ella no hay registro que reintentar.
+          motivoSoloLectura={
+            estado.dieta.documento.registroComidas === false
+              ? "registroDesactivado"
+              : estado.enLinea
+                ? undefined
+                : "sinConexion"
+          }
+          // Recarga sin pasar por «Cargando…»: la comida sigue montada y conserva lo elegido.
+          reintentar={async () => setEstado(await cargar(clienteId))}
           volver={volver}
           registrar={async (eleccion) => {
             await api.registrarComida(clienteId, hoy, estado.comida.id, {
