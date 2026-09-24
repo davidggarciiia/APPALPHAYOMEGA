@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from "@jest/globals"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import {
   CONFIGURACION_SEGUIMIENTO_INICIAL,
   SerieEvolucionSchema,
@@ -8,21 +8,36 @@ import {
   type DiaDeSeguimiento,
   type GuardarConfiguracionSeguimiento,
   type ListadoMedidas,
+  type Medida,
+  type PruebaFisica,
   type RegistrarPrueba,
 } from "@alpha-omega/shared"
+import type { Context } from "react"
+import type { z } from "zod"
 
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { hoyAgenda, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
-import { ErrorDePeticion } from "../lib/http"
-import type { ApiSeguimiento } from "./api"
+import { fechaCorta } from "../entrenamiento/plan/modelo"
+import { ErrorDePeticion, ErrorDeRed } from "../lib/http"
+import type { PeticionAutenticada } from "../lib/peticion-autenticada"
+import { crearApiSeguimiento, type ApiSeguimiento } from "./api"
 import { HoyDiario } from "./hoy-diario"
 import { ProgresoCliente } from "./progreso"
 import type { ApiEvolucionAvisos, ApiValoracionesCliente } from "./valoraciones-api"
 
-jest.mock("expo-router", () => ({
-  useFocusEffect: (efecto: () => void) =>
-    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
-}))
+// Como en expo-router: el efecto corre al enfocar la pantalla y se limpia al salir.
+jest.mock("expo-router", () => {
+  const React = jest.requireActual<typeof import("react")>("react")
+  const Enfoque = React.createContext(true)
+  return {
+    Enfoque,
+    useFocusEffect: (efecto: () => void | (() => void)) => {
+      const enfocada = React.useContext(Enfoque)
+      React.useEffect(() => (enfocada ? efecto() : undefined), [efecto, enfocada])
+    },
+  }
+})
+const { Enfoque } = jest.requireMock<{ Enfoque: Context<boolean> }>("expo-router")
 jest.mock("expo-crypto", () => ({ randomUUID: () => "30000000-0000-4000-8000-000000000001" }))
 
 const CLIENTE = "10000000-0000-4000-8000-000000000000"
@@ -643,4 +658,227 @@ describe("ProgresoCliente", () => {
     expect(screen.getAllByText("92,5 cm")).toHaveLength(2)
     expect(screen.getByText(/Última medida.*−1,5 cm respecto al inicio/s)).toBeTruthy()
   })
+})
+
+const PAUTADA = "60000000-0000-4000-8000-000000000001"
+const idSintetico = (prefijo: string, n: number): string =>
+  `${prefijo}-0000-4000-8000-${n.toString(16).padStart(12, "0")}`
+
+/** Una cintura al día hasta hoy; la primera toma trae también peso y altura, y la última es 85,5. */
+function medidasDiarias(total: number, hoy: string): Medida[] {
+  return Array.from({ length: total }, (_, n) => {
+    const fecha = sumarDias(hoy, n - total + 1)
+    return {
+      id: idSintetico("40000000", n),
+      fecha,
+      pesoKg: n === 0 ? 90 : null,
+      cinturaCm: n === 0 ? 100 : n === total - 1 ? 85.5 : 90 + (n % 10),
+      grasaPct: null,
+      alturaCm: n === 0 ? 180 : null,
+      creadoEn: `${fecha}T08:00:00.000Z`,
+    }
+  })
+}
+
+/** Una prueba al día: primero «Salto vertical»; después Plancha y la Flexiones pautada, que acaba en 45. */
+function pruebasDiarias(total: number, hoy: string): PruebaFisica[] {
+  return Array.from({ length: total }, (_, n) => {
+    const fecha = sumarDias(hoy, n - total + 1)
+    const base = { id: idSintetico("50000000", n), fecha, creadoEn: `${fecha}T08:00:00.000Z` }
+    if (n === 0)
+      return { ...base, pruebaId: null, nombre: "Salto vertical", valor: 30, unidad: "cm" }
+    if (n % 2 === 1)
+      return { ...base, pruebaId: null, nombre: "Plancha", valor: 60 + (n % 30), unidad: "s" }
+    const valor = n === total - 1 ? 45 : 20 + (n % 15)
+    return { ...base, pruebaId: PAUTADA, nombre: "Flexiones", valor, unidad: "reps" }
+  })
+}
+
+/**
+ * Medidas y pruebas servidas como la API: páginas de 500, de lo más reciente a
+ * lo más antiguo; las rutas anteriores, solo con las 500 más recientes. El resto
+ * de lecturas son las de `api()`.
+ */
+function servidorDeHistorico(medidas: Medida[], pruebas: PruebaFisica[] = []) {
+  const estado = {
+    // En orden cronológico, como se registraron.
+    medidas,
+    pruebas,
+    /** Las páginas siguientes a la primera esperan a que se resuelva. */
+    retener: null as Promise<void> | null,
+    /** Cuántas páginas siguientes fallan antes de responder. */
+    fallos: 0,
+    rutas: [] as string[],
+  }
+  function pagina<F>(filas: F[], ruta: string): { filas: F[]; siguienteCursor: string | null } {
+    const desde = Number(/[?&]cursor=pos-(\d+)/.exec(ruta)?.[1] ?? 0)
+    const recientes = [...filas].reverse()
+    return {
+      filas: recientes.slice(desde, desde + 500),
+      siguienteCursor: desde + 500 < recientes.length ? `pos-${desde + 500}` : null,
+    }
+  }
+  const pedir = async (ruta: string, esquema: z.ZodType<unknown>): Promise<unknown> => {
+    estado.rutas.push(ruta)
+    if (ruta.includes("cursor=")) {
+      if (estado.retener) await estado.retener
+      if (estado.fallos > 0) {
+        estado.fallos -= 1
+        throw new ErrorDeRed("Sin conexión")
+      }
+    }
+    if (ruta.includes("/medidas/pagina?")) {
+      const { filas, siguienteCursor } = pagina(estado.medidas, ruta)
+      return esquema.parse({ medidas: filas, fechaNacimiento: null, siguienteCursor })
+    }
+    if (ruta.includes("/pruebas/pagina?")) {
+      const { filas, siguienteCursor } = pagina(estado.pruebas, ruta)
+      return esquema.parse({ pruebas: filas, siguienteCursor })
+    }
+    if (ruta.endsWith("/medidas"))
+      return esquema.parse({ medidas: estado.medidas.slice(-500), fechaNacimiento: null })
+    if (ruta.endsWith("/pruebas"))
+      return esquema.parse({
+        pruebas: estado.pruebas
+          .slice(-500)
+          .sort((a, b) => (a.nombre < b.nombre ? -1 : a.nombre > b.nombre ? 1 : 0)),
+      })
+    throw new Error(`Ruta no servida: ${ruta}`)
+  }
+  const real = crearApiSeguimiento(pedir as unknown as PeticionAutenticada)
+  return { estado, seguimiento: { ...api(), medidas: real.medidas, pruebas: real.pruebas } }
+}
+
+describe("Progreso con más de 500 registros", () => {
+  const entrenamiento = {
+    plan: jest.fn(async () => ({ plan: null })),
+    semana: jest.fn(async () => ({ sesiones: [], total: 0 })),
+  } as unknown as ApiEntrenamiento
+  const conPruebaPautada = async (): Promise<ConfiguracionSeguimiento> => ({
+    ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+    pruebasPrescritas: [{ id: PAUTADA, nombre: "Flexiones", unidad: "reps" }],
+  })
+  const progreso = (seguimiento: ApiSeguimiento, enfocada = true): React.JSX.Element => (
+    <Enfoque.Provider value={enfocada}>
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+      />
+    </Enfoque.Provider>
+  )
+  const inicioDel = (fecha: string): { name: string } => ({
+    name: `Inicio · ${fechaCorta(fecha)}`,
+  })
+
+  it("parte de la primera toma y enseña la última medida y prueba", async () => {
+    const hoy = hoyAgenda()
+    const { estado, seguimiento } = servidorDeHistorico(
+      medidasDiarias(501, hoy),
+      pruebasDiarias(501, hoy),
+    )
+    seguimiento.configuracion = jest.fn(conPruebaPautada)
+    await render(progreso(seguimiento))
+
+    // La primera toma solo llega en la segunda página.
+    expect(await screen.findByRole("header", inicioDel(sumarDias(hoy, -500)))).toBeTruthy()
+    expect(screen.getByText("90,0 kg")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("tab", { name: "Cintura" }))
+    expect(screen.getByText(/Última medida.*−14,5 cm respecto al inicio/s)).toBeTruthy()
+    // La cifra grande y la fila «Cintura» de la semana usan la medida de hoy.
+    expect(screen.getAllByText("85,5 cm")).toHaveLength(2)
+
+    await fireEvent.press(screen.getByRole("tab", { name: "Pruebas físicas" }))
+    expect(screen.getByText("Salto vertical")).toBeTruthy()
+    // La prueba pautada, con su resultado más reciente.
+    expect(screen.getByText("45 reps")).toBeTruthy()
+    expect(estado.rutas.filter((ruta) => ruta.includes("/pagina?"))).toHaveLength(4)
+  })
+
+  it("si falla una página siguiente no enseña un histórico parcial y permite reintentar", async () => {
+    const hoy = hoyAgenda()
+    const { estado, seguimiento } = servidorDeHistorico(medidasDiarias(501, hoy))
+    estado.fallos = 1
+    await render(progreso(seguimiento))
+
+    expect(
+      await screen.findByText("No se pudo cargar tu progreso. Revisa la conexión."),
+    ).toBeTruthy()
+    expect(screen.queryByRole("header", { name: /^Inicio/ })).toBeNull()
+    expect(screen.queryByText(/Última medida/)).toBeNull()
+
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
+    expect(await screen.findByRole("header", inicioDel(sumarDias(hoy, -500)))).toBeTruthy()
+    expect(screen.queryByText("No se pudo cargar tu progreso. Revisa la conexión.")).toBeNull()
+  })
+
+  it("al salir de Progreso, una carga antigua no repuebla la pantalla", async () => {
+    const hoy = hoyAgenda()
+    const { estado, seguimiento } = servidorDeHistorico(medidasDiarias(501, hoy))
+    const leer = seguimiento.medidas
+    const leidas: ListadoMedidas[] = []
+    seguimiento.medidas = async (clienteId) => {
+      const listado = await leer(clienteId)
+      leidas.push(listado)
+      return listado
+    }
+    let soltar!: () => void
+    estado.retener = new Promise<void>((resolve) => {
+      soltar = resolve
+    })
+    const pantalla = await render(progreso(seguimiento))
+    // La primera carga espera su segunda página de medidas.
+    await waitFor(() => expect(estado.rutas.some((ruta) => ruta.includes("cursor="))).toBe(true))
+
+    await pantalla.rerender(progreso(seguimiento, false))
+    // Fuera de la pantalla se registra otra cintura hoy.
+    estado.retener = null
+    estado.medidas = [
+      ...estado.medidas,
+      {
+        ...estado.medidas.at(-1)!,
+        id: idSintetico("40000000", 999),
+        cinturaCm: 84,
+        creadoEn: `${hoy}T09:00:00.000Z`,
+      },
+    ]
+    await pantalla.rerender(progreso(seguimiento, true))
+    await fireEvent.press(await screen.findByRole("tab", { name: "Cintura" }))
+    expect(screen.getAllByText("84 cm")).toHaveLength(2)
+
+    await act(async () => soltar())
+    await waitFor(() => expect(leidas).toHaveLength(2))
+    // La carga anterior termina después con su propia última medida, pero ya no manda.
+    expect(leidas[1]!.medidas.at(-1)!.cinturaCm).toBe(85.5)
+    expect(screen.getAllByText("84 cm")).toHaveLength(2)
+    expect(screen.queryByText("85,5 cm")).toBeNull()
+  })
+
+  it("con 5.000 medidas y 5.000 pruebas carga en 20 peticiones y pinta la última toma", async () => {
+    const hoy = hoyAgenda()
+    const { estado, seguimiento } = servidorDeHistorico(
+      medidasDiarias(5000, hoy),
+      pruebasDiarias(5000, hoy),
+    )
+    seguimiento.configuracion = jest.fn(conPruebaPautada)
+
+    const inicio = performance.now()
+    await render(progreso(seguimiento))
+    await screen.findByRole("header", inicioDel(sumarDias(hoy, -4999)), { timeout: 20_000 })
+    const carga = performance.now() - inicio
+    expect(estado.rutas.filter((ruta) => ruta.includes("/medidas/pagina?"))).toHaveLength(10)
+    expect(estado.rutas.filter((ruta) => ruta.includes("/pruebas/pagina?"))).toHaveLength(10)
+    expect(estado.rutas.filter((ruta) => !ruta.includes("/pagina?"))).toHaveLength(0)
+    // Margen amplio: detecta un recorrido cuadrático, no mide el dispositivo.
+    expect(carga).toBeLessThan(5000)
+
+    await fireEvent.press(screen.getByRole("tab", { name: "Cintura" }))
+    // Con anchura, la gráfica dibuja los 5.000 puntos.
+    await fireEvent(screen.getByRole("image"), "layout", {
+      nativeEvent: { layout: { width: 360, height: 110 } },
+    })
+    expect(screen.getAllByText("85,5 cm")).toHaveLength(2)
+    await fireEvent.press(screen.getByRole("tab", { name: "Pruebas físicas" }))
+    expect(screen.getByText("Salto vertical")).toBeTruthy()
+  }, 60_000)
 })

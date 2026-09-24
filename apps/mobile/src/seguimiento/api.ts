@@ -5,9 +5,9 @@ import {
   EstadoConsentimientoSchema,
   GuardarConfiguracionSeguimientoSchema,
   ListadoDiasSchema,
-  ListadoMedidasSchema,
-  ListadoPruebasSchema,
   MedidaSchema,
+  PaginaMedidasSchema,
+  PaginaPruebasSchema,
   ProgresionFuerzaSchema,
   PruebaFisicaSchema,
   RegistrarMedidaSchema,
@@ -27,6 +27,7 @@ import {
   type RegistrarPrueba,
 } from "@alpha-omega/shared"
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
+import { LIMITE_PAGINA, historicoCompleto, ordenMedidas, ordenPruebas } from "./paginas"
 
 export type ApiSeguimiento = {
   configuracion: (clienteId: string) => Promise<ConfiguracionSeguimiento>
@@ -36,8 +37,10 @@ export type ApiSeguimiento = {
   ) => Promise<ConfiguracionSeguimiento>
   cambiarDia: (clienteId: string, fecha: string, cambio: CambiarDia) => Promise<DiaDeSeguimiento>
   dias: (clienteId: string, desde: string, hasta: string) => Promise<ListadoDias>
+  /** Todas las medidas, de la más antigua a la más reciente; rechaza si falta alguna página. */
   medidas: (clienteId: string) => Promise<ListadoMedidas>
   registrarMedida: (clienteId: string, datos: RegistrarMedida) => Promise<Medida>
+  /** Todas las pruebas, por nombre y fecha; rechaza si falta alguna página. */
   pruebas: (clienteId: string) => Promise<ListadoPruebas>
   registrarPrueba: (clienteId: string, datos: RegistrarPrueba) => Promise<PruebaFisica>
   fuerza: (clienteId: string) => Promise<ProgresionFuerza>
@@ -48,6 +51,14 @@ export type ApiSeguimiento = {
 export function crearApiSeguimiento(pedir: PeticionAutenticada): ApiSeguimiento {
   const base = (clienteId: string): string =>
     `/seguimiento/clientes/${encodeURIComponent(clienteId)}`
+  // Histórico por páginas, de lo más reciente a lo más antiguo; el cursor viaja tal cual llegó.
+  const pagina = (
+    clienteId: string,
+    historico: "medidas" | "pruebas",
+    cursor: string | undefined,
+  ): string =>
+    `${base(clienteId)}/${historico}/pagina?limite=${LIMITE_PAGINA}` +
+    (cursor === undefined ? "" : `&cursor=${encodeURIComponent(cursor)}`)
   return {
     configuracion: (clienteId) =>
       pedir(`${base(clienteId)}/configuracion`, ConfiguracionSeguimientoSchema),
@@ -66,13 +77,27 @@ export function crearApiSeguimiento(pedir: PeticionAutenticada): ApiSeguimiento 
         `${base(clienteId)}/dias?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`,
         ListadoDiasSchema,
       ),
-    medidas: (clienteId) => pedir(`${base(clienteId)}/medidas`, ListadoMedidasSchema),
+    medidas: async (clienteId) => {
+      const { primera, filas } = await historicoCompleto(
+        (cursor) => pedir(pagina(clienteId, "medidas", cursor), PaginaMedidasSchema),
+        (leida) => leida.medidas,
+        ordenMedidas,
+      )
+      return { medidas: filas, fechaNacimiento: primera.fechaNacimiento }
+    },
     registrarMedida: (clienteId, datos) =>
       pedir(`${base(clienteId)}/medidas`, MedidaSchema, {
         method: "POST",
         body: JSON.stringify(RegistrarMedidaSchema.parse(datos)),
       }),
-    pruebas: (clienteId) => pedir(`${base(clienteId)}/pruebas`, ListadoPruebasSchema),
+    pruebas: async (clienteId) => {
+      const { filas } = await historicoCompleto(
+        (cursor) => pedir(pagina(clienteId, "pruebas", cursor), PaginaPruebasSchema),
+        (leida) => leida.pruebas,
+        ordenPruebas,
+      )
+      return { pruebas: filas }
+    },
     registrarPrueba: (clienteId, datos) =>
       pedir(`${base(clienteId)}/pruebas`, PruebaFisicaSchema, {
         method: "POST",
