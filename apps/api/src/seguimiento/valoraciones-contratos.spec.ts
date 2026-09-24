@@ -16,6 +16,9 @@ import {
   RegistrarMedidaSchema,
   ValoracionClienteSchema,
   ValoracionCorporalSchema,
+  crearPruebaEstandar,
+  PRUEBAS_ESTANDAR,
+  problemasDeResultadoPrueba,
   proyeccionCorporal,
   proyeccionPublica,
   versionarDefinicionCorporal,
@@ -74,21 +77,7 @@ const flexiones: DefinicionPrueba = {
   ],
   activa: true,
 }
-const cooper: DefinicionPrueba = {
-  id: id(4),
-  version: 1,
-  tipo: "cooper",
-  nombre: "Cooper",
-  variante: null,
-  protocolo: null,
-  duracionPrescritaS: null,
-  instrumento: "Banda pectoral",
-  metricas: [
-    { clave: "distancia", nombre: "Distancia", unidad: "m", principal: true, opcional: false },
-    { clave: "fcMedia", nombre: "FC media", unidad: "lpm", principal: false, opcional: true },
-  ],
-  activa: true,
-}
+const cooper: DefinicionPrueba = crearPruebaEstandar("cooper", id(4))
 
 function documento(cambios: Partial<DocumentoValoracion> = {}): DocumentoValoracion {
   return {
@@ -153,9 +142,11 @@ describe("contratos de valoración", () => {
           },
         ],
       })
-    expect(cooperSin({ distancia: 2400 })).toBe(true)
+    // Sin frecuencia cardiaca también se guarda: solo se anota si se recogió.
+    expect(cooperSin({ distancia: 2400, duracion: 720 })).toBe(true)
+    expect(cooperSin({ distancia: 2400 })).toBe(false)
     expect(cooperSin({ fcMedia: 150 })).toBe(false)
-    expect(cooperSin({ distancia: 2400, vo2: 50 })).toBe(false)
+    expect(cooperSin({ distancia: 2400, duracion: 720, vo2: 50 })).toBe(false)
   })
 
   it("las lecturas repetidas solo se admiten en pliegues y dentro de su rango", () => {
@@ -508,6 +499,84 @@ describe("contratos de valoración", () => {
         pauta: { fecha: null, intervaloSemanas: 6, bloques: ["medidas", "pruebas"] },
       }).success,
     ).toBe(true)
+  })
+
+  it("las cinco pruebas estándar son válidas y no hay una sexta", () => {
+    expect(PRUEBAS_ESTANDAR).toEqual([
+      "dominadas",
+      "suspension",
+      "flexiones1min",
+      "sentadillas1min",
+      "pressBanca1rm",
+      "cooper",
+    ])
+    for (const tipo of PRUEBAS_ESTANDAR)
+      expect(DefinicionPruebaSchema.safeParse(crearPruebaEstandar(tipo, id(60))).success).toBe(true)
+    const dominadas = crearPruebaEstandar("dominadas", id(61), "Agarre prono")
+    const suspension = crearPruebaEstandar("suspension", id(62))
+    expect(dominadas.metricas[0]).toMatchObject({ unidad: "reps", principal: true })
+    expect(suspension.metricas[0]).toMatchObject({ unidad: "s", principal: true })
+    expect(crearPruebaEstandar("flexiones1min", id(63)).duracionPrescritaS).toBe(60)
+    expect(crearPruebaEstandar("sentadillas1min", id(64)).duracionPrescritaS).toBe(60)
+    expect(crearPruebaEstandar("pressBanca1rm", id(65)).metricas).toEqual([
+      expect.objectContaining({ clave: "carga", unidad: "kg" }),
+    ])
+  })
+
+  it("cada tipo estándar conserva su unidad y su duración; la personalizada es libre", () => {
+    const valida = (d: DefinicionPrueba) => DefinicionPruebaSchema.safeParse(d).success
+    const dominadas = crearPruebaEstandar("dominadas", id(66))
+    expect(valida({ ...dominadas, metricas: [{ ...dominadas.metricas[0]!, unidad: "s" }] })).toBe(
+      false,
+    )
+    expect(
+      valida({ ...crearPruebaEstandar("flexiones1min", id(67)), duracionPrescritaS: 30 }),
+    ).toBe(false)
+    expect(
+      valida({
+        ...cooper,
+        metricas: cooper.metricas.filter((m) => m.clave !== "duracion"),
+      }),
+    ).toBe(false)
+    expect(
+      valida({
+        ...crearPruebaEstandar("dominadas", id(68)),
+        tipo: "personalizada",
+        nombre: "Salto vertical",
+        metricas: [
+          { clave: "altura", nombre: "Altura", unidad: "cm", principal: true, opcional: false },
+        ],
+      }),
+    ).toBe(true)
+  })
+
+  it("variante o duración distintas son otra versión, y otra serie", () => {
+    const dominadas = crearPruebaEstandar("dominadas", id(69), "Agarre prono")
+    expect(
+      versionarDefinicionPrueba(dominadas, { ...dominadas, variante: "Agarre supino" }).version,
+    ).toBe(2)
+    expect(versionarDefinicionPrueba(cooper, { ...cooper, variante: "Pista" }).version).toBe(2)
+  })
+
+  it("valida los resultados: enteros donde toca, FC opcional y recuperación completa", () => {
+    expect(problemasDeResultadoPrueba(cooper, { distancia: 2400, duracion: 720 })).toEqual([])
+    expect(
+      problemasDeResultadoPrueba(cooper, { distancia: 2400, duracion: 720, fcRecuperacion: 110 }),
+    ).toHaveLength(1)
+    expect(
+      problemasDeResultadoPrueba(cooper, {
+        distancia: 2400,
+        duracion: 720,
+        fcRecuperacion: 110,
+        tiempoRecuperacion: 60,
+      }),
+    ).toEqual([])
+    expect(
+      problemasDeResultadoPrueba(cooper, { distancia: 2400, duracion: 720, fcMedia: 150.5 }),
+    ).toHaveLength(1)
+    const flexionesEstandar = crearPruebaEstandar("flexiones1min", id(70))
+    expect(problemasDeResultadoPrueba(flexionesEstandar, { repeticiones: 0 })).toEqual([])
+    expect(problemasDeResultadoPrueba(flexionesEstandar, { repeticiones: 12.5 })).toHaveLength(1)
   })
 
   it("conserva los contratos anteriores y añade un conflicto de estado", () => {

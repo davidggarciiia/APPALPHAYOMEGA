@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { FechaAgendaSchema, RevisionSchema } from "./agenda"
+import { problemasDeDefinicionPrueba, problemasDeResultadoPrueba } from "./pruebas-valoracion"
 
 /**
  * Valoración inicial y revisiones periódicas (plan del 24-09-2026).
@@ -197,6 +198,9 @@ export const DefinicionPruebaSchema = z
     (p) => p.metricas.every((m) => !(m.principal && m.opcional)),
     "La métrica principal no puede ser opcional",
   )
+  .superRefine((p, ctx) => {
+    for (const message of problemasDeDefinicionPrueba(p)) ctx.addIssue({ code: "custom", message })
+  })
 export type DefinicionPrueba = z.infer<typeof DefinicionPruebaSchema>
 
 const DefinicionesSchema = z.strictObject({
@@ -376,6 +380,26 @@ const POSITIVAS: readonly MagnitudCorporal[] = [
 /** El mismo mínimo que el peso del registro diario. */
 const PESO_MINIMO_KG = 30
 
+/** Límites de un valor de esta definición; los usan el servidor y el formulario. */
+export function limitesDeDefinicion(d: DefinicionCorporal): {
+  min: number
+  max: number
+  ceroValido: boolean
+} {
+  const rango = RANGO_POR_UNIDAD[d.unidad]
+  return {
+    min: d.magnitud === "peso" ? PESO_MINIMO_KG : rango.min,
+    max: rango.max,
+    ceroValido: !POSITIVAS.includes(d.magnitud),
+  }
+}
+
+/** Si un valor cabe en los límites de su definición. */
+export function valorAdmisible(d: DefinicionCorporal, valor: number): boolean {
+  const { min, max, ceroValido } = limitesDeDefinicion(d)
+  return valor >= min && valor <= max && (ceroValido || valor > 0)
+}
+
 /**
  * Coherencia entre resultados y definiciones copiadas. La usan los esquemas y
  * el servidor al aplicar un cambio sobre la copia que guarda.
@@ -399,17 +423,16 @@ export function problemasDelDocumento(doc: DocumentoComprobable): string[] {
       continue
     }
     if (r.estado === "noRealizado") continue
-    const rango = RANGO_POR_UNIDAD[d.unidad]
-    const minimo = d.magnitud === "peso" ? PESO_MINIMO_KG : rango.min
-    const fuera = (v: number) =>
-      v < minimo || v > rango.max || (v === 0 && POSITIVAS.includes(d.magnitud))
+    const { min: minimo, max, ceroValido } = limitesDeDefinicion(d)
+    const fuera = (v: number) => !valorAdmisible(d, v)
+    const rango = { max }
     if (r.lecturas && d.bloque !== "pliegues")
       problemas.push(`«${d.nombre}»: las lecturas solo se anotan en pliegues`)
     if (r.lecturas?.some(fuera))
       problemas.push(`«${d.nombre}»: lectura fuera de ${minimo}–${rango.max} ${d.unidad}`)
     if (r.estado === "registrado" && fuera(r.valor))
       problemas.push(
-        `«${d.nombre}»: ${POSITIVAS.includes(d.magnitud) && minimo === 0 ? "mayor que 0" : `desde ${minimo}`} y hasta ${rango.max} ${d.unidad}`,
+        `«${d.nombre}»: ${!ceroValido && minimo === 0 ? "mayor que 0" : `desde ${minimo}`} y hasta ${rango.max} ${d.unidad}`,
       )
   }
   for (const r of doc.pruebas) {
@@ -426,6 +449,7 @@ export function problemasDelDocumento(doc: DocumentoComprobable): string[] {
     const faltan = d.metricas.filter((m) => !m.opcional && !tiene(m.clave))
     if (faltan.length > 0)
       problemas.push(`«${d.nombre}»: falta ${faltan.map((m) => m.nombre).join(", ")}`)
+    problemas.push(...problemasDeResultadoPrueba(d, r.valores))
   }
   if (doc.grasaPorPliegues && !doc.bloques.includes("pliegues"))
     problemas.push("El porcentaje por pliegues necesita el bloque de pliegues")

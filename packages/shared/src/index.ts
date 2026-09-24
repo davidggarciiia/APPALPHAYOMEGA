@@ -8,6 +8,7 @@ export * from "./nutricion"
 export * from "./molestias"
 export * from "./seguimiento"
 export * from "./valoraciones"
+export * from "./pruebas-valoracion"
 
 /**
  * Vocabulario y contratos compartidos por la app y el servidor.
