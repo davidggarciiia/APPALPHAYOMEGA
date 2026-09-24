@@ -81,16 +81,20 @@ describe("Lo hecho y las métricas en metros (D01.f)", () => {
     })
   })
 
-  it("la mejor serie mira la carga y, a igual carga, solo compara la misma unidad", () => {
+  it("la mejor serie mira la carga y, a igual carga, los metros solo se comparan con metros", () => {
     expect(mejorSerie(metros(32, 18), metros(32, 20))).toEqual(metros(32, 20))
     expect(mejorSerie(metros(32, 20), metros(34, 10))).toEqual(metros(34, 10))
     expect(mejorSerie(metros(null, 30), metros(null, 25))).toEqual(metros(null, 30))
     type EnUnidad = ValoresEjecutados | ValoresEjecutadosDistancia
-    // 20 m no superan 10 repeticiones con la misma carga, ni al revés.
+    // 20 m no superan 10 repeticiones ni 60 s con la misma carga, ni al revés.
     expect(mejorSerie<EnUnidad>(repeticiones(32, 10), metros(32, 20))).toEqual(repeticiones(32, 10))
     expect(mejorSerie<EnUnidad>(metros(32, 20), repeticiones(32, 30))).toEqual(metros(32, 20))
+    expect(mejorSerie<EnUnidad>(segundos(null, 60), metros(null, 30))).toEqual(segundos(null, 60))
+    expect(mejorSerie<EnUnidad>(metros(null, 30), segundos(null, 60))).toEqual(metros(null, 30))
+    // Entre repeticiones y segundos, como antes de D01.f: a igual carga, la cifra mayor.
     expect(mejorSerie(segundos(null, 40), repeticiones(null, 6))).toEqual(segundos(null, 40))
-    expect(mejorSerie(repeticiones(null, 6), segundos(null, 40))).toEqual(repeticiones(null, 6))
+    expect(mejorSerie(repeticiones(null, 6), segundos(null, 40))).toEqual(segundos(null, 40))
+    expect(mejorSerie(segundos(10, 8), repeticiones(10, 12))).toEqual(repeticiones(10, 12))
     // En la misma unidad, como siempre.
     expect(mejorSerie(repeticiones(25, 6), repeticiones(25, 8))).toEqual(repeticiones(25, 8))
     expect(mejorSerie(repeticiones(25, 6), repeticiones(20, 12))).toEqual(repeticiones(25, 6))

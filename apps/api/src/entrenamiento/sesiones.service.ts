@@ -40,14 +40,17 @@ function cantidad(v: ValoresEnUnidad): number {
 }
 
 /**
- * Más carga; a igual carga, más cantidad, pero solo en la misma unidad: 20 m no
- * superan 10 repeticiones ni 40 s a 6. Con unidades distintas se queda la primera.
+ * Más carga; a igual carga, más cantidad, como siempre entre repeticiones y
+ * segundos (40 s ganan a 6). Los metros solo se comparan con metros: 20 m no
+ * superan 10 repeticiones ni 60 s, y entonces se queda la primera.
  */
 export function mejorSerie<T extends ValoresEnUnidad>(a: T, b: T): T {
   const cargaA = a.pesoKg ?? 0
   const cargaB = b.pesoKg ?? 0
   if (cargaA !== cargaB) return cargaA > cargaB ? a : b
-  return a.tipoMedicion === b.tipoMedicion && cantidad(b) > cantidad(a) ? b : a
+  const conMetros = a.tipoMedicion === "distancia" || b.tipoMedicion === "distancia"
+  if (conMetros && a.tipoMedicion !== b.tipoMedicion) return a
+  return cantidad(b) > cantidad(a) ? b : a
 }
 
 /** Epley con repeticiones y carga. Tiempo y distancia no estiman fuerza. */
@@ -130,8 +133,8 @@ export class SesionesService {
 
   /**
    * Para cada ejercicio de la sesión, la mejor serie hecha la última vez que el
-   * cliente lo envió en otra sesión (más carga; a igual carga, más cantidad en la
-   * misma unidad).
+   * cliente lo envió en otra sesión (más carga; a igual carga, más cantidad; los
+   * metros solo frente a metros).
    */
   async anteriores(identidad: IdentidadVerificada, id: string): Promise<ListadoAnteriores> {
     const fila = await this.fila(this.prisma, identidad, id)

@@ -256,6 +256,36 @@ describe("distancia en metros en el constructor (D01)", () => {
     })
   })
 
+  it("un ejercicio que mezcla unidades no se aplana: la fila queda marcada y no se publica", () => {
+    // Pautado serie a serie en el editor de sesión: 10 repeticiones y 20 m.
+    const repeticiones = {
+      id: "40000000-0000-4000-8000-000000000003",
+      tipoMedicion: "repeticiones" as const,
+      pesoKg: 24,
+      repeticiones: 10,
+    }
+    const mezclada: SesionConDistancia = {
+      ...guardada,
+      ejercicios: [
+        {
+          ...guardada.ejercicios[0]!,
+          series: [repeticiones, enMetros("40000000-0000-4000-8000-000000000004")],
+        },
+      ],
+    }
+    const aviso = "Este ejercicio mezcla unidades: revísalo en el editor de sesión"
+    const dia = desdeSesionEnRutina(mezclada, { [TRANSPORTE.id]: TRANSPORTE.nombre })
+    expect(dia.ejercicios[0]).toEqual(expect.objectContaining({ mezclaUnidades: true }))
+    expect(faltaEnDia(dia)).toContain(aviso)
+    expect(faltaEnDia(dia)).toContain(TRANSPORTE.nombre)
+    // Ni publicar ni guardar como plantilla lo convierten en 2 × 10 repeticiones.
+    expect(() => aSesionEnRutina(dia, nuevoId)).toThrow(aviso)
+    // Una sola unidad, aunque sea metros, no se marca.
+    const unaUnidad = desdeSesionEnRutina(guardada, { [TRANSPORTE.id]: TRANSPORTE.nombre })
+    expect(unaUnidad.ejercicios[0]!.mezclaUnidades).toBeUndefined()
+    expect(faltaEnDia(unaUnidad)).toBeNull()
+  })
+
   it("se publica en D01.g y las filas nuevas siguen naciendo en repeticiones", () => {
     expect(nuevoEjercicio(TRANSPORTE, "principal", nuevoId).tipo).toBe("repeticiones")
     const dia = desdeSesionEnRutina(guardada, { [TRANSPORTE.id]: TRANSPORTE.nombre })

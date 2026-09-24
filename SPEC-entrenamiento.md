@@ -390,6 +390,15 @@ y segundos: se muestra «m» y la app nunca convierte metros en otra unidad.
   serie pendiente y conserva el respaldo; la app nunca convierte lo hecho.
 - Las series y filas nuevas nacen en repeticiones; los metros se eligen de
   forma explícita.
+- **«Anterior»** (la mejor serie de la última vez): más carga y, a igual
+  carga, más cantidad. Entre repeticiones y segundos se compara la cifra, como
+  antes de D01 (40 s ganan a 6 repeticiones). Los metros solo se comparan con
+  metros: frente a otra unidad con la misma carga se queda la primera serie.
+- **Constructor:** una fila tiene una sola unidad para todas sus series. Si una
+  sesión guardada pauta un ejercicio en varias unidades (10 repeticiones y
+  20 m, desde el editor de sesión), el constructor no la aplana: marca la fila
+  y no deja publicar ni guardar como plantilla («Este ejercicio mezcla
+  unidades: revísalo en el editor de sesión»).
 
 El inventario de consumidores de `tipoMedicion` está en la evidencia de D01.a
 ([tasks/evidencia-mejoras-pdf.md](tasks/evidencia-mejoras-pdf.md)) y se repartió

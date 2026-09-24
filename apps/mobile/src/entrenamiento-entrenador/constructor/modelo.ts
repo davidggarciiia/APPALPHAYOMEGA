@@ -35,7 +35,14 @@ export type EjercicioDelConstructor = {
   indicaciones: string
   /** Se conservan para no romper registros al volver a publicar la misma rutina. */
   idsSeries: string[]
+  /**
+   * La sesión guardada pauta este ejercicio en varias unidades (10 repeticiones
+   * y 20 m). La fila no puede representarlo: no se publica hasta revisarlo.
+   */
+  mezclaUnidades?: true
 }
+
+const AVISO_MEZCLA = "Este ejercicio mezcla unidades: revísalo en el editor de sesión"
 
 export type DiaDelConstructor = {
   id: string
@@ -166,6 +173,10 @@ export function desdeSesionEnRutina(
         compuesto: e.compuesto ?? false,
         indicaciones: e.indicaciones ?? "",
         idsSeries: e.series.map((s) => s.id),
+        // Sin aplanar en silencio: se marca y `faltaEnDia` lo explica.
+        ...(e.series.some((s) => s.tipoMedicion !== primera?.tipoMedicion) && {
+          mezclaUnidades: true as const,
+        }),
       }
     }),
   }
@@ -177,6 +188,7 @@ export function faltaEnDia(dia: DiaDelConstructor): string | null {
   if (dia.nombre.trim() === "") return "Pon nombre a cada día (Empuje, Tracción…)."
   if (dia.ejercicios.length === 0) return `${nombre}: añade al menos un ejercicio.`
   for (const e of dia.ejercicios) {
+    if (e.mezclaUnidades) return `${e.nombre}. ${AVISO_MEZCLA}.`
     const series = Number(e.series)
     if (e.seccion !== "circuito" && (!Number.isInteger(series) || series < 1 || series > 30))
       return `${e.nombre}: de 1 a 30 series.`

@@ -1161,3 +1161,92 @@ los integra el responsable principal):
   «Anterior» compara la carga entre unidades (D01.f).
 - `catalogo.spec.tsx` agota a veces el tiempo en la ejecución en paralelo;
   ajeno a D01.
+
+## D01.h
+
+**Origen.** Dos ajustes que pidió la revisión de D01. No figura en
+`tasks/todo.md`; su alcance lo fija el responsable principal.
+
+**Cambio realizado.**
+
+- `sesiones.service.ts`, `mejorSerie` («Anterior»): vuelve el comportamiento
+  anterior a D01.f entre repeticiones y segundos. A igual carga gana la cifra
+  mayor: 40 s ganan a 6 repeticiones, y 12 repeticiones a 8 s. La condición de
+  «misma unidad» solo se aplica cuando una de las dos series está en metros:
+  20 m no superan 10 repeticiones ni 60 s, y entonces se queda la primera. La
+  carga sigue decidiendo antes que la unidad. Retira el cambio de
+  comportamiento que D01.f había señalado como pendiente.
+- `constructor/modelo.ts`: una fila del constructor tiene una sola unidad. Al
+  abrir una sesión guardada cuyo ejercicio mezcla unidades (por ejemplo
+  `[10 repeticiones, 20 m]`, pautado serie a serie en el editor de sesión),
+  `desdeSesionEnRutina` ya no la aplana en silencio. Marca la fila con
+  `mezclaUnidades: true` y `faltaEnDia` devuelve «Transporte. Este ejercicio
+  mezcla unidades: revísalo en el editor de sesión.». Así, `aSesionEnRutina`
+  lanza y el constructor no publica, no guarda como plantilla y no muestra ese
+  día en «Ver como cliente». El mensaje llega por el error que ya muestra el
+  constructor al publicar o guardar. Las filas con una sola unidad no llevan la
+  marca y se comportan igual.
+- `SPEC-entrenamiento.md`, «Ampliación D01»: dos reglas nuevas, «Anterior»
+  entre unidades y el bloqueo del constructor.
+
+**Archivos:** `apps/api/src/entrenamiento/sesiones.service.ts`,
+`apps/api/test/entrenamiento-distancia.e2e-spec.ts`,
+`apps/mobile/src/entrenamiento-entrenador/constructor/modelo.ts`,
+`constructor/modelo.spec.ts` (mismo directorio), `SPEC-entrenamiento.md` y
+`tasks/evidencia-mejoras-pdf.md`. Son cinco archivos más esta evidencia.
+
+**Pruebas** (datos sintéticos, sin datos personales):
+
+- `entrenamiento-distancia.e2e-spec.ts`, prueba sin base de datos «la mejor
+  serie mira la carga y, a igual carga, los metros solo se comparan con
+  metros»:
+  - repeticiones contra segundos con la misma carga, en los dos órdenes: gana
+    la cifra mayor (antes de este cambio, `repeticiones(6)` frente a
+    `segundos(40)` devolvía las repeticiones).
+  - metros contra segundos y contra repeticiones, en los dos órdenes: se
+    queda la primera.
+  - se mantienen los casos de metros entre sí y de la misma unidad.
+- `constructor/modelo.spec.ts`, nueva «un ejercicio que mezcla unidades no se
+  aplana: la fila queda marcada y no se publica»: una sesión con
+  `[10 repeticiones, 20 m]` se abre con `mezclaUnidades: true`, `faltaEnDia`
+  nombra el ejercicio y da el aviso, y `aSesionEnRutina` lanza con él. Una
+  sesión con una sola unidad, en metros, no se marca y se puede publicar.
+
+**Comandos y resultado real** (desde la raíz del worktree, base desechable
+`alpha_omega_e2e_claude_d`):
+
+| Comando                                                                                                                                             | Resultado                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/mobile -- --runInBand constructor/modelo.spec.ts` con la prueba nueva y sin implementar                                  | 1 suite fallida: 1 fallida, 11 correctas (rojo esperado: la fila no tiene `mezclaUnidades`) |
+| `npm run test:e2e --workspace apps/api -- --runTestsByPath test/entrenamiento-distancia.e2e-spec.ts` (rojo)                                         | 1 suite fallida: 1 fallida, 9 correctas (`repeticiones(6)` frente a `segundos(40)`)         |
+| `npm test --workspace apps/mobile -- --runInBand constructor/modelo.spec.ts` tras implementar                                                       | 1 suite, 12 pruebas en verde                                                                |
+| `npm run test:e2e --workspace apps/api -- --runTestsByPath test/entrenamiento-distancia.e2e-spec.ts`                                                | 1 suite, 10 pruebas en verde                                                                |
+| `npm run test:e2e … entrenamiento-distancia entrenamiento-registro entrenamiento-concurrencia entrenamiento-novedades ficha-entrenador seguimiento` | 6 suites, 34 pruebas en verde (regresión de «Anterior», envío, ficha y «Fuerza»)            |
+| `npm test --workspace apps/api -- --runInBand` (regresión unitaria API)                                                                             | 23 suites, 192 pruebas en verde                                                             |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                                                                        | 62 suites, 462 pruebas en verde (incluye `constructor.spec.tsx`)                            |
+| `npm run typecheck`                                                                                                                                 | Correcto (shared, api y mobile), salida 0                                                   |
+| `npx eslint` sobre los cuatro archivos de código                                                                                                    | Sin avisos                                                                                  |
+| `npx prettier --write` sobre los cuatro archivos de código y `SPEC-entrenamiento.md`, y `--check`                                                   | Aplicado; todos con el estilo de Prettier                                                   |
+
+Las cifras de API y móvil son mayores que las del punto de control D01 porque
+la rama ya integra la principal (valoraciones, fotos y consentimiento).
+
+**Pendiente:**
+
+- **La fila marcada no se distingue en la tabla.** El aviso solo aparece al
+  pulsar publicar o guardar como plantilla, con el nombre del ejercicio.
+  Mostrar la marca en la fila exige tocar `constructor/tabla.tsx` (sexto
+  archivo): queda para una subtarea propia.
+- La marca no se quita desde el constructor. Cambiar la unidad en el panel
+  sigue bloqueado; hay que quitar la fila o corregir la sesión en «Editar
+  rutina» (Rutinas), que usa el editor de sesión serie a serie. El texto del
+  aviso habla del «editor de sesión», pero la pantalla se llama «Editar
+  rutina»: David puede querer ajustar el texto.
+- Solo se marca la mezcla de unidades. Otras diferencias entre series del
+  mismo ejercicio (cantidades o kilos distintos en la misma unidad) se siguen
+  igualando a la primera serie al publicar desde el constructor, como antes
+  de D01.
+- «Anterior» sigue comparando la carga entre unidades (decisión abierta de
+  D01.f para David): 34 kg × 18 m ganan a 32 kg × 10 repeticiones.
+- Sin recorrido autenticado (C00) ni prueba en móvil físico o navegador: ni el
+  aviso del constructor ni «Anterior» se han visto en pantalla real.
