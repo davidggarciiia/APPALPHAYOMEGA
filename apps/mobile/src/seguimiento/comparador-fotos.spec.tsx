@@ -181,6 +181,10 @@ describe("comparar dos fechas de la misma vista", () => {
     expect(screen.queryByRole("radio", { name: "Perfil derecho" })).toBeNull()
     expect(screen.queryByRole("radio", { name: "1 jul 2026" })).toBeNull()
     expect(pedidasPara(api, frentePendiente)).toBe(0)
+    // Una vista con solo una foto pendiente tampoco tiene fotos.
+    expect(
+      screen.getByText("Sin fotos de espalda, perfil izquierdo ni perfil derecho."),
+    ).toBeTruthy()
 
     await fireEvent.press(screen.getByRole("radio", { name: "Brazo contraído" }))
     expect(await screen.findByLabelText("Brazo contraído, 1 mar 2026")).toBeTruthy()
@@ -206,7 +210,12 @@ describe("comparar dos fechas de la misma vista", () => {
 
     expect(screen.getAllByText("Foto retirada")).toHaveLength(2)
     expect(screen.getByLabelText("Frente, 10 ene 2026: foto retirada")).toBeTruthy()
-    expect(screen.getByLabelText("Frente, 24 sep 2026: foto retirada")).toBeTruthy()
+    // El lector también oye que el almacén aún no ha terminado de borrarla.
+    expect(
+      screen.getByLabelText(
+        "Frente, 24 sep 2026: foto retirada. El borrado del almacén aún no ha terminado.",
+      ),
+    ).toBeTruthy()
     expect(screen.queryByLabelText("Frente, 10 may 2026")).toBeNull()
     expect(api.acceso).not.toHaveBeenCalled()
     expect(
@@ -214,6 +223,239 @@ describe("comparar dos fechas de la misma vista", () => {
         name: "10 ene 2026, foto retirada",
       }),
     ).toBeTruthy()
+  })
+
+  it("dos fotos de la misma vista y el mismo día se nombran por quién las subió en todas sus etiquetas", async () => {
+    const api = apiFalsa()
+    const deLaEntrenadora = foto(13, { creadoEn: "2026-09-24T09:00:00.000Z" })
+    const deLaClienta = foto(14, {
+      autor: CLIENTA,
+      origen: "cliente",
+      creadoEn: "2026-09-24T18:00:00.000Z",
+    })
+    // La de la clienta no carga: su error y su «Reintentar» también se distinguen.
+    const accesoNormal = api.acceso.getMockImplementation()!
+    api.acceso.mockImplementation(async (medioId: string) => {
+      if (medioId === deLaClienta.id) throw new Error("sin red")
+      return accesoNormal(medioId)
+    })
+    await render(
+      <ComparadorFotos fotos={[deLaClienta, deLaEntrenadora]} api={api} puedeBorrar={() => true} />,
+    )
+
+    const DE_LA_ENTRENADORA = "Frente, 24 sep 2026, subida por Entrenadora Demo"
+    const DE_LA_CLIENTA = "Frente, 24 sep 2026, subida por Clienta Demo"
+    expect(await screen.findByLabelText(DE_LA_ENTRENADORA)).toBeTruthy()
+    expect(await screen.findByLabelText(`No se ha podido cargar la foto de ${DE_LA_CLIENTA}.`))
+    expect(
+      screen.getByRole("button", { name: `Reintentar la foto de ${DE_LA_CLIENTA}` }),
+    ).toBeTruthy()
+    expect(screen.queryByLabelText("Frente, 24 sep 2026")).toBeNull()
+    expect(
+      screen.getByText(
+        "Las dos fotos son del mismo día (24 sep 2026): una la subió Entrenadora Demo y la otra, Clienta Demo.",
+      ),
+    ).toBeTruthy()
+
+    // El mismo rótulo que en el selector de fechas.
+    const primera = screen.getByLabelText("Fecha de la primera foto")
+    expect(
+      within(primera).getByRole("radio", { name: "24 sep 2026, subida por Entrenadora Demo" }).props
+        .accessibilityState,
+    ).toMatchObject({ checked: true })
+    expect(
+      within(primera).getByRole("radio", { name: "24 sep 2026, subida por Clienta Demo" }).props
+        .accessibilityState,
+    ).toMatchObject({ disabled: true })
+    expect(within(primera).getByText("24 sep 2026 · Clienta Demo")).toBeTruthy()
+
+    expect(
+      screen.getByRole("button", { name: `Eliminar la foto de ${DE_LA_CLIENTA}` }),
+    ).toBeTruthy()
+    await fireEvent.press(
+      screen.getByRole("button", { name: `Eliminar la foto de ${DE_LA_ENTRENADORA}` }),
+    )
+    expect(
+      screen.getByText(
+        `${DE_LA_ENTRENADORA}. Se borrará la imagen y en el historial constará como foto retirada. No se puede deshacer.`,
+      ),
+    ).toBeTruthy()
+  })
+
+  it("dos fotos del mismo día y de la misma persona se numeran", async () => {
+    const api = apiFalsa()
+    const manana = foto(18, { creadoEn: "2026-09-24T09:00:00.000Z" })
+    const tarde = foto(19, { creadoEn: "2026-09-24T18:00:00.000Z" })
+    await render(<ComparadorFotos fotos={[tarde, manana]} api={api} puedeBorrar={nadie} />)
+
+    const imagen = await screen.findByLabelText("Frente, 24 sep 2026, subida por Entrenadora Demo")
+    const segunda = await screen.findByLabelText(
+      "Frente, 24 sep 2026, subida por Entrenadora Demo (2)",
+    )
+    expect(fuente(imagen).uri).toContain(manana.id)
+    expect(fuente(segunda).uri).toContain(tarde.id)
+    expect(
+      screen.getByText(
+        "Las dos fotos son del mismo día (24 sep 2026) y las subió Entrenadora Demo.",
+      ),
+    ).toBeTruthy()
+  })
+
+  it("una foto «otra» con el nombre de una vista estándar se nombra «Otra: …»", async () => {
+    const api = apiFalsa()
+    const otraFrente = foto(15, { vista: "otra", etiqueta: "Frente" })
+    const otraPerfil = foto(16, { vista: "otra", etiqueta: "perfil izquierdo" })
+    await render(
+      <ComparadorFotos
+        fotos={[otraPerfil, frenteEnero, otraFrente]}
+        api={api}
+        puedeBorrar={nadie}
+      />,
+    )
+    await screen.findByLabelText("Frente, 10 ene 2026")
+
+    expect(
+      within(screen.getByLabelText("Vista"))
+        .getAllByRole("radio")
+        .map((r) => r.props.accessibilityLabel),
+    ).toEqual(["Frente", "Otra: Frente", "Otra: perfil izquierdo"])
+    // La vista estándar sigue sin fotos aunque una «otra» se llame igual.
+    expect(
+      screen.getByText("Sin fotos de espalda, perfil izquierdo ni perfil derecho."),
+    ).toBeTruthy()
+
+    await fireEvent.press(screen.getByRole("radio", { name: "Otra: Frente" }))
+    expect(await screen.findByLabelText("Otra: Frente, 24 sep 2026")).toBeTruthy()
+    expect(
+      screen.getByText(
+        "Solo hay una foto de «Otra: Frente» (24 sep 2026). Para comparar hace falta otra de la misma vista con otra fecha.",
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByLabelText("Frente, 10 ene 2026")).toBeNull()
+  })
+
+  it("dice qué vistas estándar no tienen fotos", async () => {
+    const api = apiFalsa()
+    const izquierdo = foto(20, { vista: "perfilIzquierdo" })
+    const derecho = foto(21, { vista: "perfilDerecho" })
+    const pierna = foto(22, { vista: "otra", etiqueta: "Pierna" })
+    const vista = await render(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteSeptiembre, espaldaSeptiembre]}
+        api={api}
+        puedeBorrar={nadie}
+      />,
+    )
+    expect(screen.getByText("Sin fotos de perfil izquierdo ni perfil derecho.")).toBeTruthy()
+
+    await vista.rerender(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteSeptiembre, espaldaSeptiembre, izquierdo]}
+        api={api}
+        puedeBorrar={nadie}
+      />,
+    )
+    expect(screen.getByText("Sin fotos de perfil derecho.")).toBeTruthy()
+
+    await vista.rerender(
+      <ComparadorFotos
+        fotos={[frenteEnero, espaldaSeptiembre, izquierdo, derecho]}
+        api={api}
+        puedeBorrar={nadie}
+      />,
+    )
+    expect(screen.queryByText(/^Sin fotos de/)).toBeNull()
+
+    await vista.rerender(<ComparadorFotos fotos={[pierna]} api={api} puedeBorrar={nadie} />)
+    expect(
+      screen.getByText("Sin fotos de frente, espalda, perfil izquierdo ni perfil derecho."),
+    ).toBeTruthy()
+    await screen.findByLabelText("Pierna, 24 sep 2026")
+  })
+
+  it("si la foto elegida desaparece de la lista lo avisa y vuelve a la más antigua y la más reciente", async () => {
+    const api = apiFalsa()
+    const frenteJulio = foto(17, { fechaToma: "2026-07-15", creadoEn: "2026-07-15T09:00:00.000Z" })
+    const vista = await render(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteMayo, frenteSeptiembre]}
+        api={api}
+        puedeBorrar={nadie}
+      />,
+    )
+    await screen.findByLabelText("Frente, 24 sep 2026")
+    await fireEvent.press(
+      within(screen.getByLabelText("Fecha de la segunda foto")).getByRole("radio", {
+        name: "10 may 2026",
+      }),
+    )
+    await screen.findByLabelText("Frente, 10 may 2026")
+
+    await vista.rerender(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteJulio, frenteSeptiembre]}
+        api={api}
+        puedeBorrar={nadie}
+      />,
+    )
+    const AVISO =
+      "La foto elegida (Frente, 10 may 2026) ha dejado de estar en la lista. Se vuelve a comparar la más antigua con la más reciente."
+    expect(screen.getByText(AVISO)).toBeTruthy()
+    expect(await screen.findByLabelText("Frente, 10 ene 2026")).toBeTruthy()
+    expect(await screen.findByLabelText("Frente, 24 sep 2026")).toBeTruthy()
+    expect(screen.queryByLabelText("Frente, 15 jul 2026")).toBeNull()
+    expect(
+      within(screen.getByLabelText("Fecha de la segunda foto")).getByRole("radio", {
+        name: "24 sep 2026",
+      }).props.accessibilityState,
+    ).toMatchObject({ checked: true })
+
+    // Si la foto vuelve a llegar, no reaparece en silencio: la vuelta fue explícita.
+    await vista.rerender(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteMayo, frenteJulio, frenteSeptiembre]}
+        api={api}
+        puedeBorrar={nadie}
+      />,
+    )
+    expect(screen.queryByLabelText("Frente, 10 may 2026")).toBeNull()
+    expect(screen.getByLabelText("Frente, 24 sep 2026")).toBeTruthy()
+    expect(screen.getByText(AVISO)).toBeTruthy()
+
+    // Elegir otra fecha retira el aviso.
+    await fireEvent.press(
+      within(screen.getByLabelText("Fecha de la segunda foto")).getByRole("radio", {
+        name: "15 jul 2026",
+      }),
+    )
+    expect(await screen.findByLabelText("Frente, 15 jul 2026")).toBeTruthy()
+    expect(screen.queryByText(AVISO)).toBeNull()
+  })
+
+  it("aunque desaparezca la foto por defecto, la misma foto no ocupa los dos huecos", async () => {
+    const api = apiFalsa()
+    const vista = await render(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteMayo, frenteSeptiembre]}
+        api={api}
+        puedeBorrar={nadie}
+      />,
+    )
+    await screen.findByLabelText("Frente, 24 sep 2026")
+    await fireEvent.press(
+      within(screen.getByLabelText("Fecha de la primera foto")).getByRole("radio", {
+        name: "10 may 2026",
+      }),
+    )
+    await screen.findByLabelText("Frente, 10 may 2026")
+
+    // Desaparece la más reciente, que no se eligió a mano; la de mayo pasa a ser la última.
+    await vista.rerender(
+      <ComparadorFotos fotos={[frenteEnero, frenteMayo]} api={api} puedeBorrar={nadie} />,
+    )
+    expect(await screen.findByLabelText("Frente, 10 ene 2026")).toBeTruthy()
+    expect(screen.getAllByLabelText("Frente, 10 may 2026")).toHaveLength(1)
+    expect(screen.queryByText(/ha dejado de estar en la lista/)).toBeNull()
   })
 })
 
@@ -279,6 +521,41 @@ describe("enlaces temporales", () => {
     await fireEvent(renovada, "error", { nativeEvent: { error: "403" } })
     expect(await screen.findByText("No se ha podido cargar la foto.")).toBeTruthy()
     expect(screen.queryByLabelText("Frente, 10 ene 2026")).toBeNull()
+    expect(pedidasPara(api, frenteEnero)).toBe(4)
+  })
+
+  it("tras una carga correcta vuelve a poder renovar el enlace una vez", async () => {
+    const api = apiFalsa()
+    await render(<ComparadorFotos fotos={[frenteEnero]} api={api} puedeBorrar={nadie} />)
+    const error = async (): Promise<void> => {
+      await fireEvent(screen.getByLabelText("Frente, 10 ene 2026"), "error", {
+        nativeEvent: { error: "403" },
+      })
+    }
+    const cargada = async (): Promise<void> => {
+      await fireEvent(screen.getByLabelText("Frente, 10 ene 2026"), "load", {
+        nativeEvent: { source: { width: 300, height: 400 } },
+      })
+    }
+    const enlaceActual = (): string => fuente(screen.getByLabelText("Frente, 10 ene 2026")).uri
+
+    await screen.findByLabelText("Frente, 10 ene 2026")
+    await error()
+    await waitFor(() => expect(enlaceActual()).toContain("firma=2"))
+    await cargada()
+
+    // Más tarde el enlace caduca y la imagen vuelve a pedirse (al girar el
+    // móvil o cambiar de tamaño): se renueva otra vez en lugar de dar error.
+    await error()
+    await waitFor(() => expect(enlaceActual()).toContain("firma=3"))
+    expect(screen.queryByText("No se ha podido cargar la foto.")).toBeNull()
+    await cargada()
+    await error()
+    await waitFor(() => expect(enlaceActual()).toContain("firma=4"))
+
+    // Sin una carga correcta entre medias, la renovación no se repite.
+    await error()
+    expect(await screen.findByText("No se ha podido cargar la foto.")).toBeTruthy()
     expect(pedidasPara(api, frenteEnero)).toBe(4)
   })
 
@@ -503,11 +780,15 @@ describe("eliminar", () => {
     expect(screen.queryByRole("button", { name: /Eliminar la foto de Frente, 24 sep/ })).toBeNull()
   })
 
-  it("si falla, la foto sigue pendiente de retirar y se puede reintentar", async () => {
+  it("si falla, la foto queda en un hueco pendiente de retirar, sin pedir enlace, y se puede reintentar", async () => {
     const api = apiFalsa()
-    api.borrar
-      .mockRejectedValueOnce(new Error("almacén caído"))
-      .mockResolvedValueOnce({ ...frenteEnero, estado: "eliminando" })
+    let responder: (medio: MedioFoto) => void = () => undefined
+    api.borrar.mockRejectedValueOnce(new Error("almacén caído")).mockImplementationOnce(
+      () =>
+        new Promise<MedioFoto>((resolver) => {
+          responder = resolver
+        }),
+    )
     await render(
       <ComparadorFotos
         fotos={[frenteEnero, frenteSeptiembre]}
@@ -525,19 +806,72 @@ describe("eliminar", () => {
     expect(
       await screen.findByText("No se ha podido retirar la foto: sigue pendiente de retirar."),
     ).toBeTruthy()
-    expect(screen.getByLabelText("Frente, 10 ene 2026")).toBeTruthy()
+    // La imagen se sustituye por el hueco; no se vuelve a pedir su enlace.
+    expect(screen.getByLabelText("Frente, 10 ene 2026: pendiente de retirar")).toBeTruthy()
+    expect(screen.getByText("Pendiente de retirar")).toBeTruthy()
+    expect(screen.queryByLabelText("Frente, 10 ene 2026")).toBeNull()
     expect(screen.queryByText("Foto retirada")).toBeNull()
+    expect(pedidasPara(api, frenteEnero)).toBe(1)
+    expect(screen.queryByRole("button", { name: /^Eliminar la foto de Frente, 10 ene/ })).toBeNull()
 
     await fireEvent.press(
       screen.getByRole("button", { name: "Reintentar la retirada de Frente, 10 ene 2026" }),
     )
     expect(api.borrar).toHaveBeenCalledTimes(2)
+    // Mientras se reintenta sigue el hueco: la foto no vuelve a mostrarse.
+    expect(screen.getByLabelText("Frente, 10 ene 2026: pendiente de retirar")).toBeTruthy()
+    expect(
+      screen.getByRole("button", { name: "Reintentar la retirada de Frente, 10 ene 2026" }).props
+        .accessibilityState,
+    ).toMatchObject({ busy: true })
+    expect(pedidasPara(api, frenteEnero)).toBe(1)
+
     // El servidor retiró el acceso y aún está borrando del almacén: se dice tal cual.
+    responder({ ...frenteEnero, estado: "eliminando" })
     expect(await screen.findByText("Foto retirada")).toBeTruthy()
     expect(screen.getByText("El borrado del almacén aún no ha terminado.")).toBeTruthy()
     expect(
+      screen.getByLabelText(
+        "Frente, 10 ene 2026: foto retirada. El borrado del almacén aún no ha terminado.",
+      ),
+    ).toBeTruthy()
+    expect(
       screen.queryByText("No se ha podido retirar la foto: sigue pendiente de retirar."),
     ).toBeNull()
+    expect(pedidasPara(api, frenteEnero)).toBe(1)
+  })
+
+  it("si la lista llega con la foto ya eliminada, desaparecen el aviso de fallo y el reintento", async () => {
+    const api = apiFalsa()
+    api.borrar.mockRejectedValueOnce(new Error("sin respuesta"))
+    const vista = await render(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteSeptiembre]}
+        api={api}
+        puedeBorrar={() => true}
+      />,
+    )
+    await screen.findByLabelText("Frente, 10 ene 2026")
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Eliminar la foto de Frente, 10 ene 2026" }),
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Eliminar" }))
+    await screen.findByText("No se ha podido retirar la foto: sigue pendiente de retirar.")
+
+    // El borrado sí llegó al servidor: la lista actualizada lo dice.
+    await vista.rerender(
+      <ComparadorFotos
+        fotos={[{ ...frenteEnero, estado: "eliminado" }, frenteSeptiembre]}
+        api={api}
+        puedeBorrar={() => true}
+      />,
+    )
+    expect(screen.getByLabelText("Frente, 10 ene 2026: foto retirada")).toBeTruthy()
+    expect(
+      screen.queryByText("No se ha podido retirar la foto: sigue pendiente de retirar."),
+    ).toBeNull()
+    expect(screen.queryByRole("button", { name: /Reintentar la retirada/ })).toBeNull()
+    expect(screen.queryByText("Pendiente de retirar")).toBeNull()
   })
 
   it("sin permiso para borrar una foto no se ofrece la acción", async () => {

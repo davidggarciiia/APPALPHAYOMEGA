@@ -22,11 +22,12 @@ import { tema } from "../tema"
 import type { ApiSeguimiento } from "./api"
 import { EditorConfiguracionSeguimiento } from "./configuracion"
 import { AnadirMedida, AnadirPrueba } from "./formularios"
+import { EvolucionValoraciones } from "./evolucion-valoraciones"
 import { Grafica } from "./grafica"
 import type { ApiMedios } from "./medios-api"
 import { ValoracionesCliente } from "./resumen-valoracion"
 import { SolicitudesFotos } from "./solicitudes-fotos"
-import type { ApiValoracionesCliente } from "./valoraciones-api"
+import type { ApiEvolucionAvisos, ApiValoracionesCliente } from "./valoraciones-api"
 import {
   edadEn,
   masaLibre,
@@ -79,8 +80,8 @@ export function ProgresoCliente({
   seguimiento: ApiSeguimiento
   entrenamiento: ApiEntrenamiento
   /** Valoraciones publicadas del cliente; en la ficha profesional van aparte. */
-  valoraciones?: ApiValoracionesCliente
-  /** Solicitudes de fotos del cliente; solo consulta mientras no haya subida desde el móvil. */
+  valoraciones?: ApiValoracionesCliente & Pick<ApiEvolucionAvisos, "evolucion">
+  /** Solicitudes, aportación y consulta de fotografías privadas del cliente. */
   medios?: ApiMedios
   modo?: "cliente" | "entrenador"
 }): React.JSX.Element {
@@ -89,6 +90,7 @@ export function ProgresoCliente({
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
   const [formulario, setFormulario] = useState<"medida" | "prueba" | null>(null)
+  const [verEvolucion, setVerEvolucion] = useState(false)
   const hoy = hoyAgenda()
   const lunes = lunesDeSemana(hoy)
 
@@ -135,6 +137,30 @@ export function ProgresoCliente({
     <View style={s.contenido}>
       {modo === "cliente" && valoraciones && (
         <ValoracionesCliente clienteId={clienteId} api={valoraciones} />
+      )}
+      {modo === "cliente" && valoraciones && (
+        <View style={s.grupo}>
+          <BotonSecundario
+            texto={verEvolucion ? "Ocultar mi evolución" : "Ver mi evolución"}
+            onPress={() => setVerEvolucion((actual) => !actual)}
+          />
+          {verEvolucion && (
+            <EvolucionValoraciones
+              clienteId={clienteId}
+              api={valoraciones}
+              modo="cliente"
+              fotos={
+                medios
+                  ? {
+                      api: medios,
+                      puedeBorrar: (foto) =>
+                        foto.origen === "cliente" && foto.autor.id === clienteId,
+                    }
+                  : undefined
+              }
+            />
+          )}
+        </View>
       )}
       {modo === "cliente" && medios && (
         <SolicitudesFotos clienteId={clienteId} api={medios} modo="cliente" nuevoId={randomUUID} />

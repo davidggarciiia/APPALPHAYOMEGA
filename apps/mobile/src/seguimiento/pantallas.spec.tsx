@@ -15,6 +15,7 @@ import { ErrorDePeticion } from "../lib/http"
 import type { ApiSeguimiento } from "./api"
 import { HoyDiario } from "./hoy-diario"
 import { ProgresoCliente } from "./progreso"
+import type { ApiEvolucionAvisos, ApiValoracionesCliente } from "./valoraciones-api"
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
@@ -179,6 +180,41 @@ describe("ProgresoCliente", () => {
     )
     await waitFor(() => expect(screen.getByText("Plancha")).toBeTruthy())
     expect(screen.queryByRole("button", { name: "Añadir prueba" })).toBeNull()
+  })
+
+  it("abre la evolución desde Progreso sin ocultar el resto del seguimiento", async () => {
+    const evolucion = jest.fn(async (_clienteId: string) => ({ series: [] }))
+    const valoraciones = {
+      listarPublicadas: jest.fn(async () => ({ valoraciones: [], total: 0 })),
+      leerPublicada: jest.fn(async () => {
+        throw new Error("no usado")
+      }),
+      proximaRevision: jest.fn(async () => ({
+        revision: 0,
+        pauta: null,
+        cumplidaPorId: null,
+        actualizadaEn: null,
+      })),
+      evolucion,
+    } as unknown as ApiValoracionesCliente & Pick<ApiEvolucionAvisos, "evolucion">
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={api()}
+        entrenamiento={entrenamiento}
+        valoraciones={valoraciones}
+      />,
+    )
+
+    const abrir = await screen.findByRole("button", { name: "Ver mi evolución" })
+    expect(evolucion).not.toHaveBeenCalled()
+    await fireEvent.press(abrir)
+    await waitFor(() => expect(screen.getByRole("header", { name: "Tu evolución" })).toBeTruthy())
+    expect(evolucion).toHaveBeenCalledWith(CLIENTE)
+    expect(screen.getByRole("tab", { name: "Peso" })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Ocultar mi evolución" })).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Ocultar mi evolución" }))
+    expect(screen.queryByRole("header", { name: "Tu evolución" })).toBeNull()
   })
 
   it("ordena resultados de una prueba renombrada por fecha, no por nombre", async () => {

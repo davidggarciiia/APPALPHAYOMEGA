@@ -19,14 +19,22 @@ import type { ApiMedios } from "./medios-api"
 
 type Api = Pick<ApiMedios, "acceso" | "borrar">
 type Hueco = "primera" | "segunda"
+const HUECOS: Hueco[] = ["primera", "segunda"]
+/** Foto elegida a mano, con su nombre por si deja de llegar en la lista. */
+type Eleccion = { id: string; etiqueta: string }
+/** `fallo` se queda hasta que el servidor confirma la retirada. */
+type Retiro = { enCurso: boolean; fallo: boolean }
 
-const VISTAS: Record<Exclude<VistaFoto, "otra">, string> = {
+type VistaEstandar = Exclude<VistaFoto, "otra">
+const VISTAS: Record<VistaEstandar, string> = {
   frente: "Frente",
   espalda: "Espalda",
   perfilIzquierdo: "Perfil izquierdo",
   perfilDerecho: "Perfil derecho",
 }
-const ORDEN_VISTAS: VistaFoto[] = ["frente", "espalda", "perfilIzquierdo", "perfilDerecho", "otra"]
+const VISTAS_ESTANDAR = Object.keys(VISTAS) as VistaEstandar[]
+const ORDEN_VISTAS: VistaFoto[] = [...VISTAS_ESTANDAR, "otra"]
+const NOTA_ALMACEN = "El borrado del almacén aún no ha terminado."
 /** Dos columnas de al menos 140 px y la separación; si no caben, una debajo de otra. */
 const ANCHO_LADO_A_LADO = 2 * 140 + 12
 /** Un borrado no se deshace: entre la lista recibida y lo confirmado gana lo más avanzado. */
@@ -44,6 +52,30 @@ const retirada = (foto: MedioFoto): boolean =>
 /** Con el reloj del móvil, que puede ir adelantado: solo sirve para renovar antes. */
 const caducado = (lectura: EnlaceTemporal): boolean => Date.parse(lectura.caducaEn) <= Date.now()
 
+/** Sin tildes, mayúsculas ni espacios de más: «perfil  Izquierdo» es «Perfil izquierdo». */
+const comparable = (texto: string): string =>
+  texto.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase()
+const NOMBRES_ESTANDAR = new Set(Object.values(VISTAS).map(comparable))
+/** Una «otra» que se llama como una vista estándar no puede parecer esa vista. */
+const nombreDeOtra = (etiqueta: string): string =>
+  NOMBRES_ESTANDAR.has(comparable(etiqueta)) ? `Otra: ${etiqueta}` : etiqueta
+
+/** «a», «a ni b», «a, b ni c». */
+const enumerar = (nombres: string[]): string =>
+  nombres.length < 2
+    ? nombres.join("")
+    : `${nombres.slice(0, -1).join(", ")} ni ${nombres[nombres.length - 1]}`
+
+/** Cómo se nombra una foto dentro de su vista. */
+type Rotulo = {
+  /** Opción de fecha: «24 sep 2026 · Clienta Demo». */
+  texto: string
+  /** Lo mismo para el lector: «24 sep 2026, subida por Clienta Demo». */
+  accesible: string
+  /** Título visible sobre la foto; quién la subió ya va debajo. */
+  titulo: string
+}
+
 /** Fotos comparables entre sí: misma vista y, en «otra», misma etiqueta. */
 type Grupo = {
   clave: string
@@ -51,7 +83,7 @@ type Grupo = {
   enFrase: string
   /** De la más antigua a la más reciente. */
   fotos: MedioFoto[]
-  opciones: Map<string, { texto: string; accesible: string }>
+  rotulos: Map<string, Rotulo>
 }
 
 function agrupar(fotos: MedioFoto[]): Grupo[] {
@@ -61,13 +93,15 @@ function agrupar(fotos: MedioFoto[]): Grupo[] {
     if (foto.estado === "pendiente") continue
     const otra = foto.vista === "otra"
     const clave = otra ? `otra:${foto.etiqueta ?? ""}` : foto.vista
-    const nombre = otra ? (foto.etiqueta ?? "Otra") : VISTAS[foto.vista as keyof typeof VISTAS]
+    const nombre = otra
+      ? nombreDeOtra(foto.etiqueta ?? "Otra")
+      : VISTAS[foto.vista as VistaEstandar]
     const grupo: Grupo = grupos.get(clave) ?? {
       clave,
       nombre,
       enFrase: otra ? `«${nombre}»` : nombre.toLowerCase(),
       fotos: [],
-      opciones: new Map(),
+      rotulos: new Map(),
     }
     grupo.fotos.push(foto)
     grupos.set(clave, grupo)
@@ -77,30 +111,59 @@ function agrupar(fotos: MedioFoto[]): Grupo[] {
     grupo.fotos.sort(
       (a, b) => a.fechaToma.localeCompare(b.fechaToma) || a.creadoEn.localeCompare(b.creadoEn),
     )
-    grupo.opciones = rotulosDeFecha(grupo.fotos)
+    grupo.rotulos = rotulosDeFecha(grupo.fotos)
   }
   const posicion = (g: Grupo): number => ORDEN_VISTAS.indexOf(g.fotos[0]!.vista)
   return lista.sort((a, b) => posicion(a) - posicion(b) || a.nombre.localeCompare(b.nombre, "es"))
 }
 
-/** «24 sep 2026»; si el mismo día hay dos fotos de la vista, se añade quién la subió. */
-function rotulosDeFecha(fotos: MedioFoto[]): Grupo["opciones"] {
+/**
+ * «24 sep 2026»; si el mismo día hay dos fotos de la vista, se añade quién la
+ * subió, y si también coincide, un número.
+ */
+function rotulosDeFecha(fotos: MedioFoto[]): Grupo["rotulos"] {
   const veces = new Map<string, number>()
   for (const f of fotos) veces.set(f.fechaToma, (veces.get(f.fechaToma) ?? 0) + 1)
   const usados = new Map<string, number>()
-  const opciones: Grupo["opciones"] = new Map()
+  const rotulos: Grupo["rotulos"] = new Map()
   for (const f of fotos) {
-    let texto = fecha(f.fechaToma)
-    if ((veces.get(f.fechaToma) ?? 0) > 1) texto += ` · ${f.autor.nombre}`
-    const repetido = (usados.get(texto) ?? 0) + 1
-    usados.set(texto, repetido)
-    if (repetido > 1) texto += ` (${repetido})`
-    opciones.set(f.id, {
-      texto,
-      accesible: retirada(f) ? `${texto}, foto retirada` : texto,
+    const dia = fecha(f.fechaToma)
+    if ((veces.get(f.fechaToma) ?? 0) < 2) {
+      rotulos.set(f.id, { texto: dia, accesible: dia, titulo: dia })
+      continue
+    }
+    const clave = `${f.fechaToma} ${f.autor.nombre}`
+    const repetido = (usados.get(clave) ?? 0) + 1
+    usados.set(clave, repetido)
+    const orden = repetido > 1 ? ` (${repetido})` : ""
+    rotulos.set(f.id, {
+      texto: `${dia} · ${f.autor.nombre}${orden}`,
+      accesible: `${dia}, subida por ${f.autor.nombre}${orden}`,
+      titulo: `${dia}${orden}`,
     })
   }
-  return opciones
+  return rotulos
+}
+
+/** Nombre completo de una foto en todas sus etiquetas: «Frente, 24 sep 2026». */
+const etiquetaDe = (grupo: Grupo, foto: MedioFoto): string =>
+  `${grupo.nombre}, ${grupo.rotulos.get(foto.id)!.accesible}`
+
+/** Las dos del mismo día: se explica, con quién subió cada una. */
+function textoMismoDia(primera: MedioFoto, segunda: MedioFoto): string {
+  const dia = `Las dos fotos son del mismo día (${fecha(primera.fechaToma)})`
+  return primera.autor.nombre === segunda.autor.nombre
+    ? `${dia} y las subió ${primera.autor.nombre}.`
+    : `${dia}: una la subió ${primera.autor.nombre} y la otra, ${segunda.autor.nombre}.`
+}
+
+function textoPerdidas(etiquetas: string[], hayOtraFecha: boolean): string {
+  const lista = etiquetas.join(" y ")
+  const frase =
+    etiquetas.length === 1
+      ? `La foto elegida (${lista}) ha dejado de estar en la lista.`
+      : `Las fotos elegidas (${lista}) han dejado de estar en la lista.`
+  return hayOtraFecha ? `${frase} Se vuelve a comparar la más antigua con la más reciente.` : frase
 }
 
 /**
@@ -119,10 +182,12 @@ export function ComparadorFotos({
   puedeBorrar: (foto: MedioFoto) => boolean
 }): React.JSX.Element {
   const [confirmadas, setConfirmadas] = useState<Record<string, MedioFoto>>({})
-  const [retiradas, setRetiradas] = useState<Record<string, "enCurso" | "fallo">>({})
+  const [retiros, setRetiros] = useState<Record<string, Retiro>>({})
   const [aBorrar, setABorrar] = useState<{ foto: MedioFoto; etiqueta: string } | null>(null)
   const [vista, setVista] = useState<string | null>(null)
-  const [elegidas, setElegidas] = useState<Record<string, Partial<Record<Hueco, string>>>>({})
+  const [elegidas, setElegidas] = useState<Record<string, Partial<Record<Hueco, Eleccion>>>>({})
+  /** Elecciones que dejaron de llegar en la lista, para avisar en su vista. */
+  const [perdidas, setPerdidas] = useState<{ clave: string; etiquetas: string[] } | null>(null)
   const [ancho, setAncho] = useState(0)
 
   const grupos = useMemo(
@@ -142,37 +207,68 @@ export function ComparadorFotos({
 
   const claveVista = vista ?? grupos[0]!.clave
   const grupo = grupos.find((g) => g.clave === claveVista)
-  const eleccion = (grupo && elegidas[grupo.clave]) ?? {}
   const buscar = (medioId: string | undefined): MedioFoto | undefined =>
-    grupo?.fotos.find((f) => f.id === medioId)
-  const primera = grupo && (buscar(eleccion.primera) ?? grupo.fotos[0])
+    medioId === undefined ? undefined : grupo?.fotos.find((f) => f.id === medioId)
+  const eleccion = (grupo && elegidas[grupo.clave]) ?? {}
+  const desaparecidas = HUECOS.flatMap((hueco) => {
+    const elegida = eleccion[hueco]
+    return elegida && !buscar(elegida.id) ? [elegida.etiqueta] : []
+  })
+  if (grupo && desaparecidas.length > 0) {
+    // Una foto elegida a mano ya no llega: no se pasa en silencio a otra
+    // fecha. Se olvida la elección de la vista y se avisa. Es un ajuste durante
+    // el render (patrón de React): se repite el render antes de pintar.
+    const clave = grupo.clave
+    setElegidas((antes) => {
+      const resto = { ...antes }
+      delete resto[clave]
+      return resto
+    })
+    setPerdidas({ clave, etiquetas: desaparecidas })
+  }
+  const vigente = desaparecidas.length > 0 ? {} : eleccion
+  const primeraElegida = buscar(vigente.primera?.id)
+  const segundaElegida = buscar(vigente.segunda?.id)
+  // Por defecto, la más antigua y la más reciente; nunca la que ya ocupa el otro hueco.
+  const primera = grupo && (primeraElegida ?? grupo.fotos.find((f) => f !== segundaElegida))
   const segunda =
     grupo && grupo.fotos.length > 1
-      ? (buscar(eleccion.segunda) ?? grupo.fotos[grupo.fotos.length - 1])
+      ? (segundaElegida ?? [...grupo.fotos].reverse().find((f) => f !== primera))
       : undefined
+  const aviso =
+    grupo && perdidas?.clave === grupo.clave
+      ? textoPerdidas(perdidas.etiquetas, grupo.fotos.length > 1)
+      : null
+  const sinFotos = VISTAS_ESTANDAR.filter((v) => !grupos.some((g) => g.clave === v)).map((v) =>
+    VISTAS[v].toLowerCase(),
+  )
 
   const elegir = (hueco: Hueco, medioId: string): void => {
-    if (!grupo) return
-    setElegidas((antes) => ({
-      ...antes,
-      [grupo.clave]: { ...antes[grupo.clave], [hueco]: medioId },
-    }))
+    const elegida = buscar(medioId)
+    if (!grupo || !elegida) return
+    const clave = grupo.clave
+    const nueva: Eleccion = { id: medioId, etiqueta: etiquetaDe(grupo, elegida) }
+    setElegidas((antes) => ({ ...antes, [clave]: { ...antes[clave], [hueco]: nueva } }))
+    setPerdidas(null)
   }
 
   const retirar = (foto: MedioFoto): void => {
-    if (retiradas[foto.id] === "enCurso") return
-    setRetiradas((antes) => ({ ...antes, [foto.id]: "enCurso" }))
+    if (retiros[foto.id]?.enCurso) return
+    setRetiros((antes) => ({
+      ...antes,
+      [foto.id]: { enCurso: true, fallo: antes[foto.id]?.fallo ?? false },
+    }))
     api.borrar(foto.id).then(
       (medio) => {
         // Solo cambia lo que el servidor confirma, no lo que se pidió.
         setConfirmadas((antes) => ({ ...antes, [medio.id]: medio }))
-        setRetiradas((antes) => {
+        setRetiros((antes) => {
           const resto = { ...antes }
           delete resto[foto.id]
           return resto
         })
       },
-      () => setRetiradas((antes) => ({ ...antes, [foto.id]: "fallo" })),
+      () => setRetiros((antes) => ({ ...antes, [foto.id]: { enCurso: false, fallo: true } })),
     )
   }
 
@@ -188,7 +284,7 @@ export function ComparadorFotos({
       elegir={(medioId) => elegir(hueco, medioId)}
       api={api}
       borrable={puedeBorrar(foto)}
-      retiro={retiradas[foto.id] ?? null}
+      retiro={retiros[foto.id] ?? null}
       pedirBorrado={(etiqueta) => setABorrar({ foto, etiqueta })}
       reintentarBorrado={() => retirar(foto)}
     />
@@ -201,9 +297,21 @@ export function ComparadorFotos({
         opciones={grupos.map((g) => ({ valor: g.clave, texto: g.nombre }))}
         elegidas={grupo ? [grupo.clave] : []}
         cambiar={([clave]) => {
-          if (clave) setVista(clave)
+          if (!clave) return
+          setVista(clave)
+          setPerdidas(null)
         }}
       />
+
+      {sinFotos.length > 0 && (
+        <Text style={s.explicacion}>{`Sin fotos de ${enumerar(sinFotos)}.`}</Text>
+      )}
+
+      {aviso && (
+        <Text style={s.aviso} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          {aviso}
+        </Text>
+      )}
 
       {!grupo && (
         <Text style={s.explicacion} accessibilityLiveRegion="polite">
@@ -214,6 +322,12 @@ export function ComparadorFotos({
       {grupo && primera && !segunda && (
         <Text style={s.explicacion} accessibilityLiveRegion="polite">
           {`Solo hay una foto de ${grupo.enFrase} (${fecha(primera.fechaToma)}). Para comparar hace falta otra de la misma vista con otra fecha.`}
+        </Text>
+      )}
+
+      {primera && segunda && primera.fechaToma === segunda.fechaToma && (
+        <Text style={s.explicacion} accessibilityLiveRegion="polite">
+          {textoMismoDia(primera, segunda)}
         </Text>
       )}
 
@@ -267,11 +381,15 @@ function PanelFoto({
   elegir: (medioId: string) => void
   api: Api
   borrable: boolean
-  retiro: "enCurso" | "fallo" | null
+  retiro: Retiro | null
   pedirBorrado: (etiqueta: string) => void
   reintentarBorrado: () => void
 }): React.JSX.Element {
-  const etiqueta = `${grupo.nombre}, ${fecha(foto.fechaToma)}`
+  const etiqueta = etiquetaDe(grupo, foto)
+  // Un fallo al retirar solo cuenta mientras la foto sigue disponible: si la
+  // lista llega con la foto ya retirada, manda la lista.
+  const fallo = foto.estado === "disponible" && retiro?.fallo === true
+  const enCurso = foto.estado !== "eliminado" && retiro?.enCurso === true
   return (
     <View style={[s.panel, lado ? s.panelLado : s.panelApilado]}>
       {otra && (
@@ -283,7 +401,7 @@ function PanelFoto({
           contentContainerStyle={s.fechas}
         >
           {grupo.fotos.map((f) => {
-            const opcion = grupo.opciones.get(f.id)!
+            const opcion = grupo.rotulos.get(f.id)!
             const marcada = f.id === foto.id
             // La fecha que ya ocupa la otra foto no se compara consigo misma.
             const ocupada = f.id === otra.id
@@ -291,7 +409,9 @@ function PanelFoto({
               <Pressable
                 key={f.id}
                 accessibilityRole="radio"
-                accessibilityLabel={opcion.accesible}
+                accessibilityLabel={
+                  retirada(f) ? `${opcion.accesible}, foto retirada` : opcion.accesible
+                }
                 accessibilityState={{ checked: marcada, disabled: ocupada }}
                 disabled={ocupada}
                 onPress={() => elegir(f.id)}
@@ -310,7 +430,7 @@ function PanelFoto({
 
       {/* El lector lee la vista y la fecha en la propia imagen o en su hueco. */}
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <Text style={s.rotulo}>{etiqueta}</Text>
+        <Text style={s.rotulo}>{`${grupo.nombre}, ${grupo.rotulos.get(foto.id)!.titulo}`}</Text>
       </View>
       <Text style={s.autor}>Subida por {foto.autor.nombre}</Text>
 
@@ -318,40 +438,49 @@ function PanelFoto({
         <View
           style={[s.marco, s.hueco]}
           accessible
-          accessibilityLabel={`${etiqueta}: foto retirada`}
+          accessibilityLabel={
+            foto.estado === "eliminando"
+              ? `${etiqueta}: foto retirada. ${NOTA_ALMACEN}`
+              : `${etiqueta}: foto retirada`
+          }
         >
           <Text style={s.textoRetirada}>Foto retirada</Text>
-          {foto.estado === "eliminando" && (
-            <Text style={s.nota}>El borrado del almacén aún no ha terminado.</Text>
-          )}
+          {foto.estado === "eliminando" && <Text style={s.nota}>{NOTA_ALMACEN}</Text>}
+        </View>
+      ) : fallo ? (
+        // Se pidió retirarla: no se vuelve a mostrar ni se pide su enlace.
+        <View
+          style={[s.marco, s.hueco]}
+          accessible
+          accessibilityLabel={`${etiqueta}: pendiente de retirar`}
+        >
+          <Text style={s.textoRetirada}>Pendiente de retirar</Text>
         </View>
       ) : (
         <ImagenPrivada key={foto.id} medioId={foto.id} etiqueta={etiqueta} acceso={api.acceso} />
       )}
 
-      {retiro === "fallo" && (
+      {fallo && !enCurso && (
         <Text style={s.error} accessibilityRole="alert" accessibilityLiveRegion="assertive">
           No se ha podido retirar la foto: sigue pendiente de retirar.
         </Text>
       )}
-      {borrable && foto.estado === "disponible" && retiro !== "fallo" && (
+      {borrable && foto.estado === "disponible" && !fallo && (
         <Accion
-          texto={retiro === "enCurso" ? "Retirando…" : "Eliminar foto"}
+          texto={enCurso ? "Retirando…" : "Eliminar foto"}
           etiqueta={
-            retiro === "enCurso"
-              ? `Retirando la foto de ${etiqueta}`
-              : `Eliminar la foto de ${etiqueta}`
+            enCurso ? `Retirando la foto de ${etiqueta}` : `Eliminar la foto de ${etiqueta}`
           }
-          ocupado={retiro === "enCurso"}
+          ocupado={enCurso}
           peligro
           onPress={() => pedirBorrado(etiqueta)}
         />
       )}
-      {borrable && (retiro === "fallo" || foto.estado === "eliminando") && (
+      {borrable && (fallo || foto.estado === "eliminando") && (
         <Accion
           texto="Reintentar retirada"
           etiqueta={`Reintentar la retirada de ${etiqueta}`}
-          ocupado={retiro === "enCurso"}
+          ocupado={enCurso}
           peligro
           onPress={reintentarBorrado}
         />
@@ -477,6 +606,13 @@ function ImagenPrivada({
         accessible
         accessibilityRole="image"
         accessibilityLabel={etiqueta}
+        onLoad={() =>
+          // Si carga, el enlace servía: si más tarde caduca y la imagen vuelve a
+          // pedirse (al girar o cambiar de tamaño), se puede renovar otra vez.
+          setCarga((antes) =>
+            antes.fase === "lista" && antes.renovada ? { ...antes, renovada: false } : antes,
+          )
+        }
         onError={() => {
           if (!carga.renovada) volverAPedir(true)
           else setCarga({ fase: "fallo" })
@@ -553,6 +689,7 @@ const s = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
   },
+  aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 15, lineHeight: 21 },
   par: { gap: 12 },
   ladoALado: { flexDirection: "row", alignItems: "flex-start" },
   apiladas: { flexDirection: "column" },

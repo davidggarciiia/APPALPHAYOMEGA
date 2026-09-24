@@ -1,14 +1,15 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import type { SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
-import { fechaLegible } from "../entrenamiento/fechas"
+import { fechaLegible, hoyAgenda } from "../entrenamiento/fechas"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { faltaDe } from "../lib/errores"
 import { tema } from "../tema"
 import type { ApiMedios } from "./medios-api"
+import { liberarFoto, obtenerFoto, type FotoPreparada, type OrigenFoto } from "./preparar-foto"
 
 type VistaPedible = Exclude<VistaFoto, "otra">
 const VISTAS: Array<{ valor: VistaPedible; texto: string }> = [
@@ -29,6 +30,18 @@ const NOMBRE_DE_ESTADO: Record<SolicitudFotos["estado"], string> = {
   recibida: "Recibida, sin revisar",
   revisada: "Revisada",
 }
+
+type FotoPendiente = {
+  solicitudId: string
+  vista: VistaPedible
+  fechaToma: string
+  operacionId: string
+  foto: FotoPreparada
+  fase: "subiendo" | "confirmando" | "fallo"
+}
+
+const enviadaPara = (solicitud: SolicitudFotos, vista: VistaPedible): boolean =>
+  solicitud.medios.some((medio) => medio.vista === vista && medio.estado === "disponible")
 
 /** Formulario del entrenador para pedir fotos concretas. */
 function PedirFotos({
@@ -109,7 +122,15 @@ export function SolicitudesFotos({
   valoracionAbiertaId = null,
 }: {
   clienteId: string
-  api: Pick<ApiMedios, "solicitudes" | "pedirFotos" | "revisarSolicitud" | "vincularFoto">
+  api: Pick<
+    ApiMedios,
+    | "solicitudes"
+    | "pedirFotos"
+    | "revisarSolicitud"
+    | "vincularFoto"
+    | "solicitarSubida"
+    | "confirmar"
+  >
   modo: "cliente" | "entrenador"
   nuevoId: () => string
   /** Visita con borrador abierto a la que se pueden incorporar fotos recibidas. */
@@ -120,6 +141,19 @@ export function SolicitudesFotos({
   const [error, setError] = useState("")
   const [ocupado, setOcupado] = useState(false)
   const [intento, setIntento] = useState(0)
+  const [fotoEnPreparacion, setFotoEnPreparacion] = useState<string | null>(null)
+  const [fotoPendiente, setFotoPendiente] = useState<FotoPendiente | null>(null)
+  const fotoPendienteRef = useRef<FotoPendiente | null>(null)
+  const guardarFotoPendiente = (pendiente: FotoPendiente | null): void => {
+    fotoPendienteRef.current = pendiente
+    setFotoPendiente(pendiente)
+  }
+  useEffect(
+    () => () => {
+      if (fotoPendienteRef.current) liberarFoto(fotoPendienteRef.current.foto.uri)
+    },
+    [],
+  )
   // Una operación por acción: un reintento tras una respuesta perdida no duplica.
   const operaciones = useRef(new Map<string, string>())
   const operacion = (clave: string): string => {
@@ -168,9 +202,108 @@ export function SolicitudesFotos({
     }
   }
 
+  const transmitirFoto = async (pendiente: FotoPendiente): Promise<void> => {
+    guardarFotoPendiente({ ...pendiente, fase: "subiendo" })
+    setError("")
+    try {
+      const intencion = await api.solicitarSubida({
+        operacionId: pendiente.operacionId,
+        clienteId,
+        destino: { tipo: "solicitud", solicitudId: pendiente.solicitudId },
+        vista: pendiente.vista,
+        etiqueta: null,
+        fechaToma: pendiente.fechaToma,
+        tipoMime: pendiente.foto.tipoMime,
+        bytes: pendiente.foto.bytes,
+      })
+      if (intencion.subida) {
+        const archivo = await (await fetch(pendiente.foto.uri)).blob()
+        try {
+          const subida = await fetch(intencion.subida.url, {
+            method: intencion.subida.metodo,
+            headers: intencion.subida.cabeceras,
+            body: archivo,
+          })
+          if (!subida.ok) throw new Error("No se pudo subir el archivo")
+        } finally {
+          ;(archivo as Blob & { close?: () => void }).close?.()
+        }
+      }
+      guardarFotoPendiente({ ...pendiente, fase: "confirmando" })
+      const confirmada = await api.confirmar(intencion.medio.id)
+      liberarFoto(pendiente.foto.uri)
+      guardarFotoPendiente(null)
+      setSolicitudes((actuales) =>
+        actuales === null
+          ? null
+          : actuales.map((solicitud) =>
+              solicitud.id !== pendiente.solicitudId
+                ? solicitud
+                : {
+                    ...solicitud,
+                    estado: "recibida",
+                    recibidaEn: solicitud.recibidaEn ?? new Date().toISOString(),
+                    medios: [
+                      ...solicitud.medios.filter((medio) => medio.id !== confirmada.id),
+                      confirmada,
+                    ],
+                  },
+            ),
+      )
+    } catch {
+      guardarFotoPendiente({ ...pendiente, fase: "fallo" })
+      setError(
+        "No se pudo enviar la foto. La conservamos mientras sigas en esta pantalla; puedes reintentar.",
+      )
+    }
+  }
+
+  const aportar = async (
+    solicitud: SolicitudFotos,
+    vista: VistaPedible,
+    origen: OrigenFoto,
+  ): Promise<void> => {
+    if (ocupado || fotoPendienteRef.current) return
+    const clave = `${solicitud.id}:${vista}`
+    setOcupado(true)
+    setFotoEnPreparacion(clave)
+    setError("")
+    try {
+      const obtenida = await obtenerFoto(origen)
+      if (obtenida.tipo === "cancelada") return
+      if (obtenida.tipo !== "lista") {
+        setError(obtenida.mensaje)
+        return
+      }
+      const pendiente: FotoPendiente = {
+        solicitudId: solicitud.id,
+        vista,
+        fechaToma: hoyAgenda(),
+        operacionId: nuevoId(),
+        foto: obtenida.foto,
+        fase: "subiendo",
+      }
+      guardarFotoPendiente(pendiente)
+      await transmitirFoto(pendiente)
+    } catch {
+      setError("No se pudo preparar la foto. Elige otra o inténtalo con la cámara.")
+    } finally {
+      setOcupado(false)
+      setFotoEnPreparacion(null)
+    }
+  }
+
+  const reintentarFoto = async (): Promise<void> => {
+    const pendiente = fotoPendienteRef.current
+    if (!pendiente || ocupado) return
+    setOcupado(true)
+    await transmitirFoto(pendiente)
+    setOcupado(false)
+  }
+
   const visibles =
     modo === "cliente"
-      ? (solicitudes ?? []).filter((x) => x.estado === "pendiente")
+      ? (solicitudes ?? []).filter((x) => x.estado !== "revisada")
       : (solicitudes ?? [])
 
   return (
@@ -203,8 +336,74 @@ export function SolicitudesFotos({
                 </Text>
                 {solicitud.mensaje && <Text style={s.texto}>{solicitud.mensaje}</Text>}
               </View>
-              <Text style={s.estado}>{NOMBRE_DE_ESTADO[solicitud.estado]}</Text>
+              <Text style={s.estado}>
+                {modo === "cliente" && solicitud.estado === "recibida"
+                  ? (() => {
+                      const faltan = solicitud.vistas.filter(
+                        (v) => !enviadaPara(solicitud, v),
+                      ).length
+                      return faltan > 0
+                        ? `Recibida · faltan ${faltan} ${faltan === 1 ? "vista" : "vistas"}`
+                        : NOMBRE_DE_ESTADO.recibida
+                    })()
+                  : NOMBRE_DE_ESTADO[solicitud.estado]}
+              </Text>
             </Fila>
+            {modo === "cliente" && (
+              <View style={s.grupo}>
+                {solicitud.vistas.map((vista) => {
+                  const medio = solicitud.medios.find(
+                    (foto) => foto.vista === vista && foto.estado === "disponible",
+                  )
+                  const clave = `${solicitud.id}:${vista}`
+                  const pendiente =
+                    fotoPendiente?.solicitudId === solicitud.id && fotoPendiente.vista === vista
+                      ? fotoPendiente
+                      : null
+                  return (
+                    <View key={vista} style={s.vistaSolicitada}>
+                      <Text style={s.texto}>
+                        {NOMBRE_DE_VISTA[vista]} ·{" "}
+                        {medio ? `enviada el ${fechaLegible(medio.fechaToma)}` : "pendiente"}
+                      </Text>
+                      {pendiente?.fase === "fallo" ? (
+                        <BotonSecundario
+                          texto="Reintentar envío"
+                          etiquetaAccesible={`Reintentar envío de la foto de ${NOMBRE_DE_VISTA[vista]}`}
+                          ocupado={ocupado}
+                          onPress={() => void reintentarFoto()}
+                        />
+                      ) : pendiente ? (
+                        <Text style={s.estado}>
+                          {pendiente.fase === "confirmando"
+                            ? "Confirmando foto…"
+                            : "Subiendo foto…"}
+                        </Text>
+                      ) : !medio && solicitud.estado !== "revisada" ? (
+                        <View style={s.accionesFoto}>
+                          <BotonSecundario
+                            texto={fotoEnPreparacion === clave ? "Abriendo cámara…" : "Hacer foto"}
+                            etiquetaAccesible={`Hacer foto de ${NOMBRE_DE_VISTA[vista]} con la cámara`}
+                            ocupado={ocupado}
+                            onPress={() => void aportar(solicitud, vista, "camara")}
+                          />
+                          <BotonSecundario
+                            texto={
+                              fotoEnPreparacion === clave
+                                ? "Abriendo galería…"
+                                : "Elegir de galería"
+                            }
+                            etiquetaAccesible={`Elegir foto de ${NOMBRE_DE_VISTA[vista]} desde la galería`}
+                            ocupado={ocupado}
+                            onPress={() => void aportar(solicitud, vista, "galeria")}
+                          />
+                        </View>
+                      ) : null}
+                    </View>
+                  )
+                })}
+              </View>
+            )}
             {modo === "entrenador" &&
               solicitud.medios.map((medio) => (
                 <Fila key={medio.id}>
@@ -291,6 +490,8 @@ const s = StyleSheet.create({
   estado: { color: tema.textoSecundario, fontFamily: tema.fuenteSemi, fontSize: 13 },
   enlace: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 14 },
   accion: { minHeight: 44, justifyContent: "center" },
+  vistaSolicitada: { gap: 8 },
+  accionesFoto: { gap: 8 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     minHeight: 44,
