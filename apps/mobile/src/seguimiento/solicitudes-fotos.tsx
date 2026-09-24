@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import type { SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
+import type { MedioFoto, SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { fechaLegible, hoyAgenda } from "../entrenamiento/fechas"
@@ -42,6 +42,34 @@ type FotoPendiente = {
 
 const enviadaPara = (solicitud: SolicitudFotos, vista: VistaPedible): boolean =>
   solicitud.medios.some((medio) => medio.vista === vista && medio.estado === "disponible")
+
+const NO_SE_ENVIO =
+  "No se pudo enviar la foto. La conservamos mientras sigas en esta pantalla: reintenta el envío o descártala para elegir otra."
+
+/**
+ * Por qué una foto que no se pudo enviar ya no admite reintento según la lista
+ * del servidor, o `null` si su solicitud todavía la espera.
+ */
+function motivoSinReintento(pendiente: FotoPendiente, lista: SolicitudFotos[]): string | null {
+  const vista = NOMBRE_DE_VISTA[pendiente.vista]
+  const destino = lista.find((solicitud) => solicitud.id === pendiente.solicitudId)
+  if (destino && enviadaPara(destino, pendiente.vista))
+    return `La foto de ${vista} ya consta como enviada; no hace falta reintentarla.`
+  if (!destino)
+    return `Esa solicitud ya no está pendiente; la foto de ${vista} sin enviar se ha descartado.`
+  if (destino.estado === "revisada")
+    return `Tu entrenador ya revisó esa solicitud; la foto de ${vista} sin enviar se ha descartado.`
+  return null
+}
+
+/**
+ * Suelta la copia local de una foto. Si el móvil no deja borrarla, queda
+ * anotada para volver a intentarlo al salir de la pantalla.
+ */
+function soltarCopia(uri: string, porLiberar: Set<string>): void {
+  if (liberarFoto(uri) === "fallo") porLiberar.add(uri)
+  else porLiberar.delete(uri)
+}
 
 /** Formulario del entrenador para pedir fotos concretas. */
 function PedirFotos({
@@ -142,18 +170,52 @@ export function SolicitudesFotos({
   const [ocupado, setOcupado] = useState(false)
   const [intento, setIntento] = useState(0)
   const [fotoEnPreparacion, setFotoEnPreparacion] = useState<string | null>(null)
+  // Foto elegida que el servidor aún no ha confirmado. Su copia solo está en
+  // el dispositivo: se conserva para reintentar con la misma operación y se
+  // suelta al confirmarse, al descartarla o al salir (RI07b).
   const [fotoPendiente, setFotoPendiente] = useState<FotoPendiente | null>(null)
   const fotoPendienteRef = useRef<FotoPendiente | null>(null)
+  const montado = useRef(true)
+  // Síncrono: dos toques antes de repintar no arrancan dos envíos de la misma copia.
+  const enviandoFoto = useRef(false)
+  const porLiberar = useRef(new Set<string>())
+  // Última lista leída del servidor: dice si una foto que falló aún se puede reintentar.
+  const listaServidor = useRef<SolicitudFotos[] | null>(null)
   const guardarFotoPendiente = (pendiente: FotoPendiente | null): void => {
     fotoPendienteRef.current = pendiente
-    setFotoPendiente(pendiente)
+    if (montado.current) setFotoPendiente(pendiente)
   }
-  useEffect(
-    () => () => {
-      if (fotoPendienteRef.current) liberarFoto(fotoPendienteRef.current.foto.uri)
-    },
-    [],
-  )
+  /**
+   * Una foto en fallo cuya solicitud ya no la admite (revisada, desaparecida o
+   * con esa vista ya recibida) no tiene botones para reintentarla ni
+   * descartarla: se suelta su copia para no bloquear las demás vistas y se
+   * devuelve el motivo para explicarlo. Solo usa refs y el setter del estado.
+   */
+  const soltarSiNoSeReintenta = (lista: SolicitudFotos[]): string | null => {
+    const pendiente = fotoPendienteRef.current
+    if (pendiente?.fase !== "fallo") return null
+    const motivo = motivoSinReintento(pendiente, lista)
+    if (motivo) {
+      guardarFotoPendiente(null)
+      soltarCopia(pendiente.foto.uri, porLiberar.current)
+    }
+    return motivo
+  }
+  useEffect(() => {
+    montado.current = true
+    const copias = porLiberar.current
+    return () => {
+      montado.current = false
+      for (const uri of [...copias]) soltarCopia(uri, copias)
+      // Un envío en curso usa su copia y la suelta al terminar; aquí solo se
+      // suelta la que esperaba un reintento que ya nadie puede pedir.
+      const pendiente = fotoPendienteRef.current
+      if (pendiente?.fase === "fallo") {
+        fotoPendienteRef.current = null
+        soltarCopia(pendiente.foto.uri, copias)
+      }
+    }
+  }, [])
   // Una operación por acción: un reintento tras una respuesta perdida no duplica.
   const operaciones = useRef(new Map<string, string>())
   const operacion = (clave: string): string => {
@@ -168,10 +230,12 @@ export function SolicitudesFotos({
       api
         .solicitudes(clienteId)
         .then(({ solicitudes: lista }) => {
-          if (vigente) {
-            setSolicitudes(lista)
-            setError("")
-          }
+          if (!vigente) return
+          listaServidor.current = lista
+          setSolicitudes(lista)
+          const motivo = soltarSiNoSeReintenta(lista)
+          // Una foto que sigue esperando reintento conserva su explicación.
+          setError(motivo ?? (fotoPendienteRef.current?.fase === "fallo" ? NO_SE_ENVIO : ""))
         })
         .catch((fallo: unknown) => {
           if (vigente)
@@ -202,9 +266,11 @@ export function SolicitudesFotos({
     }
   }
 
+  /** Solo la confirmación del servidor da la foto por recibida. */
   const transmitirFoto = async (pendiente: FotoPendiente): Promise<void> => {
     guardarFotoPendiente({ ...pendiente, fase: "subiendo" })
-    setError("")
+    if (montado.current) setError("")
+    let confirmada: MedioFoto
     try {
       const intencion = await api.solicitarSubida({
         operacionId: pendiente.operacionId,
@@ -230,32 +296,42 @@ export function SolicitudesFotos({
         }
       }
       guardarFotoPendiente({ ...pendiente, fase: "confirmando" })
-      const confirmada = await api.confirmar(intencion.medio.id)
-      liberarFoto(pendiente.foto.uri)
-      guardarFotoPendiente(null)
-      setSolicitudes((actuales) =>
-        actuales === null
-          ? null
-          : actuales.map((solicitud) =>
-              solicitud.id !== pendiente.solicitudId
-                ? solicitud
-                : {
-                    ...solicitud,
-                    estado: "recibida",
-                    recibidaEn: solicitud.recibidaEn ?? new Date().toISOString(),
-                    medios: [
-                      ...solicitud.medios.filter((medio) => medio.id !== confirmada.id),
-                      confirmada,
-                    ],
-                  },
-            ),
-      )
+      confirmada = await api.confirmar(intencion.medio.id)
     } catch {
-      guardarFotoPendiente({ ...pendiente, fase: "fallo" })
-      setError(
-        "No se pudo enviar la foto. La conservamos mientras sigas en esta pantalla; puedes reintentar.",
-      )
+      if (montado.current) {
+        guardarFotoPendiente({ ...pendiente, fase: "fallo" })
+        // Si una relectura durante el envío ya cerró su solicitud, no espera reintento.
+        const lista = listaServidor.current
+        const motivo = lista ? soltarSiNoSeReintenta(lista) : null
+        setError(motivo ?? NO_SE_ENVIO)
+      } else {
+        // Sin la pantalla nadie puede reintentar: la copia ya no sirve.
+        guardarFotoPendiente(null)
+        soltarCopia(pendiente.foto.uri, porLiberar.current)
+      }
+      return
     }
+    // El servidor ya tiene la foto: la copia local sobra.
+    guardarFotoPendiente(null)
+    soltarCopia(pendiente.foto.uri, porLiberar.current)
+    if (!montado.current) return
+    setSolicitudes((actuales) =>
+      actuales === null
+        ? null
+        : actuales.map((solicitud) =>
+            solicitud.id !== pendiente.solicitudId
+              ? solicitud
+              : {
+                  ...solicitud,
+                  estado: "recibida",
+                  recibidaEn: solicitud.recibidaEn ?? new Date().toISOString(),
+                  medios: [
+                    ...solicitud.medios.filter((medio) => medio.id !== confirmada.id),
+                    confirmada,
+                  ],
+                },
+          ),
+    )
   }
 
   const aportar = async (
@@ -263,16 +339,21 @@ export function SolicitudesFotos({
     vista: VistaPedible,
     origen: OrigenFoto,
   ): Promise<void> => {
-    if (ocupado || fotoPendienteRef.current) return
+    if (ocupado || enviandoFoto.current || fotoPendienteRef.current) return
+    enviandoFoto.current = true
     const clave = `${solicitud.id}:${vista}`
     setOcupado(true)
     setFotoEnPreparacion(clave)
     setError("")
     try {
       const obtenida = await obtenerFoto(origen)
-      if (obtenida.tipo === "cancelada") return
       if (obtenida.tipo !== "lista") {
-        setError(obtenida.mensaje)
+        if (obtenida.tipo !== "cancelada" && montado.current) setError(obtenida.mensaje)
+        return
+      }
+      if (!montado.current) {
+        // Preparada después de salir: no se envía ni se queda en el dispositivo.
+        soltarCopia(obtenida.foto.uri, porLiberar.current)
         return
       }
       const pendiente: FotoPendiente = {
@@ -286,19 +367,42 @@ export function SolicitudesFotos({
       guardarFotoPendiente(pendiente)
       await transmitirFoto(pendiente)
     } catch {
-      setError("No se pudo preparar la foto. Elige otra o inténtalo con la cámara.")
+      if (montado.current)
+        setError("No se pudo preparar la foto. Elige otra o inténtalo con la cámara.")
     } finally {
-      setOcupado(false)
-      setFotoEnPreparacion(null)
+      enviandoFoto.current = false
+      if (montado.current) {
+        setOcupado(false)
+        setFotoEnPreparacion(null)
+      }
     }
   }
 
+  /** Mismo contenido, misma operación: el reintento no crea otra foto. */
   const reintentarFoto = async (): Promise<void> => {
     const pendiente = fotoPendienteRef.current
-    if (!pendiente || ocupado) return
+    if (pendiente?.fase !== "fallo" || enviandoFoto.current) return
+    enviandoFoto.current = true
     setOcupado(true)
-    await transmitirFoto(pendiente)
-    setOcupado(false)
+    try {
+      await transmitirFoto(pendiente)
+    } finally {
+      enviandoFoto.current = false
+      if (montado.current) setOcupado(false)
+    }
+  }
+
+  /**
+   * Descarta la foto que no se pudo enviar y relee las solicitudes por si el
+   * envío llegó a confirmarse y solo se perdió la respuesta.
+   */
+  const descartarFoto = (): void => {
+    const pendiente = fotoPendienteRef.current
+    if (pendiente?.fase !== "fallo" || enviandoFoto.current) return
+    guardarFotoPendiente(null)
+    soltarCopia(pendiente.foto.uri, porLiberar.current)
+    setError("")
+    setIntento((n) => n + 1)
   }
 
   const visibles =
@@ -367,12 +471,20 @@ export function SolicitudesFotos({
                         {medio ? `enviada el ${fechaLegible(medio.fechaToma)}` : "pendiente"}
                       </Text>
                       {pendiente?.fase === "fallo" ? (
-                        <BotonSecundario
-                          texto="Reintentar envío"
-                          etiquetaAccesible={`Reintentar envío de la foto de ${NOMBRE_DE_VISTA[vista]}`}
-                          ocupado={ocupado}
-                          onPress={() => void reintentarFoto()}
-                        />
+                        <View style={s.accionesFoto}>
+                          <BotonSecundario
+                            texto="Reintentar envío"
+                            etiquetaAccesible={`Reintentar envío de la foto de ${NOMBRE_DE_VISTA[vista]}`}
+                            ocupado={ocupado}
+                            onPress={() => void reintentarFoto()}
+                          />
+                          <BotonSecundario
+                            texto="Descartar foto"
+                            etiquetaAccesible={`Descartar la foto de ${NOMBRE_DE_VISTA[vista]} sin enviarla`}
+                            deshabilitado={ocupado}
+                            onPress={descartarFoto}
+                          />
+                        </View>
                       ) : pendiente ? (
                         <Text style={s.estado}>
                           {pendiente.fase === "confirmando"
@@ -385,6 +497,7 @@ export function SolicitudesFotos({
                             texto={fotoEnPreparacion === clave ? "Abriendo cámara…" : "Hacer foto"}
                             etiquetaAccesible={`Hacer foto de ${NOMBRE_DE_VISTA[vista]} con la cámara`}
                             ocupado={ocupado}
+                            deshabilitado={fotoPendiente !== null}
                             onPress={() => void aportar(solicitud, vista, "camara")}
                           />
                           <BotonSecundario
@@ -395,6 +508,7 @@ export function SolicitudesFotos({
                             }
                             etiquetaAccesible={`Elegir foto de ${NOMBRE_DE_VISTA[vista]} desde la galería`}
                             ocupado={ocupado}
+                            deshabilitado={fotoPendiente !== null}
                             onPress={() => void aportar(solicitud, vista, "galeria")}
                           />
                         </View>
