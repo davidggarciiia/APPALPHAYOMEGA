@@ -5,7 +5,8 @@ import type {
   SeriePrescrita,
   ValoresEjecutados,
 } from "@alpha-omega/shared"
-import { tema } from "../tema"
+import { Icono } from "../componentes/iconos"
+import { degradadoExito, tema } from "../tema"
 
 export function valoresLegibles(serie: SeriePrescrita | ValoresEjecutados): string {
   return `${serie.tipoMedicion === "tiempo" ? `${serie.segundos} s` : `${serie.repeticiones} rep`}${serie.pesoKg === null ? "" : ` · ${serie.pesoKg} kg`}`
@@ -18,11 +19,11 @@ export function PrescripcionVisible({
   resultado?: ResultadoEntrenamiento
 }): React.JSX.Element {
   return (
-    <View style={{ gap: 18 }}>
+    <View style={estilos.contenedor}>
       {resultado && (
         <View style={estilos.cabecera}>
-          <View style={estilos.circulo}>
-            <Text style={estilos.marca}>✓</Text>
+          <View style={[estilos.circulo, degradadoExito]}>
+            <Icono nombre="hecho" color={tema.sobreExito} tamano={44} />
           </View>
           <Text style={estilos.titulo} accessibilityRole="header">
             Entrenamiento enviado
@@ -53,42 +54,37 @@ export function PrescripcionVisible({
         </View>
       )}
       {prescripcion.ejercicios.map((e) => (
-        <View
-          key={e.id}
-          style={{
-            gap: 10,
-            borderWidth: 1,
-            borderColor: tema.borde,
-            borderRadius: 18,
-            padding: 16,
-            backgroundColor: tema.superficie,
-          }}
-        >
-          <Text style={{ color: tema.texto, fontSize: 26, fontFamily: tema.fuenteTitulo }}>
+        <View key={e.id} style={estilos.ejercicio}>
+          <Text style={estilos.nombre} accessibilityRole="header">
             {e.nombre}
           </Text>
-          {e.indicaciones && <Text style={{ color: tema.textoTenue }}>{e.indicaciones}</Text>}
-          {e.series.map((s, n) => {
-            const real = resultado?.series.find((r) => r.serieId === s.id)
-            return (
-              <View key={s.id} style={{ gap: 4 }}>
-                <Text style={{ color: tema.textoTenue }}>
-                  Serie {n + 1} · Objetivo: {valoresLegibles(s)}
-                </Text>
-                {real && (
-                  <Text style={real.hecha ? estilos.hecha : estilos.omitida}>
-                    {real.hecha ? `Hecho: ${valoresLegibles(real.valores)}` : "Omitida"}
+          {e.indicaciones && <Text style={estilos.indicaciones}>{e.indicaciones}</Text>}
+          <View style={estilos.lista}>
+            {e.series.map((s, n) => {
+              const real = resultado?.series.find((r) => r.serieId === s.id)
+              return (
+                <View
+                  key={s.id}
+                  style={[estilos.renglon, n < e.series.length - 1 && estilos.separado]}
+                >
+                  <Text style={estilos.objetivo}>
+                    Serie {n + 1} · Objetivo: {valoresLegibles(s)}
                   </Text>
-                )}
-              </View>
-            )
-          })}
+                  {real && (
+                    <Text style={real.hecha ? estilos.hecha : estilos.omitida}>
+                      {real.hecha ? `Hecho: ${valoresLegibles(real.valores)}` : "Omitida"}
+                    </Text>
+                  )}
+                </View>
+              )
+            })}
+          </View>
         </View>
       ))}
       {resultado?.notas && (
-        <View>
-          <Text style={{ color: tema.texto, fontWeight: "700" }}>Notas del entrenamiento</Text>
-          <Text style={{ color: tema.texto }}>{resultado.notas}</Text>
+        <View style={estilos.notas}>
+          <Text style={estilos.nombre}>Notas del entrenamiento</Text>
+          <Text style={estilos.texto}>{resultado.notas}</Text>
         </View>
       )}
     </View>
@@ -96,35 +92,36 @@ export function PrescripcionVisible({
 }
 
 const estilos = StyleSheet.create({
-  cabecera: { gap: 14, alignItems: "center", paddingVertical: 24 },
+  contenedor: { gap: 24 },
+  cabecera: { gap: 16, alignItems: "center", paddingVertical: 16 },
   circulo: {
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: tema.boton,
     alignItems: "center",
     justifyContent: "center",
   },
-  marca: { color: tema.sobreAcento, fontSize: 44, fontFamily: tema.fuenteBoton },
   titulo: {
     color: tema.texto,
-    fontSize: 40,
-    lineHeight: 40,
+    fontSize: 34,
+    lineHeight: 38,
     fontFamily: tema.fuenteTitulo,
     textTransform: "uppercase",
     textAlign: "center",
   },
-  datos: { flexDirection: "row", gap: 10, alignSelf: "stretch" },
-  dato: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: tema.superficie,
-    borderWidth: 1,
-    borderColor: tema.borde,
-  },
-  cifra: { color: tema.texto, fontSize: 28, fontFamily: tema.fuenteTitulo },
-  leyenda: { color: tema.textoTenue, fontSize: 12, fontFamily: tema.fuenteTexto },
-  hecha: { color: tema.exito, fontFamily: tema.fuenteBoton },
-  omitida: { color: tema.textoTenue, fontFamily: tema.fuenteTexto },
+  datos: { flexDirection: "row", gap: 8, alignSelf: "stretch" },
+  dato: { flex: 1, padding: 16, borderRadius: 20, backgroundColor: tema.superficie, gap: 4 },
+  cifra: { color: tema.acento, fontSize: 34, lineHeight: 38, fontFamily: tema.fuenteTitulo },
+  leyenda: { color: tema.textoTenue, fontSize: 13, fontFamily: tema.fuenteTexto },
+  ejercicio: { gap: 8 },
+  nombre: { color: tema.texto, fontSize: 20, lineHeight: 25, fontFamily: tema.fuenteBoton },
+  indicaciones: { color: tema.textoTenue, fontSize: 13, fontFamily: tema.fuenteTexto },
+  lista: { backgroundColor: tema.superficie, borderRadius: 20, paddingHorizontal: 16 },
+  renglon: { paddingVertical: 12, gap: 4 },
+  separado: { borderBottomWidth: 1, borderBottomColor: tema.borde },
+  objetivo: { color: tema.textoTenue, fontSize: 15, fontFamily: tema.fuenteTexto },
+  hecha: { color: tema.exito, fontSize: 15, fontFamily: tema.fuenteBoton },
+  omitida: { color: tema.textoTenue, fontSize: 15, fontFamily: tema.fuenteSemi },
+  notas: { gap: 6 },
+  texto: { color: tema.texto, fontSize: 15, lineHeight: 21, fontFamily: tema.fuenteTexto },
 })

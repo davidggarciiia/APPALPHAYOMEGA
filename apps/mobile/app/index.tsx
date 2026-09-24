@@ -1,6 +1,7 @@
 import { useRouter, type Href } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
+import { Icono } from "../src/componentes/iconos"
 import { SemanaEntrenamiento } from "../src/entrenamiento/semana"
 import { useEntrenamiento } from "../src/entrenamiento/use-entrenamiento"
 import { useSesion } from "../src/sesion"
@@ -25,10 +26,10 @@ export default function Inicio(): React.JSX.Element {
       onPress={() => router.push(ruta)}
     >
       <View style={s.fila}>
-        <Text style={[s.titulo, principal && s.claro]}>{titulo}</Text>
-        <Text style={[s.flecha, principal && s.claro]}>↗</Text>
+        <Text style={s.titulo}>{titulo}</Text>
+        <Icono nombre="adelante" color={principal ? tema.acento : tema.textoTenue} />
       </View>
-      <Text style={[s.detalle, principal && s.detalleClaro]}>{detalle}</Text>
+      <Text style={s.detalle}>{detalle}</Text>
     </Pressable>
   )
   return (
@@ -43,7 +44,7 @@ export default function Inicio(): React.JSX.Element {
         />
       ) : (
         <View style={s.contenido}>
-          <Text style={s.leyenda}>TU ESPACIO DE TRABAJO</Text>
+          <Text style={s.leyenda}>Tu espacio de trabajo</Text>
           {usuario.rol === "entrenador" && (
             <>
               {acceso(
@@ -80,27 +81,11 @@ export default function Inicio(): React.JSX.Element {
   )
 }
 const s = StyleSheet.create({
-  contenido: { gap: 14 },
-  leyenda: {
-    color: tema.textoTenue,
-    fontFamily: tema.fuenteTexto,
-    fontSize: 11,
-    letterSpacing: 1.2,
-    marginVertical: 6,
-  },
-  tarjeta: {
-    backgroundColor: tema.superficie,
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 22,
-    gap: 10,
-  },
-  principal: { backgroundColor: tema.acento, borderColor: tema.acento, paddingVertical: 28 },
+  contenido: { gap: 12 },
+  leyenda: { color: tema.textoTenue, fontFamily: tema.fuenteSemi, fontSize: 13, marginBottom: 4 },
+  tarjeta: { backgroundColor: tema.superficie, borderRadius: 20, padding: 20, gap: 8 },
+  principal: { borderWidth: 1, borderColor: tema.bordeDestacado },
   fila: { flexDirection: "row", gap: 12, alignItems: "center" },
-  titulo: { color: tema.texto, fontFamily: tema.fuenteTitulo, fontSize: 32, flex: 1 },
-  flecha: { color: tema.texto, fontSize: 28 },
-  claro: { color: tema.sobreAcento },
+  titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20, flex: 1 },
   detalle: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
-  detalleClaro: { color: "#DADADA" },
 })

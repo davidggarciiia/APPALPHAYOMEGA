@@ -53,16 +53,16 @@ export function FechaSesion({
     <View
       style={{
         gap: 6,
-        padding: 14,
+        padding: 16,
         backgroundColor: tema.superficie,
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: tema.borde,
+        borderRadius: 20,
       }}
     >
-      <Text style={{ color: tema.texto }}>{fechaLegible(agenda.fechaActual)}</Text>
+      <Text style={{ color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 16 }}>
+        {fechaLegible(agenda.fechaActual)}
+      </Text>
       {agenda.fechaActual !== agenda.fechaOriginal && (
-        <Text style={{ color: tema.textoTenue }}>
+        <Text style={{ color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 }}>
           Día original: {fechaLegible(agenda.fechaOriginal)}
         </Text>
       )}
@@ -96,7 +96,7 @@ export function FechaSesion({
       </View>
       {eligiendo && (
         <View style={{ gap: 4 }}>
-          <Text style={{ color: tema.textoTenue }}>
+          <Text style={{ color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 }}>
             Puedes elegir cualquier día de esta semana. Tu entrenador verá el cambio.
           </Text>
           {Array.from({ length: 7 }, (_, n) =>
@@ -111,9 +111,16 @@ export function FechaSesion({
           ))}
         </View>
       )}
-      {total === 0 && <Text style={{ color: tema.textoTenue }}>Sin cambios de día.</Text>}
+      {total === 0 && (
+        <Text style={{ color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 }}>
+          Sin cambios de día.
+        </Text>
+      )}
       {historial.map((c) => (
-        <Text key={c.id} style={{ color: tema.textoTenue }}>
+        <Text
+          key={c.id}
+          style={{ color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 }}
+        >
           {fechaLegible(c.fechaAnterior)} → {fechaLegible(c.fechaNueva)}
         </Text>
       ))}

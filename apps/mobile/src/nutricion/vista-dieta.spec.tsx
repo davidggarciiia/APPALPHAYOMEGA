@@ -129,7 +129,8 @@ it("«Hoy» sigue el día de Madrid al pasar de domingo a lunes", async () => {
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
   expect(await screen.findByRole("header", { name: "Hoy · Descanso" })).toBeOnTheScreen()
-  expect(screen.getByText("2100 kcal")).toBeOnTheScreen()
+  expect(screen.getByText("2100")).toBeOnTheScreen()
+  expect(screen.getByText("kcal al día")).toBeOnTheScreen()
   expect(screen.queryByText(/Proteína/)).toBeNull()
   await domingo.unmount()
 
@@ -151,7 +152,7 @@ it("muestra alternativas, intercambio e indicaciones tal como se escribieron", a
       almacen={almacenEnMemoria()}
     />,
   )
-  expect(await screen.findByText("2300 kcal")).toBeOnTheScreen()
+  expect(await screen.findByText("2300")).toBeOnTheScreen()
   expect(screen.getByText("160 g")).toBeOnTheScreen()
   expect(screen.getByText("Opciones dulces")).toBeOnTheScreen()
   expect(screen.getByText("60 g")).toBeOnTheScreen()

@@ -1,10 +1,21 @@
 import { useEffect, useState } from "react"
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from "react-native"
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import type { Ejercicio } from "@alpha-omega/shared"
 
+import { ETIQUETA_DE_GRUPO } from "../catalogo-ejercicios/catalogo"
 import { FiguraDeEjercicio, type AccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
-import { BotonPrincipal, BotonSecundario } from "../componentes/formulario"
-import { tema } from "../tema"
+import { BotonSecundario } from "../componentes/formulario"
+import { Icono } from "../componentes/iconos"
+import { fondoDeMarca, tema } from "../tema"
 import type { AlmacenLocal } from "./almacen-local"
 import { guardarFicha, leerFicha } from "./ficha-local"
 
@@ -12,9 +23,10 @@ type Carga =
   { fase: "cargando" } | { fase: "lista"; ejercicio: Ejercicio; copia: boolean } | { fase: "error" }
 
 /**
- * La técnica de un ejercicio del entrenamiento: su animación, si tiene, y sus
- * instrucciones. Se abre encima del registro, así que cerrarla deja kg, series,
- * marcas y notas como estaban; nada de lo que falle aquí toca el entreno.
+ * La técnica de un ejercicio del entrenamiento, con el diseño de «Técnica del
+ * ejercicio»: su animación, si tiene, los grupos musculares y cómo se hace. Se
+ * abre encima del registro, así que cerrarla deja kg, series, marcas y notas
+ * como estaban; nada de lo que falle aquí toca el entreno.
  */
 export function VerTecnica({
   cuenta,
@@ -59,78 +71,111 @@ export function VerTecnica({
     }
   }, [leer, almacen, cuenta, ejercicioId, intento])
 
+  const grupos =
+    carga.fase === "lista"
+      ? [carga.ejercicio.grupoPrincipal, ...carga.ejercicio.gruposSecundarios]
+          .map((grupo) => ETIQUETA_DE_GRUPO[grupo])
+          .join(" · ")
+      : null
+
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={cerrar}>
-      <View style={estilos.velo}>
-        <View style={estilos.hoja}>
-          <ScrollView contentContainerStyle={estilos.contenido}>
+    <Modal visible animationType="slide" onRequestClose={cerrar}>
+      <SafeAreaView style={estilos.pantalla}>
+        <ScrollView contentContainerStyle={estilos.contenido}>
+          <Pressable
+            style={estilos.atras}
+            accessibilityRole="button"
+            accessibilityLabel="Volver al entrenamiento"
+            onPress={cerrar}
+          >
+            <Icono nombre="atras" color={tema.texto} />
+          </Pressable>
+          {carga.fase === "cargando" && (
+            <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando la técnica" />
+          )}
+          {carga.fase === "lista" &&
+            (carga.ejercicio.figura === null ? (
+              <View style={estilos.sinFigura}>
+                <Text style={estilos.nota}>Este ejercicio todavía no tiene animación.</Text>
+              </View>
+            ) : (
+              <FiguraDeEjercicio
+                acceso={acceso}
+                ejercicioId={carga.ejercicio.id}
+                figura={carga.ejercicio.figura}
+                nombre={carga.ejercicio.nombre}
+              />
+            ))}
+          <View style={estilos.bloque}>
             <Text accessibilityRole="header" style={estilos.titulo}>
               {carga.fase === "lista" ? carga.ejercicio.nombre : nombre}
             </Text>
-            {carga.fase === "cargando" && (
-              <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando la técnica" />
-            )}
-            {carga.fase === "error" && (
-              <>
-                <Text style={estilos.texto}>
-                  No hemos podido abrir la técnica. La primera vez necesitas conexión; después queda
-                  guardada en este móvil.
+            {grupos !== null && <Text style={estilos.grupos}>{grupos}</Text>}
+          </View>
+          {carga.fase === "error" && (
+            <>
+              <Text style={estilos.texto}>
+                No hemos podido abrir la técnica. La primera vez necesitas conexión; después queda
+                guardada en este móvil.
+              </Text>
+              <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
+            </>
+          )}
+          {carga.fase === "lista" && (
+            <>
+              {carga.copia && (
+                <Text style={estilos.aviso}>
+                  Sin conexión: mostramos la ficha guardada en este móvil.
                 </Text>
-                <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
-              </>
-            )}
-            {carga.fase === "lista" && (
-              <>
-                {carga.copia && (
-                  <Text style={estilos.nota}>
-                    Sin conexión: mostramos la ficha guardada en este móvil.
-                  </Text>
-                )}
-                {carga.ejercicio.figura === null ? (
-                  <Text style={estilos.nota}>Este ejercicio todavía no tiene animación.</Text>
-                ) : (
-                  <FiguraDeEjercicio
-                    acceso={acceso}
-                    ejercicioId={carga.ejercicio.id}
-                    figura={carga.ejercicio.figura}
-                    nombre={carga.ejercicio.nombre}
-                  />
-                )}
-                <Text style={estilos.etiqueta}>CÓMO SE HACE</Text>
+              )}
+              <View style={estilos.bloque}>
+                <Text style={estilos.subtitulo}>Cómo hacerlo</Text>
                 <Text style={estilos.texto}>{carga.ejercicio.instrucciones}</Text>
-              </>
-            )}
-            <BotonPrincipal texto="Volver al entrenamiento" onPress={cerrar} />
-          </ScrollView>
-        </View>
-      </View>
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   )
 }
 
 const estilos = StyleSheet.create({
-  velo: {
-    flex: 1,
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,.65)",
-    padding: 16,
-  },
-  hoja: {
-    backgroundColor: tema.superficie,
-    borderRadius: 18,
-    maxHeight: "95%",
+  pantalla: { flex: 1, ...fondoDeMarca },
+  contenido: {
+    padding: 20,
+    gap: 24,
     width: "100%",
-    maxWidth: 520,
+    maxWidth: 560,
     alignSelf: "center",
   },
-  contenido: { padding: 20, gap: 14 },
-  titulo: { color: tema.texto, fontSize: 28, fontFamily: tema.fuenteTitulo },
-  etiqueta: {
-    color: tema.textoSecundario,
-    fontFamily: tema.fuenteBoton,
-    fontSize: 11,
-    letterSpacing: 2,
+  atras: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: tema.superficie,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  sinFigura: {
+    minHeight: 160,
+    borderRadius: 20,
+    backgroundColor: tema.superficie,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  bloque: { gap: 8 },
+  titulo: {
+    color: tema.texto,
+    fontSize: 34,
+    lineHeight: 38,
+    fontFamily: tema.fuenteTitulo,
+    textTransform: "uppercase",
+  },
+  grupos: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15 },
+  subtitulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 22 },
-  nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 19 },
+  nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
+  aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 13, lineHeight: 19 },
 })

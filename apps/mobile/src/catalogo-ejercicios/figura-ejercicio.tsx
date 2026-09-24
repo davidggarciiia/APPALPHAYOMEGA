@@ -13,6 +13,7 @@ import { useVideoPlayer, VideoView, type VideoSource } from "expo-video"
 import { EjercicioSchema, type Figura } from "@alpha-omega/shared"
 
 import { BotonSecundario } from "../componentes/formulario"
+import { Icono } from "../componentes/iconos"
 import { direccionDeLaApi } from "../lib/direccion-api"
 import { useSesion } from "../sesion"
 import { tema } from "../tema"
@@ -288,46 +289,44 @@ function Reproductor({
         style={estilos.pausa}
         hitSlop={6}
       >
-        <Text style={estilos.textoPausa}>{pausadaPorPersona ? "▶  Reanudar" : "❚❚  Pausar"}</Text>
+        <Icono nombre={pausadaPorPersona ? "reproducir" : "pausa"} color={tema.texto} tamano={20} />
       </Pressable>
     </View>
   )
 }
 
 const estilos = StyleSheet.create({
-  marco: { gap: 8 },
-  // Los clips tienen fondo blanco: el lienzo también, para que no se vea el corte.
+  // El botón de pausa va encima del clip, arriba a la derecha, como en el diseño.
+  marco: { width: "100%", maxWidth: 420, alignSelf: "center" },
   lienzo: {
     aspectRatio: 1,
     width: "100%",
     maxWidth: 420,
     alignSelf: "center",
-    borderRadius: 14,
+    borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: tema.superficie,
-    borderWidth: 1,
-    borderColor: tema.borde,
+    backgroundColor: tema.hundido,
   },
   video: { flex: 1 },
   centro: { alignItems: "center", justifyContent: "center" },
   pausa: {
-    alignSelf: "center",
-    minHeight: 44,
-    paddingHorizontal: 18,
-    borderRadius: 999,
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: tema.bordeFuerte,
-    backgroundColor: tema.superficie,
+    backgroundColor: "rgba(14,13,11,.7)",
+    alignItems: "center",
     justifyContent: "center",
   },
-  textoPausa: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  aviso: {
-    gap: 8,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: tema.borde,
-    backgroundColor: tema.suave,
+  aviso: { gap: 8, padding: 16, borderRadius: 20, backgroundColor: tema.superficie },
+  textoAviso: {
+    color: tema.textoSecundario,
+    fontFamily: tema.fuenteTexto,
+    fontSize: 15,
+    lineHeight: 21,
   },
-  textoAviso: { color: tema.textoSecundario, fontSize: 14, lineHeight: 20 },
 })

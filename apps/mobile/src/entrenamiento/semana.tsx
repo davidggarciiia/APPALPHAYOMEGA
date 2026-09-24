@@ -89,7 +89,9 @@ export function SemanaEntrenamiento({
         </>
       )}
       {listado === null && error === "" && (
-        <Text style={{ color: tema.textoTenue }}>Cargando entrenamientos…</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
+          Cargando entrenamientos…
+        </Text>
       )}
       <AgendaSemanal
         key={semana}

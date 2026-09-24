@@ -6,7 +6,7 @@ import type { AlmacenLocal } from "../entrenamiento/almacen-local"
 import { hoyAgenda } from "../entrenamiento/fechas"
 import { ErrorDeRed } from "../lib/http"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
-import { tema } from "../tema"
+import { degradadoOro, tema } from "../tema"
 import type { ApiNutricion } from "./api"
 import { guardarCopia, leerCopia } from "./copia-local"
 import { DiaDieta } from "./dia-dieta"
@@ -44,7 +44,7 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
             accessibilityRole="tab"
             accessibilityState={{ selected: pestana === valor }}
             onPress={() => setPestana(valor)}
-            style={[s.pestana, pestana === valor && s.pestanaActiva]}
+            style={[s.pestana, pestana === valor && [s.pestanaActiva, degradadoOro]]}
           >
             <Text style={[s.textoPestana, pestana === valor && s.textoActivo]}>
               {valor === "hoy" ? "Hoy" : "Semana"}
@@ -65,8 +65,8 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
                 onPress={() => setDia(n)}
                 style={[s.dia, dia === n && s.diaActivo]}
               >
-                <Text style={[s.inicial, dia === n && s.textoActivo]}>{inicial}</Text>
-                <Text numberOfLines={1} style={[s.tipoDia, dia === n && s.textoActivoTenue]}>
+                <Text style={s.inicial}>{inicial}</Text>
+                <Text numberOfLines={1} style={s.tipoDia}>
                   {delDia?.nombre ?? "—"}
                 </Text>
               </Pressable>
@@ -79,15 +79,18 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
       </Text>
       {tipo && <DiaDieta tipo={tipo} />}
       {documento.indicaciones.length > 0 && (
-        <View style={s.indicaciones}>
-          {documento.indicaciones.map((indicacion, n) => (
-            <View key={`${indicacion.titulo}-${n}`} style={s.indicacion}>
-              <Text style={s.tituloIndicacion} accessibilityRole="header">
-                {indicacion.titulo}
-              </Text>
-              <Text style={s.textoIndicacion}>{indicacion.texto}</Text>
-            </View>
-          ))}
+        <View style={s.pautas}>
+          <Text style={s.titulo}>Pautas</Text>
+          <View style={s.indicaciones}>
+            {documento.indicaciones.map((indicacion, n) => (
+              <View key={`${indicacion.titulo}-${n}`} style={s.indicacion}>
+                <Text style={s.tituloIndicacion} accessibilityRole="header">
+                  {indicacion.titulo}
+                </Text>
+                <Text style={s.textoIndicacion}>{indicacion.texto}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       )}
     </View>
@@ -188,10 +191,10 @@ export function VistaDieta({
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 14 },
+  contenido: { gap: 20 },
   pestanas: {
     flexDirection: "row",
-    backgroundColor: tema.suave,
+    backgroundColor: tema.superficie,
     borderRadius: 14,
     padding: 4,
     gap: 4,
@@ -199,37 +202,28 @@ const s = StyleSheet.create({
   pestana: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 11,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  pestanaActiva: { backgroundColor: tema.texto },
-  textoPestana: { color: tema.textoSecundario, fontFamily: tema.fuenteBoton, fontSize: 15 },
-  textoActivo: { color: tema.sobreAcento },
-  textoActivoTenue: { color: tema.tenueSobreOscuro },
+  pestanaActiva: {},
+  textoPestana: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 15 },
+  textoActivo: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton },
   semana: { flexDirection: "row", gap: 4 },
   dia: {
     flex: 1,
-    minWidth: 40,
+    minWidth: 0,
     minHeight: 60,
-    borderRadius: 12,
-    backgroundColor: tema.superficie,
-    borderColor: tema.borde,
-    borderWidth: 1,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 2,
-    gap: 2,
+    gap: 4,
   },
-  diaActivo: { backgroundColor: tema.texto, borderColor: tema.texto },
+  diaActivo: { backgroundColor: tema.superficieAlta },
   inicial: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 16 },
   tipoDia: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 10 },
-  titulo: {
-    color: tema.texto,
-    fontFamily: tema.fuenteTitulo,
-    fontSize: 28,
-    textTransform: "uppercase",
-  },
+  titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
   nombre: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   vacio: {
@@ -239,26 +233,23 @@ const s = StyleSheet.create({
     textAlign: "center",
     padding: 24,
   },
-  sinRed: {
-    backgroundColor: tema.acentoSuave,
-    borderRadius: 14,
-    padding: 12,
-  },
-  textoSinRed: { color: tema.error, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  indicaciones: { gap: 10 },
+  sinRed: { backgroundColor: tema.acentoSuave, borderRadius: 14, padding: 12 },
+  textoSinRed: { color: tema.aviso, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  pautas: { gap: 12 },
+  indicaciones: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   indicacion: {
+    flexGrow: 1,
+    flexBasis: 160,
     backgroundColor: tema.superficie,
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
-    gap: 6,
+    borderRadius: 14,
+    padding: 14,
+    gap: 4,
   },
-  tituloIndicacion: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 16 },
+  tituloIndicacion: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 17 },
   textoIndicacion: {
-    color: tema.textoSecundario,
+    color: tema.textoTenue,
     fontFamily: tema.fuenteTexto,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 19,
   },
 })

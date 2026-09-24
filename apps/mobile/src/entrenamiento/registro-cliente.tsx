@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { randomUUID } from "expo-crypto"
-import { AppState, Modal, ScrollView, Text, View } from "react-native"
+import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
 import type { EjercicioPrescrito } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
@@ -15,16 +15,20 @@ import { VerTecnica } from "./ver-tecnica"
 import { useAccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
 import { useCatalogo } from "../catalogo-ejercicios/use-catalogo"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
-import { tema } from "../tema"
+import { Icono } from "../componentes/iconos"
+import { degradadoOro, tema } from "../tema"
 
 export function RegistroCliente({
   cuenta,
   id,
   api,
+  salir,
 }: {
   cuenta: string
   id: string
   api: ApiEntrenamiento
+  /** Volver a la semana. El borrador ya está guardado en el dispositivo. */
+  salir?: () => void
 }): React.JSX.Element {
   const [control, setControl] = useState<RegistroControl | null>(null)
   const [, repintar] = useState(0)
@@ -104,7 +108,7 @@ export function RegistroCliente({
             <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
           </>
         ) : (
-          <Text style={{ color: tema.texto }}>Abriendo entrenamiento…</Text>
+          <Text style={e.texto}>Abriendo entrenamiento…</Text>
         )}
       </View>
     )
@@ -119,11 +123,11 @@ export function RegistroCliente({
           <View>
             <AvisoDeError mensaje="La sesión se envió desde otro dispositivo. Conservamos aquí tu copia no enviada; el resultado del entrenador ya está cerrado." />
             {documento.respaldo.edicion.series.map((s, i) => (
-              <Text key={s.serieId} style={{ color: tema.texto }}>
+              <Text key={s.serieId} style={e.texto}>
                 Copia · serie {i + 1}: {s.peso || "—"} kg · {s.valor || "—"}
               </Text>
             ))}
-            <Text style={{ color: tema.texto }}>{documento.respaldo.edicion.notas}</Text>
+            <Text style={e.texto}>{documento.respaldo.edicion.notas}</Text>
             <BotonSecundario
               texto="Descartar esta copia no enviada"
               onPress={() => void accion(() => control.descartarCopia())}
@@ -176,11 +180,52 @@ export function RegistroCliente({
   }
   const hechas = documento.edicion.series.filter((s) => s.hecha).length
   return (
-    <View style={{ gap: 18 }}>
-      <Text style={{ color: tema.texto, fontSize: 36, fontFamily: tema.fuenteTitulo }}>
-        {documento.sesion.prescripcion.nombre}
-      </Text>
-      <Text accessibilityLiveRegion="polite" style={{ color: tema.textoTenue }}>
+    <View style={e.contenedor}>
+      <View style={e.cabecera}>
+        <View style={e.barra}>
+          {salir && (
+            <Pressable
+              style={e.atras}
+              accessibilityRole="button"
+              accessibilityLabel="Salir de la sesión"
+              onPress={salir}
+            >
+              <Icono nombre="atras" color={tema.texto} />
+            </Pressable>
+          )}
+          <View style={e.hueco} />
+          {!documento.envioPendiente && (
+            <Pressable
+              style={({ pressed }) => [e.terminar, pressed && e.pulsado]}
+              accessibilityRole="button"
+              accessibilityLabel="Terminar"
+              disabled={ocupado}
+              onPress={revisar}
+            >
+              <Text style={e.textoTerminar}>Terminar</Text>
+            </Pressable>
+          )}
+        </View>
+        <Text accessibilityRole="header" style={e.titulo}>
+          {documento.sesion.prescripcion.nombre}
+        </Text>
+        <View style={e.progresoTexto}>
+          <Text style={e.tenue}>
+            {hechas} de {documento.edicion.series.length} series
+          </Text>
+        </View>
+        <View
+          style={e.pista}
+          accessibilityRole="progressbar"
+          accessibilityLabel="Series hechas"
+          accessibilityValue={{ min: 0, max: documento.edicion.series.length, now: hechas }}
+        >
+          <View
+            style={[e.relleno, { width: `${(hechas / documento.edicion.series.length) * 100}%` }]}
+          />
+        </View>
+      </View>
+      <Text accessibilityLiveRegion="polite" style={e.tenue}>
         {control.errorLocal
           ? "No guardado en el dispositivo"
           : control.guardando
@@ -190,7 +235,7 @@ export function RegistroCliente({
               : "Borrador privado actualizado"}
       </Text>
       {control.sinRed && (
-        <Text style={{ color: tema.textoTenue }}>
+        <Text style={e.nota}>
           Conservas una copia local. El entrenador verá los resultados cuando confirmes el envío con
           conexión.
         </Text>
@@ -213,7 +258,7 @@ export function RegistroCliente({
       )}
       {documento.respaldo && (
         <View>
-          <Text style={{ color: tema.textoTenue }}>
+          <Text style={e.nota}>
             Tu copia anterior sigue guardada. Al recuperarla se aplican las series que aún conservan
             la misma unidad.
           </Text>
@@ -225,25 +270,12 @@ export function RegistroCliente({
           {documento.respaldo.edicion.series
             .filter((s) => s.valor || s.peso)
             .map((s, i) => (
-              <Text key={s.serieId} style={{ color: tema.textoTenue }}>
+              <Text key={s.serieId} style={e.nota}>
                 Copia · serie {i + 1}: {s.peso || "—"} kg · {s.valor || "—"}
               </Text>
             ))}
         </View>
       )}
-      <Text style={{ color: tema.texto }}>
-        {hechas} de {documento.edicion.series.length} series completadas
-      </Text>
-      <View style={{ height: 6, backgroundColor: tema.borde, borderRadius: 3 }}>
-        <View
-          style={{
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: tema.boton,
-            width: `${(hechas / documento.edicion.series.length) * 100}%`,
-          }}
-        />
-      </View>
       {documento.sesion.prescripcion.ejercicios.map((ejercicio) => (
         <TablaSeries
           key={ejercicio.id}
@@ -306,14 +338,14 @@ export function RegistroCliente({
           style={{
             flex: 1,
             justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,.65)",
+            backgroundColor: "rgba(6,5,4,.7)",
             padding: 24,
           }}
         >
           <View
             style={{
               backgroundColor: tema.superficie,
-              borderRadius: 18,
+              borderRadius: 20,
               maxHeight: "95%",
               width: "100%",
               maxWidth: 520,
@@ -321,13 +353,21 @@ export function RegistroCliente({
             }}
           >
             <ScrollView contentContainerStyle={{ padding: 24, gap: 14 }}>
-              <Text style={{ color: tema.texto, fontSize: 30, fontFamily: tema.fuenteTitulo }}>
+              <Text
+                style={{
+                  color: tema.texto,
+                  fontSize: 34,
+                  lineHeight: 38,
+                  fontFamily: tema.fuenteTitulo,
+                  textTransform: "uppercase",
+                }}
+              >
                 Enviar al entrenador
               </Text>
-              <Text style={{ color: tema.texto }}>
+              <Text style={e.texto}>
                 {hechas} series hechas · {documento.edicion.series.length - hechas} omitidas.
               </Text>
-              <Text style={{ color: tema.textoTenue }}>
+              <Text style={e.nota}>
                 Solo se enviarán los valores de las series marcadas. Después, el entrenamiento
                 quedará cerrado.
               </Text>
@@ -349,3 +389,40 @@ export function RegistroCliente({
     </View>
   )
 }
+
+const e = StyleSheet.create({
+  contenedor: { gap: 24 },
+  cabecera: { gap: 12 },
+  barra: { flexDirection: "row", alignItems: "center", gap: 12 },
+  hueco: { flex: 1 },
+  atras: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: tema.superficie,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  terminar: {
+    ...degradadoOro,
+    height: 44,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    justifyContent: "center",
+  },
+  pulsado: { opacity: 0.8 },
+  textoTerminar: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 15 },
+  titulo: {
+    color: tema.texto,
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 34,
+    lineHeight: 38,
+    textTransform: "uppercase",
+  },
+  progresoTexto: { flexDirection: "row", justifyContent: "flex-end" },
+  tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
+  texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
+  nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14, lineHeight: 20 },
+  pista: { height: 3, backgroundColor: tema.borde, borderRadius: 2, overflow: "hidden" },
+  relleno: { height: 3, ...degradadoOro },
+})

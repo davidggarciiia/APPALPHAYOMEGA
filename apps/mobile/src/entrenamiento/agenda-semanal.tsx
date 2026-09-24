@@ -1,11 +1,19 @@
 import { useState } from "react"
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import { Image, Pressable, StyleSheet, Text, View } from "react-native"
 import type { ListadoSesiones } from "@alpha-omega/shared"
 import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
 import { BotonSecundario } from "../componentes/formulario"
-import { tema } from "../tema"
+import { Icono } from "../componentes/iconos"
+import { degradadoExito, degradadoOro, degradadoSesion, tema } from "../tema"
 import entrenamiento from "../../assets/entrenamiento.webp"
 
+const DIAS = ["L", "M", "X", "J", "V", "S", "D"]
+
+/**
+ * La semana del cliente, con el diseño de «Inicio» de Design.html: la tarjeta
+ * «Hoy toca», la tira de siete días con sus marcas y la lista de sesiones.
+ * Todo lo que se muestra sale de la API: sin duraciones ni cifras inventadas.
+ */
 export function AgendaSemanal({
   semana,
   listado,
@@ -23,8 +31,9 @@ export function AgendaSemanal({
   const hoy = hoyAgenda()
   const sesiones = listado?.sesiones ?? []
   const visibles = dia === null ? sesiones : sesiones.filter((s) => s.agenda.fechaActual === dia)
+  const estaSemana = semana === lunesDeSemana(hoy)
   const sesionHoy =
-    resumenHoy && semana === lunesDeSemana(hoy)
+    resumenHoy && estaSemana
       ? sesiones.find((s) => s.agenda.fechaActual === hoy && s.enviadoEn === null)
       : undefined
   const grupos = resumenHoy
@@ -43,101 +52,128 @@ export function AgendaSemanal({
     : [{ titulo: "Entrenamientos", sesiones: visibles }]
   return (
     <View style={s.contenedor}>
-      {resumenHoy && semana === lunesDeSemana(hoy) && listado && (
+      {resumenHoy && estaSemana && listado && (
         <View style={s.destacado}>
-          {sesionHoy && <Image source={entrenamiento} style={s.imagen} accessible={false} />}
-          <Text style={s.leyendaClara}>HOY · {fechaLegible(hoy).toUpperCase()}</Text>
-          <Text style={s.tituloClaro}>
-            {sesionHoy?.nombre ??
-              (sesiones.some((s) => s.agenda.fechaActual === hoy)
-                ? "Trabajo completado"
-                : "Día de descanso")}
-          </Text>
-          <Text style={s.ayudaClara}>
-            {sesionHoy
-              ? "Tu sesión está preparada. Entrena a tu ritmo."
-              : "Consulta tu semana y organiza tus entrenamientos."}
-          </Text>
           {sesionHoy && (
-            <Pressable
-              style={s.accionClara}
-              accessibilityRole="button"
-              accessibilityLabel={`Empezar ${sesionHoy.nombre}`}
-              onPress={() => abrir(sesionHoy.agenda.id)}
-            >
-              <Text style={s.textoAccion}>Empezar entreno</Text>
-            </Pressable>
+            <View style={s.medio}>
+              <Image source={entrenamiento} style={s.imagen} accessible={false} />
+            </View>
           )}
-          {sesionHoy && sesionHoy.agenda.fechaActual !== sesionHoy.agenda.fechaOriginal && (
-            <Text style={s.secundario}>
-              Movido desde {fechaLegible(sesionHoy.agenda.fechaOriginal)}. Tu entrenador ve el
-              cambio.
+          <View style={s.cuerpo}>
+            <View style={s.bloque}>
+              <Text accessibilityRole="header" style={s.hoyToca}>
+                Hoy toca:
+              </Text>
+              <Text style={s.nombreHoy}>
+                {sesionHoy?.nombre ??
+                  (sesiones.some((s) => s.agenda.fechaActual === hoy)
+                    ? "Trabajo completado"
+                    : "Descanso")}
+              </Text>
+              <Text style={s.detalleHoy}>{fechaLegible(hoy)}</Text>
+              {sesionHoy && sesionHoy.agenda.fechaActual !== sesionHoy.agenda.fechaOriginal && (
+                <Text style={s.detalleHoy}>
+                  Movido desde {fechaLegible(sesionHoy.agenda.fechaOriginal)}. Tu entrenador ve el
+                  cambio.
+                </Text>
+              )}
+            </View>
+            {sesionHoy && (
+              <Pressable
+                style={({ pressed }) => [s.accion, pressed && s.pulsado]}
+                accessibilityRole="button"
+                accessibilityLabel={`Empezar ${sesionHoy.nombre}`}
+                onPress={() => abrir(sesionHoy.agenda.id)}
+              >
+                <Text style={s.textoAccion}>Empezar entreno</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
+      <View style={s.seccion}>
+        <View style={s.fila}>
+          <View style={s.titulos}>
+            <Text accessibilityRole="header" style={s.titulo}>
+              {resumenHoy && estaSemana ? "Esta semana" : "Semana"}
             </Text>
-          )}
+            <Text style={s.secundario}>
+              {fechaLegible(semana)} — {fechaLegible(sumarDias(semana, 6))}
+            </Text>
+          </View>
+          <Pressable
+            style={s.flecha}
+            accessibilityRole="button"
+            accessibilityLabel="Semana anterior"
+            onPress={() => cambiarSemana(-7)}
+          >
+            <Icono nombre="atras" color={tema.texto} tamano={20} />
+          </Pressable>
+          <Pressable
+            style={s.flecha}
+            accessibilityRole="button"
+            accessibilityLabel="Semana siguiente"
+            onPress={() => cambiarSemana(7)}
+          >
+            <Icono nombre="adelante" color={tema.texto} tamano={20} />
+          </Pressable>
         </View>
-      )}
-      <View style={s.fila}>
-        <View style={{ flex: 1 }}>
-          <Text accessibilityRole="header" style={s.titulo}>
-            {resumenHoy ? "Esta semana" : "Agenda semanal"}
-          </Text>
+        <View style={s.dias}>
+          {DIAS.map((nombre, n) => {
+            const fecha = sumarDias(semana, n)
+            const delDia = sesiones.filter((sesion) => sesion.agenda.fechaActual === fecha)
+            const seleccionado = dia === fecha
+            return (
+              <Pressable
+                key={fecha}
+                style={[s.dia, (fecha === hoy || seleccionado) && s.diaMarcado]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: seleccionado }}
+                accessibilityLabel={`${fechaLegible(fecha)} · ${delDia.length} sesiones`}
+                onPress={() => setDia(seleccionado ? null : fecha)}
+              >
+                <Text style={s.letra}>{nombre}</Text>
+                <Text
+                  style={[
+                    s.numero,
+                    fecha === hoy && s.numeroHoy,
+                    delDia.length === 0 && s.numeroLibre,
+                  ]}
+                >
+                  {Number(fecha.slice(-2))}
+                </Text>
+                <View style={s.marcas}>
+                  {delDia.slice(0, 2).map((sesion) => (
+                    <View
+                      key={sesion.agenda.id}
+                      style={[
+                        s.marca,
+                        sesion.enviadoEn === null ? degradadoSesion : degradadoExito,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </Pressable>
+            )
+          })}
+        </View>
+        <View style={s.leyenda}>
+          <View style={s.elementoLeyenda}>
+            <View style={[s.marca, degradadoSesion]} />
+            <Text style={s.secundario}>Pendiente</Text>
+          </View>
+          <View style={s.elementoLeyenda}>
+            <View style={[s.marca, degradadoExito]} />
+            <Text style={s.secundario}>Enviado</Text>
+          </View>
+        </View>
+        {listado && (
           <Text style={s.secundario}>
-            {fechaLegible(semana)} — {fechaLegible(sumarDias(semana, 6))}
+            {sesiones.filter((s) => s.enviadoEn !== null).length} de {listado.total} entrenamientos
+            enviados esta semana
           </Text>
-        </View>
-        <Pressable
-          style={s.flecha}
-          accessibilityRole="button"
-          accessibilityLabel="Semana anterior"
-          onPress={() => cambiarSemana(-7)}
-        >
-          <Text style={s.numero}>‹</Text>
-        </Pressable>
-        <Pressable
-          style={s.flecha}
-          accessibilityRole="button"
-          accessibilityLabel="Semana siguiente"
-          onPress={() => cambiarSemana(7)}
-        >
-          <Text style={s.numero}>›</Text>
-        </Pressable>
+        )}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.dias}>
-        {["L", "M", "X", "J", "V", "S", "D"].map((nombre, n) => {
-          const fecha = sumarDias(semana, n)
-          const delDia = sesiones.filter((sesion) => sesion.agenda.fechaActual === fecha)
-          const cantidad = delDia.length
-          const seleccionado = dia === fecha
-          // Como en la referencia: verde si todo está enviado, dorado si queda algo.
-          // La etiqueta accesible ya dice cuántas sesiones hay; el color no es la única pista.
-          const marca =
-            cantidad === 0
-              ? null
-              : delDia.every((sesion) => sesion.enviadoEn !== null)
-                ? s.marcaHecha
-                : s.marcaPendiente
-          return (
-            <Pressable
-              key={fecha}
-              style={[s.dia, fecha === hoy && s.hoy, seleccionado && s.seleccionado]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: seleccionado }}
-              accessibilityLabel={`${fechaLegible(fecha)} · ${cantidad} sesiones`}
-              onPress={() => setDia(seleccionado ? null : fecha)}
-            >
-              <Text style={[s.diaNombre, seleccionado && s.claroTenue]}>{nombre}</Text>
-              <Text style={[s.numero, seleccionado && s.claro]}>{Number(fecha.slice(-2))}</Text>
-              <View style={[s.marca, marca]} />
-            </Pressable>
-          )
-        })}
-      </ScrollView>
-      {listado && (
-        <Text style={s.secundario}>
-          {sesiones.filter((s) => s.enviadoEn !== null).length} de {listado.total} entrenamientos
-          enviados esta semana
-        </Text>
-      )}
       {dia !== null && <BotonSecundario texto="Ver toda la semana" onPress={() => setDia(null)} />}
       {listado?.total === 0 && (
         <Text style={s.vacio}>No hay entrenamientos asignados esta semana.</Text>
@@ -148,93 +184,101 @@ export function AgendaSemanal({
       {grupos
         .filter((g) => g.sesiones.length > 0)
         .map((grupo) => (
-          <View key={grupo.titulo} style={s.grupo}>
+          <View key={grupo.titulo} style={s.seccion}>
             <Text accessibilityRole="header" style={s.titulo}>
               {grupo.titulo}
             </Text>
-            {grupo.sesiones.map((sesion) => (
-              <Pressable
-                key={sesion.agenda.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Abrir ${sesion.nombre}, ${fechaLegible(sesion.agenda.fechaActual)}, ${sesion.enviadoEn === null ? "pendiente" : "enviado"}`}
-                onPress={() => abrir(sesion.agenda.id)}
-                style={({ pressed }) => [s.tarjeta, pressed && { opacity: 0.7 }]}
-              >
-                <View style={s.informacion}>
-                  <Text style={s.nombre}>{sesion.nombre}</Text>
-                  <Text style={s.fecha}>
-                    {fechaLegible(sesion.agenda.fechaActual)} ·{" "}
-                    {sesion.enviadoEn === null ? "Pendiente" : "Enviado"}
-                  </Text>
-                  {sesion.agenda.fechaActual !== sesion.agenda.fechaOriginal && (
-                    <Text style={s.secundario}>
-                      Movido desde {fechaLegible(sesion.agenda.fechaOriginal)}
-                    </Text>
-                  )}
-                </View>
-                <Text style={[s.flechaTarjeta, sesion.enviadoEn !== null && s.enviado]}>
-                  {sesion.enviadoEn === null ? "›" : "✓"}
-                </Text>
-              </Pressable>
-            ))}
+            <View style={s.lista}>
+              {grupo.sesiones.map((sesion, n) => {
+                const enviada = sesion.enviadoEn !== null
+                return (
+                  <Pressable
+                    key={sesion.agenda.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Abrir ${sesion.nombre}, ${fechaLegible(sesion.agenda.fechaActual)}, ${enviada ? "enviado" : "pendiente"}`}
+                    onPress={() => abrir(sesion.agenda.id)}
+                    style={({ pressed }) => [
+                      s.renglon,
+                      n < grupo.sesiones.length - 1 && s.separado,
+                      pressed && s.pulsado,
+                    ]}
+                  >
+                    <View style={s.informacion}>
+                      <Text style={s.nombre}>{sesion.nombre}</Text>
+                      <Text style={s.secundario}>
+                        {fechaLegible(sesion.agenda.fechaActual)} ·{" "}
+                        {enviada ? "Enviado" : "Pendiente"}
+                      </Text>
+                      {sesion.agenda.fechaActual !== sesion.agenda.fechaOriginal && (
+                        <Text style={s.movido}>
+                          Movido desde {fechaLegible(sesion.agenda.fechaOriginal)}
+                        </Text>
+                      )}
+                    </View>
+                    {enviada ? (
+                      <View style={[s.hecho, degradadoExito]}>
+                        <Icono nombre="hecho" color={tema.sobreExito} tamano={16} />
+                      </View>
+                    ) : (
+                      <Icono nombre="adelante" color={tema.textoTenue} tamano={20} />
+                    )}
+                  </Pressable>
+                )
+              })}
+            </View>
           </View>
         ))}
     </View>
   )
 }
 const s = StyleSheet.create({
-  contenedor: { gap: 14 },
-  fila: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
-  titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
-  grupo: { gap: 10 },
+  contenedor: { gap: 32 },
+  seccion: { gap: 12 },
+  fila: { flexDirection: "row", alignItems: "center", gap: 8 },
+  titulos: { flex: 1, gap: 2 },
+  titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
   secundario: { color: tema.textoTenue, fontSize: 13, fontFamily: tema.fuenteTexto },
+  movido: { color: tema.aviso, fontSize: 13, fontFamily: tema.fuenteTexto },
   flecha: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: 12,
     backgroundColor: tema.superficie,
-    borderWidth: 1,
-    borderColor: tema.borde,
     alignItems: "center",
     justifyContent: "center",
   },
-  dias: { flexDirection: "row", flexGrow: 1, gap: 4 },
+  dias: { flexDirection: "row", gap: 4 },
   dia: {
     flex: 1,
-    minHeight: 80,
-    minWidth: 44,
-    backgroundColor: tema.superficie,
+    minWidth: 0,
+    minHeight: 44,
     borderRadius: 14,
-    borderColor: tema.borde,
-    borderWidth: 1,
+    alignItems: "center",
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  diaMarcado: { backgroundColor: tema.superficieAlta },
+  letra: { fontSize: 13, color: tema.textoTenue, fontFamily: tema.fuenteTexto },
+  numero: { fontSize: 16, color: tema.texto, fontFamily: tema.fuenteSemi },
+  numeroHoy: { fontFamily: tema.fuenteBoton },
+  numeroLibre: { color: tema.textoTenue },
+  marcas: { height: 12, flexDirection: "row", gap: 3 },
+  marca: { width: 12, height: 12, borderRadius: 6 },
+  leyenda: { flexDirection: "row", gap: 20 },
+  elementoLeyenda: { flexDirection: "row", alignItems: "center", gap: 8 },
+  lista: { backgroundColor: tema.superficie, borderRadius: 20, paddingHorizontal: 20 },
+  renglon: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 },
+  separado: { borderBottomWidth: 1, borderBottomColor: tema.borde },
+  informacion: { flex: 1, gap: 4 },
+  nombre: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 16 },
+  hecho: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
   },
-  hoy: { borderColor: tema.texto },
-  seleccionado: { backgroundColor: tema.texto, borderColor: tema.texto },
-  diaNombre: { fontSize: 11, color: tema.textoTenue, fontFamily: tema.fuenteBoton },
-  numero: { fontSize: 18, color: tema.texto, fontFamily: tema.fuenteBoton },
-  marca: { width: 22, height: 4, borderRadius: 2 },
-  marcaHecha: { backgroundColor: tema.exito },
-  marcaPendiente: { backgroundColor: tema.boton },
-  claro: { color: tema.sobreAcento },
-  claroTenue: { color: tema.tenueSobreOscuro },
-  tarjeta: {
-    backgroundColor: tema.superficie,
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-    gap: 10,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  informacion: { flex: 1, gap: 5 },
-  fecha: { color: tema.textoTenue, fontSize: 13, fontFamily: tema.fuenteTexto },
-  nombre: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
-  flechaTarjeta: { color: tema.textoTenue, fontSize: 24 },
-  enviado: { color: tema.exito },
   vacio: {
     color: tema.textoTenue,
     fontFamily: tema.fuenteTexto,
@@ -243,54 +287,34 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   destacado: {
-    borderRadius: 22,
+    borderRadius: 20,
     backgroundColor: tema.superficie,
     borderWidth: 1,
-    borderColor: tema.borde,
-    padding: 20,
-    gap: 12,
+    borderColor: tema.bordeDestacado,
+    padding: 12,
+    gap: 20,
   },
-  imagen: {
-    width: "100%",
-    aspectRatio: 2.2,
-    minHeight: 130,
-    maxHeight: 280,
-    borderRadius: 14,
-    resizeMode: "cover",
-  },
-  leyendaClara: {
+  medio: { height: 184, borderRadius: 14, backgroundColor: tema.hundido, overflow: "hidden" },
+  imagen: { width: "100%", height: "100%", resizeMode: "cover" },
+  cuerpo: { paddingHorizontal: 8, paddingBottom: 8, gap: 20 },
+  bloque: { gap: 6 },
+  hoyToca: {
     color: tema.acento,
-    fontSize: 12,
-    letterSpacing: 2.4,
-    textTransform: "uppercase",
-    fontFamily: tema.fuenteBoton,
-  },
-  tituloClaro: {
-    color: tema.texto,
-    fontSize: 38,
-    lineHeight: 40,
     fontFamily: tema.fuenteTitulo,
+    fontSize: 48,
+    lineHeight: 52,
     textTransform: "uppercase",
   },
-  ayudaClara: {
-    color: tema.textoTenue,
-    fontFamily: tema.fuenteTexto,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  accionClara: {
-    minHeight: 56,
+  nombreHoy: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 44, lineHeight: 50 },
+  detalleHoy: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 16 },
+  accion: {
+    ...degradadoOro,
+    minHeight: 52,
     borderRadius: 14,
-    backgroundColor: tema.boton,
     alignItems: "center",
     justifyContent: "center",
     padding: 12,
   },
-  // 19 px en negrita cuenta como texto grande (WCAG): el blanco sobre el dorado
-  // del botón supera 3:1, igual que en BotonPrincipal.
-  textoAccion: {
-    color: tema.sobreAcento,
-    fontFamily: tema.fuenteBoton,
-    fontSize: 19,
-  },
+  pulsado: { opacity: 0.8 },
+  textoAccion: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 16 },
 })
