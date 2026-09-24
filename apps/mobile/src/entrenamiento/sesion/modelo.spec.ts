@@ -113,6 +113,29 @@ describe("Lógica de la sesión en curso", () => {
     expect(seriesDeTrabajo(prescripcion)).toEqual([u(21), u(22), u(31), u(41)])
   })
 
+  it("el progreso cuenta la parte principal; el circuito sigue marcando la serie en curso", () => {
+    const conCircuito = PrescripcionSchema.parse({
+      ...prescripcion,
+      circuito: { vueltas: 2 },
+      ejercicios: [
+        ...prescripcion.ejercicios,
+        {
+          id: u(5),
+          ejercicioId: u(105),
+          nombre: "Tijeras",
+          indicaciones: null,
+          seccion: "circuito",
+          series: [{ id: u(51), tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 20 }],
+        },
+      ],
+    })
+    expect(seriesDeTrabajo(conCircuito)).toEqual([u(21), u(22), u(31), u(41)])
+    const todoPrincipal = Object.fromEntries(
+      [u(21), u(22), u(31), u(41)].map((id) => [id, { hecha: true }]),
+    )
+    expect(serieEnCurso(conCircuito, edicion(todoPrincipal))).toBe(u(51))
+  })
+
   it("la serie en curso es la primera de trabajo sin hacer", () => {
     expect(serieEnCurso(prescripcion, edicion({}))).toBe(u(21))
     expect(serieEnCurso(prescripcion, edicion({ [u(21)]: { hecha: true } }))).toBe(u(22))

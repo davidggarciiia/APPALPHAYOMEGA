@@ -15,6 +15,11 @@ const RIRS = [0, 1, 2, 3, 4, 5].map((valor) => ({
   accesible: valor === 5 ? "5 o más" : String(valor),
 }))
 
+/** «67,5»: el peso como se escribe en español. */
+function decimal(valor: number): string {
+  return String(valor).replace(".", ",")
+}
+
 function objetivo(serie: SeriePrescrita): number {
   return serie.tipoMedicion === "tiempo" ? serie.segundos : serie.repeticiones
 }
@@ -23,7 +28,8 @@ function objetivo(serie: SeriePrescrita): number {
 function anteriorLegible(valores: ValoresEjecutados): string {
   const cantidad =
     valores.tipoMedicion === "tiempo" ? `${valores.segundos} s` : `${valores.repeticiones}`
-  return valores.pesoKg === null ? cantidad : `${kg(valores.pesoKg)} × ${cantidad}`
+  if (valores.pesoKg !== null) return `${kg(valores.pesoKg)} × ${cantidad}`
+  return valores.tipoMedicion === "tiempo" ? cantidad : `${cantidad} reps`
 }
 
 /** Un ejercicio de la sesión en curso, con el diseño de «Sesión en curso». */
@@ -124,7 +130,7 @@ export function TablaSeries({
                 editable={!bloqueado}
                 value={real.peso}
                 onChangeText={(peso) => cambiar(prescrita.id, { peso })}
-                placeholder={prescrita.pesoKg === null ? "—" : String(prescrita.pesoKg)}
+                placeholder={prescrita.pesoKg === null ? "—" : decimal(prescrita.pesoKg)}
                 placeholderTextColor={tema.marcador}
                 selectionColor={tema.acento}
                 keyboardType="decimal-pad"
@@ -148,7 +154,13 @@ export function TablaSeries({
                 style={[s.rir, s.campo, s.celdaRir, fueraDeObjetivo && s.rirFuera]}
                 accessibilityLabel={`RIR, serie ${n + 1}: ${rir === null ? "sin anotar" : rir === 5 ? "5 o más" : rir}${fueraDeObjetivo ? ", menos del objetivo" : ""}`}
               >
-                <Text style={[s.textoRir, fueraDeObjetivo && s.textoRirFuera]}>
+                <Text
+                  style={[
+                    s.textoRir,
+                    rir === null && s.textoRirObjetivo,
+                    fueraDeObjetivo && s.textoRirFuera,
+                  ]}
+                >
                   {rir === null ? (rirObjetivo ?? "—") : rir === 5 ? "5+" : rir}
                 </Text>
               </View>
@@ -167,7 +179,7 @@ export function TablaSeries({
                           // La sugerencia del entrenador vale si no se escribió otra cosa.
                           ...(real.valor.trim() === "" && { valor: String(objetivo(prescrita)) }),
                           ...(real.peso.trim() === "" &&
-                            prescrita.pesoKg !== null && { peso: String(prescrita.pesoKg) }),
+                            prescrita.pesoKg !== null && { peso: decimal(prescrita.pesoKg) }),
                         },
                   )
                 }
@@ -256,6 +268,7 @@ const s = StyleSheet.create({
     borderColor: tema.aviso,
     backgroundColor: tema.acentoSuave,
   },
+  textoRirObjetivo: { color: tema.marcador },
   textoRirFuera: { color: tema.aviso },
   notaRir: {
     fontFamily: tema.fuenteTexto,

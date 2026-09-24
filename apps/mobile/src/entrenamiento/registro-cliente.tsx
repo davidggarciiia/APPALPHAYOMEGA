@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { randomUUID } from "expo-crypto"
-import { AppState, StyleSheet, Text, View } from "react-native"
+import { AppState, Image, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
 import type { Checkin, Ejercicio, EjercicioPrescrito, ValoresEjecutados } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
@@ -30,6 +30,7 @@ import { FiguraDeEjercicio, useAccesoAFiguras } from "../catalogo-ejercicios/fig
 import { useCatalogo } from "../catalogo-ejercicios/use-catalogo"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { tema } from "../tema"
+import fotoDeEntrenamiento from "../../assets/entrenamiento.webp"
 
 type Serie = EdicionRegistro["series"][number]
 type Fase = "sesion" | "molestia" | "cierre"
@@ -283,7 +284,8 @@ export function RegistroCliente({
             String(
               prescrita.tipoMedicion === "tiempo" ? prescrita.segundos : prescrita.repeticiones,
             ),
-          peso: s.peso || (prescrita.pesoKg === null ? "" : String(prescrita.pesoKg)),
+          peso:
+            s.peso || (prescrita.pesoKg === null ? "" : String(prescrita.pesoKg).replace(".", ",")),
         }
       }),
     })
@@ -378,15 +380,12 @@ export function RegistroCliente({
         salir={salir && (() => setDialogo("salir"))}
         terminar={documento.envioPendiente ? undefined : terminar}
       />
-      <Text accessibilityLiveRegion="polite" style={e.tenue}>
-        {control.errorLocal
-          ? "No guardado en el dispositivo"
-          : control.guardando
-            ? "Guardando en el dispositivo…"
-            : documento.secuencia > documento.sincronizada
-              ? "Guardado en este dispositivo · pendiente de sincronizar"
-              : "Borrador privado actualizado"}
-      </Text>
+      {/* El diseño no enseña el guardado: solo se avisa cuando algo no va bien. */}
+      {control.errorLocal && (
+        <Text accessibilityLiveRegion="polite" style={e.tenue}>
+          No guardado en el dispositivo
+        </Text>
+      )}
       {control.sinRed && (
         <Text style={e.nota}>
           Conservas una copia local. El entrenador verá los resultados cuando confirmes el envío con
@@ -433,10 +432,11 @@ export function RegistroCliente({
               alto={184}
             />
           ) : (
-            <View style={e.sinFigura}>
-              <Text style={e.nombreActual}>{ejercicioActual.nombre}</Text>
-            </View>
+            <Image source={fotoDeEntrenamiento} style={e.foto} accessible={false} />
           )}
+          <Text style={e.nombreActual} numberOfLines={1}>
+            {ejercicioActual.nombre}
+          </Text>
           <View style={e.verTecnica}>
             <Enlace
               texto="Ver técnica"
@@ -555,9 +555,17 @@ const e = StyleSheet.create({
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
   nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14, lineHeight: 20 },
-  medio: { borderRadius: 20, overflow: "hidden", backgroundColor: tema.superficie },
-  sinFigura: { height: 120, alignItems: "center", justifyContent: "center", padding: 16 },
-  nombreActual: { color: tema.textoSecundario, fontFamily: tema.fuenteSemi, fontSize: 15 },
-  verTecnica: { position: "absolute", right: 14, bottom: 4 },
+  medio: { height: 184, borderRadius: 20, overflow: "hidden", backgroundColor: tema.hundido },
+  foto: { width: "100%", height: "100%", resizeMode: "cover" },
+  nombreActual: {
+    position: "absolute",
+    left: 14,
+    right: 120,
+    bottom: 14,
+    color: tema.textoSecundario,
+    fontFamily: tema.fuenteTexto,
+    fontSize: 13,
+  },
+  verTecnica: { position: "absolute", right: 14, bottom: 2 },
   acciones: { flexDirection: "row", gap: 24 },
 })

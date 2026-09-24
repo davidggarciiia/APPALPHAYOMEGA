@@ -80,19 +80,25 @@ export function porSecciones(prescripcion: Prescripcion): Seccion[] {
 }
 
 /** Las series que cuentan en «9 de 20 series»: las de la parte principal y el circuito. */
-export function seriesDeTrabajo(prescripcion: Prescripcion): string[] {
+function seriesDe(prescripcion: Prescripcion, seccion: SeccionDeSesion): string[] {
   return prescripcion.ejercicios
-    .filter((e) => {
-      const seccion = e.seccion ?? "principal"
-      return seccion === "principal" || seccion === "circuito"
-    })
+    .filter((e) => (e.seccion ?? "principal") === seccion)
     .flatMap((e) => e.series.map((s) => s.id))
+}
+
+/** Las series que cuenta el progreso («9 de 20 series»): las de la parte principal. */
+export function seriesDeTrabajo(prescripcion: Prescripcion): string[] {
+  return seriesDe(prescripcion, "principal")
 }
 
 /** La primera serie de trabajo sin hacer: la que se resalta como «en curso». */
 export function serieEnCurso(prescripcion: Prescripcion, edicion: EdicionRegistro): string | null {
   const hechas = new Set(edicion.series.filter((s) => s.hecha).map((s) => s.serieId))
-  return seriesDeTrabajo(prescripcion).find((id) => !hechas.has(id)) ?? null
+  return (
+    [...seriesDeTrabajo(prescripcion), ...seriesDe(prescripcion, "circuito")].find(
+      (id) => !hechas.has(id),
+    ) ?? null
+  )
 }
 
 export type ProximaVez = {

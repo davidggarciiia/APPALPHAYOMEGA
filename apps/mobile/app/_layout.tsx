@@ -2,7 +2,7 @@ import anton from "../assets/fonts/Anton-Regular.ttf"
 import archivo from "../assets/fonts/Archivo-Regular.ttf"
 import archivoSemi from "../assets/fonts/Archivo-SemiBold.ttf"
 import archivoBold from "../assets/fonts/Archivo-Bold.ttf"
-import { Stack, useRouter, useSegments } from "expo-router"
+import { DarkTheme, Stack, ThemeProvider, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useFonts } from "expo-font"
 import { useEffect } from "react"
@@ -79,15 +79,33 @@ function Enrutador(): React.JSX.Element {
   }
 
   return (
-    <Armazon>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: "transparent" },
-        }}
-      />
-    </Armazon>
+    <ThemeProvider value={TEMA_DE_NAVEGACION}>
+      <Armazon>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
+      </Armazon>
+    </ThemeProvider>
   )
+}
+
+/**
+ * El tema claro por defecto de la navegación pinta cada pantalla apilada de gris
+ * claro (rgb 242) por encima del fondo de marca: el tema oscuro, transparente.
+ */
+const TEMA_DE_NAVEGACION = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: "transparent",
+    card: tema.cabecera,
+    text: tema.texto,
+    primary: tema.acento,
+    border: tema.borde,
+  },
 }
 
 /** Todo el diseño es oscuro: la barra de estado va siempre en claro. */

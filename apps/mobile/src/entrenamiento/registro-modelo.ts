@@ -43,7 +43,7 @@ export function desdePrescripcion(
         const valor = real?.tipoMedicion === "tiempo" ? real.segundos : real?.repeticiones
         return {
           serieId: s.id,
-          peso: real?.pesoKg?.toString() ?? "",
+          peso: real?.pesoKg?.toString().replace(".", ",") ?? "",
           valor: valor?.toString() ?? "",
           hecha: real?.hecha ?? false,
           // Solo si se anotó: las copias y registros anteriores no llevan RIR.
