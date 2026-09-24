@@ -55,3 +55,16 @@
 - `npx prisma migrate status`: 22 migraciones; base `alpha_omega` al día.
 - `git diff --check`: sin errores.
 - API integrada en `http://localhost:3000/salud` y web en `http://localhost:8181/login`: ambas responden 200. La sesión del navegador caducó; falta entrar de nuevo para revisar las pantallas autenticadas.
+
+## Primera revisión incremental · 24-09-2026
+
+- [x] **R01 · Copia de entrenamiento compatible.** Si cambia el tipo de carga, recuperar una copia anterior deja pendientes las series cuya carga ya no admite la pauta. El respaldo conserva la ejecución original. Dos regresiones cubren ambos sentidos del cambio y verifican que el registro recuperado sea válido para enviar. `registro-control.spec.ts`: 14 pruebas pasan. Commit `7432a28`.
+- [x] **R02 · Guardado del editor de seguimiento.** Los controles y campos se bloquean mientras se guarda; una guarda síncrona evita peticiones duplicadas. Un error conserva el formulario y permite reintentar. Dos pruebas comprueban respuesta demorada y fallo de guardado. Commit `4a7bed5`.
+- [x] **R03 · Inicio según la pauta.** Los accesos de peso, pasos y sueño respetan indicadores visibles, orden y frecuencia diaria/semanal. Si no corresponde ninguno se informa en pantalla. El diálogo evita perder una edición durante el envío. Evidencia: regresiones de configuración, día semanal, estado vacío y respuesta demorada en `hoy-inicio.spec.tsx`.
+- [x] **R04 · Registro de suplementos.** Inicio y Nutrición esperan a cargar las tomas del día antes de modificarlas y bloquean las pulsaciones mientras guardan. Una toma se marca solo tras confirmación del servidor; un error permite reintentar. Evidencia: regresiones con lecturas demoradas, pulsaciones rápidas, confirmación y fallo de red en ambas pantallas. Pruebas focales de R03/R04: 22/22. Commit `806acd8`.
+
+Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura cuando esté pautada; revisar la corrección de RIR de una serie ya marcada. Son puntos por revisar, no funcionalidades dadas por verificadas.
+
+**Limitación visual de esta pasada:** el usuario indica que ha entrado en la pestaña de Codex, pero la pestaña accesible a las herramientas sigue mostrando `/login` y redirige allí al abrir Inicio. No se atribuye al usuario ni se da por completada la revisión visual autenticada. Las pruebas en móvil físico y con tres personas siguen pendientes.
+
+**Verificación integrada de esta pasada:** `npm test --workspace apps/mobile -- --runInBand`: 51 suites / 282 pruebas correctas; `npm run typecheck` y `npm run lint`: correctos. Revisión independiente de recuperación y editor sin hallazgos adicionales reproducibles. API `/salud` y web `:8181/login` responden 200. No hay cambios en API, contratos ni migraciones en esta pasada; no se repiten las pruebas HTTP ni se modifican registros de la base principal.

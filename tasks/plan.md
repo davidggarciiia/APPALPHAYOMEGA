@@ -46,3 +46,7 @@ Nutrición y seguimiento son independientes del flujo de entrenamiento una vez c
 ## Verificación final
 
 Desde la raíz: `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e`, `npm run build --workspace apps/api`. Se verifican prescripciones y copias antiguas; permisos; omisión/RIR; pausa/reanudación; reintentos y conflictos de envío; cambios de día; novedades; dos formas de comida; frecuencia y objetivos de seguimiento. En web y móvil se revisan foco, teclado, coma decimal y controles táctiles. Tres personas intentan sin explicación: continuar, registrar serie, mover sesión, registrar comida y encontrar respuesta del entrenador.
+
+## Revisión incremental posterior
+
+David solicita continuar revisando y corrigiendo poco a poco. La primera pasada se limita a cuatro fallos reproducibles: recuperación de series cuando cambia el tipo de carga, registros de Inicio que ignoran la configuración profesional, escrituras simultáneas de suplementos y edición del seguimiento durante un guardado. Cada corrección se reproduce con una prueba, conserva los datos existentes y se entrega en cambios pequeños. Se mantienen el diseño y las decisiones aprobadas. Los recorridos que todavía no se hayan comprobado en navegador autenticado o móvil físico permanecen pendientes en la lista de tareas.
