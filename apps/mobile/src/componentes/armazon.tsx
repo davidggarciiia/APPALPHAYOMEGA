@@ -259,7 +259,7 @@ const s = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
   },
-  cabeceraEscritorio: { maxWidth: 1100, paddingHorizontal: 48, paddingTop: 36 },
+  cabeceraEscritorio: { paddingTop: 36 },
   fila: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   titulos: { flex: 1, gap: 6 },
   emblema: { width: 31, height: 48, resizeMode: "contain" },
