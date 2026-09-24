@@ -16,6 +16,7 @@ export const ErrorDeApiSchema = z.discriminatedUnion("statusCode", [
       "revision_obsoleta",
       "operacion_incompatible",
       "estado_incompatible",
+      "consentimiento_pendiente",
     ]),
     message: MensajeSchema,
   }),

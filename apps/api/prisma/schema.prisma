@@ -100,6 +100,7 @@ model Usuario {
   fotosAportadas           MedioFoto[]                @relation("FotosAutor")
   solicitudesFotos         SolicitudFotos[]           @relation("SolicitudesFotosCliente")
   solicitudesFotosCreadas  SolicitudFotos[]           @relation("SolicitudesFotosAutor")
+  consentimientosSalud     ConsentimientoSalud[]
 
   @@map("usuarios")
 }
@@ -876,4 +877,18 @@ model SolicitudFotos {
   @@unique([autorId, operacionId])
   @@index([clienteId, creadaEn])
   @@map("solicitudes_fotos")
+}
+
+/// Consentimiento explícito del cliente para tratar sus datos de salud (RGPD,
+/// art. 9). Una fila por versión aceptada del texto; retirarlo no borra la fila.
+model ConsentimientoSalud {
+  id         String    @id @default(uuid())
+  usuarioId  String
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  version    String    @db.VarChar(40)
+  aceptadoEn DateTime  @default(now())
+  retiradoEn DateTime?
+
+  @@unique([usuarioId, version])
+  @@map("consentimientos_salud")
 }
