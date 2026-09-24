@@ -77,3 +77,39 @@ publicar, ver como cliente, exportar PDF y guardar como plantilla.
 - Commit por tramo, con typecheck, lint y pruebas en verde.
 - Cálculos (doble progresión, medias, gasto energético) en funciones puras
   probadas; los números que escribe el profesional se muestran tal cual.
+
+## Estado (24-09)
+
+Los ocho tramos están hechos, cada uno con su commit, typecheck, lint y pruebas
+en verde, y verificados en la web con la cuenta de prueba (el profesional, con
+una ruta temporal de vista previa retirada antes del commit).
+
+| Tramo | Commits                         | Migraciones             |
+| ----- | ------------------------------- | ----------------------- |
+| D1    | `6eb86fe`                       | `tecnica_de_ejercicio`  |
+| D2–D3 | `9b9990f`, `f22a138`, `e699921` | `molestias`             |
+| D4    | `02abfd5`, `14479d1`            | `bloque_del_plan`       |
+| D5    | `f885758`, `b63b883`            | `seguimiento`           |
+| D6    | `c796770`, `ec8f049`, `124d5b7` | `registro_de_comidas`   |
+| D7    | `537d45d`, `932a842`, `a9d2d61` | `comentarios_de_sesion` |
+| D8    | `d05d989`                       | —                       |
+
+Todas las migraciones son aditivas y tienen su reversión en
+`apps/api/prisma/rollback/`. `27e3e21` acota una prueba de Codex que contaba los
+planes de toda la base.
+
+**Lo que no se ha hecho del diseño y por qué:**
+
+- **Mensajes** (botón «Mensaje» y «Mensajes 2»): la app no tiene mensajería. Los
+  comentarios por sesión y las respuestas a molestias cubren la conversación
+  sobre el entrenamiento.
+- **«Proponer variante»** de una molestia: el entrenador responde con texto; el
+  cambio de ejercicio se hace en el constructor o ajustando la sesión.
+- **Calorías y proteína medias** de la ficha del nutricionista: la app no pesa
+  alimentos. En su lugar se enseñan comidas hechas y días completos.
+- **Exportar PDF** solo en la web (imprime o guarda como PDF desde el
+  navegador); en el móvil el botón no aparece.
+- **Animación del press banca**: el paquete gratuito de Vital no la trae; sin
+  animación se enseña la foto del entrenamiento.
+- **Pantalla «Salud»** del entrenador: no hay cuestionario de salud; enseña
+  edad, altura, peso, grasa, teléfono y molestias por zona.

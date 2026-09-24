@@ -473,17 +473,20 @@ a la referencia v2 que seguía F08. El archivo no entra en el repositorio.
 | `0871294` | Archivo en los textos que salían con la fuente del sistema; opciones elegidas en dorado                                                                                                                                                                        |
 | `1a29897` | Iconos ocultos sin avisos en web; título alineado en escritorio                                                                                                                                                                                                |
 
-**Qué no se ha copiado del diseño**, porque la app no tiene esos datos o
-funciones y no se inventan: cronómetro y descanso de la sesión, RIR, «anterior»
-y sugerencias de carga, check-in, molestias, añadir deporte, guía, progreso,
-creatina, pasos, sueño, mensajes, porcentajes de macros y el constructor por
-fases. El cliente tampoco marca comidas (spec de nutrición). Donde el diseño
-muestra una animación en «Hoy toca», la app enseña la foto de la sesión: el
-listado semanal no trae los ejercicios.
+**Primera adaptación** (hasta `1a29897`): solo lo que la app ya tenía. David
+pidió después «basarse 100 % en el diseño», también donde contradice decisiones
+anteriores (el cliente marca sus comidas). Las 17 pantallas se construyeron con
+datos reales en los tramos D1–D8 de `tasks/diseno/plan.md`, que recoge commits,
+migraciones y lo que no se ha hecho y por qué (mensajería, «Proponer variante»,
+calorías medias, PDF solo en web, animación de press banca, «Salud»).
 
-**Verificación:** `npm run typecheck`, `npm run lint`, `npm test` (API 89; móvil
-24 suites / 136) y bundles web y Android. En el navegador, con una ruta temporal
-de vista previa y datos inventados (retirada antes del commit): Entreno, sesión,
-cierre, nutrición, técnica, formulario, armazón del cliente a 320 y 390 px y
-barra lateral del entrenador a 1440 px. Sin sesión real: las pantallas con datos
-de la API siguen en el guion para David.
+**Verificación de D1–D8:** typecheck, lint y pruebas en cada commit (móvil 49
+suites / 206 pruebas; API unitarias y e2e 30 suites / 314). En la batería e2e
+completa en paralelo falla a veces `carrera-refresco` (Codex, ya conocida);
+`entrenamiento-asignacion` contaba planes de toda la base y se acotó en
+`27e3e21`. En la web (8181, API 3101, base del worktree) con la cuenta de prueba:
+Inicio, check-in, sesión en curso (descanso, RIR, «Anterior»), molestia, cierre,
+Plan (Rutina, Bloque, Guía), Progreso, Nutrición con «Tu plato» y «Media
+mañana». Las pantallas del profesional se vieron con una ruta temporal de vista
+previa (retirada): ficha del nutricionista con las cifras del diseño (2.247 /
+3.483 kcal, 366 / 203 / 108 g), ficha del cliente y constructor.
