@@ -33,7 +33,7 @@ export function EditorSesion({
       />
       {mostrarDia && (
         <>
-          <Text style={{ color: tema.texto }}>Día de la semana</Text>
+          <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>Día de la semana</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((dia, i) => (
               <BotonSecundario
@@ -57,7 +57,7 @@ export function EditorSesion({
             backgroundColor: tema.superficie,
           }}
         >
-          <Text style={{ color: tema.texto, fontWeight: "700", fontSize: 18 }}>
+          <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto, fontSize: 18 }}>
             {indice + 1}. {e.nombre}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
@@ -93,7 +93,9 @@ export function EditorSesion({
             const etiqueta = `${e.nombre}, serie ${numero + 1}`
             return (
               <View key={s.id} style={{ gap: 4 }}>
-                <Text style={{ color: tema.texto }}>Serie {numero + 1}</Text>
+                <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
+                  Serie {numero + 1}
+                </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                   <BotonSecundario
                     texto={s.tipoMedicion === "repeticiones" ? "✓ Repeticiones" : "Repeticiones"}

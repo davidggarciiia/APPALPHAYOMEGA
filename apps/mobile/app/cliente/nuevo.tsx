@@ -166,8 +166,19 @@ export default function NuevoCliente(): React.JSX.Element {
 }
 
 const estilos = StyleSheet.create({
-  titulo: { color: tema.texto, fontSize: 18, fontWeight: "600" },
-  detalle: { color: tema.textoTenue, fontSize: 12, marginTop: 8, lineHeight: 17 },
+  titulo: { fontFamily: tema.fuenteSemi, color: tema.texto, fontSize: 18 },
+  detalle: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.textoTenue,
+    fontSize: 12,
+    marginTop: 8,
+    lineHeight: 17,
+  },
   volver: { alignItems: "center", marginTop: 16, paddingVertical: 12 },
-  textoVolver: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
+  textoVolver: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.textoTenue,
+    fontSize: 12,
+    letterSpacing: 2,
+  },
 })

@@ -61,17 +61,25 @@ export function ListadoDeRutinas({
             borderRadius: 18,
           }}
         >
-          <Text style={{ color: tema.texto, fontFamily: tema.fuenteTitulo, fontSize: 28 }}>
+          <Text style={{ color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 }}>
             {r.nombre}
           </Text>
-          <Text style={{ color: tema.textoTenue }}>{r.patron.sesiones.length} sesiones</Text>
+          <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
+            {r.patron.sesiones.length} sesiones
+          </Text>
           <BotonSecundario texto={`Elegir ${r.nombre}`} onPress={() => elegir(r)} />
         </View>
       ))}
       {datos?.total === 0 && (
-        <Text style={{ color: tema.textoTenue }}>Aún no hay rutinas que coincidan.</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
+          Aún no hay rutinas que coincidan.
+        </Text>
       )}
-      {!datos && !error && <Text style={{ color: tema.textoTenue }}>Cargando rutinas…</Text>}
+      {!datos && !error && (
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
+          Cargando rutinas…
+        </Text>
+      )}
       {error !== "" && (
         <>
           <AvisoDeError mensaje={error} />

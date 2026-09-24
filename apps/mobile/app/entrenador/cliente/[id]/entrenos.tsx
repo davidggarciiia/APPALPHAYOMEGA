@@ -34,7 +34,9 @@ export default function EntrenosCliente(): React.JSX.Element {
           />
         </>
       ) : (
-        <Text style={{ color: tema.texto }}>Esta pantalla requiere una cuenta de entrenador.</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
+          Esta pantalla requiere una cuenta de entrenador.
+        </Text>
       )}
       <BotonSecundario
         texto="Volver a la ficha"

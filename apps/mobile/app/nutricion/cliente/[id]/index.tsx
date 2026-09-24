@@ -28,7 +28,7 @@ export default function DietaDelCliente(): React.JSX.Element {
           }
         />
       ) : (
-        <Text style={{ color: tema.texto }}>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
           Esta pantalla es para el entrenador o el nutricionista.
         </Text>
       )}

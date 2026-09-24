@@ -178,12 +178,14 @@ export function EditorPlan({
   }
   return (
     <View style={{ gap: 12 }}>
-      <Text style={{ color: tema.texto, fontSize: 26, fontWeight: "700" }}>
+      <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto, fontSize: 26 }}>
         Preparar entrenamiento
       </Text>
       {!recuperado ? (
         <>
-          <Text style={{ color: tema.textoTenue }}>Recuperando asignaciones pendientes…</Text>
+          <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
+            Recuperando asignaciones pendientes…
+          </Text>
           {error !== "" && (
             <BotonSecundario
               texto="Reintentar recuperación"
@@ -193,20 +195,29 @@ export function EditorPlan({
         </>
       ) : revision ? (
         <>
-          <Text style={{ color: tema.texto, fontSize: 20 }}>{revision.nombre}</Text>
+          <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 20 }}>
+            {revision.nombre}
+          </Text>
           {sesiones.map((sesion) => (
             <View key={sesion.id} style={{ gap: 10 }}>
-              <Text style={{ color: tema.texto, fontWeight: "700" }}>{sesion.nombre}</Text>
-              <Text style={{ color: tema.texto }}>
+              <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto }}>
+                {sesion.nombre}
+              </Text>
+              <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
                 {Array.from({ length: revision.semanas }, (_, n) =>
                   fechaLegible(sumarDias(revision.semanaInicial, n * 7 + sesion.diaSemana - 1)),
                 ).join(" · ")}
               </Text>
               {sesion.ejercicios.map((e) => (
                 <View key={e.id}>
-                  <Text style={{ color: tema.texto, fontWeight: "700" }}>{e.nombre}</Text>
+                  <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto }}>
+                    {e.nombre}
+                  </Text>
                   {e.series.map((s, n) => (
-                    <Text key={s.id} style={{ color: tema.textoTenue }}>
+                    <Text
+                      key={s.id}
+                      style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}
+                    >
                       Serie {n + 1}: {s.objetivo} {s.tipoMedicion === "tiempo" ? "s" : "rep"}
                       {s.peso ? ` · ${s.peso} kg` : ""}
                     </Text>
@@ -215,7 +226,7 @@ export function EditorPlan({
               ))}
             </View>
           ))}
-          <Text style={{ color: tema.textoTenue }}>
+          <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
             Se añadirán {revision.semanas * revision.patron.sesiones.length} sesiones. Ya hay{" "}
             {existentes} sesiones en estas semanas: se conservarán todas.
           </Text>
@@ -229,7 +240,9 @@ export function EditorPlan({
           )}
         </>
       ) : ocupado ? (
-        <Text style={{ color: tema.textoTenue }}>Comprobando el plan…</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
+          Comprobando el plan…
+        </Text>
       ) : (
         <>
           <BotonSecundario
@@ -240,7 +253,7 @@ export function EditorPlan({
           />
           {eligiendoRutina && (
             <>
-              <Text style={{ color: tema.textoTenue }}>
+              <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
                 Elegir una rutina sustituye el plan que estás preparando. La copia será
                 independiente para este cliente.
               </Text>

@@ -20,7 +20,7 @@ export default function MiDieta(): React.JSX.Element {
           almacen={almacenDispositivo}
         />
       ) : (
-        <Text style={{ color: tema.texto }}>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
           Esta pantalla es la dieta de una cuenta de cliente.
         </Text>
       )}

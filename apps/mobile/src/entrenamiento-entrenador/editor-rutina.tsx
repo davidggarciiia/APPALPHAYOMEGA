@@ -86,16 +86,16 @@ export function EditorRutina({
   }
   return (
     <View style={{ gap: 12 }}>
-      <Text style={{ color: tema.texto, fontSize: 28, fontWeight: "800" }}>
+      <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto, fontSize: 28 }}>
         {id === "nueva" ? "Nueva rutina" : "Editar rutina"}
       </Text>
-      <Text style={{ color: tema.textoTenue }}>
+      <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
         Las rutinas son plantillas. Guardar aquí no cambia los entrenamientos ya asignados.
       </Text>
       {cargando ? (
-        <Text style={{ color: tema.texto }}>Cargando…</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>Cargando…</Text>
       ) : ocupado ? (
-        <Text style={{ color: tema.texto }}>Guardando rutina…</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>Guardando rutina…</Text>
       ) : (
         <>
           <Campo

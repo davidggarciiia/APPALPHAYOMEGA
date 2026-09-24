@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
 import { MAX_ALTERNATIVAS_POR_COMIDA } from "@alpha-omega/shared"
 import { Campo } from "../componentes/formulario"
-import { tema } from "../tema"
+import { degradadoOro, tema } from "../tema"
 import {
   copiarAlternativa,
   nuevaAlternativa,
@@ -477,7 +477,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 6,
   },
-  formaActiva: { backgroundColor: tema.texto, borderColor: tema.texto },
+  formaActiva: { ...degradadoOro, borderColor: "transparent" },
   textoForma: {
     color: tema.textoSecundario,
     fontFamily: tema.fuenteBoton,

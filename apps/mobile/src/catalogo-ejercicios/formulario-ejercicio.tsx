@@ -18,7 +18,7 @@ import {
   PantallaDeFormulario,
 } from "../componentes/formulario"
 import { faltaDe, type Falta } from "../lib/errores"
-import { tema } from "../tema"
+import { degradadoOro, tema } from "../tema"
 
 import { ErrorDeNombreDuplicado, type ApiDeCatalogo } from "./api"
 import { ETIQUETA_DE_GRUPO } from "./catalogo"
@@ -368,9 +368,10 @@ function Opcion({
 }
 
 const estilos = StyleSheet.create({
-  titulo: { color: tema.texto, fontSize: 18, fontWeight: "600" },
+  titulo: { fontFamily: tema.fuenteSemi, color: tema.texto, fontSize: 18 },
   espera: { marginTop: 24 },
   etiqueta: {
+    fontFamily: tema.fuenteTexto,
     color: tema.textoSecundario,
     fontSize: 11,
     letterSpacing: 2,
@@ -385,12 +386,18 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  opcionMarcada: { backgroundColor: tema.acento, borderColor: tema.acento },
+  opcionMarcada: { ...degradadoOro, borderColor: "transparent" },
   opcionApagada: { opacity: 0.35 },
-  textoOpcion: { color: tema.texto, fontSize: 13 },
-  textoOpcionMarcada: { color: tema.fondo, fontWeight: "700" },
-  error: { color: tema.error, fontSize: 12, marginTop: 6 },
-  avisoRetirado: { color: tema.textoSecundario, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  textoOpcion: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 13 },
+  textoOpcionMarcada: { fontFamily: tema.fuenteBoton, color: tema.fondo },
+  error: { fontFamily: tema.fuenteTexto, color: tema.error, fontSize: 12, marginTop: 6 },
+  avisoRetirado: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.textoSecundario,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
+  },
   zonaRetirada: { marginTop: 20 },
   panel: {
     borderColor: tema.error,
@@ -399,5 +406,5 @@ const estilos = StyleSheet.create({
     marginTop: 20,
     padding: 14,
   },
-  textoPanel: { color: tema.texto, fontSize: 13, lineHeight: 19 },
+  textoPanel: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 13, lineHeight: 19 },
 })

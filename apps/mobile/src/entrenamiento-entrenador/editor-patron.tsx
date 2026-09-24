@@ -34,7 +34,7 @@ export function EditorPatron({
           ))}
         </View>
       )}
-      <Text style={{ color: tema.textoTenue }}>
+      <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
         Sesión {seleccion + 1} de {sesiones.length}
       </Text>
       <EditorSesion valor={sesion} cambiar={editar} />

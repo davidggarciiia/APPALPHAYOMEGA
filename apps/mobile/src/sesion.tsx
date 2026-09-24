@@ -354,7 +354,10 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
       <Fragment key={cuenta}>{children}</Fragment>
       {avisoSalida !== "" && (
         <View style={{ backgroundColor: tema.superficie, padding: 16 }}>
-          <Text accessibilityRole="alert" style={{ color: tema.texto }}>
+          <Text
+            accessibilityRole="alert"
+            style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}
+          >
             {avisoSalida}
           </Text>
           <BotonSecundario
@@ -379,10 +382,10 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
           }}
         >
           <View style={{ backgroundColor: tema.superficie, borderRadius: 18, padding: 22 }}>
-            <Text style={{ color: tema.texto, fontSize: 20, fontWeight: "700" }}>
+            <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto, fontSize: 20 }}>
               Hay cambios sin confirmar
             </Text>
-            <Text style={{ color: tema.textoTenue, marginTop: 12 }}>
+            <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue, marginTop: 12 }}>
               Al cerrar se descartarán las copias locales que aún no han llegado al servidor. Puedes
               volver al entrenamiento y sincronizarlas.
             </Text>

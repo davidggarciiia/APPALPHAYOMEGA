@@ -17,7 +17,7 @@ import { ETIQUETA_DE_ESTADO, InsigniaDeEstado } from "../src/componentes/insigni
 import { listarUsuarios } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
 import { useSesion } from "../src/sesion"
-import { tema } from "../src/tema"
+import { degradadoOro, tema } from "../src/tema"
 
 /**
  * Cuantos clientes se piden de una vez.
@@ -317,9 +317,15 @@ const estilos = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
-  titulo: { color: tema.texto, fontSize: 26, fontFamily: tema.fuenteTitulo },
+  titulo: {
+    color: tema.texto,
+    fontSize: 28,
+    lineHeight: 32,
+    fontFamily: tema.fuenteTitulo,
+    textTransform: "uppercase",
+  },
   accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
-  nuevo: { color: tema.acento, fontSize: 12, letterSpacing: 2, fontWeight: "700" },
+  nuevo: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 12, letterSpacing: 2 },
   buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 },
   campo: {
     flex: 1,
@@ -350,8 +356,13 @@ const estilos = StyleSheet.create({
     minHeight: 40,
     justifyContent: "center",
   },
-  filtroPuesto: { backgroundColor: tema.acento, borderColor: tema.acento },
-  textoFiltro: { color: tema.textoTenue, fontSize: 11, letterSpacing: 1, fontWeight: "600" },
+  filtroPuesto: { ...degradadoOro, borderColor: "transparent" },
+  textoFiltro: {
+    fontFamily: tema.fuenteSemi,
+    color: tema.textoTenue,
+    fontSize: 11,
+    letterSpacing: 1,
+  },
   textoFiltroPuesto: { color: tema.fondo },
   lista: { padding: 16, gap: 12, flexGrow: 1 },
   fila: {
@@ -378,17 +389,25 @@ const estilos = StyleSheet.create({
   inicial: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
   datos: { flex: 1, gap: 3 },
   nombre: { color: tema.texto, fontSize: 17, fontFamily: tema.fuenteBoton },
-  correo: { color: tema.textoTenue, fontSize: 12 },
+  correo: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 12 },
   centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  aviso: { color: tema.texto, fontSize: 15, textAlign: "center" },
+  aviso: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 15, textAlign: "center" },
   vacio: {
+    fontFamily: tema.fuenteTexto,
     color: tema.textoTenue,
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
     marginTop: 40,
   },
-  pie: { color: tema.textoTenue, fontSize: 12, textAlign: "center", marginTop: 12, lineHeight: 18 },
+  pie: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.textoTenue,
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 12,
+    lineHeight: 18,
+  },
   boton: {
     borderColor: tema.acento,
     borderWidth: 1,
@@ -398,5 +417,5 @@ const estilos = StyleSheet.create({
     paddingVertical: 14,
   },
   pulsado: { opacity: 0.6 },
-  textoBoton: { color: tema.acento, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
+  textoBoton: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 13, letterSpacing: 2 },
 })

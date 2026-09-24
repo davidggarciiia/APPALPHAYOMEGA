@@ -20,11 +20,13 @@ export default function MiEntrenamiento(): React.JSX.Element {
           abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
         />
       ) : (
-        <Text style={{ color: tema.texto }}>Esta pantalla requiere una cuenta de cliente.</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
+          Esta pantalla requiere una cuenta de cliente.
+        </Text>
       )}
       {estado.fase === "local" ? (
         <>
-          <Text style={{ color: tema.textoTenue }}>
+          <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
             Sin conexión · puedes abrir las sesiones descargadas.
           </Text>
           <BotonSecundario texto="Reconectar" onPress={reintentar} />

@@ -138,6 +138,12 @@ export default function Activar(): React.JSX.Element {
 }
 
 const estilos = StyleSheet.create({
-  titulo: { color: tema.sobreOscuro, fontSize: 18, fontWeight: "600" },
-  detalle: { color: tema.tenueSobreOscuro, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  titulo: { fontFamily: tema.fuenteSemi, color: tema.sobreOscuro, fontSize: 18 },
+  detalle: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.tenueSobreOscuro,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
+  },
 })

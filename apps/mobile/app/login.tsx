@@ -108,5 +108,10 @@ export default function Login(): React.JSX.Element {
 
 const estilos = StyleSheet.create({
   olvidada: { alignItems: "center", marginTop: 16, paddingVertical: 12 },
-  textoOlvidada: { color: tema.acentoClaro, fontSize: 12, letterSpacing: 2 },
+  textoOlvidada: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.acentoClaro,
+    fontSize: 12,
+    letterSpacing: 2,
+  },
 })

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { ErrorDePeticion, ErrorDePermiso, ErrorDeRed } from "../lib/http"
-import { tema } from "../tema"
+import { degradadoOro, tema } from "../tema"
 import type { ApiNutricion } from "./api"
 import { Accion } from "./editor-comida"
 import {
@@ -326,7 +326,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: tema.superficie,
   },
-  opcionActiva: { backgroundColor: tema.texto, borderColor: tema.texto },
+  opcionActiva: { ...degradadoOro, borderColor: "transparent" },
   textoOpcion: { color: tema.textoSecundario, fontFamily: tema.fuenteBoton, fontSize: 13 },
   textoActivo: { color: tema.sobreAcento },
   indicacion: {

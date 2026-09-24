@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { GRUPOS_MUSCULARES, type Ejercicio, type GrupoMuscular } from "@alpha-omega/shared"
 
 import { faltaDe, type Falta } from "../lib/errores"
-import { tema } from "../tema"
+import { degradadoOro, tema } from "../tema"
 
 import type { ApiDeCatalogo } from "./api"
 
@@ -348,11 +348,22 @@ const estilos = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 8,
   },
-  titulo: { color: tema.texto, fontSize: 26, fontFamily: tema.fuenteTitulo },
+  titulo: {
+    color: tema.texto,
+    fontSize: 28,
+    lineHeight: 32,
+    fontFamily: tema.fuenteTitulo,
+    textTransform: "uppercase",
+  },
   accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
-  nuevo: { color: tema.acento, fontSize: 12, letterSpacing: 2, fontWeight: "700" },
-  retirados: { color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
-  retiradosPuesto: { color: tema.acento, fontWeight: "700" },
+  nuevo: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 12, letterSpacing: 2 },
+  retirados: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.textoTenue,
+    fontSize: 12,
+    letterSpacing: 2,
+  },
+  retiradosPuesto: { fontFamily: tema.fuenteBoton, color: tema.acento },
   buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 },
   campo: {
     flex: 1,
@@ -376,8 +387,13 @@ const estilos = StyleSheet.create({
     paddingVertical: 12,
     minHeight: 44,
   },
-  filtroPuesto: { backgroundColor: tema.acento, borderColor: tema.acento },
-  textoFiltro: { color: tema.textoTenue, fontSize: 11, letterSpacing: 1, fontWeight: "600" },
+  filtroPuesto: { ...degradadoOro, borderColor: "transparent" },
+  textoFiltro: {
+    fontFamily: tema.fuenteSemi,
+    color: tema.textoTenue,
+    fontSize: 11,
+    letterSpacing: 1,
+  },
   textoFiltroPuesto: { color: tema.fondo },
   lista: { padding: 16, gap: 12, flexGrow: 1 },
   fila: {
@@ -391,18 +407,31 @@ const estilos = StyleSheet.create({
   filaApagada: { opacity: 0.55 },
   filaPulsada: { borderColor: tema.acento },
   nombre: { color: tema.texto, fontSize: 17, fontFamily: tema.fuenteBoton },
-  grupos: { color: tema.textoTenue, fontSize: 12 },
-  marcaRetirado: { color: tema.error, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
+  grupos: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 12 },
+  marcaRetirado: {
+    fontFamily: tema.fuenteBoton,
+    color: tema.error,
+    fontSize: 10,
+    letterSpacing: 2,
+  },
   centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  aviso: { color: tema.texto, fontSize: 15, textAlign: "center" },
+  aviso: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 15, textAlign: "center" },
   vacio: {
+    fontFamily: tema.fuenteTexto,
     color: tema.textoTenue,
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
     marginTop: 40,
   },
-  pie: { color: tema.textoTenue, fontSize: 12, textAlign: "center", marginTop: 12, lineHeight: 18 },
+  pie: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.textoTenue,
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 12,
+    lineHeight: 18,
+  },
   boton: {
     borderColor: tema.acento,
     borderWidth: 1,
@@ -412,5 +441,5 @@ const estilos = StyleSheet.create({
     paddingVertical: 14,
   },
   pulsado: { opacity: 0.6 },
-  textoBoton: { color: tema.acento, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
+  textoBoton: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 13, letterSpacing: 2 },
 })

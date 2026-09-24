@@ -32,7 +32,9 @@ export default function PrepararPlan(): React.JSX.Element {
           }
         />
       ) : (
-        <Text style={{ color: tema.texto }}>Esta pantalla requiere una cuenta de entrenador.</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
+          Esta pantalla requiere una cuenta de entrenador.
+        </Text>
       )}
       <BotonSecundario texto="Volver" onPress={() => router.back()} />
     </PantallaDeFormulario>

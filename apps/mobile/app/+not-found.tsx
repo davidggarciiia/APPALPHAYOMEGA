@@ -34,13 +34,26 @@ const estilos = StyleSheet.create({
     padding: 24,
   },
   marca: {
+    fontFamily: tema.fuenteBoton,
     color: tema.acento,
     fontSize: 20,
     letterSpacing: 4,
-    fontWeight: "700",
+
     marginBottom: 32,
   },
-  titulo: { color: tema.texto, fontSize: 18, textAlign: "center" },
-  detalle: { color: tema.textoTenue, fontSize: 13, textAlign: "center", marginTop: 8 },
-  enlace: { color: tema.acento, fontSize: 14, marginTop: 28, letterSpacing: 1 },
+  titulo: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 18, textAlign: "center" },
+  detalle: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.textoTenue,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  enlace: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.acento,
+    fontSize: 14,
+    marginTop: 28,
+    letterSpacing: 1,
+  },
 })

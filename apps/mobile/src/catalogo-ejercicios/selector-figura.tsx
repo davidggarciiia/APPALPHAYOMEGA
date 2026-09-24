@@ -199,8 +199,13 @@ export function SelectorDeFigura({
 
 const estilos = StyleSheet.create({
   seccion: { gap: 10, marginTop: 20 },
-  etiqueta: { color: tema.textoSecundario, fontSize: 11, letterSpacing: 2 },
-  nota: { color: tema.textoTenue, fontSize: 13, lineHeight: 19 },
+  etiqueta: {
+    fontFamily: tema.fuenteTexto,
+    color: tema.textoSecundario,
+    fontSize: 11,
+    letterSpacing: 2,
+  },
+  nota: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 13, lineHeight: 19 },
   lista: { gap: 8 },
   fila: {
     minHeight: 48,
@@ -214,6 +219,6 @@ const estilos = StyleSheet.create({
     borderBottomColor: tema.borde,
   },
   filaElegida: { backgroundColor: tema.acentoSuave },
-  nombre: { color: tema.texto, fontSize: 15, flexShrink: 1 },
-  distintivo: { color: tema.textoTenue, fontSize: 12 },
+  nombre: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 15, flexShrink: 1 },
+  distintivo: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 12 },
 })

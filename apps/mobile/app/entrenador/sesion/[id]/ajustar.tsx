@@ -91,14 +91,16 @@ export default function AjustarSesion(): React.JSX.Element {
   }
   return (
     <PantallaDeFormulario>
-      <Text style={{ color: tema.texto, fontSize: 26, fontWeight: "800" }}>
+      <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto, fontSize: 26 }}>
         Ajustar esta sesión
       </Text>
-      <Text style={{ color: tema.textoTenue }}>
+      <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
         El cambio afecta solo a esta fecha y se permite mientras el cliente no haya empezado.
       </Text>
       {original && !original.permiteAjuste ? (
-        <Text style={{ color: tema.texto }}>Esta sesión ya no admite ajustes.</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
+          Esta sesión ya no admite ajustes.
+        </Text>
       ) : (
         edicion && (
           <>

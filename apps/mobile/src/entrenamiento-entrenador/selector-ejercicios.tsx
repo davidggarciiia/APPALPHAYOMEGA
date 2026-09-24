@@ -52,11 +52,13 @@ export function SelectorEjercicios({
           <BotonSecundario texto="Reintentar catálogo" onPress={() => setIntento((n) => n + 1)} />
         </>
       ) : resultado === null ? (
-        <Text style={{ color: tema.textoTenue }}>Buscando ejercicios…</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
+          Buscando ejercicios…
+        </Text>
       ) : (
         <>
           {resultado.ejercicios.length === 0 && (
-            <Text style={{ color: tema.textoTenue }}>
+            <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
               No hay ejercicios publicados con esa búsqueda.
             </Text>
           )}

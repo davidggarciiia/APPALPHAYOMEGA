@@ -67,7 +67,7 @@ export function DetalleEntrenador({
       )}
       {sesion ? (
         <>
-          <Text style={{ color: tema.texto, fontSize: 28, fontWeight: "800" }}>
+          <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto, fontSize: 28 }}>
             {sesion.prescripcion.nombre}
           </Text>
           <FechaSesion
@@ -78,7 +78,7 @@ export function DetalleEntrenador({
             }}
           />
           {!resultado && (
-            <Text style={{ color: tema.textoTenue }}>
+            <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
               Pendiente de envío. Los registros del cliente son privados hasta que termine el
               entrenamiento.
             </Text>
@@ -94,7 +94,7 @@ export function DetalleEntrenador({
           )}
         </>
       ) : (
-        <Text style={{ color: tema.texto }}>Cargando…</Text>
+        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>Cargando…</Text>
       )}
     </View>
   )

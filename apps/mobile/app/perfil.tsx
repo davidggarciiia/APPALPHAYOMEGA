@@ -278,6 +278,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     minHeight: 52,
   },
-  flecha: { color: tema.textoTenue, fontSize: 24 },
+  flecha: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 24 },
   volver: { minHeight: 44, alignItems: "center", justifyContent: "center" },
 })
