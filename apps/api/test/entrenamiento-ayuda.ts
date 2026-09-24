@@ -8,6 +8,7 @@ import { ROLES, type AsignarPlan } from "@alpha-omega/shared"
 import { AppModule } from "../src/app.module.js"
 import { PrismaService } from "../src/prisma/prisma.service.js"
 import { cifrarContrasena } from "../src/identity/contrasenas.js"
+import { limpiarValoraciones } from "./valoraciones-ayuda.js"
 
 export async function entornoEntrenamiento(nombre: string): Promise<{
   app: INestApplication
@@ -37,6 +38,7 @@ export async function entornoEntrenamiento(nombre: string): Promise<{
     })
     const sesionId = { in: sesiones.map((fila) => fila.id) }
     const clienteId = { in: ids }
+    await limpiarValoraciones(prisma, ids)
     await prisma.$transaction([
       prisma.lecturaNovedad.deleteMany({ where: { novedad: { sesionId } } }),
       prisma.novedadEntrenamiento.deleteMany({ where: { sesionId } }),

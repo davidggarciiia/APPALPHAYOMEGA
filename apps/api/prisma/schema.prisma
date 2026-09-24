@@ -74,20 +74,28 @@ model Usuario {
   dietasCreadas    Dieta[] @relation("DietasCreadas")
   dietasPublicadas Dieta[] @relation("DietasPublicadas")
 
-  molestias                Molestia[]                @relation("MolestiasCliente")
-  molestiasAtendidas       Molestia[]                @relation("MolestiasAtendidas")
+  molestias                Molestia[]                 @relation("MolestiasCliente")
+  molestiasAtendidas       Molestia[]                 @relation("MolestiasAtendidas")
   diasSeguimiento          DiaSeguimiento[]
-  medidas                  MedidaCorporal[]          @relation("MedidasCliente")
-  medidasTomadas           MedidaCorporal[]          @relation("MedidasAutor")
-  pruebas                  PruebaFisica[]            @relation("PruebasCliente")
-  pruebasTomadas           PruebaFisica[]            @relation("PruebasAutor")
+  medidas                  MedidaCorporal[]           @relation("MedidasCliente")
+  medidasTomadas           MedidaCorporal[]           @relation("MedidasAutor")
+  pruebas                  PruebaFisica[]             @relation("PruebasCliente")
+  pruebasTomadas           PruebaFisica[]             @relation("PruebasAutor")
   configuracionSeguimiento ConfiguracionSeguimiento?
   comidasRegistradas       ComidaRegistrada[]
-  comentariosSesion        ComentarioSesion[]        @relation("ComentariosCliente")
-  comentariosEscritos      ComentarioSesion[]        @relation("ComentariosAutor")
-  sesionesRevisadas        SesionEntrenamiento[]     @relation("RevisionesEntrenamiento")
-  novedadesCreadas         NovedadEntrenamiento[]    @relation("AutoresNovedadEntrenamiento")
+  comentariosSesion        ComentarioSesion[]         @relation("ComentariosCliente")
+  comentariosEscritos      ComentarioSesion[]         @relation("ComentariosAutor")
+  sesionesRevisadas        SesionEntrenamiento[]      @relation("RevisionesEntrenamiento")
+  novedadesCreadas         NovedadEntrenamiento[]     @relation("AutoresNovedadEntrenamiento")
   lecturasNovedades        LecturaNovedad[]
+  plantillaValoracion      PlantillaValoracion?
+  valoraciones             Valoracion[]               @relation("ValoracionesCliente")
+  valoracionesCreadas      Valoracion[]               @relation("ValoracionesAutor")
+  borradoresValoracion     BorradorValoracion[]
+  publicacionesValoracion  PublicacionValoracion[]
+  operacionesValoracion    OperacionValoracion[]
+  proximaRevision          ProximaRevisionValoracion?
+  lecturasAvisos           LecturaAvisoSeguimiento[]
 
   @@map("usuarios")
 }
@@ -616,16 +624,16 @@ model ComentarioSesion {
 
 /// Evento dirigido a cliente o entrenador; cada usuario registra su propia lectura.
 model NovedadEntrenamiento {
-  id         String              @id @default(uuid())
-  sesionId   String
-  clienteId  String
-  sesion     SesionEntrenamiento @relation(fields: [sesionId, clienteId], references: [id, clienteId], onDelete: Restrict)
-  tipo       String              @db.VarChar(40)
-  audiencia  String              @db.VarChar(20)
-  autorId    String
-  autor      Usuario             @relation("AutoresNovedadEntrenamiento", fields: [autorId], references: [id], onDelete: Restrict)
-  creadaEn   DateTime            @default(now())
-  lecturas   LecturaNovedad[]
+  id        String              @id @default(uuid())
+  sesionId  String
+  clienteId String
+  sesion    SesionEntrenamiento @relation(fields: [sesionId, clienteId], references: [id, clienteId], onDelete: Restrict)
+  tipo      String              @db.VarChar(40)
+  audiencia String              @db.VarChar(20)
+  autorId   String
+  autor     Usuario             @relation("AutoresNovedadEntrenamiento", fields: [autorId], references: [id], onDelete: Restrict)
+  creadaEn  DateTime            @default(now())
+  lecturas  LecturaNovedad[]
 
   @@index([clienteId, audiencia, creadaEn])
   @@index([sesionId, creadaEn])
@@ -642,4 +650,137 @@ model LecturaNovedad {
   @@id([novedadId, usuarioId])
   @@index([usuarioId])
   @@map("lecturas_novedades")
+}
+
+/// Plantilla de valoración de un cliente: definiciones corporales y pruebas con
+/// identidad y versión estables. Cada visita guarda su propia copia.
+model PlantillaValoracion {
+  clienteId     String   @id
+  cliente       Usuario  @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  revision      Int      @default(1)
+  documento     Json
+  actualizadoEn DateTime @updatedAt
+
+  @@map("plantillas_valoracion")
+}
+
+enum TipoValoracion {
+  inicial
+  revision
+}
+
+/// Visita de valoración. Sus borradores y versiones publicadas cuelgan de ella;
+/// una corrección es otra versión de la misma visita, nunca otra visita.
+model Valoracion {
+  id            String                     @id @default(uuid())
+  clienteId     String
+  cliente       Usuario                    @relation("ValoracionesCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  autorId       String
+  autor         Usuario                    @relation("ValoracionesAutor", fields: [autorId], references: [id], onDelete: Restrict)
+  tipo          TipoValoracion
+  /// En una revisión, la visita de referencia. La inicial no tiene.
+  anteriorId    String?
+  anterior      Valoracion?                @relation("ValoracionAnterior", fields: [anteriorId], references: [id], onDelete: Restrict)
+  siguientes    Valoracion[]               @relation("ValoracionAnterior")
+  creadaEn      DateTime                   @default(now())
+  borradores    BorradorValoracion[]
+  publicaciones PublicacionValoracion[]
+  operaciones   OperacionValoracion[]
+  pautaCumplida ProximaRevisionValoracion?
+
+  @@index([clienteId, creadaEn])
+  @@map("valoraciones")
+}
+
+/// Documento de trabajo del entrenador. Como mucho uno abierto por visita:
+/// `valoracionAbiertaId` vale el id de la visita mientras está abierto y es único;
+/// al publicarse pasa a nulo y el borrador queda como auditoría.
+model BorradorValoracion {
+  id                   String                 @id @default(uuid())
+  valoracionId         String
+  valoracion           Valoracion             @relation(fields: [valoracionId], references: [id], onDelete: Restrict)
+  autorId              String
+  autor                Usuario                @relation(fields: [autorId], references: [id], onDelete: Restrict)
+  /// Publicación vigente que sustituirá una corrección.
+  corrigePublicacionId String?                @unique
+  corrige              PublicacionValoracion? @relation("CorreccionDePublicacion", fields: [corrigePublicacionId], references: [id], onDelete: Restrict)
+  revision             Int                    @default(1)
+  fechaToma            DateTime               @db.Date
+  documento            Json
+  valoracionAbiertaId  String?                @unique
+  creadoEn             DateTime               @default(now())
+  actualizadoEn        DateTime               @updatedAt
+  publicacion          PublicacionValoracion? @relation("PublicacionDeBorrador")
+
+  @@index([valoracionId])
+  @@map("borradores_valoracion")
+}
+
+/// Versión publicada e inmutable. `documento` es la proyección pública: nunca
+/// contiene notas internas ni datos pendientes.
+model PublicacionValoracion {
+  id            String                 @id @default(uuid())
+  valoracionId  String
+  valoracion    Valoracion             @relation(fields: [valoracionId], references: [id], onDelete: Restrict)
+  borradorId    String                 @unique
+  borrador      BorradorValoracion     @relation("PublicacionDeBorrador", fields: [borradorId], references: [id], onDelete: Restrict)
+  numero        Int
+  sustituyeId   String?                @unique
+  sustituye     PublicacionValoracion? @relation("SustitucionDePublicacion", fields: [sustituyeId], references: [id], onDelete: Restrict)
+  sustituidaPor PublicacionValoracion? @relation("SustitucionDePublicacion")
+  corregidaEn   BorradorValoracion?    @relation("CorreccionDePublicacion")
+  fechaToma     DateTime               @db.Date
+  autorId       String
+  autor         Usuario                @relation(fields: [autorId], references: [id], onDelete: Restrict)
+  documento     Json
+  publicadaEn   DateTime               @default(now())
+
+  @@unique([valoracionId, numero])
+  @@map("publicaciones_valoracion")
+}
+
+/// Crear y publicar son idempotentes por autor y operación. La huella de la
+/// petición distingue un reintento de una reutilización con otro contenido.
+model OperacionValoracion {
+  autorId       String
+  autor         Usuario    @relation(fields: [autorId], references: [id], onDelete: Restrict)
+  operacionId   String
+  tipo          String     @db.VarChar(20)
+  hashPeticion  String
+  valoracionId  String
+  valoracion    Valoracion @relation(fields: [valoracionId], references: [id], onDelete: Restrict)
+  borradorId    String?
+  publicacionId String?
+  creadoEn      DateTime   @default(now())
+
+  @@id([autorId, operacionId])
+  @@index([valoracionId])
+  @@map("operaciones_valoracion")
+}
+
+/// Próxima revisión pautada por el entrenador. `pauta` nula es «Sin programar».
+/// Una visita solo puede cumplir una pauta.
+model ProximaRevisionValoracion {
+  clienteId     String      @id
+  cliente       Usuario     @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  revision      Int         @default(1)
+  pauta         Json?
+  cumplidaPorId String?     @unique
+  cumplidaPor   Valoracion? @relation(fields: [cumplidaPorId], references: [id], onDelete: Restrict)
+  actualizadoEn DateTime    @updatedAt
+
+  @@map("proximas_revisiones_valoracion")
+}
+
+/// Lectura por usuario de avisos de seguimiento (publicaciones, solicitudes).
+/// No exige un `sesionId` de entrenamiento: el aviso se identifica por su origen.
+model LecturaAvisoSeguimiento {
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  avisoId   String
+  tipo      String   @db.VarChar(40)
+  leidoEn   DateTime @default(now())
+
+  @@id([usuarioId, avisoId])
+  @@map("lecturas_avisos_seguimiento")
 }
