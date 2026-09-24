@@ -1,9 +1,43 @@
-import { fireEvent, render, screen } from "@testing-library/react-native"
-import type { DietaPublicada, DocumentoDieta } from "@alpha-omega/shared"
+import { act, fireEvent, render, screen } from "@testing-library/react-native"
+import type {
+  CambiarDia,
+  DiaDeSeguimiento,
+  DietaPublicada,
+  DocumentoDieta,
+} from "@alpha-omega/shared"
 import type { AlmacenLocal } from "../entrenamiento/almacen-local"
 import { ErrorDeRed } from "../lib/http"
 import type { ApiNutricion } from "./api"
 import { VistaDieta } from "./vista-dieta"
+import type { ApiSeguimiento } from "../seguimiento/api"
+
+function seguimientoEnMemoria() {
+  let dia: DiaDeSeguimiento = {
+    fecha: "2026-09-24",
+    pesoKg: null,
+    pasos: null,
+    suenoMin: null,
+    creatina: null,
+    suplementos: [],
+  }
+  const falta = (): never => {
+    throw new Error("no se usa")
+  }
+  return {
+    dias: jest.fn(async () => ({ dias: [dia] })),
+    cambiarDia: jest.fn(async (_id: string, _fecha: string, cambio: CambiarDia) => {
+      dia = { ...dia, ...cambio }
+      return dia
+    }),
+    configuracion: falta,
+    guardarConfiguracion: falta,
+    medidas: falta,
+    registrarMedida: falta,
+    pruebas: falta,
+    registrarPrueba: falta,
+    fuerza: falta,
+  } satisfies ApiSeguimiento
+}
 
 jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
 
@@ -236,4 +270,132 @@ it("abre la elección de comida sin registrarla desde el círculo del resumen", 
   expect(abrirComida).toHaveBeenCalledWith(documento().tiposDeDia[0]?.comidas[0])
   expect(registrarComida).not.toHaveBeenCalled()
   expect(screen.getByText("0 de 2")).toBeOnTheScreen()
+})
+
+it("bloquea todos los suplementos hasta confirmar y conserva las dos tomas sucesivas", async () => {
+  const seguimiento = seguimientoEnMemoria()
+  const dieta = publicada()
+  dieta.documento.suplementos = [
+    { nombre: "Vitamina D", dosis: null },
+    { nombre: "Omega 3", dosis: null },
+  ]
+  let terminar!: () => void
+  const pendiente = new Promise<void>((resolve) => {
+    terminar = resolve
+  })
+  const guardar = seguimiento.cambiarDia.getMockImplementation()!
+  seguimiento.cambiarDia.mockImplementationOnce(async (...args) => {
+    await pendiente
+    return guardar(...args)
+  })
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={api(async () => ({ dieta, deNutricionista: false }))}
+      almacen={almacenEnMemoria()}
+      seguimiento={seguimiento}
+    />,
+  )
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeDisabled()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).not.toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(seguimiento.cambiarDia).toHaveBeenCalledTimes(1)
+  await act(async () => terminar())
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
+  expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CUENTA, expect.any(String), {
+    suplementos: ["Vitamina D", "Omega 3"],
+  })
+})
+
+it("un error al guardar suplementos deja reintentar sin mostrarlos como tomados", async () => {
+  const seguimiento = seguimientoEnMemoria()
+  seguimiento.cambiarDia.mockRejectedValueOnce(new Error("Sin conexión"))
+  const dieta = publicada()
+  dieta.documento.suplementos = [{ nombre: "Vitamina D", dosis: null }]
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={api(async () => ({ dieta, deNutricionista: false }))}
+      almacen={almacenEnMemoria()}
+      seguimiento={seguimiento}
+    />,
+  )
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).not.toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+})
+
+it("espera el registro del día antes de habilitar las tomas", async () => {
+  const seguimiento = seguimientoEnMemoria()
+  await seguimiento.cambiarDia(CUENTA, "2026-09-24", { suplementos: ["Vitamina D"] })
+  let terminar!: () => void
+  const pendiente = new Promise<void>((resolve) => {
+    terminar = resolve
+  })
+  const leer = seguimiento.dias.getMockImplementation()!
+  seguimiento.dias.mockImplementationOnce(async () => {
+    await pendiente
+    return leer()
+  })
+  const dieta = publicada()
+  dieta.documento.suplementos = [
+    { nombre: "Vitamina D", dosis: null },
+    { nombre: "Omega 3", dosis: null },
+  ]
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={api(async () => ({ dieta, deNutricionista: false }))}
+      almacen={almacenEnMemoria()}
+      seguimiento={seguimiento}
+    />,
+  )
+  expect(await screen.findByRole("checkbox", { name: "Omega 3 tomada" })).toBeDisabled()
+  await act(async () => terminar())
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
+})
+
+it("limpia el error de lectura al volver a cargar correctamente", async () => {
+  const seguimiento = seguimientoEnMemoria()
+  seguimiento.dias.mockRejectedValueOnce(new Error("Sin red"))
+  const dieta = publicada()
+  dieta.documento.suplementos = [{ nombre: "Vitamina D", dosis: null }]
+  const nutricion = api(async () => ({ dieta, deNutricionista: false }))
+  const almacen = almacenEnMemoria()
+  const vista = await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={nutricion}
+      almacen={almacen}
+      seguimiento={seguimiento}
+    />,
+  )
+  expect(
+    await screen.findByText("No se pudieron cargar los registros de hoy. Revisa la conexión."),
+  ).toBeTruthy()
+  await vista.rerender(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={nutricion}
+      almacen={almacen}
+      seguimiento={{ ...seguimiento }}
+    />,
+  )
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
+  expect(
+    screen.queryByText("No se pudieron cargar los registros de hoy. Revisa la conexión."),
+  ).toBeNull()
 })

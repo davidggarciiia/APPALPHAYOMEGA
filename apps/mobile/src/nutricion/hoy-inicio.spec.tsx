@@ -1,5 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
-import type { CambiarDia, DiaDeSeguimiento, DocumentoDieta } from "@alpha-omega/shared"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import {
+  CONFIGURACION_SEGUIMIENTO_INICIAL,
+  type CambiarDia,
+  type DiaDeSeguimiento,
+  type DocumentoDieta,
+} from "@alpha-omega/shared"
 
 import { hoyAgenda } from "../entrenamiento/fechas"
 import type { ApiSeguimiento } from "../seguimiento/api"
@@ -49,6 +54,7 @@ function apis(documento: DocumentoDieta | null, inicial: DiaDeSeguimiento | null
     })),
   } satisfies Pick<ApiNutricion, "vigente">
   const seguimiento = {
+    configuracion: jest.fn(async () => CONFIGURACION_SEGUIMIENTO_INICIAL),
     dias: jest.fn(async () => ({ dias: dia ? [dia] : [] })),
     cambiarDia: jest.fn(async (_clienteId: string, fecha: string, cambio: CambiarDia) => {
       dia = {
@@ -63,7 +69,7 @@ function apis(documento: DocumentoDieta | null, inicial: DiaDeSeguimiento | null
       }
       return dia
     }),
-  } satisfies Pick<ApiSeguimiento, "dias" | "cambiarDia">
+  } satisfies Pick<ApiSeguimiento, "configuracion" | "dias" | "cambiarDia">
   return { nutricion, seguimiento }
 }
 
@@ -155,4 +161,230 @@ it("respeta la creatina guardada en el campo antiguo al volver a Inicio", async 
       screen.getByRole("checkbox", { name: "Creatina tomada" }).props.accessibilityState.checked,
     ).toBe(true),
   )
+})
+
+it("solo ofrece los indicadores visibles y solicitados por el entrenador, en su orden", async () => {
+  const { nutricion, seguimiento } = apis(dieta())
+  seguimiento.configuracion.mockResolvedValue({
+    ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+    indicadores: ["sueno", "pasos"],
+    registrosSolicitados: [
+      { indicador: "peso", frecuencia: "diaria", diaSemana: null },
+      { indicador: "pasos", frecuencia: "diaria", diaSemana: null },
+      { indicador: "sueno", frecuencia: "diaria", diaSemana: null },
+    ],
+  })
+  await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  await screen.findByRole("button", { name: "Sueño: sin apuntar. Cambiar" })
+  expect(screen.queryByRole("button", { name: /^Peso:/ })).toBeNull()
+  expect(screen.getAllByRole("button").map((boton) => boton.props.accessibilityLabel)).toEqual([
+    "Sueño: sin apuntar. Cambiar",
+    "Pasos: sin apuntar. Cambiar",
+  ])
+})
+
+it("no solicita indicadores configurados como No pedir", async () => {
+  const { nutricion, seguimiento } = apis(dieta())
+  seguimiento.configuracion.mockResolvedValue({
+    ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+    registrosSolicitados: [],
+  })
+  await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  await waitFor(() => expect(seguimiento.configuracion).toHaveBeenCalled())
+  expect(screen.queryByRole("button", { name: /sin apuntar/ })).toBeNull()
+  expect(screen.getByText("Hoy no tienes registros pautados en esta pantalla.")).toBeTruthy()
+})
+
+it.each([true, false])("respeta el día semanal pautado (corresponde hoy: %s)", async (tocaHoy) => {
+  const { nutricion, seguimiento } = apis(dieta())
+  const diaSemana = new Date(`${hoyAgenda()}T00:00:00Z`).getUTCDay() || 7
+  seguimiento.configuracion.mockResolvedValue({
+    ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+    registrosSolicitados: [
+      {
+        indicador: "peso",
+        frecuencia: "semanal",
+        diaSemana: tocaHoy ? diaSemana : (diaSemana % 7) + 1,
+      },
+    ],
+  })
+  await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  await waitFor(() => expect(seguimiento.configuracion).toHaveBeenCalled())
+  const peso = screen.queryByRole("button", { name: /^Peso:/ })
+  expect(peso !== null).toBe(tocaHoy)
+})
+
+it("bloquea los suplementos durante el guardado y conserva ambos al registrarlos seguidos", async () => {
+  const { nutricion, seguimiento } = apis(
+    dieta([
+      { nombre: "Vitamina D", dosis: null },
+      { nombre: "Omega 3", dosis: null },
+    ]),
+  )
+  let terminar!: () => void
+  const pendiente = new Promise<void>((resolve) => {
+    terminar = resolve
+  })
+  const guardar = seguimiento.cambiarDia.getMockImplementation()!
+  seguimiento.cambiarDia.mockImplementationOnce(async (...args) => {
+    await pendiente
+    return guardar(...args)
+  })
+  await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeDisabled()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).not.toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(seguimiento.cambiarDia).toHaveBeenCalledTimes(1)
+  await act(async () => terminar())
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
+  expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CLIENTE, hoyAgenda(), {
+    suplementos: ["Vitamina D", "Omega 3"],
+  })
+})
+
+it("un guardado fallido no marca el suplemento y permite reintentarlo", async () => {
+  const { nutricion, seguimiento } = apis(dieta([{ nombre: "Vitamina D", dosis: null }]))
+  seguimiento.cambiarDia.mockRejectedValueOnce(new Error("Sin conexión"))
+  await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).not.toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+})
+
+it("espera el registro del día antes de permitir cambiar suplementos", async () => {
+  const { nutricion, seguimiento } = apis(
+    dieta([
+      { nombre: "Vitamina D", dosis: null },
+      { nombre: "Omega 3", dosis: null },
+    ]),
+    {
+      fecha: hoyAgenda(),
+      pesoKg: null,
+      pasos: null,
+      suenoMin: null,
+      creatina: null,
+      suplementos: ["Vitamina D"],
+    },
+  )
+  let terminar!: () => void
+  const pendiente = new Promise<void>((resolve) => {
+    terminar = resolve
+  })
+  const leer = seguimiento.dias.getMockImplementation()!
+  seguimiento.dias.mockImplementationOnce(async () => {
+    await pendiente
+    return leer()
+  })
+  await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  expect(await screen.findByRole("checkbox", { name: "Omega 3 tomada" })).toBeDisabled()
+  await act(async () => terminar())
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
+})
+
+it("protege el valor del diálogo hasta que el servidor confirma el guardado", async () => {
+  const { nutricion, seguimiento } = apis(dieta())
+  let terminar!: () => void
+  const pendiente = new Promise<void>((resolve) => {
+    terminar = resolve
+  })
+  const guardar = seguimiento.cambiarDia.getMockImplementation()!
+  seguimiento.cambiarDia.mockImplementationOnce(async (...args) => {
+    await pendiente
+    return guardar(...args)
+  })
+  await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  await fireEvent.press(await screen.findByRole("button", { name: "Peso: sin apuntar. Cambiar" }))
+  await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "80")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+  expect(screen.getByLabelText("Peso (kg)")).toBeDisabled()
+  await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "81")
+  expect(screen.getByDisplayValue("80")).toBeTruthy()
+  await act(async () => terminar())
+  expect(screen.getByRole("button", { name: "Peso: 80,0 kg. Cambiar" })).toBeTruthy()
+})
+
+it("limpia el error de carga al volver a enfocar y cargar la configuración", async () => {
+  const { nutricion, seguimiento } = apis(dieta())
+  seguimiento.configuracion.mockRejectedValueOnce(new Error("Sin red"))
+  const vista = await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  expect(
+    await screen.findByText("No se pudo cargar el seguimiento pautado. Revisa la conexión."),
+  ).toBeTruthy()
+  await vista.rerender(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={{ ...seguimiento }}
+      objetivoPasos={null}
+    />,
+  )
+  await screen.findByRole("button", { name: "Peso: sin apuntar. Cambiar" })
+  expect(
+    screen.queryByText("No se pudo cargar el seguimiento pautado. Revisa la conexión."),
+  ).toBeNull()
 })

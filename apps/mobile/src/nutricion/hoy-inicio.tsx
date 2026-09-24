@@ -1,7 +1,12 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import type { CambiarDia, DiaDeSeguimiento, Suplemento } from "@alpha-omega/shared"
+import type {
+  CambiarDia,
+  ConfiguracionSeguimiento,
+  DiaDeSeguimiento,
+  Suplemento,
+} from "@alpha-omega/shared"
 
 import { AvisoDeError, Campo } from "../componentes/formulario"
 import { Icono } from "../componentes/iconos"
@@ -78,26 +83,47 @@ export function HoyInicio({
   objetivoPasos,
 }: {
   clienteId: string
-  seguimiento: Pick<ApiSeguimiento, "dias" | "cambiarDia">
+  seguimiento: Pick<ApiSeguimiento, "configuracion" | "dias" | "cambiarDia">
   nutricion: Pick<ApiNutricion, "vigente">
   objetivoPasos: number | null
 }): React.JSX.Element {
   const [dia, setDia] = useState<DiaDeSeguimiento | null>(null)
+  const [diaCargado, setDiaCargado] = useState(false)
+  const [configuracion, setConfiguracion] = useState<ConfiguracionSeguimiento | null>(null)
   const [suplementos, setSuplementos] = useState<Suplemento[]>([])
   const [editando, setEditando] = useState<Dato | null>(null)
   const [texto, setTexto] = useState("")
   const [error, setError] = useState("")
+  const [ocupado, setOcupado] = useState(false)
+  const guardando = useRef(false)
   const hoy = hoyAgenda()
+  const diaSemana = new Date(`${hoy}T00:00:00Z`).getUTCDay() || 7
 
   useFocusEffect(
     useCallback(() => {
       let vigente = true
+      setError("")
+      setDiaCargado(false)
+      setConfiguracion(null)
+      seguimiento
+        .configuracion(clienteId)
+        .then((configuracion) => {
+          if (vigente) setConfiguracion(configuracion)
+        })
+        .catch(() => {
+          if (vigente) setError("No se pudo cargar el seguimiento pautado. Revisa la conexión.")
+        })
       seguimiento
         .dias(clienteId, hoy, hoy)
         .then(({ dias }) => {
-          if (vigente) setDia(dias[0] ?? null)
+          if (vigente) {
+            setDia(dias[0] ?? null)
+            setDiaCargado(true)
+          }
         })
-        .catch(() => undefined)
+        .catch(() => {
+          if (vigente) setError("No se pudieron cargar los registros de hoy. Revisa la conexión.")
+        })
       nutricion
         .vigente(clienteId)
         .then(({ dieta }) => {
@@ -113,6 +139,9 @@ export function HoyInicio({
   )
 
   const guardar = async (cambio: CambiarDia): Promise<boolean> => {
+    if (!diaCargado || guardando.current) return false
+    guardando.current = true
+    setOcupado(true)
     setError("")
     try {
       setDia(await seguimiento.cambiarDia(clienteId, hoy, cambio))
@@ -120,6 +149,9 @@ export function HoyInicio({
     } catch (fallo) {
       setError(faltaDe(fallo, "No se pudo guardar. Revisa la conexión.").texto)
       return false
+    } finally {
+      guardando.current = false
+      setOcupado(false)
     }
   }
   const abrir = (dato: Dato): void => {
@@ -134,6 +166,8 @@ export function HoyInicio({
       style={[s.fila, dato !== "pesoKg" && s.separada]}
       accessibilityRole="button"
       accessibilityLabel={`${nombre}: ${valor ?? "sin apuntar"}. Cambiar`}
+      accessibilityState={{ disabled: ocupado || !diaCargado }}
+      disabled={ocupado || !diaCargado}
       onPress={() => abrir(dato)}
     >
       <Text style={s.nombre}>{nombre}</Text>
@@ -141,6 +175,12 @@ export function HoyInicio({
     </Pressable>
   )
   const edicion = editando ? EDICION[editando] : null
+  const indicadoresHoy =
+    configuracion?.indicadores.filter((indicador) => {
+      if (indicador !== "peso" && indicador !== "pasos" && indicador !== "sueno") return false
+      const pauta = configuracion.registrosSolicitados.find((r) => r.indicador === indicador)
+      return pauta && (pauta.frecuencia === "diaria" || pauta.diaSemana === diaSemana)
+    }) ?? []
 
   return (
     <View style={s.contenido}>
@@ -148,15 +188,25 @@ export function HoyInicio({
         Hoy
       </Text>
       <View style={s.tarjeta}>
-        {fila("pesoKg", "Peso", dia?.pesoKg != null ? pesoLegible(dia.pesoKg) : null)}
-        {fila(
-          "pasos",
-          "Pasos",
-          dia?.pasos != null
-            ? `${miles(dia.pasos)}${objetivoPasos ? ` / ${miles(objetivoPasos)}` : ""}`
-            : null,
-        )}
-        {fila("suenoMin", "Sueño", dia?.suenoMin != null ? suenoLegible(dia.suenoMin) : null)}
+        {indicadoresHoy.map((indicador) => {
+          if (indicador === "peso")
+            return fila("pesoKg", "Peso", dia?.pesoKg != null ? pesoLegible(dia.pesoKg) : null)
+          if (indicador === "pasos")
+            return fila(
+              "pasos",
+              "Pasos",
+              dia?.pasos != null
+                ? `${miles(dia.pasos)}${objetivoPasos ? ` / ${miles(objetivoPasos)}` : ""}`
+                : null,
+            )
+          if (indicador === "sueno")
+            return fila(
+              "suenoMin",
+              "Sueño",
+              dia?.suenoMin != null ? suenoLegible(dia.suenoMin) : null,
+            )
+          return null
+        })}
         {suplementos.map((suplemento) => {
           const tomado = suplementoTomado(suplemento, dia)
           return (
@@ -165,7 +215,8 @@ export function HoyInicio({
               style={[s.fila, s.separada]}
               accessibilityRole="checkbox"
               accessibilityLabel={`${suplemento.nombre} tomada`}
-              accessibilityState={{ checked: tomado }}
+              accessibilityState={{ checked: tomado, disabled: ocupado || !diaCargado }}
+              disabled={ocupado || !diaCargado}
               onPress={() => void guardar(cambioDeSuplemento(suplemento, !tomado, dia))}
             >
               <View style={s.suplemento}>
@@ -179,12 +230,20 @@ export function HoyInicio({
           )
         })}
       </View>
+      {configuracion && indicadoresHoy.length === 0 && suplementos.length === 0 && error === "" && (
+        <Text style={s.dosis}>Hoy no tienes registros pautados en esta pantalla.</Text>
+      )}
+      {ocupado && (
+        <Text style={s.dosis} accessibilityLiveRegion="polite">
+          Guardando…
+        </Text>
+      )}
       {error !== "" && editando === null && <AvisoDeError mensaje={error} />}
       <Dialogo
         visible={edicion !== null}
         titulo={edicion?.titulo ?? ""}
         texto={edicion?.texto ?? ""}
-        confirmar="Guardar"
+        confirmar={ocupado ? "Guardando…" : "Guardar"}
         cancelar="Cancelar"
         alCancelar={() => setEditando(null)}
         alConfirmar={() => {
@@ -203,7 +262,10 @@ export function HoyInicio({
           <Campo
             etiqueta={edicion.etiqueta}
             value={texto}
-            onChangeText={setTexto}
+            editable={!ocupado}
+            onChangeText={(nuevo) => {
+              if (!guardando.current) setTexto(nuevo)
+            }}
             keyboardType={edicion.teclado}
             autoFocus
             maxLength={10}

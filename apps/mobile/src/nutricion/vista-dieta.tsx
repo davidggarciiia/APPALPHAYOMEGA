@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { AppState, Pressable, StyleSheet, Text, View } from "react-native"
 import type {
@@ -146,7 +146,10 @@ export function VistaDieta({
   const [semana, setSemana] = useState(false)
   const [registradas, setRegistradas] = useState<ComidaRegistrada[] | null>(null)
   const [dia, setDia] = useState<DiaDeSeguimiento | null>(null)
+  const [diaCargado, setDiaCargado] = useState(false)
   const [aviso, setAviso] = useState("")
+  const [guardandoSuplemento, setGuardandoSuplemento] = useState(false)
+  const guardando = useRef(false)
   const hoy = hoyAgenda()
 
   useFocusEffect(
@@ -154,6 +157,8 @@ export function VistaDieta({
       let vigente = true
       const cancelacion = new AbortController()
       const cargar = async (): Promise<void> => {
+        setAviso("")
+        setDiaCargado(false)
         try {
           const { dieta, deNutricionista } = await api.vigente(clienteId, cancelacion.signal)
           if (!vigente) return
@@ -165,8 +170,16 @@ export function VistaDieta({
             .catch(() => vigente && setRegistradas(null))
           void seguimiento
             ?.dias(clienteId, hoy, hoy)
-            .then(({ dias }) => vigente && setDia(dias[0] ?? null))
-            .catch(() => undefined)
+            .then(({ dias }) => {
+              if (vigente) {
+                setDia(dias[0] ?? null)
+                setDiaCargado(true)
+              }
+            })
+            .catch(() => {
+              if (vigente)
+                setAviso("No se pudieron cargar los registros de hoy. Revisa la conexión.")
+            })
           // Si falla el guardado local, la dieta se sigue viendo: solo se pierde la copia.
           await guardarCopia(almacen, cuenta, dieta).catch(() => undefined)
         } catch (error) {
@@ -236,7 +249,9 @@ export function VistaDieta({
             suplemento: Suplemento,
             tomado: boolean,
           ): Promise<void> => {
-            if (!seguimiento) return
+            if (!seguimiento || !diaCargado || guardando.current) return
+            guardando.current = true
+            setGuardandoSuplemento(true)
             setAviso("")
             try {
               setDia(
@@ -248,6 +263,9 @@ export function VistaDieta({
               )
             } catch (error) {
               setAviso(faltaDe(error, "No se pudo guardar el suplemento.").texto)
+            } finally {
+              guardando.current = false
+              setGuardandoSuplemento(false)
             }
           }
           return semana ? (
@@ -262,6 +280,11 @@ export function VistaDieta({
           ) : (
             <>
               {aviso !== "" && <AvisoDeError mensaje={aviso} />}
+              {guardandoSuplemento && (
+                <Text style={s.tenue} accessibilityLiveRegion="polite">
+                  Guardando suplemento…
+                </Text>
+              )}
               <HoyNutricion
                 documento={dieta.documento}
                 deNutricionista={estado.deNutricionista}
@@ -269,7 +292,9 @@ export function VistaDieta({
                 hora={horaActual()}
                 registradas={registradas ?? []}
                 dia={dia}
-                puedeTomar={enLinea && seguimiento !== undefined}
+                puedeTomar={
+                  enLinea && seguimiento !== undefined && diaCargado && !guardandoSuplemento
+                }
                 abrirComida={(comida) => (abrirComida ? abrirComida(comida) : setSemana(true))}
                 tomarSuplemento={(suplemento, tomado) => void tomarSuplemento(suplemento, tomado)}
                 verSemana={() => setSemana(true)}
