@@ -4,6 +4,8 @@ import {
   type CambiarDia,
   type DiaDeSeguimiento,
   type DocumentoDieta,
+  type Medida,
+  type RegistrarMedida,
 } from "@alpha-omega/shared"
 
 import { hoyAgenda } from "../entrenamiento/fechas"
@@ -16,6 +18,9 @@ jest.mock("expo-router", () => ({
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
 }))
 jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
+jest.mock("expo-crypto", () => ({
+  randomUUID: () => jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID(),
+}))
 
 const CLIENTE = "10000000-0000-4000-8000-000000000000"
 const TIPO = "00000000-0000-4000-8000-000000000001"
@@ -69,7 +74,21 @@ function apis(documento: DocumentoDieta | null, inicial: DiaDeSeguimiento | null
       }
       return dia
     }),
-  } satisfies Pick<ApiSeguimiento, "configuracion" | "dias" | "cambiarDia">
+    medidas: jest.fn(async () => ({ medidas: [] as Medida[], fechaNacimiento: null })),
+    registrarMedida: jest.fn(
+      async (
+        _clienteId: string,
+        { operacionId: _, ...datos }: RegistrarMedida,
+      ): Promise<Medida> => ({
+        id: "40000000-0000-4000-8000-000000000000",
+        ...datos,
+        creadoEn: "2026-09-24T08:00:00.000Z",
+      }),
+    ),
+  } satisfies Pick<
+    ApiSeguimiento,
+    "configuracion" | "dias" | "cambiarDia" | "medidas" | "registrarMedida"
+  >
   return { nutricion, seguimiento }
 }
 
@@ -387,4 +406,145 @@ it("limpia el error de carga al volver a enfocar y cargar la configuración", as
   expect(
     screen.queryByText("No se pudo cargar el seguimiento pautado. Revisa la conexión."),
   ).toBeNull()
+})
+
+describe("cintura desde Inicio", () => {
+  const diaSemana = new Date(`${hoyAgenda()}T00:00:00Z`).getUTCDay() || 7
+  function conCintura(
+    seguimiento: ReturnType<typeof apis>["seguimiento"],
+    frecuencia: "diaria" | "semanal" = "diaria",
+    dia: number | null = null,
+    indicadores = CONFIGURACION_SEGUIMIENTO_INICIAL.indicadores,
+  ) {
+    seguimiento.configuracion.mockResolvedValue({
+      ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+      indicadores,
+      registrosSolicitados: [{ indicador: "cintura", frecuencia, diaSemana: dia }],
+    })
+  }
+  const pintar = async (apisDePrueba: ReturnType<typeof apis>) =>
+    render(
+      <HoyInicio
+        clienteId={CLIENTE}
+        nutricion={apisDePrueba.nutricion}
+        seguimiento={apisDePrueba.seguimiento}
+        objetivoPasos={null}
+      />,
+    )
+
+  it("se apunta en cm con coma decimal cuando está pautada a diario", async () => {
+    const apisDePrueba = apis(dieta())
+    conCintura(apisDePrueba.seguimiento)
+    await pintar(apisDePrueba)
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Cintura: sin apuntar. Cambiar" }),
+    )
+    await fireEvent.changeText(screen.getByLabelText("Cintura (cm)"), "92,5")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    await waitFor(() =>
+      expect(apisDePrueba.seguimiento.registrarMedida).toHaveBeenCalledWith(CLIENTE, {
+        operacionId: expect.any(String),
+        fecha: hoyAgenda(),
+        pesoKg: null,
+        cinturaCm: 92.5,
+        grasaPct: null,
+        alturaCm: null,
+      }),
+    )
+    expect(await screen.findByRole("button", { name: "Cintura: 92,5 cm. Cambiar" })).toBeTruthy()
+    expect(apisDePrueba.seguimiento.cambiarDia).not.toHaveBeenCalled()
+  })
+
+  it("muestra la cintura ya apuntada hoy", async () => {
+    const apisDePrueba = apis(dieta())
+    conCintura(apisDePrueba.seguimiento)
+    apisDePrueba.seguimiento.medidas.mockResolvedValue({
+      medidas: [
+        {
+          id: "40000000-0000-4000-8000-000000000001",
+          fecha: hoyAgenda(),
+          pesoKg: 80,
+          cinturaCm: 90,
+          grasaPct: null,
+          alturaCm: null,
+          creadoEn: "2026-09-24T07:00:00.000Z",
+        },
+      ],
+      fechaNacimiento: null,
+    })
+    await pintar(apisDePrueba)
+    expect(await screen.findByRole("button", { name: "Cintura: 90 cm. Cambiar" })).toBeTruthy()
+  })
+
+  it.each([true, false])(
+    "respeta el día semanal de la cintura (corresponde hoy: %s)",
+    async (hoy) => {
+      const apisDePrueba = apis(dieta())
+      conCintura(apisDePrueba.seguimiento, "semanal", hoy ? diaSemana : (diaSemana % 7) + 1)
+      await pintar(apisDePrueba)
+      await waitFor(() => expect(apisDePrueba.seguimiento.configuracion).toHaveBeenCalled())
+      if (hoy) expect(await screen.findByRole("button", { name: /^Cintura:/ })).toBeTruthy()
+      else expect(screen.queryByRole("button", { name: /^Cintura:/ })).toBeNull()
+    },
+  )
+
+  it("no la pide si el entrenador ocultó el indicador", async () => {
+    const apisDePrueba = apis(dieta())
+    conCintura(apisDePrueba.seguimiento, "diaria", null, ["peso", "pasos"])
+    await pintar(apisDePrueba)
+    await waitFor(() => expect(apisDePrueba.seguimiento.configuracion).toHaveBeenCalled())
+    expect(screen.queryByRole("button", { name: /^Cintura:/ })).toBeNull()
+  })
+
+  it("un valor fuera de rango no se envía y conserva lo escrito", async () => {
+    const apisDePrueba = apis(dieta())
+    conCintura(apisDePrueba.seguimiento)
+    await pintar(apisDePrueba)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Cintura:/ }))
+    await fireEvent.changeText(screen.getByLabelText("Cintura (cm)"), "12")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    expect(screen.getByText("Escribe una cintura entre 30 y 300 cm.")).toBeTruthy()
+    expect(screen.getByDisplayValue("12")).toBeTruthy()
+    expect(apisDePrueba.seguimiento.registrarMedida).not.toHaveBeenCalled()
+  })
+
+  it("un fallo de red mantiene la edición y el reintento usa la misma operación", async () => {
+    const apisDePrueba = apis(dieta())
+    conCintura(apisDePrueba.seguimiento)
+    apisDePrueba.seguimiento.registrarMedida.mockRejectedValueOnce(new Error("Sin red"))
+    await pintar(apisDePrueba)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Cintura:/ }))
+    await fireEvent.changeText(screen.getByLabelText("Cintura (cm)"), "92,5")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    expect(await screen.findByText(/No se pudo guardar/)).toBeTruthy()
+    expect(screen.getByDisplayValue("92,5")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    expect(await screen.findByRole("button", { name: "Cintura: 92,5 cm. Cambiar" })).toBeTruthy()
+    const [primera, segunda] = apisDePrueba.seguimiento.registrarMedida.mock.calls
+    expect(segunda![1].operacionId).toBe(primera![1].operacionId)
+  })
+
+  it("pulsar Guardar varias veces durante una respuesta lenta registra una sola medida", async () => {
+    const apisDePrueba = apis(dieta())
+    conCintura(apisDePrueba.seguimiento)
+    let terminar!: () => void
+    const pendiente = new Promise<void>((resolve) => {
+      terminar = resolve
+    })
+    const registrar = apisDePrueba.seguimiento.registrarMedida.getMockImplementation()!
+    apisDePrueba.seguimiento.registrarMedida.mockImplementationOnce(async (...args) => {
+      await pendiente
+      return registrar(...args)
+    })
+    await pintar(apisDePrueba)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Cintura:/ }))
+    await fireEvent.changeText(screen.getByLabelText("Cintura (cm)"), "91")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardando…" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardando…" }))
+    expect(screen.getByLabelText("Cintura (cm)")).toBeDisabled()
+    await act(async () => terminar())
+    expect(await screen.findByRole("button", { name: "Cintura: 91 cm. Cambiar" })).toBeTruthy()
+    expect(apisDePrueba.seguimiento.registrarMedida).toHaveBeenCalledTimes(1)
+  })
 })

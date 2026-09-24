@@ -136,14 +136,16 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Cintura aparece y permite registrar desde Inicio solo cuando lo permite la configuración y corresponde por frecuencia/día; el valor se consulta también en Progreso.
-- [ ] La unidad es cm, acepta coma decimal y un error mantiene la edición; pulsaciones repetidas durante el guardado no duplican la medida.
+- [x] Cintura aparece y permite registrar desde Inicio solo cuando lo permite la configuración y corresponde por frecuencia/día; el valor se consulta también en Progreso.
+- [x] La unidad es cm, acepta coma decimal y un error mantiene la edición; pulsaciones repetidas durante el guardado no duplican la medida.
 
 **Verificación:** `npm test --workspace apps/mobile -- --runInBand hoy-inicio.spec.tsx pantallas.spec.tsx`; comprobar pauta diaria, semanal, indicador oculto, respuesta demorada y fallo de red.
 
 **Dependencias:** C01 para contrastar el hallazgo, C00 para la prueba visual. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/nutricion/hoy-inicio.tsx`, `hoy-inicio.spec.tsx` en el mismo directorio; `apps/mobile/src/seguimiento/formularios.tsx`, `pantallas.spec.tsx` en el mismo directorio; `apps/mobile/app/index.tsx`. **Tamaño:** M, hasta 5 archivos.
 
-**Punto de control C-B · C02–C03:** [ ] RIR y cintura tienen evidencia focal; [ ] se revisan sus recorridos autenticados cuando haya sesión; [ ] T05/T06/T17 solo cambian de estado en la parte realmente verificada.
+**Evidencia 24-09-2026 (Claude):** reproducido con seis pruebas que fallaban: Inicio filtraba los indicadores a peso, pasos y sueño, y la cintura pautada nunca aparecía. Cambio en `hoy-inicio.tsx`: la cintura sale en «Hoy» cuando es visible y está solicitada a diario o para el día de la semana; muestra la última medida de hoy (leída solo si toca pedirla), guarda con el registro de medidas existente (`registrarMedida`, cm, coma decimal, 30–300) y comparte el bloqueo de guardado del resto de filas. Un reintento del mismo valor reutiliza su `operacionId`, así que el servidor no duplica la medida. `formularios.tsx` y `app/index.tsx` no necesitaron cambios. Pruebas nuevas: pauta diaria, semanal (toca/no toca), indicador oculto, valor fuera de rango, fallo de red con reintento idempotente, respuesta lenta con pulsaciones repetidas y consulta posterior en Progreso. `npm test --workspace apps/mobile -- --runInBand hoy-inicio.spec.tsx pantallas.spec.tsx`: 4 suites / 44 pruebas; `typecheck`, lint y `git diff --check` correctos. **Pendiente:** comprobación visual autenticada (C00).
+
+**Punto de control C-B · C02–C03:** [x] RIR y cintura tienen evidencia focal; [ ] se revisan sus recorridos autenticados cuando haya sesión (pendiente de C00); [x] T05/T06/T17 solo cambian de estado en la parte realmente verificada (no se han cambiado).
 
 ### V01 · Fijar contratos de valoración
 

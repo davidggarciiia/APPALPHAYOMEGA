@@ -385,4 +385,43 @@ describe("ProgresoCliente", () => {
     await fireEvent.press(screen.getByRole("tab", { name: "Fuerza" }))
     expect(screen.getByText(/Cuando envíes sesiones con carga/)).toBeTruthy()
   })
+
+  it("la cintura apuntada hoy desde Inicio se consulta en Progreso", async () => {
+    const hoy = hoyAgenda()
+    const seguimiento = api()
+    seguimiento.medidas = jest.fn(async () => ({
+      medidas: [
+        {
+          id: "40000000-0000-4000-8000-000000000002",
+          fecha: sumarDias(hoy, -7),
+          pesoKg: null,
+          cinturaCm: 94,
+          grasaPct: null,
+          alturaCm: null,
+          creadoEn: "2026-09-17T07:00:00.000Z",
+        },
+        {
+          id: "40000000-0000-4000-8000-000000000003",
+          fecha: hoy,
+          pesoKg: null,
+          cinturaCm: 92.5,
+          grasaPct: null,
+          alturaCm: null,
+          creadoEn: "2026-09-24T07:00:00.000Z",
+        },
+      ],
+      fechaNacimiento: null,
+    }))
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+      />,
+    )
+    await fireEvent.press(await screen.findByRole("tab", { name: "Cintura" }))
+    // La cifra grande de la gráfica y la fila «Cintura» del resumen de la semana.
+    expect(screen.getAllByText("92,5 cm")).toHaveLength(2)
+    expect(screen.getByText(/Última medida.*−1,5 cm respecto al inicio/s)).toBeTruthy()
+  })
 })
