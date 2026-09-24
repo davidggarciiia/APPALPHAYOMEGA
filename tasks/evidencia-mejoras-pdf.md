@@ -997,3 +997,82 @@ cuatro archivos de código.
 - **Decisión para confirmar con David**, ya señalada en D01.d y D01.e: el RIR se
   sigue ofreciendo en series de metros y el cliente lee «Repeticiones que te
   quedaban».
+
+## D01.g3
+
+**Cambio realizado.** Cierra D01.g con la comprobación de la recuperación en
+cliente que pide su criterio y con la especificación al día. No cambia código
+de producción.
+
+- `registro-control.spec.ts`, bloque «Cambio de unidad y copias anteriores
+  (D01)». Hasta D01.g no se podía probar con metros, porque la copia local
+  (`DocumentoSesionSchema`) usa el contrato público:
+  - el caso «cambiar la unidad deja pendiente lo hecho» pasa a `it.each` con
+    segundos y **metros**. El entrenador cambia la pauta de 10 repeticiones a
+    20 m con carga externa. «Recuperar mi copia» deja la serie pendiente y
+    vacía, y conserva el respaldo original con la pauta anterior. Se envía
+    `{ tipoMedicion: "distancia", metros: null, pesoKg: null, hecha: false }`,
+    nunca 10 m. Al reabrir se leen la pauta en metros, la serie pendiente y el
+    respaldo.
+  - nuevo: «una sesión en metros se recupera sin conexión y reenvía la misma
+    operación». 34 kg × 18 m hechos; el primer envío pierde la respuesta; se
+    reabre sin red desde el dispositivo, con la pauta en metros y lo escrito
+    intactos; el segundo envío repite exactamente la misma petición, con
+    `{ tipoMedicion: "distancia", pesoKg: 34, metros: 18, hecha: true }`. Guarda
+    el resultado en metros y no deja nada pendiente.
+- `SPEC-entrenamiento.md`:
+  - la ampliación D01 pasa a «activa desde D01.g» y la activación se cuenta en
+    pasado.
+  - añade dos reglas ya implementadas: al cambiar la unidad, la copia queda
+    pendiente con su respaldo; y las series nuevas nacen en repeticiones.
+  - el criterio de aceptación 6 nombra la distancia (metros) junto a
+    repeticiones y tiempo, como anunciaba la propia sección.
+
+**Archivos:** `apps/mobile/src/entrenamiento/registro-control.spec.ts`,
+`SPEC-entrenamiento.md` y `tasks/evidencia-mejoras-pdf.md`.
+
+**Comandos y resultado real:**
+
+| Comando                                                                                                                                         | Resultado                                                                                 |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `npm test --workspace apps/mobile -- --runInBand registro-control.spec.ts`                                                                      | 1 suite, 20 pruebas en verde                                                              |
+| Mismo comando con `packages/shared/src/entrenamiento.ts` de D01.f (`b67582e`), copia temporal compilada y restaurada después                    | 1 suite fallida: 2 fallidas (los dos casos en metros), 18 correctas. Dependen de D01.g    |
+| `npm run typecheck`                                                                                                                             | Correcto (shared, api y mobile), con el contrato restaurado                               |
+| `npm run test:e2e --workspace apps/api -- --runTestsByPath test/entrenamiento-distancia.e2e-spec.ts` (verificación de D01.g)                    | 1 suite, 10 pruebas en verde, ninguna omitida. Base desechable `alpha_omega_e2e_claude_d` |
+| `npm test --workspace apps/mobile -- --runInBand editor-sesion.spec.tsx tabla-series.spec.tsx registro-control.spec.ts` (verificación de D01.g) | 3 suites, 35 pruebas en verde                                                             |
+| `npm test --workspace apps/mobile -- --runInBand` (regresión móvil completa)                                                                    | 51 suites, 352 pruebas en verde                                                           |
+| `npm test --workspace apps/api -- --runInBand` (regresión unitaria API)                                                                         | 17 suites, 104 pruebas en verde                                                           |
+| `npx eslint` sobre `registro-control.spec.ts`                                                                                                   | Sin avisos                                                                                |
+| `npx prettier --write` sobre `registro-control.spec.ts`, `SPEC-entrenamiento.md` y esta evidencia                                               | Aplicado                                                                                  |
+
+`git status` tras el ensayo con el contrato anterior solo mostraba
+`registro-control.spec.ts` y `SPEC-entrenamiento.md`: `packages/shared` quedó
+igual que en D01.g.
+
+**Estado de D01.g** (D01.g, D01.g2 y D01.g3):
+
+- Criterio 1: crear, reutilizar (rutina guardada), publicar y ajustar una
+  prescripción en metros, y registrarla, entregarla y consultarla con carga
+  cuando procede, está cubierto con pruebas HTTP sobre la base desechable y
+  con pruebas de editor, constructor y modelos. Los documentos anteriores
+  siguen válidos.
+- Criterio 2: los casos HTTP de metros, reintento y cambio de pauta se
+  ejecutan (ninguno omitido) y la recuperación en cliente se comprueba con
+  `RegistroControl`. No quedan casos preparados sin ejecutar.
+- Punto de control D1-C: metros funciona de prescripción a resultado en las
+  pruebas; legado, copias locales y fuerza conservan su significado; ningún
+  resultado se convierte entre unidades.
+
+**Pendiente:**
+
+- **Recorrido completo autenticado (C00): no disponible, no se ha hecho.** La
+  verificación de D01.g lo pide. Falta pautar metros desde la app con una
+  cuenta de entrenador, registrarlos y enviarlos desde un cliente, y leerlos en
+  la ficha, en web y en móvil físico. Nada de lo anterior se ha visto en
+  pantalla real.
+- Heredados y sin cambiar: tipos `…ConDistancia` redundantes y sus
+  comentarios (D01.g); títulos «aún sin publicar» en cinco pruebas (D01.g); y
+  los dos detalles del editor y la decisión sobre el RIR (D01.g2).
+- Decisiones abiertas de D01.c y D01.f para David: «La próxima vez» propone
+  subir cuando se alcanzan los metros pautados, y «Anterior» compara la carga
+  entre unidades.
