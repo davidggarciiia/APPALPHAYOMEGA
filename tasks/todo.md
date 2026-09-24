@@ -91,12 +91,14 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 **Criterios:**
 
-- [ ] Se identifica el entorno de API/web y se confirma una sesión autorizada de cliente y entrenador, o se documenta el bloqueo concreto sin credenciales.
-- [ ] No se restablecen contraseñas, alteran roles ni crean registros de salud en la cuenta principal como atajo.
+- [x] Se identifica el entorno de API/web y se confirma una sesión autorizada de cliente y entrenador, o se documenta el bloqueo concreto sin credenciales.
+- [x] No se restablecen contraseñas, alteran roles ni crean registros de salud en la cuenta principal como atajo.
 
 **Verificación:** comprobar `/salud`, abrir Inicio y la ficha del cliente con las sesiones disponibles y anotar URL de entorno, rol, fecha y resultado; una redirección a login no cuenta como acceso correcto.
 
 **Dependencias:** ninguna. **Responsable:** Claude principal. **Archivos previstos:** `tasks/evidencia-valoraciones.md` (nuevo). **Tamaño:** S, 1 archivo.
+
+**Evidencia 24-09-2026 (Claude):** bloqueo documentado en [evidencia-valoraciones.md](evidencia-valoraciones.md). `/salud` 200 en 3000 y 3101. La cuenta usada en el navegador solo existe en la base del worktree Fable (`alpha_omega_fable_i3`, web 8182/API 3101); la web principal 8181 usa la API 3000 y `alpha_omega`. En 8181 la sesión figura caducada: **no hay sesión autorizada**; la revisión autenticada espera a que David entre con una cuenta de cliente y otra de entrenador de `alpha_omega`. No se modificó ninguna cuenta ni dato.
 
 ### C01 · Revisar las pantallas actuales
 
