@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { randomUUID } from "expo-crypto"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import {
@@ -32,19 +32,22 @@ function Opcion({
   elegida,
   pulsar,
   etiqueta = texto,
+  deshabilitada = false,
 }: {
   texto: string
   elegida?: boolean
   pulsar: () => void
   etiqueta?: string
+  deshabilitada?: boolean
 }): React.JSX.Element {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
-      accessibilityState={{ selected: elegida }}
+      accessibilityState={{ selected: elegida, disabled: deshabilitada }}
+      disabled={deshabilitada}
       onPress={pulsar}
-      style={[s.opcion, elegida && s.opcionElegida]}
+      style={[s.opcion, elegida && s.opcionElegida, deshabilitada && s.deshabilitada]}
     >
       <Text style={s.texto}>{texto}</Text>
     </Pressable>
@@ -68,6 +71,8 @@ export function EditorConfiguracionSeguimiento({
     "guardado",
   )
   const [error, setError] = useState("")
+  const envioEnCurso = useRef(false)
+  const bloqueado = estado === "guardando"
 
   useEffect(() => {
     setBorrador(valor)
@@ -77,6 +82,7 @@ export function EditorConfiguracionSeguimiento({
   }, [valor])
 
   const cambiar = (nuevo: ConfiguracionSeguimiento): void => {
+    if (envioEnCurso.current) return
     setBorrador(nuevo)
     setEstado("cambios")
     setError("")
@@ -104,6 +110,7 @@ export function EditorConfiguracionSeguimiento({
     cambiar({ ...borrador, registrosSolicitados })
   }
   const guardarAhora = async (): Promise<void> => {
+    if (envioEnCurso.current) return
     let objetivoPeso = borrador.objetivoPeso
     if (objetivoPeso) {
       if ((minimo.trim() === "") !== (maximo.trim() === "")) {
@@ -122,6 +129,7 @@ export function EditorConfiguracionSeguimiento({
       setError(datos.error.issues[0]?.message ?? "Revisa la configuración.")
       return
     }
+    envioEnCurso.current = true
     setEstado("guardando")
     setError("")
     try {
@@ -136,6 +144,8 @@ export function EditorConfiguracionSeguimiento({
         setEstado("cambios")
         setError(faltaDe(fallo, "No se pudo guardar el seguimiento.").texto)
       }
+    } finally {
+      envioEnCurso.current = false
     }
   }
 
@@ -150,6 +160,7 @@ export function EditorConfiguracionSeguimiento({
         return (
           <View key={indicador} style={s.fila}>
             <Opcion
+              deshabilitada={bloqueado}
               texto={NOMBRES[indicador]}
               etiqueta={`${visible ? "Ocultar" : "Mostrar"} ${NOMBRES[indicador]}`}
               elegida={visible}
@@ -165,11 +176,13 @@ export function EditorConfiguracionSeguimiento({
             {visible && (
               <>
                 <Opcion
+                  deshabilitada={bloqueado}
                   texto="↑"
                   etiqueta={`Subir ${NOMBRES[indicador]}`}
                   pulsar={() => mover(indicador, -1)}
                 />
                 <Opcion
+                  deshabilitada={bloqueado}
                   texto="↓"
                   etiqueta={`Bajar ${NOMBRES[indicador]}`}
                   pulsar={() => mover(indicador, 1)}
@@ -195,6 +208,7 @@ export function EditorConfiguracionSeguimiento({
             <View style={s.fila}>
               {(["ninguna", "diaria", "semanal"] as const).map((opcion) => (
                 <Opcion
+                  deshabilitada={bloqueado}
                   key={opcion}
                   texto={
                     opcion === "ninguna" ? "No pedir" : opcion === "diaria" ? "Diario" : "Semanal"
@@ -209,6 +223,7 @@ export function EditorConfiguracionSeguimiento({
               <View style={s.fila}>
                 {DIAS.map((dia, n) => (
                   <Opcion
+                    deshabilitada={bloqueado}
                     key={n}
                     texto={dia}
                     etiqueta={`${NOMBRES[indicador]}: día ${n + 1}`}
@@ -233,6 +248,7 @@ export function EditorConfiguracionSeguimiento({
       <View style={s.fila}>
         {([null, "bajar", "mantener", "subir"] as const).map((direccion) => (
           <Opcion
+            deshabilitada={bloqueado}
             key={direccion ?? "ninguno"}
             texto={direccion ?? "Sin objetivo"}
             elegida={
@@ -255,9 +271,11 @@ export function EditorConfiguracionSeguimiento({
         <View style={s.fila}>
           <View style={s.mitad}>
             <Campo
+              editable={!bloqueado}
               etiqueta="Rango mínimo (kg)"
               value={minimo}
               onChangeText={(t) => {
+                if (envioEnCurso.current) return
                 setMinimo(t)
                 setEstado("cambios")
               }}
@@ -266,9 +284,11 @@ export function EditorConfiguracionSeguimiento({
           </View>
           <View style={s.mitad}>
             <Campo
+              editable={!bloqueado}
               etiqueta="Rango máximo (kg)"
               value={maximo}
               onChangeText={(t) => {
+                if (envioEnCurso.current) return
                 setMaximo(t)
                 setEstado("cambios")
               }}
@@ -282,6 +302,7 @@ export function EditorConfiguracionSeguimiento({
       {borrador.pruebasPrescritas.map((prueba, indice) => (
         <View key={prueba.id} style={s.bloque}>
           <Campo
+            editable={!bloqueado}
             etiqueta={`Nombre de prueba ${indice + 1}`}
             value={prueba.nombre}
             maxLength={60}
@@ -295,6 +316,7 @@ export function EditorConfiguracionSeguimiento({
             }
           />
           <Campo
+            editable={!bloqueado}
             etiqueta={`Unidad de prueba ${indice + 1}`}
             value={prueba.unidad}
             maxLength={12}
@@ -308,6 +330,7 @@ export function EditorConfiguracionSeguimiento({
             }
           />
           <BotonSecundario
+            deshabilitado={bloqueado}
             texto={`Quitar ${prueba.nombre || "prueba"}`}
             onPress={() =>
               cambiar({
@@ -320,6 +343,7 @@ export function EditorConfiguracionSeguimiento({
       ))}
       {borrador.pruebasPrescritas.length < 20 && (
         <BotonSecundario
+          deshabilitado={bloqueado}
           texto="Añadir prueba pautada"
           onPress={() =>
             cambiar({
@@ -372,6 +396,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   opcionElegida: { borderColor: tema.acento, backgroundColor: tema.acentoSuave },
+  deshabilitada: { opacity: 0.6 },
   previa: { gap: 6, padding: 12, backgroundColor: tema.superficieAlta, borderRadius: 12 },
   mitad: { flex: 1, minWidth: 120 },
 })
