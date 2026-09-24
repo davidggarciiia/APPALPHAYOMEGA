@@ -1,19 +1,23 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import { Text } from "react-native"
-import { TEXTO_CONSENTIMIENTO, VERSION_CONSENTIMIENTO } from "@alpha-omega/shared"
+import {
+  TEXTO_CONSENTIMIENTO,
+  VERSION_CONSENTIMIENTO,
+  type EstadoConsentimiento,
+} from "@alpha-omega/shared"
 
 import { ErrorDeRed } from "./lib/http"
 import { PuertaConsentimiento, type ApiConsentimiento } from "./consentimiento"
 
 jest.mock("./componentes/iconos", () => ({ Icono: () => null }))
 
-const pendiente = {
+const pendiente: EstadoConsentimiento = {
   version: null,
   aceptadoEn: null,
   vigente: false,
   versionVigente: VERSION_CONSENTIMIENTO,
 }
-const aceptado = {
+const aceptado: EstadoConsentimiento = {
   version: VERSION_CONSENTIMIENTO,
   aceptadoEn: "2026-09-24T10:00:00.000Z",
   vigente: true,
