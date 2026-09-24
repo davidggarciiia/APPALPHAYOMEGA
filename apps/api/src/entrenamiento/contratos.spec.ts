@@ -243,6 +243,116 @@ describe("Registro privado y envío", () => {
   })
 })
 
+describe("Distancia en metros (D01, contrato auxiliar)", () => {
+  const objetivoMetros = { id, tipoMedicion: "distancia", pesoKg: 24, metros: 20 }
+  const registroMetros = {
+    serieId: id,
+    tipoMedicion: "distancia",
+    pesoKg: 24,
+    metros: 18,
+    hecha: true,
+  }
+  const valoresMetros = { tipoMedicion: "distancia", pesoKg: 24, metros: 18 }
+
+  it("prescribe metros enteros con o sin carga, sin repeticiones ni segundos", () => {
+    const esquema = contratos.SeriePrescritaDistanciaSchema
+    expect(esquema.safeParse(objetivoMetros).success).toBe(true)
+    expect(esquema.safeParse({ ...objetivoMetros, pesoKg: null }).success).toBe(true)
+    for (const cambio of [
+      { metros: undefined },
+      { metros: null },
+      { metros: 0 },
+      { metros: -20 },
+      { metros: 12.5 },
+      { pesoKg: -1 },
+      { repeticiones: 10 },
+      { segundos: 30 },
+      { tipoMedicion: "repeticiones" },
+    ]) {
+      expect(esquema.safeParse({ ...objetivoMetros, ...cambio }).success).toBe(false)
+    }
+  })
+
+  it("registra el resultado aparte del objetivo y un vacío no cuenta como cero", () => {
+    const esquema = contratos.SerieRegistradaDistanciaSchema
+    const pendiente = { ...registroMetros, pesoKg: null, metros: null, hecha: false }
+    expect(esquema.parse(pendiente)).toEqual(pendiente)
+    expect(esquema.parse(registroMetros).metros).toBe(18)
+    for (const invalida of [
+      { ...pendiente, hecha: true },
+      { ...registroMetros, metros: 0 },
+      { ...registroMetros, metros: -5 },
+      { ...registroMetros, pesoKg: -1 },
+      { ...registroMetros, omitida: true },
+      { ...registroMetros, repeticiones: 18 },
+      { ...registroMetros, segundos: 40 },
+    ]) {
+      expect(esquema.safeParse(invalida).success).toBe(false)
+    }
+    expect(contratos.ValoresEjecutadosDistanciaSchema.safeParse(valoresMetros).success).toBe(true)
+    for (const cambio of [
+      { metros: -1 },
+      { metros: null },
+      { repeticiones: 18 },
+      { segundos: 9 },
+    ]) {
+      expect(
+        contratos.ValoresEjecutadosDistanciaSchema.safeParse({ ...valoresMetros, ...cambio })
+          .success,
+      ).toBe(false)
+    }
+  })
+
+  it("exige la unidad pautada y la carga que pide el ejercicio", () => {
+    const objetivo = contratos.SeriePrescritaDistanciaSchema.parse(objetivoMetros)
+    const sinPesoObjetivo = { ...objetivo, pesoKg: null }
+    const hecha = contratos.SerieRegistradaDistanciaSchema.parse(registroMetros)
+    const sinPeso = { ...hecha, pesoKg: null }
+    expect(contratos.mantieneUnidadYCarga(hecha, objetivo, "conCargaExterna")).toBe(true)
+    expect(contratos.mantieneUnidadYCarga(sinPeso, objetivo, "conCargaExterna")).toBe(false)
+    expect(contratos.mantieneUnidadYCarga(sinPeso, sinPesoObjetivo, "sinCarga")).toBe(true)
+    expect(contratos.mantieneUnidadYCarga(hecha, sinPesoObjetivo, "sinCarga")).toBe(false)
+    // Documento anterior a tipoCarga: el objetivo con kilos sigue pidiendo kilos.
+    expect(contratos.mantieneUnidadYCarga(sinPeso, objetivo, undefined)).toBe(false)
+    expect(contratos.mantieneUnidadYCarga(sinPeso, sinPesoObjetivo, undefined)).toBe(true)
+    const enSegundos = contratos.SerieRegistradaSchema.parse({
+      serieId: id,
+      tipoMedicion: "tiempo",
+      pesoKg: 24,
+      segundos: 40,
+      hecha: true,
+    })
+    expect(contratos.mantieneUnidadYCarga(enSegundos, objetivo, "conCargaExterna")).toBe(false)
+  })
+
+  // Al activar metros en D01.g este caso se invierte a propósito.
+  it("no se publica hasta D01.g: las uniones activas y el histórico siguen igual", () => {
+    expect(contratos.SeriePrescritaSchema.safeParse(objetivoMetros).success).toBe(false)
+    expect(contratos.SerieRegistradaSchema.safeParse(registroMetros).success).toBe(false)
+    expect(contratos.ValoresEjecutadosSchema.safeParse(valoresMetros).success).toBe(false)
+    expect(
+      contratos.PrescripcionSchema.safeParse({
+        ...prescripcion,
+        ejercicios: [{ ...ejercicioPrescrito, series: [objetivoMetros] }],
+      }).success,
+    ).toBe(false)
+    const historico = {
+      series: [
+        registroSerie,
+        { serieId: otroId, tipoMedicion: "tiempo", pesoKg: null, segundos: 30, hecha: false },
+      ],
+      notas: null,
+    }
+    expect(contratos.RegistroSchema.parse(historico)).toEqual(historico)
+    expect(
+      contratos.RegistroSchema.safeParse({
+        ...historico,
+        series: [{ ...historico.series[1], hecha: true, segundos: null }],
+      }).success,
+    ).toBe(false)
+  })
+})
+
 describe("Respuestas públicas y privadas", () => {
   const agenda = {
     id,

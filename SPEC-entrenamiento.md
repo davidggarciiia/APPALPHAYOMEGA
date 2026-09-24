@@ -358,3 +358,34 @@ progresión se reservan para el panel profesional.
 Los planes y pendientes anteriores están en el
 [archivo de planes](tasks/planes%20antiguos/2026-09-24/INDEX.md), conservados
 como histórico y sin darlos por terminados.
+
+## Ampliación D01: distancia en metros (aprobada, en preparación)
+
+Una serie puede medirse por distancia, con kilos cuando el ejercicio lleva
+carga (un transporte, por ejemplo). Es una tercera unidad junto a repeticiones
+y segundos: se muestra «m» y la app nunca convierte metros en otra unidad.
+
+- **Nombres fijados** para API y app: `tipoMedicion: "distancia"` y `metros`,
+  entero de 1 a 100 000. El objetivo vive en la serie prescrita; el resultado,
+  aparte, en la serie registrada (`metros` nulo mientras no se escribe) y en lo
+  ejecutado. Cada variante es estricta: no admite `repeticiones` ni `segundos`.
+- **Carga:** `pesoKg` funciona como en las otras unidades y manda el
+  `tipoCarga` del ejercicio. Sin carga externa no se aceptan kilos; con carga
+  externa, marcar «Hecha» exige el peso real. Un documento anterior a
+  `tipoCarga` conserva su regla: si el objetivo tenía kilos, el registro también.
+- Un campo vacío no es cero, «Hecha» exige los metros y una serie hecha no
+  puede estar omitida, igual que en repeticiones y segundos.
+- **Activación en dos pasos.** D01.a define los contratos auxiliares
+  (`SeriePrescritaDistanciaSchema`, `SerieRegistradaDistanciaSchema`,
+  `ValoresEjecutadosDistanciaSchema` y `mantieneUnidadYCarga`) y los valida por
+  separado. Las uniones públicas (`SeriePrescritaSchema`,
+  `SerieRegistradaSchema`, `ValoresEjecutadosSchema`) no aceptan metros hasta
+  D01.g, cuando editor, registro local, envío, resumen y lectura del
+  entrenador ya distinguen la unidad. Hasta entonces nadie puede publicar ni
+  guardar una serie en metros, y los documentos existentes no cambian.
+- Al activarse, el criterio de aceptación 6 pasa a cubrir las tres unidades y
+  la distancia queda fuera de la fuerza estimada por repeticiones.
+
+El inventario de consumidores de `tipoMedicion` está en la evidencia de D01.a
+([tasks/evidencia-mejoras-pdf.md](tasks/evidencia-mejoras-pdf.md)) y se reparte
+entre D01.b y D01.f.
