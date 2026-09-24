@@ -15,6 +15,7 @@ import {
   ConsultarValoracionesSchema,
   CrearValoracionSchema,
   GuardarPlantillaValoracionSchema,
+  PublicarValoracionSchema,
   type CambiarValoracion,
   type ConsultarValoraciones,
   type CrearValoracion,
@@ -22,6 +23,8 @@ import {
   type ListadoValoraciones,
   type ListadoValoracionesPublicadas,
   type PlantillaValoracion,
+  type PublicacionValoracion,
+  type PublicarValoracion,
   type ValoracionCliente,
   type ValoracionCorporal,
   type ValoracionProfesional,
@@ -100,6 +103,17 @@ export class ValoracionesController {
     @Param("id", new EntradaApiPipe(IdSchema)) id: string,
   ): Promise<ValoracionProfesional | ValoracionCliente | ValoracionCorporal> {
     return this.valoraciones.leer(this.actor(peticion), clienteId, id)
+  }
+
+  @Roles("entrenador")
+  @Post("valoraciones/:id/publicaciones")
+  publicar(
+    @Req() peticion: PeticionAutenticada,
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Param("id", new EntradaApiPipe(IdSchema)) id: string,
+    @Body(new EntradaApiPipe(PublicarValoracionSchema)) datos: PublicarValoracion,
+  ): Promise<PublicacionValoracion> {
+    return this.valoraciones.publicar(this.actor(peticion), clienteId, id, datos)
   }
 
   @Roles("entrenador")

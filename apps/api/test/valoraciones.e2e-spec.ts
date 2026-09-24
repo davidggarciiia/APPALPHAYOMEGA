@@ -5,6 +5,9 @@ import {
   ListadoValoracionesPublicadasSchema,
   ListadoValoracionesSchema,
   PlantillaValoracionSchema,
+  PublicacionValoracionSchema,
+  ValoracionClienteSchema,
+  ValoracionCorporalSchema,
   ValoracionProfesionalSchema,
   type ContenidoValoracion,
   type DefinicionCorporal,
@@ -404,5 +407,279 @@ describe("Valoraciones: plantilla, visitas y borradores (V03)", () => {
     expect(pagina.valoraciones.map((v) => v.id)).toEqual([todas.valoraciones[1]!.id])
     expect(todas.valoraciones.every((v) => v.estado === "borrador")).toBe(true)
     await request(http()).get(`${url}?limite=0`).set(entorno.como("entrenador")).expect(400)
+  })
+})
+
+describe("Valoraciones: publicar y corregir (V05)", () => {
+  let entorno: Awaited<ReturnType<typeof entornoEntrenamiento>>
+  beforeAll(async () => {
+    entorno = await entornoEntrenamiento("valoraciones-publicacion")
+    await request(entorno.app.getHttpServer())
+      .put(`/seguimiento/clientes/${entorno.ids.cliente!}/plantilla-valoracion`)
+      .set(entorno.como("entrenador"))
+      .send({ revision: 0, corporales: [peso, pliegue], pruebas: [flexiones] })
+      .expect(200)
+  })
+  afterAll(async () => {
+    await entorno?.cerrar()
+  })
+  const http = () => entorno.app.getHttpServer()
+  const ruta = (resto: string) => `/seguimiento/clientes/${entorno.ids.cliente!}/${resto}`
+
+  async function visitaGuardada(): Promise<ValoracionProfesional> {
+    const creada = ValoracionProfesionalSchema.parse(
+      (
+        await request(http())
+          .post(ruta("valoraciones"))
+          .set(entorno.como("entrenador"))
+          .send({
+            operacionId: randomUUID(),
+            tipo: "inicial",
+            fechaToma: "2026-09-24",
+            bloques: ["medidas", "pliegues", "pruebas"],
+          })
+          .expect(201)
+      ).body,
+    )
+    return ValoracionProfesionalSchema.parse(
+      (
+        await request(http())
+          .put(ruta(`valoraciones/${creada.id}`))
+          .set(entorno.como("entrenador"))
+          .send({
+            borradorId: creada.borrador!.id,
+            revision: creada.borrador!.revision,
+            fechaToma: "2026-09-24",
+            contenido: {
+              bloques: ["medidas", "pliegues", "pruebas"],
+              corporales: [
+                { definicionId: peso.id, estado: "registrado", valor: 82.4 },
+                { definicionId: pliegue.id, estado: "pendiente", lecturas: [14.2] },
+              ],
+              pruebas: [
+                {
+                  definicionId: flexiones.id,
+                  estado: "registrado",
+                  valores: { repeticiones: 21 },
+                  protocoloCompleto: true,
+                  fecha: null,
+                  notas: "Nota visible sintética",
+                },
+              ],
+              grasaPorPliegues: null,
+              destacados: [peso.id],
+              conclusion: "Conclusión visible sintética",
+              notasInternas: "Nota interna sintética",
+            },
+          })
+          .expect(200)
+      ).body,
+    )
+  }
+
+  const publicar = (v: ValoracionProfesional, cambios: Record<string, unknown> = {}) =>
+    request(http())
+      .post(ruta(`valoraciones/${v.id}/publicaciones`))
+      .set(entorno.como("entrenador"))
+      .send({
+        operacionId: randomUUID(),
+        borradorId: v.borrador!.id,
+        revision: v.borrador!.revision,
+        sustituyePublicacionId: null,
+        ...cambios,
+      })
+
+  it("publica una versión parcial que cada rol lee con su proyección; repetir no duplica", async () => {
+    const v = await visitaGuardada()
+    const operacionId = randomUUID()
+    await publicar(v, { operacionId }).set(entorno.como("cliente")).expect(403)
+    const primera = PublicacionValoracionSchema.parse(
+      (await publicar(v, { operacionId }).expect(201)).body,
+    )
+    expect(primera).toMatchObject({ numero: 1, sustituyeId: null, fechaToma: "2026-09-24" })
+    expect(JSON.stringify(primera)).not.toContain("Nota interna sintética")
+    expect(primera.documento.corporales.map((r) => r.definicionId)).toEqual([peso.id])
+    expect(primera.documento.pruebas[0]).toMatchObject({ notas: "Nota visible sintética" })
+
+    const repetida = PublicacionValoracionSchema.parse(
+      (await publicar(v, { operacionId }).expect(201)).body,
+    )
+    expect(repetida.id).toBe(primera.id)
+    const otra = await publicar(v, { operacionId, revision: v.borrador!.revision + 7 }).expect(409)
+    expect(ErrorDeApiSchema.parse(otra.body).codigo).toBe("operacion_incompatible")
+    const cerrada = await publicar(v).expect(409)
+    expect(ErrorDeApiSchema.parse(cerrada.body).codigo).toBe("estado_incompatible")
+
+    const cliente = ValoracionClienteSchema.parse(
+      (
+        await request(http())
+          .get(ruta(`valoraciones/${v.id}`))
+          .set(entorno.como("cliente"))
+          .expect(200)
+      ).body,
+    )
+    expect(cliente.publicacion.id).toBe(primera.id)
+    expect(JSON.stringify(cliente)).not.toContain("Nota interna sintética")
+    expect(
+      ListadoValoracionesPublicadasSchema.parse(
+        (await request(http()).get(ruta("valoraciones")).set(entorno.como("cliente")).expect(200))
+          .body,
+      ).valoraciones.map((f) => [f.id, f.numeroPublicacion]),
+    ).toEqual([[v.id, 1]])
+
+    await entorno.prisma.asignacionNutricionista.create({
+      data: { nutricionistaId: entorno.ids.nutricionista!, clienteId: entorno.ids.cliente! },
+    })
+    try {
+      const corporal = ValoracionCorporalSchema.parse(
+        (
+          await request(http())
+            .get(ruta(`valoraciones/${v.id}`))
+            .set(entorno.como("nutricionista"))
+            .expect(200)
+        ).body,
+      )
+      expect(corporal.corporales.map((r) => r.definicionId)).toEqual([peso.id])
+      expect(JSON.stringify(corporal)).not.toContain("Conclusión visible sintética")
+    } finally {
+      await entorno.prisma.asignacionNutricionista.deleteMany({
+        where: { nutricionistaId: entorno.ids.nutricionista! },
+      })
+    }
+
+    const profesional = ValoracionProfesionalSchema.parse(
+      (
+        await request(http())
+          .get(ruta(`valoraciones/${v.id}`))
+          .set(entorno.como("entrenador"))
+          .expect(200)
+      ).body,
+    )
+    expect(profesional).toMatchObject({ estado: "publicada", borrador: null })
+    expect(profesional.documentoVigente?.notasInternas).toBe("Nota interna sintética")
+  })
+
+  it("una revisión obsoleta o un borrador ajeno no publican nada", async () => {
+    const v = await visitaGuardada()
+    const obsoleta = await publicar(v, { revision: v.borrador!.revision - 1 }).expect(409)
+    expect(ErrorDeApiSchema.parse(obsoleta.body).codigo).toBe("revision_obsoleta")
+    const ajeno = await publicar(v, { borradorId: randomUUID() }).expect(409)
+    expect(ErrorDeApiSchema.parse(ajeno.body).codigo).toBe("estado_incompatible")
+    const sustituye = await publicar(v, { sustituyePublicacionId: randomUUID() }).expect(409)
+    expect(ErrorDeApiSchema.parse(sustituye.body).codigo).toBe("estado_incompatible")
+    expect(
+      await entorno.prisma.publicacionValoracion.count({ where: { valoracionId: v.id } }),
+    ).toBe(0)
+  })
+
+  it("dos publicaciones simultáneas del mismo borrador dejan una sola versión", async () => {
+    const v = await visitaGuardada()
+    const [a, b] = await Promise.all([publicar(v), publicar(v)])
+    expect([a.status, b.status].sort()).toEqual([201, 409])
+    expect(
+      await entorno.prisma.publicacionValoracion.count({ where: { valoracionId: v.id } }),
+    ).toBe(1)
+  })
+
+  it("corregir parte del documento interno, sustituye la versión vigente y no crea otra visita", async () => {
+    const v = await visitaGuardada()
+    const primera = PublicacionValoracionSchema.parse((await publicar(v).expect(201)).body)
+    const corregir = (operacionId = randomUUID()) =>
+      request(http())
+        .post(ruta("valoraciones"))
+        .set(entorno.como("entrenador"))
+        .send({ operacionId, corrigePublicacionId: primera.id })
+    const operacionId = randomUUID()
+    const correccion = ValoracionProfesionalSchema.parse(
+      (await corregir(operacionId).expect(201)).body,
+    )
+    expect(correccion.id).toBe(v.id)
+    expect(correccion.estado).toBe("corrigiendo")
+    expect(correccion.borrador!.corrigePublicacionId).toBe(primera.id)
+    expect(correccion.borrador!.revision).toBeGreaterThan(v.borrador!.revision)
+    expect(correccion.borrador!.documento.notasInternas).toBe("Nota interna sintética")
+    expect(correccion.borrador!.documento.corporales[1]).toEqual({
+      definicionId: pliegue.id,
+      estado: "pendiente",
+      lecturas: [14.2],
+    })
+    expect(
+      ValoracionProfesionalSchema.parse((await corregir(operacionId).expect(201)).body).borrador!
+        .id,
+    ).toBe(correccion.borrador!.id)
+    expect(ErrorDeApiSchema.parse((await corregir().expect(409)).body).codigo).toBe(
+      "estado_incompatible",
+    )
+
+    // Un guardado antiguo del borrador ya publicado no pisa la corrección.
+    const antiguo = await request(http())
+      .put(ruta(`valoraciones/${v.id}`))
+      .set(entorno.como("entrenador"))
+      .send({
+        borradorId: v.borrador!.id,
+        revision: correccion.borrador!.revision,
+        fechaToma: "2026-09-24",
+        contenido: {
+          bloques: ["medidas", "pliegues", "pruebas"],
+          corporales: [],
+          pruebas: [],
+          grasaPorPliegues: null,
+          destacados: [],
+          conclusion: null,
+          notasInternas: null,
+        },
+      })
+      .expect(409)
+    expect(ErrorDeApiSchema.parse(antiguo.body).codigo).toBe("estado_incompatible")
+
+    const guardada = ValoracionProfesionalSchema.parse(
+      (
+        await request(http())
+          .put(ruta(`valoraciones/${v.id}`))
+          .set(entorno.como("entrenador"))
+          .send({
+            borradorId: correccion.borrador!.id,
+            revision: correccion.borrador!.revision,
+            fechaToma: "2026-09-24",
+            contenido: {
+              ...correccion.borrador!.documento,
+              definiciones: undefined,
+              corporales: [
+                { definicionId: peso.id, estado: "registrado", valor: 82.1 },
+                { definicionId: pliegue.id, estado: "registrado", valor: 14.2, lecturas: [14.2] },
+              ],
+            },
+          })
+          .expect(200)
+      ).body,
+    )
+    await publicar(guardada).expect(409)
+    const segunda = PublicacionValoracionSchema.parse(
+      (await publicar(guardada, { sustituyePublicacionId: primera.id }).expect(201)).body,
+    )
+    expect(segunda).toMatchObject({ numero: 2, sustituyeId: primera.id })
+    expect(
+      await entorno.prisma.publicacionValoracion.count({ where: { valoracionId: v.id } }),
+    ).toBe(2)
+    expect(
+      await entorno.prisma.valoracion.count({ where: { clienteId: entorno.ids.cliente! } }),
+    ).toBe(4)
+
+    const cliente = ValoracionClienteSchema.parse(
+      (
+        await request(http())
+          .get(ruta(`valoraciones/${v.id}`))
+          .set(entorno.como("cliente"))
+          .expect(200)
+      ).body,
+    )
+    expect(cliente.publicacion).toMatchObject({ id: segunda.id, numero: 2 })
+    const lista = ListadoValoracionesPublicadasSchema.parse(
+      (await request(http()).get(ruta("valoraciones")).set(entorno.como("cliente")).expect(200))
+        .body,
+    )
+    expect(lista.valoraciones.filter((f) => f.id === v.id)).toEqual([
+      expect.objectContaining({ numeroPublicacion: 2 }),
+    ])
   })
 })

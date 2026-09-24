@@ -6,6 +6,7 @@ import {
   ValoracionProfesionalSchema,
   problemasDelDocumento,
   proyeccionCorporal,
+  proyeccionPublica,
   type BloqueValoracion,
   type CambiarValoracion,
   type ConsultarValoraciones,
@@ -17,6 +18,7 @@ import {
   type ListadoValoracionesPublicadas,
   type PlantillaValoracion,
   type PublicacionValoracion,
+  type PublicarValoracion,
   type ValoracionCliente,
   type ValoracionCorporal,
   type ValoracionProfesional,
@@ -245,8 +247,7 @@ export class ValoracionesService {
     datos: CrearValoracion,
   ): Promise<ValoracionProfesional> {
     await this.clienteActivo(clienteId)
-    if ("corrigePublicacionId" in datos)
-      throw conflicto("estado_incompatible", "Solo se corrige una valoración ya publicada")
+    if ("corrigePublicacionId" in datos) return this.corregir(actor, clienteId, datos)
     if (datos.tipo === "revision" && datos.cumplePauta !== null)
       throw conflicto("estado_incompatible", "Aún no hay una próxima revisión pautada que cumplir")
     const { operacionId, ...peticion } = datos
@@ -311,6 +312,174 @@ export class ValoracionesService {
       if (esCodigo(error, "P2002")) {
         const ganadora = await repetida()
         if (ganadora) return ganadora
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Abre una corrección de la publicación vigente: un borrador nuevo sobre la
+   * misma visita, copia del documento interno que produjo esa versión (con sus
+   * notas y pendientes). Su `revision` continúa la del borrador publicado, para
+   * que una edición antigua nunca coincida con la de la corrección.
+   */
+  private async corregir(
+    actor: IdentidadVerificada,
+    clienteId: string,
+    datos: Extract<CrearValoracion, { corrigePublicacionId: string }>,
+  ): Promise<ValoracionProfesional> {
+    const { operacionId, corrigePublicacionId } = datos
+    const huella = hashPeticion({ clienteId, corrigePublicacionId })
+    const repetida = async (): Promise<ValoracionProfesional | null> => {
+      const previa = await this.prisma.operacionValoracion.findUnique({
+        where: { autorId_operacionId: { autorId: actor.sub, operacionId } },
+      })
+      if (!previa) return null
+      if (previa.hashPeticion !== huella)
+        throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
+      return profesional(await this.fila(clienteId, previa.valoracionId))
+    }
+    const antes = await repetida()
+    if (antes) return antes
+    try {
+      const id = await this.prisma.$transaction(async (tx) => {
+        const vigente = await tx.publicacionValoracion.findFirst({
+          where: { id: corrigePublicacionId, valoracion: { clienteId } },
+          include: { borrador: true, sustituidaPor: { select: { id: true } } },
+        })
+        if (!vigente) throw new NotFoundException("Publicación no disponible")
+        if (vigente.sustituidaPor)
+          throw conflicto("estado_incompatible", "Solo se corrige la versión vigente")
+        const abierto = await tx.borradorValoracion.findUnique({
+          where: { valoracionAbiertaId: vigente.valoracionId },
+          select: { id: true },
+        })
+        if (abierto)
+          throw conflicto("estado_incompatible", "Esta valoración ya tiene un borrador abierto")
+        const borrador = await tx.borradorValoracion.create({
+          data: {
+            valoracionId: vigente.valoracionId,
+            valoracionAbiertaId: vigente.valoracionId,
+            autorId: actor.sub,
+            corrigePublicacionId: vigente.id,
+            revision: vigente.borrador.revision + 1,
+            fechaToma: vigente.fechaToma,
+            documento: DocumentoValoracionSchema.parse(vigente.borrador.documento),
+          },
+        })
+        await tx.operacionValoracion.create({
+          data: {
+            autorId: actor.sub,
+            operacionId,
+            tipo: "corregir",
+            hashPeticion: huella,
+            valoracionId: vigente.valoracionId,
+            borradorId: borrador.id,
+          },
+        })
+        return vigente.valoracionId
+      })
+      return profesional(await this.fila(clienteId, id))
+    } catch (error) {
+      if (esCodigo(error, "P2002")) {
+        const ganadora = await repetida()
+        if (ganadora) return ganadora
+        throw conflicto("estado_incompatible", "Esta valoración ya tiene un borrador abierto")
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Publica exactamente la revisión indicada del borrador abierto. La versión
+   * es inmutable; repetir la operación devuelve la misma publicación.
+   */
+  async publicar(
+    actor: IdentidadVerificada,
+    clienteId: string,
+    id: string,
+    datos: PublicarValoracion,
+  ): Promise<PublicacionValoracion> {
+    await this.clienteActivo(clienteId)
+    const { operacionId, ...peticion } = datos
+    const huella = hashPeticion({ clienteId, valoracionId: id, ...peticion })
+    const obsoleta = () =>
+      conflicto("revision_obsoleta", "La valoración ha cambiado. Recarga antes de publicar.")
+    const leerPublicacion = async (publicacionId: string): Promise<PublicacionValoracion> =>
+      publicacion(
+        await this.prisma.publicacionValoracion.findUniqueOrThrow({
+          where: { id: publicacionId },
+          include: INCLUIR.publicaciones.include,
+        }),
+      )
+    const repetida = async (): Promise<PublicacionValoracion | null> => {
+      const previa = await this.prisma.operacionValoracion.findUnique({
+        where: { autorId_operacionId: { autorId: actor.sub, operacionId } },
+      })
+      if (!previa) return null
+      if (previa.hashPeticion !== huella || !previa.publicacionId)
+        throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
+      return leerPublicacion(previa.publicacionId)
+    }
+    const antes = await repetida()
+    if (antes) return antes
+    try {
+      const publicacionId = await this.prisma.$transaction(async (tx) => {
+        const fila = await this.fila(clienteId, id, tx)
+        const borrador = fila.borradores[0]
+        if (!borrador)
+          throw conflicto("estado_incompatible", "Esta valoración no tiene un borrador abierto")
+        if (borrador.id !== datos.borradorId)
+          throw conflicto("estado_incompatible", "Ese borrador ya no es el que está abierto")
+        if (borrador.revision !== datos.revision) throw obsoleta()
+        const vigente = fila.publicaciones[0] ?? null
+        const esperada = borrador.corrigePublicacionId
+        if (datos.sustituyePublicacionId !== esperada || (vigente?.id ?? null) !== esperada)
+          throw conflicto(
+            "estado_incompatible",
+            esperada
+              ? "Una corrección sustituye a la versión vigente que corrige"
+              : "Esta valoración ya se publicó: corrígela",
+          )
+        const publico = proyeccionPublica(DocumentoValoracionSchema.parse(borrador.documento))
+        if (publico.corporales.length + publico.pruebas.length === 0 && !publico.conclusion)
+          throw invalida("Anota algún resultado o una conclusión antes de publicar")
+        const cerrado = await tx.borradorValoracion.updateMany({
+          where: { id: borrador.id, revision: datos.revision, valoracionAbiertaId: id },
+          data: { valoracionAbiertaId: null },
+        })
+        if (cerrado.count !== 1) throw obsoleta()
+        const nueva = await tx.publicacionValoracion.create({
+          data: {
+            valoracionId: id,
+            borradorId: borrador.id,
+            numero: (vigente?.numero ?? 0) + 1,
+            sustituyeId: vigente?.id ?? null,
+            fechaToma: borrador.fechaToma,
+            autorId: actor.sub,
+            documento: publico,
+          },
+        })
+        await tx.operacionValoracion.create({
+          data: {
+            autorId: actor.sub,
+            operacionId,
+            tipo: "publicar",
+            hashPeticion: huella,
+            valoracionId: id,
+            borradorId: borrador.id,
+            publicacionId: nueva.id,
+          },
+        })
+        return nueva.id
+      })
+      return leerPublicacion(publicacionId)
+    } catch (error) {
+      // Otra publicación del mismo borrador ganó la carrera.
+      if (esCodigo(error, "P2002")) {
+        const ganadora = await repetida()
+        if (ganadora) return ganadora
+        throw obsoleta()
       }
       throw error
     }
