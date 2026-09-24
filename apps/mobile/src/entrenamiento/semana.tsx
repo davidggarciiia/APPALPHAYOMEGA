@@ -3,7 +3,11 @@ import type { DetalleDeHoy } from "./hoy-toca"
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { AppState, Text, View } from "react-native"
-import { ListadoSesionesSchema, type ListadoSesiones } from "@alpha-omega/shared"
+import {
+  ListadoSesionesSchema,
+  type DeporteDelPlan,
+  type ListadoSesiones,
+} from "@alpha-omega/shared"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import type { ApiEntrenamiento } from "./api"
 import { lunesDeSemana, sumarDias } from "./fechas"
@@ -17,6 +21,7 @@ export function SemanaEntrenamiento({
   copiaLocal = false,
   resumenHoy = false,
   detalle,
+  deportes,
 }: {
   clienteId: string
   api: ApiEntrenamiento
@@ -24,6 +29,7 @@ export function SemanaEntrenamiento({
   copiaLocal?: boolean
   resumenHoy?: boolean
   detalle?: DetalleDeHoy
+  deportes?: DeporteDelPlan[]
 }): React.JSX.Element {
   const [semana, setSemana] = useState(lunesDeSemana)
   const semanaActual = useRef(lunesDeSemana())
@@ -103,6 +109,7 @@ export function SemanaEntrenamiento({
         abrir={abrir}
         resumenHoy={resumenHoy}
         detalle={detalle}
+        deportes={deportes}
         cambiarSemana={(dias) => setSemana((actual) => sumarDias(actual, dias))}
       />
     </View>

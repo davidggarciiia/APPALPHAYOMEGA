@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react"
 import { useFocusEffect, useRouter, type Href } from "expo-router"
+import type { Bloque } from "@alpha-omega/shared"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
 import { Icono } from "../src/componentes/iconos"
@@ -20,10 +21,10 @@ export default function Inicio(): React.JSX.Element {
   const accesoFiguras = useAccesoAFiguras()
   const router = useRouter()
   const seguimiento = useSeguimiento()
-  const [objetivoPasos, setObjetivoPasos] = useState<number | null>(null)
+  const [bloque, setBloque] = useState<Bloque | null>(null)
   const clienteId =
     estado.fase === "dentro" && estado.usuario.rol === "cliente" ? estado.usuario.id : null
-  // El objetivo de pasos lo fija el entrenador en el bloque de la semana.
+  // Otros deportes y objetivo de pasos: los fija el entrenador en el bloque.
   useFocusEffect(
     useCallback(() => {
       if (clienteId === null) return
@@ -31,7 +32,7 @@ export default function Inicio(): React.JSX.Element {
       api
         .plan(clienteId, lunesDeSemana())
         .then(({ plan }) => {
-          if (vigente) setObjetivoPasos(plan?.bloque?.pasosDiarios ?? null)
+          if (vigente) setBloque(plan?.bloque ?? null)
         })
         .catch(() => undefined)
       return () => {
@@ -74,9 +75,14 @@ export default function Inicio(): React.JSX.Element {
             copiaLocal
             resumenHoy
             detalle={detalle}
+            deportes={bloque?.deportes}
             abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
           />
-          <HoyDiario clienteId={usuario.id} api={seguimiento} objetivoPasos={objetivoPasos} />
+          <HoyDiario
+            clienteId={usuario.id}
+            api={seguimiento}
+            objetivoPasos={bloque?.pasosDiarios ?? null}
+          />
         </View>
       ) : (
         <View style={s.contenido}>

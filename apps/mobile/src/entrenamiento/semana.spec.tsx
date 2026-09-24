@@ -13,7 +13,7 @@ jest.mock("expo-router", () => ({
 jest.mock("./almacen-dispositivo", () => ({ almacenDispositivo: {} }))
 jest.mock("../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 
-it("separa los resultados enviados de los pendientes en el inicio", async () => {
+it("en el inicio marca fuerza y otro deporte, y tocar el día abre su sesión pendiente", async () => {
   const lunes = lunesDeSemana()
   const agenda = {
     clienteId: "cliente",
@@ -29,6 +29,7 @@ it("separa los resultados enviados de los pendientes en el inicio", async () => 
       resumenHoy
       cambiarSemana={jest.fn()}
       abrir={abrir}
+      deportes={[{ nombre: "K-1", dias: [1], minutos: 60 }]}
       listado={{
         total: 2,
         sesiones: [
@@ -42,11 +43,15 @@ it("separa los resultados enviados de los pendientes en el inicio", async () => 
       }}
     />,
   )
-  expect(screen.getByRole("header", { name: "Últimos entrenos de la semana" })).toBeOnTheScreen()
+  expect(screen.getByRole("header", { name: "Esta semana" })).toBeOnTheScreen()
+  expect(screen.getByText("Otro deporte")).toBeOnTheScreen()
+  expect(screen.queryByText("Últimos entrenos de la semana")).toBeNull()
   await fireEvent.press(
-    screen.getByRole("button", { name: `Abrir Sesión enviada, ${fechaLegible(lunes)}, enviado` }),
+    screen.getByRole("button", {
+      name: new RegExp(`^${fechaLegible(lunes)}.*: Sesión pendiente, Sesión enviada, hecha, K-1$`),
+    }),
   )
-  expect(abrir).toHaveBeenCalledWith("enviado")
+  expect(abrir).toHaveBeenCalledWith("pendiente")
 })
 
 it("filtra por la fecha actual, abre la sesión y limpia el filtro al cambiar semana", async () => {
