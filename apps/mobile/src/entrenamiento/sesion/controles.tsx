@@ -242,7 +242,10 @@ export function BotonDorado({
   )
 }
 
-/** Diálogo de confirmación del diseño: pregunta, explicación y dos botones. */
+/**
+ * Diálogo de confirmación del diseño: pregunta, explicación y dos botones.
+ * `ocupado` bloquea confirmar, cancelar y el botón atrás mientras se guarda.
+ */
 export function Dialogo({
   visible,
   titulo,
@@ -252,6 +255,7 @@ export function Dialogo({
   alConfirmar,
   alCancelar,
   peligro = false,
+  ocupado = false,
   children,
 }: {
   visible: boolean
@@ -262,10 +266,16 @@ export function Dialogo({
   alConfirmar: () => void
   alCancelar: () => void
   peligro?: boolean
+  ocupado?: boolean
   children?: ReactNode
 }): React.JSX.Element {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={alCancelar}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={ocupado ? () => undefined : alCancelar}
+    >
       <View style={s.velo}>
         <View style={s.dialogo} accessibilityViewIsModal>
           <Text style={s.tituloDialogo} accessibilityRole="header">
@@ -274,17 +284,21 @@ export function Dialogo({
           <Text style={s.textoDialogo}>{texto}</Text>
           {children}
           <Pressable
-            style={peligro ? s.peligro : s.dorado}
+            style={[peligro ? s.peligro : s.dorado, ocupado && s.pulsado]}
             accessibilityRole="button"
             accessibilityLabel={confirmar}
+            accessibilityState={ocupado ? { busy: true, disabled: true } : undefined}
+            disabled={ocupado}
             onPress={alConfirmar}
           >
             <Text style={[s.textoDorado, peligro && s.textoPeligro]}>{confirmar}</Text>
           </Pressable>
           <Pressable
-            style={s.secundario}
+            style={[s.secundario, ocupado && s.pulsado]}
             accessibilityRole="button"
             accessibilityLabel={cancelar}
+            accessibilityState={ocupado ? { disabled: true } : undefined}
+            disabled={ocupado}
             onPress={alCancelar}
           >
             <Text style={s.textoSecundario}>{cancelar}</Text>

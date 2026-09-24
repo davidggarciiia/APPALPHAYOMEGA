@@ -4,6 +4,7 @@ import type { Cierre, Checkin, RegistrarMolestia } from "@alpha-omega/shared"
 
 import { CheckIn } from "./check-in"
 import { CierreDeSesion } from "./cierre"
+import { Dialogo } from "./controles"
 import { RegistrarMolestiaPantalla } from "./molestia"
 
 describe("CheckIn", () => {
@@ -277,5 +278,53 @@ describe("CierreDeSesion", () => {
 
     await fireEvent.press(screen.getByRole("button", { name: "Enviar a tu entrenador" }))
     expect(enviar).toHaveBeenCalledWith({ esfuerzo: 8, energia: 2, incomodo: false }, "Me cansé")
+  })
+})
+
+describe("Dialogo", () => {
+  const dialogo = (ocupado?: boolean) => {
+    const alConfirmar = jest.fn<() => void>()
+    const alCancelar = jest.fn<() => void>()
+    const elemento = (
+      <Dialogo
+        visible
+        titulo="Añadir medida"
+        texto="Las de hoy."
+        confirmar="Guardar"
+        cancelar="Cancelar"
+        alConfirmar={alConfirmar}
+        alCancelar={alCancelar}
+        ocupado={ocupado}
+      />
+    )
+    return { alConfirmar, alCancelar, elemento }
+  }
+
+  it("sin ocupado confirma, cancela y se cierra con atrás como siempre", async () => {
+    const { alConfirmar, alCancelar, elemento } = dialogo()
+    await render(elemento)
+    expect(screen.getByRole("button", { name: "Guardar", disabled: false })).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Cancelar", disabled: false })).toBeTruthy()
+
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Cancelar" }))
+    // Android: el botón atrás llega al Modal como onRequestClose.
+    await fireEvent(screen.root!, "requestClose")
+    expect(alConfirmar).toHaveBeenCalledTimes(1)
+    expect(alCancelar).toHaveBeenCalledTimes(2)
+  })
+
+  it("ocupado bloquea confirmar, cancelar y atrás, y lo anuncia", async () => {
+    const { alConfirmar, alCancelar, elemento } = dialogo(true)
+    await render(elemento)
+    // El lector de pantalla oye ambos botones deshabilitados y confirmar ocupado.
+    const confirmar = screen.getByRole("button", { name: "Guardar", disabled: true, busy: true })
+    const cancelar = screen.getByRole("button", { name: "Cancelar", disabled: true })
+
+    await fireEvent.press(confirmar)
+    await fireEvent.press(cancelar)
+    await fireEvent(screen.root!, "requestClose")
+    expect(alConfirmar).not.toHaveBeenCalled()
+    expect(alCancelar).not.toHaveBeenCalled()
   })
 })
