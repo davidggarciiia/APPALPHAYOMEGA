@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common"
 import {
   CambiarDiaSchema,
+  ConsultarPaginaSeguimientoSchema,
   ConsultarPeriodoSchema,
   FechaAgendaSchema,
   GuardarConfiguracionSeguimientoSchema,
@@ -19,6 +20,7 @@ import {
   RegistrarPruebaSchema,
   type CambiarDia,
   type ConfiguracionSeguimiento,
+  type ConsultarPaginaSeguimiento,
   type ConsultarPeriodo,
   type DiaDeSeguimiento,
   type ListadoDias,
@@ -26,6 +28,8 @@ import {
   type ListadoPruebas,
   type GuardarConfiguracionSeguimiento,
   type Medida,
+  type PaginaMedidas,
+  type PaginaPruebas,
   type PruebaFisica,
   type RegistrarMedida,
   type RegistrarPrueba,
@@ -113,6 +117,17 @@ export class SeguimientoController {
     return this.seguimiento.medidas(clienteId)
   }
 
+  /** Histórico completo, de la más reciente a la más antigua, página a página. */
+  @Roles("cliente", "entrenador", "nutricionista")
+  @Get("medidas/pagina")
+  paginaMedidas(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Query(new EntradaApiPipe(ConsultarPaginaSeguimientoSchema))
+    consulta: ConsultarPaginaSeguimiento,
+  ): Promise<PaginaMedidas> {
+    return this.seguimiento.paginaMedidas(clienteId, consulta)
+  }
+
   @Roles("cliente", "entrenador")
   @RequiereConsentimientoDeSalud()
   @Post("pruebas")
@@ -130,5 +145,15 @@ export class SeguimientoController {
     @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
   ): Promise<ListadoPruebas> {
     return this.seguimiento.pruebas(clienteId)
+  }
+
+  @Roles("cliente", "entrenador", "nutricionista")
+  @Get("pruebas/pagina")
+  paginaPruebas(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Query(new EntradaApiPipe(ConsultarPaginaSeguimientoSchema))
+    consulta: ConsultarPaginaSeguimiento,
+  ): Promise<PaginaPruebas> {
+    return this.seguimiento.paginaPruebas(clienteId, consulta)
   }
 }

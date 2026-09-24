@@ -199,6 +199,32 @@ export type PruebaFisica = z.infer<typeof PruebaFisicaSchema>
 export const ListadoPruebasSchema = z.strictObject({ pruebas: z.array(PruebaFisicaSchema) })
 export type ListadoPruebas = z.infer<typeof ListadoPruebasSchema>
 
+/**
+ * Histórico paginado de medidas y pruebas, del más reciente al más antiguo.
+ * El cursor es opaco: se devuelve tal cual para pedir la página siguiente.
+ * Los listados anteriores conservan su contrato.
+ */
+export const ConsultarPaginaSeguimientoSchema = z.strictObject({
+  cursor: z.string().min(1).max(1000).optional(),
+  limite: z.coerce.number().int().min(1).max(500).default(500),
+})
+export type ConsultarPaginaSeguimiento = z.infer<typeof ConsultarPaginaSeguimientoSchema>
+
+export const PaginaMedidasSchema = z.strictObject({
+  medidas: z.array(MedidaSchema),
+  fechaNacimiento: FechaAgendaSchema.nullable(),
+  /** `null` cuando no quedan medidas más antiguas. */
+  siguienteCursor: z.string().nullable(),
+})
+export type PaginaMedidas = z.infer<typeof PaginaMedidasSchema>
+
+export const PaginaPruebasSchema = z.strictObject({
+  pruebas: z.array(PruebaFisicaSchema),
+  /** `null` cuando no quedan pruebas más antiguas. */
+  siguienteCursor: z.string().nullable(),
+})
+export type PaginaPruebas = z.infer<typeof PaginaPruebasSchema>
+
 /** Mejor serie de un ejercicio en una sesión enviada, para «Fuerza». */
 export const PuntoDeFuerzaSchema = z.strictObject({
   fecha: FechaAgendaSchema,

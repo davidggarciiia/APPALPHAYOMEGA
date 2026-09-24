@@ -5,6 +5,7 @@ import {
   ZONA_AGENDA,
   type CambiarDia,
   type ConfiguracionSeguimiento,
+  type ConsultarPaginaSeguimiento,
   type ConsultarPeriodo,
   type DiaDeSeguimiento,
   type ListadoDias,
@@ -12,6 +13,8 @@ import {
   type ListadoPruebas,
   type GuardarConfiguracionSeguimiento,
   type Medida,
+  type PaginaMedidas,
+  type PaginaPruebas,
   type PruebaFisica,
   type RegistrarMedida,
   type RegistrarPrueba,
@@ -28,6 +31,13 @@ import { fechaSql } from "../agenda/fechas.js"
 import { conflicto } from "../entrenamiento/documentos.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
+import {
+  LIMITE_LISTADO_ANTERIOR,
+  anterioresA,
+  cortarPagina,
+  leerCursor,
+  ordenReciente,
+} from "./paginacion-seguimiento.js"
 
 const numero = (valor: Prisma.Decimal | null): number | null =>
   valor === null ? null : Number(valor)
@@ -162,16 +172,39 @@ export class SeguimientoService {
     return medida(fila)
   }
 
+  /** Ruta anterior: las 500 más recientes, en el orden ascendente que esperaba. */
   async medidas(clienteId: string): Promise<ListadoMedidas> {
     const cliente = await this.cliente(clienteId)
     const filas = await this.prisma.medidaCorporal.findMany({
       where: { clienteId },
-      orderBy: [{ fecha: "asc" }, { creadoEn: "asc" }],
-      take: 500,
+      orderBy: ordenReciente(),
+      take: LIMITE_LISTADO_ANTERIOR,
     })
     return {
-      medidas: filas.map(medida),
+      medidas: filas.reverse().map(medida),
       fechaNacimiento: cliente.fechaNacimiento ? fecha(cliente.fechaNacimiento) : null,
+    }
+  }
+
+  async paginaMedidas(
+    clienteId: string,
+    consulta: ConsultarPaginaSeguimiento,
+  ): Promise<PaginaMedidas> {
+    const desde = consulta.cursor === undefined ? undefined : leerCursor("medidas", consulta.cursor)
+    const cliente = await this.cliente(clienteId)
+    const pagina = cortarPagina(
+      "medidas",
+      await this.prisma.medidaCorporal.findMany({
+        where: { clienteId, ...anterioresA(desde) },
+        orderBy: ordenReciente(),
+        take: consulta.limite + 1,
+      }),
+      consulta.limite,
+    )
+    return {
+      medidas: pagina.filas.map(medida),
+      fechaNacimiento: cliente.fechaNacimiento ? fecha(cliente.fechaNacimiento) : null,
+      siguienteCursor: pagina.siguienteCursor,
     }
   }
 
@@ -222,14 +255,39 @@ export class SeguimientoService {
     return prueba(fila)
   }
 
+  /** Ruta anterior: las 500 más recientes, agrupadas por nombre como esperaba. */
   async pruebas(clienteId: string): Promise<ListadoPruebas> {
     await this.cliente(clienteId)
-    const filas = await this.prisma.pruebaFisica.findMany({
+    const recientes = await this.prisma.pruebaFisica.findMany({
       where: { clienteId },
-      orderBy: [{ nombre: "asc" }, { fecha: "asc" }],
-      take: 500,
+      orderBy: ordenReciente(),
+      take: LIMITE_LISTADO_ANTERIOR,
+      select: { id: true },
+    })
+    const filas = await this.prisma.pruebaFisica.findMany({
+      where: { clienteId, id: { in: recientes.map((fila) => fila.id) } },
+      orderBy: [{ nombre: "asc" }, { fecha: "asc" }, { creadoEn: "asc" }, { id: "asc" }],
     })
     return { pruebas: filas.map(prueba) }
+  }
+
+  /** Por fecha, no por nombre: agrupar corresponde a quien presenta el histórico. */
+  async paginaPruebas(
+    clienteId: string,
+    consulta: ConsultarPaginaSeguimiento,
+  ): Promise<PaginaPruebas> {
+    const desde = consulta.cursor === undefined ? undefined : leerCursor("pruebas", consulta.cursor)
+    await this.cliente(clienteId)
+    const pagina = cortarPagina(
+      "pruebas",
+      await this.prisma.pruebaFisica.findMany({
+        where: { clienteId, ...anterioresA(desde) },
+        orderBy: ordenReciente(),
+        take: consulta.limite + 1,
+      }),
+      consulta.limite,
+    )
+    return { pruebas: pagina.filas.map(prueba), siguienteCursor: pagina.siguienteCursor }
   }
 }
 
