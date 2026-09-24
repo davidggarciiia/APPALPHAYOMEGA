@@ -14,6 +14,10 @@ import {
 import { z } from "zod"
 import {
   AsignarPlanSchema,
+  CambiarBloqueSchema,
+  type CambiarBloque,
+  type PlanVigente,
+  type PlanVigenteRespuesta,
   CambiarPrescripcionSchema,
   type CambiarPrescripcion,
   GuardarBorradorSchema,
@@ -119,6 +123,26 @@ export class EntrenamientoController {
     @Body(new EntradaApiPipe(AsignarPlanSchema)) datos: AsignarPlan,
   ): Promise<PlanAsignado> {
     return this.planes.asignar(this.actor(peticion), clienteId, datos)
+  }
+
+  @Roles("cliente", "entrenador")
+  @Get("clientes/:clienteId/plan")
+  plan(
+    @Req() peticion: PeticionAutenticada,
+    @Param("clienteId", new EntradaApiPipe(z.uuid())) clienteId: string,
+    @Query(new EntradaApiPipe(ConsultarSemanaSchema)) consulta: ConsultarSemana,
+  ): Promise<PlanVigenteRespuesta> {
+    return this.planes.vigente(this.actor(peticion), clienteId, consulta.semana)
+  }
+
+  @Roles("entrenador")
+  @Patch("planes/:id/bloque")
+  cambiarBloque(
+    @Req() peticion: PeticionAutenticada,
+    @Param("id", new EntradaApiPipe(z.uuid())) id: string,
+    @Body(new EntradaApiPipe(CambiarBloqueSchema)) datos: CambiarBloque,
+  ): Promise<PlanVigente> {
+    return this.planes.cambiarBloque(this.actor(peticion), id, datos)
   }
 
   @Roles("cliente", "entrenador")

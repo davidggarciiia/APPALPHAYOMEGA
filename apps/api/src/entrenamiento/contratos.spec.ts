@@ -348,4 +348,27 @@ describe("Respuestas públicas y privadas", () => {
       }).success,
     ).toBe(false)
   })
+
+  it("el bloque rechaza fases al revés, días repetidos y textos vacíos", () => {
+    const bloque = {
+      objetivos: ["Técnica y progresión, sin fallo"],
+      fases: [{ desde: 1, hasta: 2, nombre: "Calibrar", detalle: null }],
+      deportes: [{ nombre: "K-1", dias: [4, 7], minutos: 60 }],
+      notas: [],
+    }
+    expect(contratos.BloqueSchema.safeParse(bloque).success).toBe(true)
+    expect(
+      contratos.BloqueSchema.safeParse({
+        ...bloque,
+        fases: [{ desde: 3, hasta: 2, nombre: "Calibrar", detalle: null }],
+      }).success,
+    ).toBe(false)
+    expect(
+      contratos.BloqueSchema.safeParse({
+        ...bloque,
+        deportes: [{ nombre: "K-1", dias: [4, 4], minutos: 60 }],
+      }).success,
+    ).toBe(false)
+    expect(contratos.BloqueSchema.safeParse({ ...bloque, objetivos: ["  "] }).success).toBe(false)
+  })
 })

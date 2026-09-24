@@ -149,6 +149,41 @@ export const PatronRutinaSchema = z
   )
 export type PatronRutina = z.infer<typeof PatronRutinaSchema>
 
+/** Una fase del bloque: «Semanas 1–2 · Calibrar · RIR 3 · accesorios 2–3». */
+export const FaseDeBloqueSchema = z
+  .strictObject({
+    desde: z.number().int().min(1).max(52),
+    hasta: z.number().int().min(1).max(52),
+    nombre: TextoCorto(40),
+    detalle: TextoCorto(120).nullable(),
+  })
+  .refine((fase) => fase.desde <= fase.hasta, "Una fase no puede acabar antes de empezar")
+export type FaseDeBloque = z.infer<typeof FaseDeBloqueSchema>
+
+/** Otro deporte que convive con el plan: «K-1: jueves y domingo, 60 min». */
+export const DeporteDelPlanSchema = z.strictObject({
+  nombre: TextoCorto(40),
+  dias: z
+    .array(z.number().int().min(1).max(7))
+    .min(1)
+    .max(7)
+    .refine((dias) => new Set(dias).size === dias.length, "Hay días repetidos"),
+  minutos: z.number().int().min(1).max(600).nullable(),
+})
+export type DeporteDelPlan = z.infer<typeof DeporteDelPlanSchema>
+
+/** Lo que el cliente ve en «Bloque»: qué buscamos, fases, otros deportes y notas. */
+export const BloqueSchema = z.strictObject({
+  objetivos: z.array(TextoCorto(120)).max(6),
+  fases: z.array(FaseDeBloqueSchema).max(8),
+  deportes: z.array(DeporteDelPlanSchema).max(4),
+  notas: z.array(TextoCorto(200)).max(10),
+})
+export type Bloque = z.infer<typeof BloqueSchema>
+
+const fasesDentro = (datos: { semanas: number; bloque?: Bloque | null }): boolean =>
+  (datos.bloque?.fases ?? []).every((fase) => fase.hasta <= datos.semanas)
+
 export const MAX_SERIES_PLAN = 10000
 export const AsignarPlanSchema = z
   .strictObject({
@@ -157,7 +192,9 @@ export const AsignarPlanSchema = z
     semanaInicial: SemanaSchema,
     semanas: z.number().int().min(1).max(52),
     patron: PatronRutinaSchema,
+    bloque: BloqueSchema.optional(),
   })
+  .refine(fasesDentro, "Las fases deben caber en las semanas del plan")
   .refine(
     (datos) =>
       datos.semanas *
@@ -171,6 +208,24 @@ export const AsignarPlanSchema = z
     "Divide este plan: admite como máximo 10.000 series entre todas las semanas",
   )
 export type AsignarPlan = z.infer<typeof AsignarPlanSchema>
+
+export const PlanVigenteSchema = z.strictObject({
+  id: z.uuid(),
+  nombre: NombreSchema,
+  semanaInicial: SemanaSchema,
+  semanas: z.number().int().min(1).max(52),
+  version: z.number().int().positive(),
+  bloque: BloqueSchema.nullable(),
+})
+export type PlanVigente = z.infer<typeof PlanVigenteSchema>
+export const PlanVigenteRespuestaSchema = z.strictObject({ plan: PlanVigenteSchema.nullable() })
+export type PlanVigenteRespuesta = z.infer<typeof PlanVigenteRespuestaSchema>
+
+export const CambiarBloqueSchema = z.strictObject({
+  version: z.number().int().positive(),
+  bloque: BloqueSchema,
+})
+export type CambiarBloque = z.infer<typeof CambiarBloqueSchema>
 
 export const GuardarRutinaSchema = z.strictObject({
   nombre: NombreSchema,

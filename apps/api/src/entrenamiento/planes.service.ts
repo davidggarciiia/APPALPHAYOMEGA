@@ -1,6 +1,15 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common"
 import { randomUUID } from "node:crypto"
-import { PlanAsignadoSchema, type AsignarPlan, type PlanAsignado } from "@alpha-omega/shared"
+import {
+  BloqueSchema,
+  PlanAsignadoSchema,
+  type AsignarPlan,
+  type CambiarBloque,
+  type PlanAsignado,
+  type PlanVigente,
+  type PlanVigenteRespuesta,
+} from "@alpha-omega/shared"
+import type { PlanEntrenamiento } from "@prisma/client"
 import { PrismaService } from "../prisma/prisma.service.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { fechaSql, sumarDias } from "../agenda/fechas.js"
@@ -8,6 +17,7 @@ import {
   catalogoParaPrescribir,
   conflicto,
   hashPeticion,
+  invalida,
   leerDocumento,
   prescripcionConNombres,
 } from "./documentos.js"
@@ -88,6 +98,7 @@ export class PlanesService {
             semanas: datos.semanas,
             patron: datos.patron,
             respuesta,
+            ...(datos.bloque && { bloque: datos.bloque }),
           },
         })
         await tx.sesionProgramada.createMany({
@@ -120,4 +131,70 @@ export class PlanesService {
       { timeout: 20000 },
     )
   }
+
+  /** El plan que cubre la semana consultada; si se solapan, el último asignado. */
+  async vigente(
+    identidad: IdentidadVerificada,
+    clienteId: string,
+    semana: string,
+  ): Promise<PlanVigenteRespuesta> {
+    if (identidad.rol === "cliente" && identidad.sub !== clienteId)
+      throw new NotFoundException("Plan no disponible")
+    const cliente = await this.prisma.usuario.findFirst({
+      where: { id: clienteId, rol: "cliente" },
+      select: { id: true },
+    })
+    if (!cliente) throw new NotFoundException("Cliente no disponible")
+    const candidatos = await this.prisma.planEntrenamiento.findMany({
+      where: {
+        clienteId,
+        semanaInicial: { lte: fechaSql(semana), gt: fechaSql(sumarDias(semana, -52 * 7)) },
+      },
+      orderBy: [{ creadoEn: "desc" }, { id: "desc" }],
+    })
+    const plan = candidatos.find(
+      (fila) => sumarDias(fechaDe(fila.semanaInicial), fila.semanas * 7) > semana,
+    )
+    return { plan: plan ? planVigente(plan) : null }
+  }
+
+  async cambiarBloque(
+    identidad: IdentidadVerificada,
+    planId: string,
+    datos: CambiarBloque,
+  ): Promise<PlanVigente> {
+    if (identidad.rol !== "entrenador") throw new ForbiddenException()
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "planes_entrenamiento" WHERE "id" = ${planId} FOR UPDATE`
+      const plan = await tx.planEntrenamiento.findUnique({ where: { id: planId } })
+      if (!plan) throw new NotFoundException("Plan no disponible")
+      if (plan.version !== datos.version)
+        throw conflicto(
+          "revision_obsoleta",
+          "El plan cambió mientras lo editabas. Vuelve a abrirlo.",
+        )
+      if (datos.bloque.fases.some((fase) => fase.hasta > plan.semanas))
+        throw invalida("Las fases deben caber en las semanas del plan")
+      const actualizado = await tx.planEntrenamiento.update({
+        where: { id: planId },
+        data: { bloque: datos.bloque, version: { increment: 1 } },
+      })
+      return planVigente(actualizado)
+    })
+  }
+}
+
+function planVigente(fila: PlanEntrenamiento): PlanVigente {
+  return {
+    id: fila.id,
+    nombre: fila.nombre,
+    semanaInicial: fechaDe(fila.semanaInicial),
+    semanas: fila.semanas,
+    version: fila.version,
+    bloque: fila.bloque === null ? null : BloqueSchema.parse(fila.bloque),
+  }
+}
+
+function fechaDe(fecha: Date): string {
+  return fecha.toISOString().slice(0, 10)
 }

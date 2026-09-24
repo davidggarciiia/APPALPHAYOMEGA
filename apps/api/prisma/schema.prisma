@@ -278,6 +278,8 @@ model PlanEntrenamiento {
   version Int @default(1)
   patron Json
   respuesta Json
+  /// Qué buscamos, fases, otros deportes y notas: lo que enseña «Bloque».
+  bloque Json?
   creadoEn DateTime @default(now())
   sesiones SesionEntrenamiento[]
   @@unique([creadorId, operacionId])
