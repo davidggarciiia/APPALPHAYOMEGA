@@ -23,6 +23,7 @@ export class ConsentimientoService {
     return {
       version: ultimo?.version ?? null,
       aceptadoEn: ultimo?.aceptadoEn.toISOString() ?? null,
+      retiradoEn: ultimo?.retiradoEn?.toISOString() ?? null,
       vigente: ultimo?.version === VERSION_CONSENTIMIENTO && ultimo.retiradoEn === null,
       versionVigente: VERSION_CONSENTIMIENTO,
     }
@@ -36,12 +37,38 @@ export class ConsentimientoService {
     return fila !== null && fila.retiradoEn === null
   }
 
-  /** Aceptar dos veces la misma versión no crea otra fila ni cambia la fecha. */
+  /**
+   * Aceptar dos veces la misma versión no crea otra fila ni cambia la fecha.
+   * Volver a aceptar tras retirarlo lo reactiva con la fecha nueva.
+   */
   async aceptar(usuarioId: string, datos: AceptarConsentimiento): Promise<EstadoConsentimiento> {
-    await this.prisma.consentimientoSalud.upsert({
-      where: { usuarioId_version: { usuarioId, version: datos.version } },
-      create: { usuarioId, version: datos.version },
-      update: {},
+    const clave = { usuarioId_version: { usuarioId, version: datos.version } }
+    const fila = await this.prisma.consentimientoSalud.findUnique({
+      where: clave,
+      select: { retiradoEn: true },
+    })
+    if (fila?.retiradoEn)
+      await this.prisma.consentimientoSalud.update({
+        where: clave,
+        data: { retiradoEn: null, aceptadoEn: new Date() },
+      })
+    else if (!fila)
+      await this.prisma.consentimientoSalud.upsert({
+        where: clave,
+        create: { usuarioId, version: datos.version },
+        update: {},
+      })
+    return this.estado(usuarioId)
+  }
+
+  /**
+   * Retirarlo es tan fácil como darlo (RGPD, art. 7.3). No borra lo tratado
+   * antes: desde ese momento no se guarda ningún dato de salud nuevo.
+   */
+  async retirar(usuarioId: string): Promise<EstadoConsentimiento> {
+    await this.prisma.consentimientoSalud.updateMany({
+      where: { usuarioId, retiradoEn: null },
+      data: { retiradoEn: new Date() },
     })
     return this.estado(usuarioId)
   }

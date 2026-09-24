@@ -14,12 +14,14 @@ jest.mock("./componentes/iconos", () => ({ Icono: () => null }))
 const pendiente: EstadoConsentimiento = {
   version: null,
   aceptadoEn: null,
+  retiradoEn: null,
   vigente: false,
   versionVigente: VERSION_CONSENTIMIENTO,
 }
 const aceptado: EstadoConsentimiento = {
   version: VERSION_CONSENTIMIENTO,
   aceptadoEn: "2026-09-24T10:00:00.000Z",
+  retiradoEn: null,
   vigente: true,
   versionVigente: VERSION_CONSENTIMIENTO,
 }

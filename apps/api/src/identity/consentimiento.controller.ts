@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -21,7 +22,7 @@ import { ConsentimientoService } from "./consentimiento.service.js"
 import type { PeticionAutenticada } from "./peticion.js"
 import { Roles } from "./roles.decorator.js"
 
-/** El cliente consulta y da su propio consentimiento; su equipo solo lo consulta. */
+/** El cliente consulta, da y retira su propio consentimiento; su equipo solo lo consulta. */
 @Controller()
 export class ConsentimientoController {
   constructor(private readonly consentimiento: ConsentimientoService) {}
@@ -44,6 +45,12 @@ export class ConsentimientoController {
     @Body(new EntradaApiPipe(AceptarConsentimientoSchema)) datos: AceptarConsentimiento,
   ): Promise<EstadoConsentimiento> {
     return this.consentimiento.aceptar(this.propio(peticion), datos)
+  }
+
+  @Roles("cliente")
+  @Delete("consentimiento")
+  retirar(@Req() peticion: PeticionAutenticada): Promise<EstadoConsentimiento> {
+    return this.consentimiento.retirar(this.propio(peticion))
   }
 
   @Roles("entrenador", "nutricionista")
