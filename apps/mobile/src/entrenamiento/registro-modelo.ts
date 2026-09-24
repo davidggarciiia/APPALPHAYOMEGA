@@ -1,5 +1,11 @@
 import { z } from "zod"
-import { crearRegistroDeSesionSchema, type Prescripcion, type Registro } from "@alpha-omega/shared"
+import {
+  CheckinSchema,
+  CierreSchema,
+  crearRegistroDeSesionSchema,
+  type Prescripcion,
+  type Registro,
+} from "@alpha-omega/shared"
 
 export const EdicionRegistroSchema = z.strictObject({
   notas: z.string().max(2000),
@@ -10,9 +16,14 @@ export const EdicionRegistroSchema = z.strictObject({
         peso: z.string().max(30),
         valor: z.string().max(30),
         hecha: z.boolean(),
+        /** «¿Cuántas te quedaban?». Opcional: las copias anteriores no lo tienen. */
+        rir: z.number().int().min(0).max(5).nullable().optional(),
       }),
     )
     .max(1200),
+  checkin: CheckinSchema.nullable().optional(),
+  inicio: z.iso.datetime().nullable().optional(),
+  cierre: CierreSchema.nullable().optional(),
 })
 export type EdicionRegistro = z.infer<typeof EdicionRegistroSchema>
 
@@ -23,6 +34,9 @@ export function desdePrescripcion(
   const reales = new Map(registro?.series.map((serie) => [serie.serieId, serie]))
   return {
     notas: registro?.notas ?? "",
+    checkin: registro?.checkin ?? null,
+    inicio: registro?.inicio ?? null,
+    cierre: registro?.cierre ?? null,
     series: prescripcion.ejercicios.flatMap((e) =>
       e.series.map((s) => {
         const real = reales.get(s.id)
@@ -32,6 +46,8 @@ export function desdePrescripcion(
           peso: real?.pesoKg?.toString() ?? "",
           valor: valor?.toString() ?? "",
           hecha: real?.hecha ?? false,
+          // Solo si se anotó: las copias y registros anteriores no llevan RIR.
+          ...(typeof real?.rir === "number" && { rir: real.rir }),
         }
       }),
     ),
@@ -46,11 +62,15 @@ export function registroParaEnviar(prescripcion: Prescripcion, edicion: EdicionR
     texto.trim() === "" ? null : Number(texto.replace(",", "."))
   return crearRegistroDeSesionSchema(prescripcion).parse({
     notas: edicion.notas.trim() || null,
+    checkin: edicion.checkin ?? null,
+    inicio: edicion.inicio ?? null,
+    cierre: edicion.cierre ?? null,
     series: edicion.series.map((s) => ({
       serieId: s.serieId,
       tipoMedicion: unidades.get(s.serieId),
       pesoKg: numero(s.peso),
       hecha: s.hecha,
+      ...(typeof s.rir === "number" && { rir: s.rir }),
       ...(unidades.get(s.serieId) === "tiempo"
         ? { segundos: numero(s.valor) }
         : { repeticiones: numero(s.valor) }),

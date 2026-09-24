@@ -48,6 +48,7 @@ export const MolestiaSchema = z.strictObject({
   id: z.uuid(),
   sesionId: z.uuid(),
   clienteId: z.uuid(),
+  ejercicioPrescritoId: z.uuid().nullable(),
   /** Nombre del ejercicio tal como estaba prescrito cuando se avisó. */
   ejercicio: z.string().nullable(),
   serie: z.number().int().nullable(),

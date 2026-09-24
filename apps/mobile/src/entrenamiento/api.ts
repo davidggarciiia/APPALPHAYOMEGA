@@ -12,6 +12,14 @@ import {
   SesionProgramadaSchema,
   ListadoCambiosSchema,
   CambiarPrescripcionSchema,
+  ListadoAnterioresSchema,
+  ListadoMolestiasSchema,
+  MolestiaSchema,
+  RegistrarMolestiaSchema,
+  type ListadoAnteriores,
+  type ListadoMolestias,
+  type Molestia,
+  type RegistrarMolestia,
   type CambiarPrescripcion,
   type CambiarFecha,
   type SesionProgramada,
@@ -39,6 +47,14 @@ export type ApiEntrenamiento = {
   mover: (id: string, datos: CambiarFecha) => Promise<SesionProgramada>
   cambios: (id: string, desplazamiento?: number) => Promise<ListadoCambios>
   ajustar: (id: string, datos: CambiarPrescripcion) => Promise<SesionEntrenador>
+  /** La mejor serie de la última vez de cada ejercicio de la sesión. */
+  anteriores: (id: string) => Promise<ListadoAnteriores>
+  avisarMolestia: (id: string, datos: RegistrarMolestia) => Promise<Molestia>
+  molestias: (
+    clienteId: string,
+    estado?: "abierta" | "atendida" | "todas",
+  ) => Promise<ListadoMolestias>
+  atenderMolestia: (id: string, respuesta: string) => Promise<Molestia>
 }
 
 export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamiento {
@@ -90,5 +106,25 @@ export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamie
         SesionEntrenadorSchema,
         { method: "PATCH", body: JSON.stringify(CambiarPrescripcionSchema.parse(datos)) },
       ),
+    anteriores: (id) =>
+      pedir(
+        `/entrenamiento/sesiones/${encodeURIComponent(id)}/anteriores`,
+        ListadoAnterioresSchema,
+      ),
+    avisarMolestia: (id, datos) =>
+      pedir(`/entrenamiento/sesiones/${encodeURIComponent(id)}/molestias`, MolestiaSchema, {
+        method: "POST",
+        body: JSON.stringify(RegistrarMolestiaSchema.parse(datos)),
+      }),
+    molestias: (clienteId, estado = "todas") =>
+      pedir(
+        `/entrenamiento/clientes/${encodeURIComponent(clienteId)}/molestias?estado=${estado}`,
+        ListadoMolestiasSchema,
+      ),
+    atenderMolestia: (id, respuesta) =>
+      pedir(`/entrenamiento/molestias/${encodeURIComponent(id)}/atender`, MolestiaSchema, {
+        method: "POST",
+        body: JSON.stringify({ respuesta }),
+      }),
   }
 }

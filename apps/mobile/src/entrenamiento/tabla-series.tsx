@@ -1,11 +1,30 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
-import type { EjercicioPrescrito } from "@alpha-omega/shared"
+import type { EjercicioPrescrito, SeriePrescrita, ValoresEjecutados } from "@alpha-omega/shared"
 import type { EdicionRegistro } from "./registro-modelo"
 import { valoresLegibles } from "./resultado"
 import { Icono } from "../componentes/iconos"
 import { degradadoExito, tema } from "../tema"
+import { Opciones } from "./sesion/controles"
+import { kg, resumenPrescrito } from "./sesion/modelo"
 
 type SerieReal = EdicionRegistro["series"][number]
+
+const RIRS = [0, 1, 2, 3, 4, 5].map((valor) => ({
+  valor,
+  texto: valor === 5 ? "5+" : String(valor),
+  accesible: valor === 5 ? "5 o más" : String(valor),
+}))
+
+function objetivo(serie: SeriePrescrita): number {
+  return serie.tipoMedicion === "tiempo" ? serie.segundos : serie.repeticiones
+}
+
+/** «Anterior 65 kg × 6». */
+function anteriorLegible(valores: ValoresEjecutados): string {
+  const cantidad =
+    valores.tipoMedicion === "tiempo" ? `${valores.segundos} s` : `${valores.repeticiones}`
+  return valores.pesoKg === null ? cantidad : `${kg(valores.pesoKg)} × ${cantidad}`
+}
 
 /** Un ejercicio de la sesión en curso, con el diseño de «Sesión en curso». */
 export function TablaSeries({
@@ -14,6 +33,8 @@ export function TablaSeries({
   bloqueado,
   cambiar,
   verTecnica,
+  enCurso = null,
+  anterior,
 }: {
   ejercicio: EjercicioPrescrito
   series: SerieReal[]
@@ -21,9 +42,19 @@ export function TablaSeries({
   cambiar: (id: string, cambio: Partial<SerieReal>) => void
   /** Ver la técnica no edita nada: sigue disponible con el registro bloqueado. */
   verTecnica?: () => void
+  /** La serie que toca ahora: se resalta y pregunta cuántas quedaban. */
+  enCurso?: string | null
+  /** La mejor serie de la última vez. */
+  anterior?: ValoresEjecutados
 }): React.JSX.Element {
   const unidades = new Set(ejercicio.series.map((s) => s.tipoMedicion))
   const columna = unidades.size > 1 ? "Reps / s" : unidades.has("tiempo") ? "Seg" : "Reps"
+  const sugerida = ejercicio.series[0]?.pesoKg ?? null
+  const diferencia =
+    anterior?.pesoKg !== undefined && anterior.pesoKg !== null && sugerida !== null
+      ? sugerida - anterior.pesoKg
+      : null
+  const rirObjetivo = ejercicio.rir?.min
   return (
     <View style={s.bloque}>
       <View style={s.cabecera}>
@@ -31,7 +62,8 @@ export function TablaSeries({
           <Text accessibilityRole="header" style={s.nombre}>
             {ejercicio.nombre}
           </Text>
-          {ejercicio.indicaciones && <Text style={s.indicaciones}>{ejercicio.indicaciones}</Text>}
+          <Text style={s.resumen}>{resumenPrescrito(ejercicio)}</Text>
+          {ejercicio.indicaciones && <Text style={s.resumen}>{ejercicio.indicaciones}</Text>}
         </View>
         {verTecnica && (
           <Pressable
@@ -45,61 +77,121 @@ export function TablaSeries({
           </Pressable>
         )}
       </View>
+      {anterior && (
+        <View style={s.anterior}>
+          <Text style={s.resumen}>Anterior {anteriorLegible(anterior)}</Text>
+          {diferencia !== null && diferencia !== 0 && (
+            <Text style={s.diferencia}>
+              {diferencia > 0 ? "+" : "−"}
+              {kg(Math.abs(diferencia))}
+            </Text>
+          )}
+        </View>
+      )}
       <View style={s.fila} accessible={false}>
         <Text style={[s.etiqueta, s.numero]}>Serie</Text>
-        <Text style={[s.etiqueta, s.objetivo]}>Objetivo</Text>
         <Text style={[s.etiqueta, s.valor]}>Kg</Text>
         <Text style={[s.etiqueta, s.valor]}>{columna}</Text>
-        <Text style={[s.etiqueta, s.marca]}>Hecha</Text>
+        <Text style={[s.etiqueta, s.rir]}>RIR</Text>
+        <Text style={[s.etiqueta, s.marca]} />
       </View>
-      {ejercicio.series.map((objetivo, n) => {
-        const real = series.find((serie) => serie.serieId === objetivo.id)!
-        const tiempo = objetivo.tipoMedicion === "tiempo"
+      {ejercicio.series.map((prescrita, n) => {
+        const real = series.find((serie) => serie.serieId === prescrita.id)!
+        const tiempo = prescrita.tipoMedicion === "tiempo"
         const unidad = tiempo ? "Segundos" : "Repeticiones"
+        const actual = enCurso === prescrita.id
+        const rir = real.rir ?? null
+        const fueraDeObjetivo = rir !== null && rirObjetivo !== undefined && rir < rirObjetivo
+        const sugerencia = `Sugerencia de tu entrenador: ${[
+          prescrita.pesoKg === null ? null : kg(prescrita.pesoKg),
+          tiempo ? `${prescrita.segundos} segundos` : `${prescrita.repeticiones} repeticiones`,
+          rirObjetivo === undefined ? null : `RIR ${rirObjetivo}`,
+        ]
+          .filter(Boolean)
+          .join(", ")}.`
         return (
-          <View key={objetivo.id} style={s.fila}>
-            <Text style={[s.numero, s.numeroTexto, real.hecha && s.numeroHecho]}>{n + 1}</Text>
-            <Text
-              style={[s.objetivo, s.objetivoTexto]}
-              accessibilityLabel={`Objetivo, serie ${n + 1}: ${valoresLegibles(objetivo)}`}
-            >
-              {objetivo.pesoKg !== null ? `${objetivo.pesoKg} kg × ` : ""}
-              {tiempo ? `${objetivo.segundos} s` : `${objetivo.repeticiones} rep`}
-            </Text>
-            <TextInput
-              accessibilityLabel={`Peso — ${ejercicio.nombre}, serie ${n + 1}`}
-              editable={!bloqueado}
-              value={real.peso}
-              onChangeText={(peso) => cambiar(objetivo.id, { peso })}
-              placeholder={objetivo.pesoKg === null ? "—" : String(objetivo.pesoKg)}
-              placeholderTextColor={tema.marcador}
-              selectionColor={tema.acento}
-              keyboardType="decimal-pad"
-              maxLength={30}
-              style={[s.valor, s.campo]}
-            />
-            <TextInput
-              accessibilityLabel={`${unidad} — ${ejercicio.nombre}, serie ${n + 1}`}
-              editable={!bloqueado}
-              value={real.valor}
-              onChangeText={(valor) => cambiar(objetivo.id, { valor })}
-              placeholder={String(tiempo ? objetivo.segundos : objetivo.repeticiones)}
-              placeholderTextColor={tema.marcador}
-              selectionColor={tema.acento}
-              keyboardType="number-pad"
-              maxLength={30}
-              style={[s.valor, s.campo]}
-            />
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityLabel={`Hecha — ${ejercicio.nombre}, serie ${n + 1}`}
-              accessibilityState={{ checked: real.hecha, disabled: bloqueado }}
-              disabled={bloqueado}
-              onPress={() => cambiar(objetivo.id, { hecha: !real.hecha })}
-              style={[s.casilla, real.hecha && [s.marcada, degradadoExito]]}
-            >
-              {real.hecha && <Icono nombre="hecho" color={tema.sobreExito} tamano={18} />}
-            </Pressable>
+          <View key={prescrita.id} style={[s.serie, actual && s.serieActual]}>
+            <View style={s.fila}>
+              <Text
+                style={[s.numero, s.numeroTexto, actual && s.numeroActual]}
+                accessibilityLabel={`Serie ${n + 1}${actual ? ", serie en curso" : ""}: ${valoresLegibles(prescrita)}`}
+              >
+                {n + 1}
+              </Text>
+              <TextInput
+                accessibilityLabel={`Peso — ${ejercicio.nombre}, serie ${n + 1}`}
+                accessibilityHint={sugerencia}
+                editable={!bloqueado}
+                value={real.peso}
+                onChangeText={(peso) => cambiar(prescrita.id, { peso })}
+                placeholder={prescrita.pesoKg === null ? "—" : String(prescrita.pesoKg)}
+                placeholderTextColor={tema.marcador}
+                selectionColor={tema.acento}
+                keyboardType="decimal-pad"
+                maxLength={30}
+                style={[s.valor, s.campo, actual && s.campoActual, real.hecha && s.campoHecho]}
+              />
+              <TextInput
+                accessibilityLabel={`${unidad} — ${ejercicio.nombre}, serie ${n + 1}`}
+                accessibilityHint={sugerencia}
+                editable={!bloqueado}
+                value={real.valor}
+                onChangeText={(valor) => cambiar(prescrita.id, { valor })}
+                placeholder={String(objetivo(prescrita))}
+                placeholderTextColor={tema.marcador}
+                selectionColor={tema.acento}
+                keyboardType="number-pad"
+                maxLength={30}
+                style={[s.valor, s.campo, real.hecha && s.campoHecho]}
+              />
+              <View
+                style={[s.rir, s.campo, s.celdaRir, fueraDeObjetivo && s.rirFuera]}
+                accessibilityLabel={`RIR, serie ${n + 1}: ${rir === null ? "sin anotar" : rir === 5 ? "5 o más" : rir}${fueraDeObjetivo ? ", menos del objetivo" : ""}`}
+              >
+                <Text style={[s.textoRir, fueraDeObjetivo && s.textoRirFuera]}>
+                  {rir === null ? (rirObjetivo ?? "—") : rir === 5 ? "5+" : rir}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityLabel={`Hecha — ${ejercicio.nombre}, serie ${n + 1}`}
+                accessibilityState={{ checked: real.hecha, disabled: bloqueado }}
+                disabled={bloqueado}
+                onPress={() =>
+                  cambiar(
+                    prescrita.id,
+                    real.hecha
+                      ? { hecha: false }
+                      : {
+                          hecha: true,
+                          // La sugerencia del entrenador vale si no se escribió otra cosa.
+                          ...(real.valor.trim() === "" && { valor: String(objetivo(prescrita)) }),
+                          ...(real.peso.trim() === "" &&
+                            prescrita.pesoKg !== null && { peso: String(prescrita.pesoKg) }),
+                        },
+                  )
+                }
+                style={[s.casilla, real.hecha && [s.marcada, degradadoExito]]}
+              >
+                {real.hecha && <Icono nombre="hecho" color={tema.sobreExito} tamano={18} />}
+              </Pressable>
+            </View>
+            {fueraDeObjetivo && rir !== null && rirObjetivo !== undefined && (
+              <Text style={s.notaRir}>
+                {rirObjetivo - rir === 1 ? "Una menos" : `${rirObjetivo - rir} menos`} del objetivo
+              </Text>
+            )}
+            {actual && !bloqueado && (
+              <View style={s.pregunta}>
+                <Text style={s.textoPregunta}>¿Cuántas te quedaban?</Text>
+                <Opciones
+                  etiqueta={`Repeticiones que te quedaban, serie ${n + 1}`}
+                  opciones={RIRS}
+                  valor={rir}
+                  cambiar={(valor) => cambiar(prescrita.id, { rir: valor })}
+                />
+              </View>
+            )}
           </View>
         )
       })}
@@ -108,19 +200,23 @@ export function TablaSeries({
 }
 
 const s = StyleSheet.create({
-  bloque: { gap: 8 },
-  cabecera: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 8 },
+  bloque: { gap: 12 },
+  cabecera: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   titulos: { flex: 1, gap: 4 },
   nombre: { fontFamily: tema.fuenteBoton, fontSize: 20, lineHeight: 25, color: tema.texto },
-  indicaciones: {
-    fontFamily: tema.fuenteTexto,
-    fontSize: 13,
-    lineHeight: 18,
-    color: tema.textoTenue,
-  },
+  resumen: { fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18, color: tema.textoTenue },
   tecnica: { minHeight: 44, justifyContent: "center" },
   textoTecnica: { fontFamily: tema.fuenteBoton, fontSize: 15, color: tema.acento },
+  anterior: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  diferencia: { fontFamily: tema.fuenteSemi, fontSize: 13, color: tema.acento },
   fila: { flexDirection: "row", gap: 8, alignItems: "center" },
+  serie: { gap: 8 },
+  serieActual: {
+    backgroundColor: tema.superficie,
+    borderRadius: 14,
+    padding: 10,
+    marginHorizontal: -10,
+  },
   etiqueta: {
     fontFamily: tema.fuenteTexto,
     fontSize: 12,
@@ -134,16 +230,9 @@ const s = StyleSheet.create({
     textAlign: "center",
     color: tema.textoTenue,
   },
-  numeroHecho: { color: tema.texto },
-  objetivo: { flex: 1.2, minWidth: 0 },
-  objetivoTexto: {
-    fontFamily: tema.fuenteTexto,
-    fontSize: 13,
-    lineHeight: 17,
-    color: tema.textoTenue,
-    textAlign: "center",
-  },
+  numeroActual: { color: tema.acento, fontFamily: tema.fuenteBoton },
   valor: { flex: 1, minWidth: 0 },
+  rir: { width: 56 },
   marca: { width: 44 },
   campo: {
     height: 44,
@@ -157,6 +246,23 @@ const s = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 2,
   },
+  campoActual: { borderColor: tema.acento },
+  campoHecho: { color: tema.texto },
+  celdaRir: { alignItems: "center", justifyContent: "center" },
+  textoRir: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 17 },
+  rirFuera: {
+    borderStyle: "dashed",
+    borderWidth: 1.5,
+    borderColor: tema.aviso,
+    backgroundColor: tema.acentoSuave,
+  },
+  textoRirFuera: { color: tema.aviso },
+  notaRir: {
+    fontFamily: tema.fuenteTexto,
+    fontSize: 12,
+    color: tema.aviso,
+    textAlign: "right",
+  },
   casilla: {
     width: 44,
     height: 44,
@@ -167,4 +273,6 @@ const s = StyleSheet.create({
     borderColor: tema.bordeFuerte,
   },
   marcada: { borderColor: "transparent" },
+  pregunta: { gap: 8 },
+  textoPregunta: { fontFamily: tema.fuenteTexto, fontSize: 13, color: tema.textoTenue },
 })

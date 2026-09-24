@@ -26,6 +26,7 @@ function aMolestia(fila: FilaMolestia): Molestia {
     id: fila.id,
     sesionId: fila.sesionId,
     clienteId: fila.clienteId,
+    ejercicioPrescritoId: fila.ejercicioPrescritoId,
     ejercicio: fila.ejercicio,
     serie: fila.serie,
     zona: fila.zona,
