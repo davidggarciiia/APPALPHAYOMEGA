@@ -13,6 +13,8 @@ import { lunesDeSemana } from "../src/entrenamiento/fechas"
 import { HoyInicio } from "../src/nutricion/hoy-inicio"
 import { useNutricion } from "../src/nutricion/api"
 import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
+import { useValoraciones } from "../src/seguimiento/use-valoraciones"
+import { AvisosSeguimiento } from "../src/seguimiento/valoraciones-novedades"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
@@ -24,6 +26,7 @@ export default function Inicio(): React.JSX.Element {
   const router = useRouter()
   const seguimiento = useSeguimiento()
   const nutricion = useNutricion()
+  const valoraciones = useValoraciones()
   const [bloque, setBloque] = useState<Bloque | null>(null)
   const clienteId =
     estado.fase === "dentro" && estado.usuario.rol === "cliente" ? estado.usuario.id : null
@@ -85,6 +88,13 @@ export default function Inicio(): React.JSX.Element {
             clienteId={usuario.id}
             api={api}
             abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
+          />
+          {/* Progreso ya muestra las valoraciones publicadas y las fotos pedidas. */}
+          <AvisosSeguimiento
+            clienteId={usuario.id}
+            api={valoraciones}
+            modo="cliente"
+            abrir={() => router.push("/progreso")}
           />
           <HoyInicio
             clienteId={usuario.id}
