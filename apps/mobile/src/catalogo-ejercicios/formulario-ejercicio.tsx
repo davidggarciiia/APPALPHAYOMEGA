@@ -22,23 +22,28 @@ import { tema } from "../tema"
 
 import { ErrorDeNombreDuplicado, type ApiDeCatalogo } from "./api"
 import { ETIQUETA_DE_GRUPO } from "./catalogo"
+import type { AccesoAFiguras } from "./figura-ejercicio"
+import { SelectorDeFigura } from "./selector-figura"
 
 type Carga = { fase: "cargando" } | { fase: "lista" } | { fase: "error"; fallo: Falta }
 
 /**
  * Alta y edición de un ejercicio: la misma ficha de texto en los dos casos.
  *
- * Con `id` abre el ejercicio existente y guarda sobre él; sin `id` crea uno. No
- * hay figura ni vídeo que rellenar: un ejercicio sin medios es un ejercicio
- * completo, y el catálogo tiene que poder poblarse tecleando nombres.
+ * Con `id` abre el ejercicio existente y guarda sobre él; sin `id` crea uno. La
+ * animación es opcional y se elige al editar: un ejercicio sin medios es un
+ * ejercicio completo, y el catálogo tiene que poder poblarse tecleando nombres.
+ * Sin `acceso` no se ofrece la animación (no hay sesión con la que pedirla).
  */
 export function FormularioDeEjercicio({
   api,
+  acceso,
   id,
   onGuardado,
   onCancelar,
 }: {
   api: ApiDeCatalogo
+  acceso?: AccesoAFiguras
   id?: string
   onGuardado: (ejercicio: Ejercicio) => void
   onCancelar: () => void
@@ -50,6 +55,8 @@ export function FormularioDeEjercicio({
   const [estado, setEstado] = useState<Ejercicio["estado"] | null>(null)
   const [confirmandoRetirada, setConfirmandoRetirada] = useState(false)
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
+  // La ficha tal como la tiene el servidor, para la animación.
+  const [ficha, setFicha] = useState<Ejercicio | null>(null)
 
   const {
     control,
@@ -83,6 +90,7 @@ export function FormularioDeEjercicio({
           instrucciones: ejercicio.instrucciones,
         })
         setEstado(ejercicio.estado)
+        setFicha(ejercicio)
         setCarga({ fase: "lista" })
       })
       .catch((error: unknown) => {
@@ -273,6 +281,15 @@ export function FormularioDeEjercicio({
           />
         )}
       />
+
+      {acceso !== undefined && ficha !== null && (
+        <SelectorDeFigura api={api} acceso={acceso} ejercicio={ficha} onCambio={setFicha} />
+      )}
+      {id === undefined && (
+        <Text style={estilos.avisoRetirado}>
+          La animación de la técnica se elige después de guardar, al editar el ejercicio.
+        </Text>
+      )}
 
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 

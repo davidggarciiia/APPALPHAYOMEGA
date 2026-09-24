@@ -2,12 +2,15 @@ import {
   CrearEjercicioSchema,
   EjercicioSchema,
   ListadoEjerciciosSchema,
+  ListadoMediosSchema,
   type CrearEjercicio,
   type Ejercicio,
   type GrupoMuscular,
+  type MedioDisponible,
 } from "@alpha-omega/shared"
 
 import { ErrorDelServidor } from "../../lib/api"
+import { ErrorDePeticion } from "../../lib/http"
 
 import { ErrorDeNombreDuplicado, type ApiDeCatalogo } from "../api"
 
@@ -36,6 +39,24 @@ export function ejercicioDePrueba(
   })
 }
 
+/** Dos medios como los del índice real: uno con copia sin conexión y otro solo en streaming. */
+export const MEDIOS_DE_PRUEBA: MedioDisponible[] = [
+  {
+    id: "vital-0054",
+    nombre: "Sentadilla trasera con barra",
+    fuente: "vital",
+    licencia: "Vital Animations EULA 2026.1 · paquete gratuito",
+    sinConexion: true,
+  },
+  {
+    id: "movekit-pull-ups",
+    nombre: "Dominadas",
+    fuente: "movekit",
+    licencia: "MoveKit License Agreement v1.0 · muestra gratuita",
+    sinConexion: false,
+  },
+]
+
 function normalizar(nombre: string): string {
   return nombre.trim().replace(/\s+/g, " ").toLowerCase()
 }
@@ -46,7 +67,11 @@ function normalizar(nombre: string): string {
  *
  * `total` permite fingir un catálogo más grande que la página devuelta.
  */
-export function catalogoEnMemoria(iniciales: Ejercicio[] = [], total?: number): ApiDeCatalogo {
+export function catalogoEnMemoria(
+  iniciales: Ejercicio[] = [],
+  total?: number,
+  medios: MedioDisponible[] = MEDIOS_DE_PRUEBA,
+): ApiDeCatalogo {
   const ejercicios = [...iniciales]
   let creados = 0
 
@@ -57,13 +82,9 @@ export function catalogoEnMemoria(iniciales: Ejercicio[] = [], total?: number): 
     )
     if (repetido) throw new ErrorDeNombreDuplicado()
 
-    return EjercicioSchema.parse({
-      id,
-      ...limpio,
-      estado,
-      figura: null,
-      video: null,
-    })
+    // Editar el texto conserva la figura, como en el servidor.
+    const figura = ejercicios.find((fila) => fila.id === id)?.figura ?? null
+    return EjercicioSchema.parse({ id, ...limpio, estado, figura, video: null })
   }
 
   function cambiarEstado(id: string, estado: Ejercicio["estado"]): Ejercicio {
@@ -124,5 +145,36 @@ export function catalogoEnMemoria(iniciales: Ejercicio[] = [], total?: number): 
 
     retirar: async (id) => cambiarEstado(id, "retirado"),
     reponer: async (id) => cambiarEstado(id, "publicado"),
+
+    medios: async () => ListadoMediosSchema.parse({ medios, total: medios.length }),
+
+    asignarFigura: async (id, medioId) => {
+      const posicion = ejercicios.findIndex((fila) => fila.id === id)
+      const anterior = ejercicios[posicion]
+      if (anterior === undefined) throw new ErrorDelServidor(404)
+      const medio = medios.find((disponible) => disponible.id === medioId)
+      if (medioId !== null && medio === undefined) {
+        throw new ErrorDePeticion({
+          statusCode: 409,
+          codigo: "operacion_incompatible",
+          message: "Esa figura no está disponible en este servidor",
+        })
+      }
+      const cambiado = EjercicioSchema.parse({
+        ...anterior,
+        figura:
+          medio === undefined
+            ? null
+            : {
+                medioId: medio.id,
+                version: "1",
+                origen: "licenciado",
+                licencia: medio.licencia,
+                sinConexion: medio.sinConexion,
+              },
+      })
+      ejercicios[posicion] = cambiado
+      return cambiado
+    },
   }
 }

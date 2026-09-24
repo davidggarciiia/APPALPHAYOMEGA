@@ -4,11 +4,13 @@ import type {
   EditarEjercicio,
   Ejercicio,
   ListadoEjercicios,
+  ListadoMedios,
 } from "@alpha-omega/shared"
 import {
   BuscarEjerciciosSchema,
   EjercicioSchema,
   ListadoEjerciciosSchema,
+  ListadoMediosSchema,
 } from "@alpha-omega/shared"
 import { ErrorDePeticion } from "../lib/http"
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
@@ -40,6 +42,10 @@ export type ApiDeCatalogo = {
   /** Retirar y reponer devuelven la ficha ya cambiada. Repetirlos no es un error. */
   retirar: (id: string) => Promise<Ejercicio>
   reponer: (id: string) => Promise<Ejercicio>
+  /** Figuras que el servidor tiene importadas. Solo el entrenador. */
+  medios: () => Promise<ListadoMedios>
+  /** Asocia una figura del índice, o la quita con `null`. Devuelve la ficha cambiada. */
+  asignarFigura: (id: string, medioId: string | null) => Promise<Ejercicio>
 }
 
 export function crearApiDeCatalogo(pedir: PeticionAutenticada): ApiDeCatalogo {
@@ -74,5 +80,11 @@ export function crearApiDeCatalogo(pedir: PeticionAutenticada): ApiDeCatalogo {
     editar: (id, datos) => escribir(`/ejercicios/${encodeURIComponent(id)}`, "PATCH", datos),
     retirar: (id) => escribir(`/ejercicios/${encodeURIComponent(id)}/retirar`, "POST"),
     reponer: (id) => escribir(`/ejercicios/${encodeURIComponent(id)}/reponer`, "POST"),
+    medios: () => pedir("/ejercicios/medios", ListadoMediosSchema),
+    asignarFigura: (id, medioId) =>
+      pedir(`/ejercicios/${encodeURIComponent(id)}/figura`, EjercicioSchema, {
+        method: "PUT",
+        body: JSON.stringify({ medioId }),
+      }),
   }
 }
