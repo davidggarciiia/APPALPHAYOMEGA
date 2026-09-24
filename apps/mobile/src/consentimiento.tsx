@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import {
   AceptarConsentimientoSchema,
@@ -17,6 +17,7 @@ import { degradadoOro, tema } from "./tema"
 export type ApiConsentimiento = {
   estado: () => Promise<EstadoConsentimiento>
   aceptar: () => Promise<EstadoConsentimiento>
+  retirar: () => Promise<EstadoConsentimiento>
 }
 
 export function crearApiConsentimiento(pedir: PeticionAutenticada): ApiConsentimiento {
@@ -29,7 +30,23 @@ export function crearApiConsentimiento(pedir: PeticionAutenticada): ApiConsentim
           AceptarConsentimientoSchema.parse({ version: VERSION_CONSENTIMIENTO, acepto: true }),
         ),
       }),
+    retirar: () => pedir("/consentimiento", EstadoConsentimientoSchema, { method: "DELETE" }),
   }
+}
+
+type Consentimiento = { aceptadoEn: string | null; retirar: () => Promise<void> }
+const ContextoConsentimiento = createContext<Consentimiento | null>(null)
+
+const diaConAnio = new Intl.DateTimeFormat("es-ES", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "Europe/Madrid",
+})
+
+/** El consentimiento vigente del cliente dentro de la puerta; `null` fuera de ella. */
+export function useConsentimiento(): Consentimiento | null {
+  return useContext(ContextoConsentimiento)
 }
 
 /** El texto y la aceptación explícita: nada viene marcado. */
@@ -107,12 +124,15 @@ export function PuertaConsentimiento({
   children: ReactNode
 }): React.JSX.Element {
   const [estado, setEstado] = useState<"comprobando" | "pendiente" | "listo">("comprobando")
+  const [aceptadoEn, setAceptadoEn] = useState<string | null>(null)
   useEffect(() => {
     let vigente = true
     api
       .estado()
       .then((respuesta) => {
-        if (vigente) setEstado(respuesta.vigente ? "listo" : "pendiente")
+        if (!vigente) return
+        setAceptadoEn(respuesta.vigente ? respuesta.aceptadoEn : null)
+        setEstado(respuesta.vigente ? "listo" : "pendiente")
       })
       .catch(() => {
         if (vigente) setEstado("listo")
@@ -128,11 +148,75 @@ export function PuertaConsentimiento({
         salir={salir}
         aceptar={async () => {
           const respuesta = await api.aceptar()
-          if (respuesta.vigente) setEstado("listo")
+          if (!respuesta.vigente) return
+          setAceptadoEn(respuesta.aceptadoEn)
+          setEstado("listo")
         }}
       />
     )
-  return <>{children}</>
+  const valor: Consentimiento = {
+    aceptadoEn,
+    retirar: async () => {
+      const respuesta = await api.retirar()
+      if (!respuesta.vigente) setEstado("pendiente")
+    },
+  }
+  return <ContextoConsentimiento.Provider value={valor}>{children}</ContextoConsentimiento.Provider>
+}
+
+/**
+ * En el perfil del cliente: cuándo dio el consentimiento y cómo retirarlo. Pide
+ * confirmación y explica qué pasa; retirarlo vuelve a mostrar el texto.
+ */
+export function TarjetaConsentimiento(): React.JSX.Element | null {
+  const consentimiento = useConsentimiento()
+  const [confirmando, setConfirmando] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+  const [error, setError] = useState("")
+  if (!consentimiento) return null
+  const retirar = async (): Promise<void> => {
+    setOcupado(true)
+    setError("")
+    try {
+      await consentimiento.retirar()
+    } catch (fallo) {
+      setError(faltaDe(fallo, "No se pudo retirar tu consentimiento. Vuelve a intentarlo.").texto)
+      setOcupado(false)
+    }
+  }
+  return (
+    <View style={s.tarjeta}>
+      <Text accessibilityRole="header" style={s.tituloTarjeta}>
+        {TEXTO_CONSENTIMIENTO.titulo}
+      </Text>
+      <Text style={s.ayuda}>
+        {consentimiento.aceptadoEn
+          ? `Diste tu consentimiento el ${diaConAnio.format(new Date(consentimiento.aceptadoEn))}.`
+          : "Has dado tu consentimiento para tratar tus datos de salud."}
+      </Text>
+      {confirmando ? (
+        <>
+          <Text style={s.texto}>
+            Si lo retiras, tu equipo dejará de poder guardar tus medidas, pruebas, molestias,
+            registros y fotos, y la app volverá a pedírtelo. Lo guardado hasta ahora no se borra.
+          </Text>
+          {error !== "" && <AvisoDeError mensaje={error} />}
+          <BotonSecundario
+            texto={ocupado ? "Retirando…" : "Sí, retirar mi consentimiento"}
+            ocupado={ocupado}
+            onPress={() => void retirar()}
+          />
+          <BotonSecundario
+            texto="Mantenerlo"
+            deshabilitado={ocupado}
+            onPress={() => setConfirmando(false)}
+          />
+        </>
+      ) : (
+        <BotonSecundario texto="Retirar consentimiento" onPress={() => setConfirmando(true)} />
+      )}
+    </View>
+  )
 }
 
 const s = StyleSheet.create({
@@ -157,4 +241,14 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   casillaMarcada: { borderColor: "transparent" },
+  tarjeta: {
+    padding: 16,
+    borderRadius: 18,
+    borderColor: tema.borde,
+    borderWidth: 1,
+    backgroundColor: tema.superficie,
+    gap: 8,
+  },
+  tituloTarjeta: { color: tema.texto, fontSize: 15, fontFamily: tema.fuenteBoton },
+  ayuda: { color: tema.textoTenue, fontSize: 13, lineHeight: 18, fontFamily: tema.fuenteTexto },
 })

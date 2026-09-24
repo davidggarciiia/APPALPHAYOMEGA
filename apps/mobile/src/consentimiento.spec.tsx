@@ -7,7 +7,11 @@ import {
 } from "@alpha-omega/shared"
 
 import { ErrorDeRed } from "./lib/http"
-import { PuertaConsentimiento, type ApiConsentimiento } from "./consentimiento"
+import {
+  PuertaConsentimiento,
+  TarjetaConsentimiento,
+  type ApiConsentimiento,
+} from "./consentimiento"
 
 jest.mock("./componentes/iconos", () => ({ Icono: () => null }))
 
@@ -30,6 +34,11 @@ function api(inicial = pendiente) {
   return {
     estado: jest.fn(async () => inicial),
     aceptar: jest.fn(async () => aceptado),
+    retirar: jest.fn(async () => ({
+      ...aceptado,
+      vigente: false,
+      retiradoEn: "2026-09-25T09:00:00.000Z",
+    })),
   } satisfies ApiConsentimiento
 }
 
@@ -85,4 +94,31 @@ it("se puede no aceptar y cerrar sesión", async () => {
   const salir = await pintar(api())
   await fireEvent.press(await screen.findByRole("button", { name: "Ahora no, cerrar sesión" }))
   await waitFor(() => expect(salir).toHaveBeenCalled())
+})
+
+it("desde el perfil se retira con confirmación y la app vuelve a pedirlo", async () => {
+  const falsa = api(aceptado)
+  await render(
+    <PuertaConsentimiento api={falsa} salir={jest.fn()}>
+      <TarjetaConsentimiento />
+    </PuertaConsentimiento>,
+  )
+  expect(
+    await screen.findByText("Diste tu consentimiento el 24 de septiembre de 2026."),
+  ).toBeTruthy()
+  await fireEvent.press(screen.getByRole("button", { name: "Retirar consentimiento" }))
+  expect(screen.getByText(/Lo guardado hasta ahora no se borra/)).toBeTruthy()
+  await fireEvent.press(screen.getByRole("button", { name: "Mantenerlo" }))
+  expect(falsa.retirar).not.toHaveBeenCalled()
+  await fireEvent.press(screen.getByRole("button", { name: "Retirar consentimiento" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Sí, retirar mi consentimiento" }))
+  expect(
+    await screen.findByRole("checkbox", { name: TEXTO_CONSENTIMIENTO.aceptar }),
+  ).not.toBeChecked()
+  expect(falsa.retirar).toHaveBeenCalledTimes(1)
+})
+
+it("fuera de la puerta la tarjeta no se muestra", async () => {
+  await render(<TarjetaConsentimiento />)
+  expect(screen.queryByText(TEXTO_CONSENTIMIENTO.titulo)).toBeNull()
 })
