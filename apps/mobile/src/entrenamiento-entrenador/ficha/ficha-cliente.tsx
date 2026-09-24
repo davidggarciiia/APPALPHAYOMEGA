@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react"
-import { useFocusEffect } from "expo-router"
+import { useFocusEffect, useRouter } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_ZONA,
@@ -14,6 +14,7 @@ import {
 import { AvisoDeError, BotonSecundario } from "../../componentes/formulario"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import { fechaLegible, hoyAgenda, lunesDeSemana } from "../../entrenamiento/fechas"
+import { NovedadesEntrenamiento } from "../../entrenamiento/novedades"
 import { faseActual, semanaDelBloque, textoDeDeporte } from "../../entrenamiento/plan/modelo"
 import { Fila, Pestanas, Tarjeta, Titulo } from "../../entrenamiento/plan/piezas"
 import { Enlace } from "../../entrenamiento/sesion/controles"
@@ -81,6 +82,7 @@ export function FichaCliente({
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
   const [respondiendo, setRespondiendo] = useState<Molestia | null>(null)
+  const router = useRouter()
   const lunes = lunesDeSemana()
 
   useFocusEffect(
@@ -183,6 +185,13 @@ export function FichaCliente({
             responder={setRespondiendo}
             verSesiones={() => setPestana("sesiones")}
           />
+          <NovedadesEntrenamiento
+            clienteId={clienteId}
+            api={api}
+            abrir={(sesionId) =>
+              router.push({ pathname: "/entrenamiento/[id]", params: { id: sesionId } })
+            }
+          />
           <View style={s.grupo}>
             <Titulo>Última sesión</Titulo>
             {ultima ? (
@@ -226,7 +235,12 @@ export function FichaCliente({
       )}
 
       {pestana === "progreso" && (
-        <ProgresoCliente clienteId={clienteId} seguimiento={seguimiento} entrenamiento={api} />
+        <ProgresoCliente
+          clienteId={clienteId}
+          seguimiento={seguimiento}
+          entrenamiento={api}
+          modo="entrenador"
+        />
       )}
 
       {pestana === "checkins" && (

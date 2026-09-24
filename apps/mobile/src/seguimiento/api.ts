@@ -1,6 +1,8 @@
 import {
   CambiarDiaSchema,
+  ConfiguracionSeguimientoSchema,
   DiaDeSeguimientoSchema,
+  GuardarConfiguracionSeguimientoSchema,
   ListadoDiasSchema,
   ListadoMedidasSchema,
   ListadoPruebasSchema,
@@ -10,7 +12,9 @@ import {
   RegistrarMedidaSchema,
   RegistrarPruebaSchema,
   type CambiarDia,
+  type ConfiguracionSeguimiento,
   type DiaDeSeguimiento,
+  type GuardarConfiguracionSeguimiento,
   type ListadoDias,
   type ListadoMedidas,
   type ListadoPruebas,
@@ -23,6 +27,11 @@ import {
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
 
 export type ApiSeguimiento = {
+  configuracion: (clienteId: string) => Promise<ConfiguracionSeguimiento>
+  guardarConfiguracion: (
+    clienteId: string,
+    datos: GuardarConfiguracionSeguimiento,
+  ) => Promise<ConfiguracionSeguimiento>
   cambiarDia: (clienteId: string, fecha: string, cambio: CambiarDia) => Promise<DiaDeSeguimiento>
   dias: (clienteId: string, desde: string, hasta: string) => Promise<ListadoDias>
   medidas: (clienteId: string) => Promise<ListadoMedidas>
@@ -36,6 +45,13 @@ export function crearApiSeguimiento(pedir: PeticionAutenticada): ApiSeguimiento 
   const base = (clienteId: string): string =>
     `/seguimiento/clientes/${encodeURIComponent(clienteId)}`
   return {
+    configuracion: (clienteId) =>
+      pedir(`${base(clienteId)}/configuracion`, ConfiguracionSeguimientoSchema),
+    guardarConfiguracion: (clienteId, datos) =>
+      pedir(`${base(clienteId)}/configuracion`, ConfiguracionSeguimientoSchema, {
+        method: "PUT",
+        body: JSON.stringify(GuardarConfiguracionSeguimientoSchema.parse(datos)),
+      }),
     cambiarDia: (clienteId, fecha, cambio) =>
       pedir(`${base(clienteId)}/dias/${encodeURIComponent(fecha)}`, DiaDeSeguimientoSchema, {
         method: "PUT",

@@ -108,10 +108,7 @@ describe("CierreDeSesion", () => {
     await render(
       <CierreDeSesion
         subtitulo="Empuje · 1 h 38 min"
-        proxima={[
-          { ejercicioId: "a", nombre: "Press banca", texto: "67,5 kg", tipo: "sube" },
-          { ejercicioId: "b", nombre: "Fondos", texto: "En revisión", tipo: "revision" },
-        ]}
+        resumen={{ hechas: 5, omitidas: 1, pendientes: 2 }}
         notas=""
         enviando={false}
         error=""
@@ -120,7 +117,10 @@ describe("CierreDeSesion", () => {
       />,
     )
     expect(screen.getByText("Empuje · 1 h 38 min")).toBeTruthy()
-    expect(screen.getByText("67,5 kg")).toBeTruthy()
+    expect(screen.getByText(/5 hechas/)).toBeTruthy()
+    expect(screen.getByText(/1 omitida/)).toBeTruthy()
+    expect(screen.getByText(/2 pendientes/)).toBeTruthy()
+    expect(screen.queryByText("La próxima vez")).toBeNull()
 
     await fireEvent.press(screen.getByRole("button", { name: "Enviar a tu entrenador" }))
     expect(enviar).not.toHaveBeenCalled()

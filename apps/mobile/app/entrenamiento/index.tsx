@@ -1,7 +1,9 @@
+import { useState } from "react"
 import { useRouter } from "expo-router"
-import { Text } from "react-native"
+import { Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../../src/componentes/formulario"
 import { PlanCliente } from "../../src/entrenamiento/plan/plan-cliente"
+import { SemanaEntrenamiento } from "../../src/entrenamiento/semana"
 import { useEntrenamiento } from "../../src/entrenamiento/use-entrenamiento"
 import { useSesion } from "../../src/sesion"
 import { tema } from "../../src/tema"
@@ -10,14 +12,29 @@ export default function MiEntrenamiento(): React.JSX.Element {
   const { estado, salir, reintentar } = useSesion()
   const api = useEntrenamiento()
   const router = useRouter()
+  const [vista, setVista] = useState<"calendario" | "plan">("calendario")
+  const abrir = (id: string): void =>
+    router.push({ pathname: "/entrenamiento/[id]", params: { id } })
   return (
     <PantallaDeFormulario sinTarjeta>
       {"usuario" in estado && estado.usuario.rol === "cliente" ? (
-        <PlanCliente
-          clienteId={estado.usuario.id}
-          api={api}
-          abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
-        />
+        <View style={{ gap: 16 }}>
+          <BotonSecundario
+            texto={vista === "calendario" ? "Ver plan" : "Ver calendario"}
+            onPress={() => setVista(vista === "calendario" ? "plan" : "calendario")}
+          />
+          {vista === "calendario" ? (
+            <SemanaEntrenamiento
+              clienteId={estado.usuario.id}
+              api={api}
+              abrir={abrir}
+              copiaLocal
+              detectarEmpezadas
+            />
+          ) : (
+            <PlanCliente clienteId={estado.usuario.id} api={api} abrir={abrir} />
+          )}
+        </View>
       ) : (
         <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
           Esta pantalla requiere una cuenta de cliente.

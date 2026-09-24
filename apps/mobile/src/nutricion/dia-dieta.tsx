@@ -72,7 +72,7 @@ function Mosaico({ alimento }: { alimento: Alimento }): React.JSX.Element {
 }
 
 function ComidaDeLaDieta({ comida }: { comida: Comida }): React.JSX.Element {
-  const opciones =
+  const platos =
     comida.forma === "alternativas"
       ? comida.grupos.reduce((total, grupo) => total + grupo.alternativas.length, 0)
       : null
@@ -86,9 +86,9 @@ function ComidaDeLaDieta({ comida }: { comida: Comida }): React.JSX.Element {
           <Text style={s.resumen}>
             {[
               comida.hora,
-              opciones === null
+              platos === null
                 ? "Elige uno de cada"
-                : `${opciones} ${opciones === 1 ? "opción" : "opciones"}`,
+                : `${platos} ${platos === 1 ? "plato completo" : "platos completos"}`,
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -129,7 +129,7 @@ function ComidaDeLaDieta({ comida }: { comida: Comida }): React.JSX.Element {
         ))
       ) : (
         <>
-          <Text style={s.ayuda}>Elige un alimento de cada columna y combínalos.</Text>
+          <Text style={s.ayuda}>Elige un alimento de cada grupo y combínalos.</Text>
           {comida.columnas.map((columna, c) => (
             <View key={`columna-${c}`} style={s.grupo}>
               <Text style={s.nombreGrupo}>{columna.nombre}</Text>

@@ -38,6 +38,12 @@ import {
   type PlanAsignado,
   type SesionCliente,
   type SesionEntrenador,
+  ConsultarNovedadesSchema,
+  MarcarNovedadesLeidasSchema,
+  type ConsultarNovedades,
+  type ListadoNovedades,
+  type MarcarNovedadesLeidas,
+  type NovedadesLeidas,
 } from "@alpha-omega/shared"
 import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
 import { Roles } from "../identity/roles.decorator.js"
@@ -46,6 +52,7 @@ import { PlanesService } from "./planes.service.js"
 import { SesionesService } from "./sesiones.service.js"
 import { RegistrosService } from "./registros.service.js"
 import { AjustesService } from "./ajustes.service.js"
+import { NovedadesService } from "./novedades.service.js"
 
 @Controller("entrenamiento")
 export class EntrenamientoController {
@@ -54,11 +61,42 @@ export class EntrenamientoController {
     private readonly sesiones: SesionesService,
     private readonly registros: RegistrosService,
     private readonly ajustes: AjustesService,
+    private readonly novedades: NovedadesService,
   ) {}
 
   private actor(peticion: PeticionAutenticada): IdentidadVerificada {
     if (!peticion.usuario) throw new UnauthorizedException()
     return peticion.usuario
+  }
+
+  @Roles("entrenador")
+  @Put("sesiones/:id/revision")
+  revisar(
+    @Req() peticion: PeticionAutenticada,
+    @Param("id", new EntradaApiPipe(z.uuid())) id: string,
+  ): Promise<SesionEntrenador> {
+    return this.novedades.revisar(this.actor(peticion), id)
+  }
+
+  @Roles("cliente", "entrenador")
+  @Get("clientes/:clienteId/novedades")
+  novedadesDeCliente(
+    @Req() peticion: PeticionAutenticada,
+    @Param("clienteId", new EntradaApiPipe(z.uuid())) clienteId: string,
+    @Query(new EntradaApiPipe(ConsultarNovedadesSchema)) consulta: ConsultarNovedades,
+  ): Promise<ListadoNovedades> {
+    return this.novedades.listar(this.actor(peticion), clienteId, consulta)
+  }
+
+  @Roles("cliente", "entrenador")
+  @Post("sesiones/:id/novedades/leidas")
+  @HttpCode(200)
+  leerNovedades(
+    @Req() peticion: PeticionAutenticada,
+    @Param("id", new EntradaApiPipe(z.uuid())) id: string,
+    @Body(new EntradaApiPipe(MarcarNovedadesLeidasSchema)) datos: MarcarNovedadesLeidas,
+  ): Promise<NovedadesLeidas> {
+    return this.novedades.marcarLeidas(this.actor(peticion), id, datos)
   }
 
   @Roles("entrenador")

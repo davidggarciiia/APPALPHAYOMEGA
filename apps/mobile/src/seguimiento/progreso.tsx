@@ -2,6 +2,7 @@ import { useCallback, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { StyleSheet, Text, View } from "react-native"
 import type {
+  ConfiguracionSeguimiento,
   ListadoDias,
   ListadoMedidas,
   ListadoPruebas,
@@ -18,6 +19,7 @@ import { Fila, Pestanas, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { Enlace } from "../entrenamiento/sesion/controles"
 import { tema } from "../tema"
 import type { ApiSeguimiento } from "./api"
+import { EditorConfiguracionSeguimiento } from "./configuracion"
 import { AnadirMedida, AnadirPrueba } from "./formularios"
 import { Grafica } from "./grafica"
 import {
@@ -26,19 +28,24 @@ import {
   mediaMovil,
   miles,
   pesoLegible,
+  proximosRegistros,
   resumenDeSemana,
+  sentidoDelPeso,
   suenoLegible,
 } from "./modelo"
 
-type Pestana = "peso" | "cintura" | "fuerza" | "pruebas"
-const PESTANAS = [
-  { valor: "peso", texto: "Peso" },
-  { valor: "cintura", texto: "Cintura" },
-  { valor: "fuerza", texto: "Fuerza" },
-  { valor: "pruebas", texto: "Pruebas físicas" },
-] as const
+type Pestana = ConfiguracionSeguimiento["indicadores"][number]
+const NOMBRE: Record<Pestana, string> = {
+  peso: "Peso",
+  pasos: "Pasos",
+  sueno: "Sueño",
+  cintura: "Cintura",
+  fuerza: "Fuerza",
+  pruebas: "Pruebas físicas",
+}
 
 type Datos = {
+  configuracion: ConfiguracionSeguimiento
   dias: ListadoDias["dias"]
   medidas: ListadoMedidas
   pruebas: ListadoPruebas["pruebas"]
@@ -59,12 +66,14 @@ export function ProgresoCliente({
   clienteId,
   seguimiento,
   entrenamiento,
+  modo = "cliente",
 }: {
   clienteId: string
   seguimiento: ApiSeguimiento
   entrenamiento: ApiEntrenamiento
+  modo?: "cliente" | "entrenador"
 }): React.JSX.Element {
-  const [pestana, setPestana] = useState<Pestana>("peso")
+  const [pestana, setPestana] = useState<Pestana>()
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
@@ -77,6 +86,7 @@ export function ProgresoCliente({
       let vigente = true
       setError("")
       Promise.all([
+        seguimiento.configuracion(clienteId),
         seguimiento.dias(clienteId, sumarDias(hoy, -55), hoy),
         seguimiento.medidas(clienteId),
         seguimiento.pruebas(clienteId),
@@ -84,9 +94,10 @@ export function ProgresoCliente({
         entrenamiento.plan(clienteId, lunes),
         entrenamiento.semana(clienteId, lunes),
       ])
-        .then(([dias, medidas, pruebas, fuerza, { plan }, semana]) => {
+        .then(([configuracion, dias, medidas, pruebas, fuerza, { plan }, semana]) => {
           if (vigente)
             setDatos({
+              configuracion,
               dias: dias.dias,
               medidas,
               pruebas: pruebas.pruebas,
@@ -105,10 +116,26 @@ export function ProgresoCliente({
   )
 
   const recargar = (): void => setIntento((n) => n + 1)
+  const opciones =
+    datos?.configuracion.indicadores.map((valor) => ({ valor, texto: NOMBRE[valor] })) ?? []
+  const activa = opciones.some((opcion) => opcion.valor === pestana) ? pestana : opciones[0]?.valor
 
   return (
     <View style={s.contenido}>
-      <Pestanas opciones={PESTANAS} activa={pestana} cambiar={setPestana} />
+      {modo === "entrenador" && datos && (
+        <EditorConfiguracionSeguimiento
+          valor={datos.configuracion}
+          guardar={async (configuracion) => {
+            const guardada = await seguimiento.guardarConfiguracion(clienteId, configuracion)
+            setDatos((actual) => (actual ? { ...actual, configuracion: guardada } : actual))
+            return guardada
+          }}
+          recargar={recargar}
+        />
+      )}
+      {opciones.length > 0 && activa && (
+        <Pestanas opciones={opciones} activa={activa} cambiar={setPestana} />
+      )}
       {error !== "" && (
         <View style={s.grupo}>
           <AvisoDeError mensaje={error} />
@@ -119,13 +146,24 @@ export function ProgresoCliente({
         error === "" && <Text style={s.tenue}>Cargando tu progreso…</Text>
       ) : (
         <>
-          {pestana === "peso" && <Peso datos={datos} hoy={hoy} />}
-          {pestana === "cintura" && <Cintura datos={datos} />}
-          {pestana === "fuerza" && <Fuerza ejercicios={datos.fuerza} />}
-          {pestana === "pruebas" && (
-            <Pruebas pruebas={datos.pruebas} anadir={() => setFormulario("prueba")} />
+          {!activa && (
+            <Text style={s.vacio}>Tu entrenador no ha elegido indicadores visibles todavía.</Text>
           )}
-          {(pestana === "peso" || pestana === "cintura") && (
+          {modo === "cliente" && <SiguientesRegistros datos={datos} hoy={hoy} />}
+          {activa === "peso" && <Peso datos={datos} hoy={hoy} />}
+          {activa === "pasos" && <DatoDiario datos={datos} tipo="pasos" />}
+          {activa === "sueno" && <DatoDiario datos={datos} tipo="sueno" />}
+          {activa === "cintura" && <Cintura datos={datos} />}
+          {activa === "fuerza" && <Fuerza ejercicios={datos.fuerza} />}
+          {activa === "pruebas" && (
+            <Pruebas
+              pruebas={datos.pruebas}
+              anadir={() => setFormulario("prueba")}
+              pautadas={datos.configuracion.pruebasPrescritas}
+              puedeAnadir={modo === "cliente" && datos.configuracion.pruebasPrescritas.length > 0}
+            />
+          )}
+          {(activa === "peso" || activa === "cintura") && (
             <>
               <Semana datos={datos} lunes={lunes} />
               <Inicio datos={datos} hoy={hoy} anadir={() => setFormulario("medida")} />
@@ -143,6 +181,7 @@ export function ProgresoCliente({
       />
       <AnadirPrueba
         visible={formulario === "prueba"}
+        pruebas={datos?.configuracion.pruebasPrescritas ?? []}
         cerrar={() => setFormulario(null)}
         registrar={async (prueba) => {
           await seguimiento.registrarPrueba(clienteId, prueba)
@@ -153,15 +192,60 @@ export function ProgresoCliente({
   )
 }
 
+function DatoDiario({ datos, tipo }: { datos: Datos; tipo: "pasos" | "sueno" }): React.JSX.Element {
+  const valores = datos.dias.filter((dia) => dia[tipo === "pasos" ? "pasos" : "suenoMin"] !== null)
+  const ultimo = valores[valores.length - 1]
+  if (!ultimo)
+    return (
+      <Text style={s.vacio}>
+        Todavía no hay registros de {tipo === "pasos" ? "pasos" : "sueño"}.
+      </Text>
+    )
+  const valor = tipo === "pasos" ? miles(ultimo.pasos!) : suenoLegible(ultimo.suenoMin!)
+  return (
+    <Tendencia
+      grande={valor}
+      subtitulo={`Último registro · ${fechaCorta(ultimo.fecha)}`}
+      cambio={null}
+    />
+  )
+}
+
+function SiguientesRegistros({
+  datos,
+  hoy,
+}: {
+  datos: Datos
+  hoy: string
+}): React.JSX.Element | null {
+  const siguientes = proximosRegistros(datos.configuracion, datos.dias, datos.medidas.medidas, hoy)
+  if (siguientes.length === 0) return null
+  return (
+    <View style={s.grupo}>
+      <Titulo>Próximos registros</Titulo>
+      <Tarjeta>
+        {siguientes.map((r, n) => (
+          <Fila key={r.indicador} primera={n === 0}>
+            <Text style={[s.texto, s.textos]}>{NOMBRE[r.indicador]}</Text>
+            <Text style={s.valor}>{r.fecha === hoy ? "Hoy" : fechaCorta(r.fecha)}</Text>
+          </Fila>
+        ))}
+      </Tarjeta>
+    </View>
+  )
+}
+
 function Tendencia({
   grande,
   subtitulo,
   cambio,
+  sentido = "neutral",
   children,
 }: {
   grande: string
   subtitulo: string
   cambio: string | null
+  sentido?: "neutral" | "favorable" | "desfavorable"
   children?: React.ReactNode
 }): React.JSX.Element {
   return (
@@ -170,7 +254,11 @@ function Tendencia({
       <Text style={s.tenue}>
         {subtitulo}
         {cambio && (
-          <Text style={cambio.startsWith("−") ? s.baja : s.sube}>
+          <Text
+            style={
+              sentido === "favorable" ? s.baja : sentido === "desfavorable" ? s.error : s.tenue
+            }
+          >
             {" · "}
             {cambio}
           </Text>
@@ -204,6 +292,7 @@ function Peso({ datos, hoy }: { datos: Datos; hoy: string }): React.JSX.Element 
     <Tendencia
       grande={pesoLegible(actual.valor)}
       subtitulo="Media semanal"
+      sentido={sentidoDelPeso(datos.configuracion.objetivoPeso, inicio, actual.valor)}
       cambio={
         actual.valor === inicio
           ? null
@@ -217,6 +306,14 @@ function Peso({ datos, hoy }: { datos: Datos; hoy: string }): React.JSX.Element 
         izquierda={fechaCorta(desde)}
         derecha={`${ultimo.fecha === hoy ? "Hoy" : fechaCorta(ultimo.fecha)}, ${pesoLegible(ultimo.pesoKg!)}`}
       />
+      {datos.configuracion.objetivoPeso && (
+        <Text style={s.tenue}>
+          Objetivo: {datos.configuracion.objetivoPeso.direccion}
+          {datos.configuracion.objetivoPeso.rangoKg
+            ? ` · ${pesoLegible(datos.configuracion.objetivoPeso.rangoKg.minimo)}–${pesoLegible(datos.configuracion.objetivoPeso.rangoKg.maximo)}`
+            : ""}
+        </Text>
+      )}
     </Tendencia>
   )
 }
@@ -292,31 +389,62 @@ function Fuerza({ ejercicios }: { ejercicios: ProgresionFuerza["ejercicios"] }):
 function Pruebas({
   pruebas,
   anadir,
+  pautadas,
+  puedeAnadir,
 }: {
   pruebas: ListadoPruebas["pruebas"]
   anadir: () => void
+  pautadas: ConfiguracionSeguimiento["pruebasPrescritas"]
+  puedeAnadir: boolean
 }): React.JSX.Element {
+  const ordenadas = [...pruebas].sort(
+    (a, b) => a.fecha.localeCompare(b.fecha) || a.creadoEn.localeCompare(b.creadoEn),
+  )
   const porNombre = new Map<string, ListadoPruebas["pruebas"]>()
-  for (const prueba of pruebas)
-    porNombre.set(prueba.nombre, [...(porNombre.get(prueba.nombre) ?? []), prueba])
+  for (const prueba of ordenadas) {
+    const clave = `${prueba.pruebaId ?? prueba.nombre}:${prueba.unidad}`
+    porNombre.set(clave, [...(porNombre.get(clave) ?? []), prueba])
+  }
   return (
     <View style={s.grupo}>
+      {pautadas.length > 0 && (
+        <View style={s.grupo}>
+          <Titulo>Pruebas pautadas</Titulo>
+          <Tarjeta>
+            {pautadas.map((p, n) => {
+              const ultima = ordenadas
+                .filter((resultado) => resultado.pruebaId === p.id && resultado.unidad === p.unidad)
+                .at(-1)
+              return (
+                <Fila key={p.id} primera={n === 0}>
+                  <Text style={[s.texto, s.textos]}>
+                    {p.nombre} · {p.unidad}
+                  </Text>
+                  <Text style={s.valor}>
+                    {ultima ? `${String(ultima.valor).replace(".", ",")} ${p.unidad}` : "Pendiente"}
+                  </Text>
+                </Fila>
+              )
+            })}
+          </Tarjeta>
+        </View>
+      )}
       <View style={s.cabecera}>
-        <Titulo>Tus pruebas</Titulo>
-        <Enlace texto="Añadir prueba" onPress={anadir} />
+        <Titulo>Historial de pruebas</Titulo>
+        {puedeAnadir && <Enlace texto="Añadir prueba" onPress={anadir} />}
       </View>
       {porNombre.size === 0 ? (
-        <Text style={s.vacio}>Aún no hay pruebas físicas. Añade la primera con tu entrenador.</Text>
+        <Text style={s.vacio}>Aún no hay resultados de pruebas físicas.</Text>
       ) : (
         <Tarjeta>
-          {[...porNombre.entries()].map(([nombre, filas], n) => {
+          {[...porNombre.entries()].map(([clave, filas], n) => {
             const ultima = filas[filas.length - 1]!
             const primera = filas[0]!
             const cambio = ultima.valor - primera.valor
             return (
-              <Fila key={nombre} primera={n === 0}>
+              <Fila key={clave} primera={n === 0}>
                 <View style={s.textos}>
-                  <Text style={s.fuerte}>{nombre}</Text>
+                  <Text style={s.fuerte}>{ultima.nombre}</Text>
                   <Text style={s.tenue}>{fechaCorta(ultima.fecha)}</Text>
                 </View>
                 <Text style={s.valor}>
@@ -441,6 +569,7 @@ const s = StyleSheet.create({
   },
   sube: { color: tema.acento, fontFamily: tema.fuenteBoton },
   baja: { color: tema.exito, fontFamily: tema.fuenteBoton },
+  error: { color: tema.error, fontFamily: tema.fuenteBoton },
   nombreEjercicio: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 17 },
   textos: { flex: 1 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },

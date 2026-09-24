@@ -5,7 +5,6 @@ import type { Cierre } from "@alpha-omega/shared"
 import { AvisoDeError } from "../../componentes/formulario"
 import { tema } from "../../tema"
 import { BotonAtras, BotonDorado, Chips, Deslizador, Enlace, Opciones, Pregunta } from "./controles"
-import type { ProximaVez } from "./modelo"
 
 const ENERGIA = [1, 2, 3, 4, 5].map((valor) => ({ valor, texto: String(valor) }))
 const CONTAR = [
@@ -16,18 +15,20 @@ const CONTAR = [
 /** «¿Cómo ha ido?»: el cierre del diseño, antes de enviar al entrenador. */
 export function CierreDeSesion({
   subtitulo,
-  proxima,
+  resumen,
   notas,
   enviando,
+  pendiente = false,
   error,
   enviar,
   volver,
 }: {
   /** «Empuje · 1 h 38 min». */
   subtitulo: string
-  proxima: ProximaVez[]
+  resumen: { hechas: number; omitidas: number; pendientes: number }
   notas: string
   enviando: boolean
+  pendiente?: boolean
   error: string
   enviar: (cierre: Cierre, notas: string) => void
   volver: () => void
@@ -47,6 +48,14 @@ export function CierreDeSesion({
           ¿Cómo ha ido?
         </Text>
         <Text style={s.subtitulo}>{subtitulo}</Text>
+      </View>
+      <View style={s.grupo}>
+        <Text style={s.seccion} accessibilityRole="header">
+          Series registradas
+        </Text>
+        <Text style={s.resumen}>
+          {resumen.hechas} hechas · {resumen.omitidas} omitidas · {resumen.pendientes} pendientes
+        </Text>
       </View>
       <View style={s.grupo}>
         <Pregunta valor={`${esfuerzo} de 10`}>¿Cuánto te ha costado?</Pregunta>
@@ -90,35 +99,9 @@ export function CierreDeSesion({
           <Enlace texto="Añadir nota" onPress={() => setEscribiendo(true)} />
         )}
       </View>
-      {proxima.length > 0 && (
-        <View style={s.grupo}>
-          <Text style={s.seccion} accessibilityRole="header">
-            La próxima vez
-          </Text>
-          <View style={s.lista}>
-            {proxima.map((fila, n) => (
-              <View
-                key={fila.ejercicioId}
-                style={[s.renglon, n < proxima.length - 1 && s.separado]}
-              >
-                <Text style={s.ejercicio}>{fila.nombre}</Text>
-                <Text
-                  style={[
-                    s.valor,
-                    fila.tipo === "sube" && s.sube,
-                    fila.tipo === "revision" && s.revision,
-                  ]}
-                >
-                  {fila.texto}
-                </Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
       {(aviso !== "" || error !== "") && <AvisoDeError mensaje={aviso || error} />}
       <BotonDorado
-        texto="Enviar a tu entrenador"
+        texto={pendiente ? "Reintentar envío pendiente" : "Enviar a tu entrenador"}
         ocupado={enviando}
         onPress={() => {
           if (energia === null || contar === null) {
@@ -146,19 +129,7 @@ const s = StyleSheet.create({
   subtitulo: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15 },
   grupo: { gap: 12 },
   seccion: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
-  lista: { backgroundColor: tema.superficie, borderRadius: 20, paddingHorizontal: 16 },
-  renglon: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-  },
-  separado: { borderBottomWidth: 1, borderBottomColor: tema.borde },
-  ejercicio: { flex: 1, color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },
-  valor: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15 },
-  sube: { color: tema.acento, fontFamily: tema.fuenteBoton },
-  revision: { color: tema.aviso },
+  resumen: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15 },
   nota: {
     minHeight: 88,
     borderRadius: 12,

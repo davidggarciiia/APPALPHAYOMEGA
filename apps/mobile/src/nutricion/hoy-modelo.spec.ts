@@ -62,7 +62,7 @@ describe("comida de ahora", () => {
 
 describe("subtítulo de una comida", () => {
   it("lo elegido, o qué hay que hacer", () => {
-    expect(subtituloDeComida(media, undefined)).toBe("2 opciones")
+    expect(subtituloDeComida(media, undefined)).toBe("2 platos completos")
     expect(
       subtituloDeComida(media, registrada({ tipo: "alternativa", alternativaId: u(12) })),
     ).toBe("Torrijas fit")

@@ -17,6 +17,7 @@ import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { conflicto, invalida, leerDocumento } from "./documentos.js"
 import { SesionesService } from "./sesiones.service.js"
+import { registrarNovedad } from "./novedades.js"
 
 const Sintomas = z.array(SintomaDeMolestiaSchema).catch([])
 
@@ -77,19 +78,29 @@ export class MolestiasService {
     if (ejercicio === undefined) throw invalida("Ese ejercicio no está en la sesión")
     if (datos.serie !== null && (ejercicio === null || datos.serie > ejercicio.series.length))
       throw invalida("Esa serie no está en el ejercicio")
-    const creada = await this.prisma.molestia.create({
-      data: {
-        clienteId: fila.clienteId,
+    const creada = await this.prisma.$transaction(async (tx) => {
+      const molestia = await tx.molestia.create({
+        data: {
+          clienteId: fila.clienteId,
+          sesionId,
+          operacionId: datos.operacionId,
+          ejercicioPrescritoId: datos.ejercicioPrescritoId,
+          ejercicio: ejercicio?.nombre ?? null,
+          serie: datos.serie,
+          zona: datos.zona,
+          intensidad: datos.intensidad,
+          sintomas: datos.sintomas,
+          nota: datos.nota,
+        },
+      })
+      await registrarNovedad(tx, {
         sesionId,
-        operacionId: datos.operacionId,
-        ejercicioPrescritoId: datos.ejercicioPrescritoId,
-        ejercicio: ejercicio?.nombre ?? null,
-        serie: datos.serie,
-        zona: datos.zona,
-        intensidad: datos.intensidad,
-        sintomas: datos.sintomas,
-        nota: datos.nota,
-      },
+        clienteId: fila.clienteId,
+        autorId: identidad.sub,
+        audiencia: "entrenador",
+        tipo: "molestia",
+      })
+      return molestia
     })
     return aMolestia(creada)
   }
@@ -127,15 +138,31 @@ export class MolestiasService {
       if (fila.respuesta === datos.respuesta) return aMolestia(fila)
       throw conflicto("operacion_incompatible", "Esta molestia ya tiene respuesta")
     }
-    const cambiada = await this.prisma.molestia.update({
-      where: { id },
-      data: {
-        estado: "atendida",
-        respuesta: datos.respuesta,
-        atendidaEn: new Date(),
-        atendidaPorId: identidad.sub,
-      },
+    const cambiada = await this.prisma.$transaction(async (tx) => {
+      const cambio = await tx.molestia.updateMany({
+        where: { id, estado: "abierta" },
+        data: {
+          estado: "atendida",
+          respuesta: datos.respuesta,
+          atendidaEn: new Date(),
+          atendidaPorId: identidad.sub,
+        },
+      })
+      if (cambio.count === 0) return null
+      await registrarNovedad(tx, {
+        sesionId: fila.sesionId,
+        clienteId: fila.clienteId,
+        autorId: identidad.sub,
+        audiencia: "cliente",
+        tipo: "molestia_atendida",
+      })
+      return tx.molestia.findUniqueOrThrow({ where: { id } })
     })
-    return aMolestia(cambiada)
+    if (cambiada) return aMolestia(cambiada)
+    const actual = await this.prisma.molestia.findUnique({ where: { id } })
+    if (!actual) throw new NotFoundException("Esa molestia no existe")
+    if (actual.estado === "atendida" && actual.respuesta === datos.respuesta)
+      return aMolestia(actual)
+    throw conflicto("operacion_incompatible", "Esta molestia ya tiene respuesta")
   }
 }

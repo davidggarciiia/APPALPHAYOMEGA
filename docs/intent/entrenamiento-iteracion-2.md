@@ -66,6 +66,7 @@ del catálogo; no son necesarios para comprobar este primer recorrido.
 - [Agenda: fechas y cambios de día](../../SPEC-agenda.md).
 - [Entrenamiento: prescripción, registro y envío](../../SPEC-entrenamiento.md).
 
-`tasks/plan.md` y `tasks/todo.md` contienen trabajo pendiente de `identity`.
-David ha aprobado guardar el nuevo plan en `tasks/entrenamiento/plan.md` y
-`tasks/entrenamiento/todo.md`, conservando los anteriores.
+Esta decisión corresponde a la segunda iteración. Su plan y las tareas de
+identidad se conservan en el [archivo de planes](../../tasks/planes%20antiguos/2026-09-24/INDEX.md).
+El [plan activo](../../tasks/plan.md) corresponde a la iteración de experiencia
+del cliente.

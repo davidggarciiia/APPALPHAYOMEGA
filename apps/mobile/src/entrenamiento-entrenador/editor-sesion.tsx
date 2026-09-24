@@ -85,6 +85,53 @@ export function EditorSesion({
             multiline
             maxLength={2000}
           />
+          <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
+            Preguntar RIR a {e.nombre} (respuesta opcional)
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {(
+              [
+                ["desactivado", "No preguntar"],
+                ["alFinalizarEjercicio", "Al finalizar"],
+                ["cadaSerie", "Cada serie"],
+              ] as const
+            ).map(([modo, etiqueta]) => (
+              <BotonSecundario
+                key={modo}
+                texto={`${e.modoRir === modo ? "✓ " : ""}${etiqueta}`}
+                etiquetaAccesible={`RIR ${etiqueta.toLowerCase()} ${e.nombre}`}
+                onPress={() => ejercicio(e.id, { modoRir: modo })}
+              />
+            ))}
+          </View>
+          <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
+            Carga de {e.nombre}
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <BotonSecundario
+              texto={`${e.tipoCarga !== "sinCarga" ? "✓ " : ""}Con carga externa`}
+              etiquetaAccesible={`${e.nombre} con carga externa`}
+              onPress={() => ejercicio(e.id, { tipoCarga: "conCargaExterna" })}
+            />
+            <BotonSecundario
+              texto={`${e.tipoCarga === "sinCarga" ? "✓ " : ""}Sin carga externa`}
+              etiquetaAccesible={`${e.nombre} sin carga externa`}
+              onPress={() =>
+                ejercicio(e.id, {
+                  tipoCarga: "sinCarga",
+                  calibrar: false,
+                  series: e.series.map((serie) => ({ ...serie, peso: "" })),
+                })
+              }
+            />
+          </View>
+          {e.tipoCarga !== "sinCarga" && (
+            <BotonSecundario
+              texto={`${e.calibrar ? "✓ " : ""}Calibrar carga`}
+              etiquetaAccesible={`Calibrar carga de ${e.nombre}`}
+              onPress={() => ejercicio(e.id, { calibrar: !e.calibrar })}
+            />
+          )}
           {e.series.map((s, numero) => {
             const editar = (cambios: Partial<typeof s>): void =>
               ejercicio(e.id, {
@@ -106,13 +153,15 @@ export function EditorSesion({
                     onPress={() => editar({ tipoMedicion: "tiempo", objetivo: "" })}
                   />
                 </View>
-                <Campo
-                  etiqueta={`Peso kg — ${etiqueta} (opcional)`}
-                  value={s.peso}
-                  keyboardType="decimal-pad"
-                  onChangeText={(peso) => editar({ peso })}
-                  placeholder="Sin carga prescrita"
-                />
+                {e.tipoCarga !== "sinCarga" && !e.calibrar && (
+                  <Campo
+                    etiqueta={`Peso kg — ${etiqueta} (opcional)`}
+                    value={s.peso}
+                    keyboardType="decimal-pad"
+                    onChangeText={(peso) => editar({ peso })}
+                    placeholder="Sin carga prescrita"
+                  />
+                )}
                 <Campo
                   etiqueta={`${s.tipoMedicion === "repeticiones" ? "Repeticiones" : "Segundos"} — ${etiqueta}`}
                   value={s.objetivo}

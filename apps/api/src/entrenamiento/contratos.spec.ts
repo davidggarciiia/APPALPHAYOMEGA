@@ -371,4 +371,25 @@ describe("Respuestas públicas y privadas", () => {
     ).toBe(false)
     expect(contratos.BloqueSchema.safeParse({ ...bloque, objetivos: ["  "] }).success).toBe(false)
   })
+
+  it("valida una novedad legible y una lectura de ids únicos", () => {
+    const novedad = {
+      id,
+      sesionId: otroId,
+      clienteId: id,
+      tipo: "sesion_revisada",
+      sesionNombre: "Fuerza",
+      autor: { id: otroId, nombre: "Entrenador", rol: "entrenador" },
+      creadaEn: "2026-09-24T12:00:00.000Z",
+      leidaEn: null,
+    }
+    expect(contratos.NovedadEntrenamientoSchema.parse(novedad).tipo).toBe("sesion_revisada")
+    expect(contratos.ConsultarNovedadesSchema.parse({})).toEqual({ limite: 30, desplazamiento: 0 })
+    expect(contratos.MarcarNovedadesLeidasSchema.parse({ novedadIds: [id] }).novedadIds).toEqual([
+      id,
+    ])
+    expect(contratos.MarcarNovedadesLeidasSchema.safeParse({ novedadIds: [id, id] }).success).toBe(
+      false,
+    )
+  })
 })

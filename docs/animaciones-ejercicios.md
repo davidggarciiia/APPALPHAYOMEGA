@@ -21,7 +21,7 @@ da igual que una comparativa la publique un competidor. Con esos criterios:
 
 - Quedan sin figura gratuita el press de banca, los remos, el curl de bíceps y
   los abdominales.
-- La verificación completa está en `tasks/iteracion-3/entrega-fable.md`, tarea F01:
+- La verificación completa está en [la entrega archivada de Fable](../tasks/planes%20antiguos/2026-09-24/iteracion-3/entrega-fable.md), tarea F01:
   citas de las licencias, SHA-256 de las descargas, formatos, pruebas de
   codificación a 720p y propuesta de contrato para C05.
 - El informe externo `compass_artifact_*.md` recomendaba RepDB Free; esta decisión

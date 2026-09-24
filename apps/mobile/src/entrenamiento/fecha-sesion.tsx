@@ -10,12 +10,16 @@ export function FechaSesion({
   agenda,
   api,
   actualizado,
+  iniciarAbierta = false,
+  onTerminar,
 }: {
   agenda: SesionProgramada
-  api: ApiEntrenamiento
+  api: Pick<ApiEntrenamiento, "mover" | "cambios">
   actualizado: () => Promise<void>
+  iniciarAbierta?: boolean
+  onTerminar?: () => void
 }): React.JSX.Element {
-  const [eligiendo, setEligiendo] = useState(false)
+  const [eligiendo, setEligiendo] = useState(iniciarAbierta)
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState("")
   const [historial, setHistorial] = useState<CambioDeFecha[]>([])
@@ -29,6 +33,7 @@ export function FechaSesion({
       setEligiendo(false)
       setHistorial([])
       setTotal(null)
+      onTerminar?.()
     } catch {
       setError("No se pudo cambiar el día. Actualiza la sesión antes de reintentar.")
       await actualizado().catch(() => undefined)

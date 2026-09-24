@@ -12,6 +12,9 @@ export type EjercicioEditable = {
   ejercicioId: string
   nombre: string
   indicaciones: string
+  modoRir?: "desactivado" | "alFinalizarEjercicio" | "cadaSerie"
+  tipoCarga?: "conCargaExterna" | "sinCarga"
+  calibrar?: boolean
   series: SerieEditable[]
 }
 export type SesionEditable = {
@@ -59,6 +62,9 @@ export function agregarEjercicio(
         ejercicioId: ejercicio.id,
         nombre: ejercicio.nombre,
         indicaciones: "",
+        modoRir: "desactivado",
+        tipoCarga: "conCargaExterna",
+        calibrar: false,
         series: [nuevaSerie()],
       },
     ],
@@ -86,10 +92,16 @@ export function convertirSesion(sesion: SesionEditable): SesionEnRutina {
       id: ejercicio.id,
       ejercicioId: ejercicio.ejercicioId,
       indicaciones: ejercicio.indicaciones || null,
+      ...(ejercicio.modoRir !== undefined && { modoRir: ejercicio.modoRir }),
+      ...(ejercicio.tipoCarga !== undefined && { tipoCarga: ejercicio.tipoCarga }),
+      ...(ejercicio.calibrar && { calibrar: true }),
       series: ejercicio.series.map((serie) => ({
         id: serie.id,
         tipoMedicion: serie.tipoMedicion,
-        pesoKg: serie.peso.trim() === "" ? null : Number(serie.peso.replace(",", ".")),
+        pesoKg:
+          ejercicio.tipoCarga === "sinCarga" || ejercicio.calibrar || serie.peso.trim() === ""
+            ? null
+            : Number(serie.peso.replace(",", ".")),
         ...(serie.tipoMedicion === "repeticiones"
           ? { repeticiones: Number(serie.objetivo) }
           : { segundos: Number(serie.objetivo) }),

@@ -1,4 +1,10 @@
-import { nuevaSesion, agregarEjercicio, convertirSesion, moverEjercicio } from "./editor-modelo"
+import {
+  nuevaSesion,
+  agregarEjercicio,
+  convertirSesion,
+  desdeSesion,
+  moverEjercicio,
+} from "./editor-modelo"
 
 jest.mock("expo-crypto", () => ({
   randomUUID: jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID,
@@ -45,5 +51,55 @@ describe("Preparar una sesión", () => {
     expect(movido.ejercicios.map((e) => e.nombre)).toEqual(["Plancha", "Remo"])
     expect(segundo.ejercicios[0]!.nombre).toBe("Remo")
     expect(movido.ejercicios[0]!.series).toEqual(segundo.ejercicios[1]!.series)
+  })
+
+  it("guarda y reabre el modo RIR, el tipo de carga y la calibración", () => {
+    const sesion = agregarEjercicio(nuevaSesion(), {
+      id: "10000000-0000-4000-8000-000000000000",
+      nombre: "Remo",
+    })
+    sesion.nombre = "Fuerza"
+    const ejercicio = sesion.ejercicios[0]!
+    ejercicio.modoRir = "alFinalizarEjercicio"
+    ejercicio.tipoCarga = "conCargaExterna"
+    ejercicio.calibrar = true
+    ejercicio.series[0]!.objetivo = "12"
+    ejercicio.series[0]!.peso = "30"
+    const guardada = convertirSesion(sesion)
+    expect(guardada.ejercicios[0]).toEqual(
+      expect.objectContaining({
+        modoRir: "alFinalizarEjercicio",
+        tipoCarga: "conCargaExterna",
+        calibrar: true,
+      }),
+    )
+    expect(guardada.ejercicios[0]!.series[0]!.pesoKg).toBeNull()
+    const reabierta = desdeSesion(guardada, { [ejercicio.ejercicioId]: ejercicio.nombre })
+    expect(reabierta.ejercicios[0]).toEqual(
+      expect.objectContaining({
+        modoRir: "alFinalizarEjercicio",
+        tipoCarga: "conCargaExterna",
+        calibrar: true,
+      }),
+    )
+    expect(convertirSesion(reabierta).ejercicios[0]!.modoRir).toBe("alFinalizarEjercicio")
+  })
+
+  it("no inventa opciones al reabrir una sesión histórica y no prescribe kilos sin carga", () => {
+    const sesion = agregarEjercicio(nuevaSesion(), {
+      id: "10000000-0000-4000-8000-000000000000",
+      nombre: "Plancha",
+    })
+    sesion.nombre = "Fuerza"
+    sesion.ejercicios[0]!.series[0]!.objetivo = "30"
+    const anterior = convertirSesion(sesion)
+    delete anterior.ejercicios[0]!.modoRir
+    delete anterior.ejercicios[0]!.tipoCarga
+    const reabierta = desdeSesion(anterior, { [sesion.ejercicios[0]!.ejercicioId]: "Plancha" })
+    expect(convertirSesion(reabierta).ejercicios[0]!.modoRir).toBeUndefined()
+    expect(convertirSesion(reabierta).ejercicios[0]!.tipoCarga).toBeUndefined()
+    reabierta.ejercicios[0]!.tipoCarga = "sinCarga"
+    reabierta.ejercicios[0]!.series[0]!.peso = "25"
+    expect(convertirSesion(reabierta).ejercicios[0]!.series[0]!.pesoKg).toBeNull()
   })
 })

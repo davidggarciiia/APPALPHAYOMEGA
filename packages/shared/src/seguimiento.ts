@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { FechaAgendaSchema } from "./agenda"
+import { FechaAgendaSchema, RevisionSchema } from "./agenda"
 
 /**
  * Seguimiento del cliente del diseño: el registro de cada día (peso en ayunas,
@@ -20,6 +20,83 @@ export const PesoCorporalSchema = Decimal(30, 400)
 export const PasosSchema = z.number().int().min(0).max(100_000)
 /** Minutos dormidos: «7 h 40» son 460. */
 export const SuenoSchema = z.number().int().min(0).max(1440)
+
+export const IndicadorSeguimientoSchema = z.enum([
+  "peso",
+  "pasos",
+  "sueno",
+  "cintura",
+  "fuerza",
+  "pruebas",
+])
+const IndicadorRegistrableSchema = IndicadorSeguimientoSchema.extract([
+  "peso",
+  "pasos",
+  "sueno",
+  "cintura",
+])
+const RegistroSolicitadoSchema = z
+  .strictObject({
+    indicador: IndicadorRegistrableSchema,
+    frecuencia: z.enum(["diaria", "semanal"]),
+    /** Lunes = 1, domingo = 7. Solo corresponde a registros semanales. */
+    diaSemana: z.number().int().min(1).max(7).nullable(),
+  })
+  .refine(
+    (registro) => (registro.frecuencia === "semanal") === (registro.diaSemana !== null),
+    "El día se indica solo para registros semanales",
+  )
+const ObjetivoPesoSchema = z.strictObject({
+  direccion: z.enum(["bajar", "mantener", "subir"]),
+  rangoKg: z
+    .strictObject({ minimo: PesoCorporalSchema, maximo: PesoCorporalSchema })
+    .refine((rango) => rango.minimo <= rango.maximo, "El rango de peso está invertido")
+    .nullable(),
+})
+const PruebaPrescritaSchema = z.strictObject({
+  id: z.uuid(),
+  nombre: z.string().trim().min(1).max(60),
+  unidad: z.string().trim().min(1).max(12),
+})
+const DocumentoConfiguracionSeguimientoSchema = z
+  .strictObject({
+    /** El orden de la lista es el orden visible para el cliente. */
+    indicadores: z.array(IndicadorSeguimientoSchema).max(6),
+    registrosSolicitados: z.array(RegistroSolicitadoSchema).max(4),
+    objetivoPeso: ObjetivoPesoSchema.nullable(),
+    pruebasPrescritas: z.array(PruebaPrescritaSchema).max(20),
+  })
+  .refine((c) => new Set(c.indicadores).size === c.indicadores.length, "Indicador repetido")
+  .refine(
+    (c) =>
+      new Set(c.registrosSolicitados.map((r) => r.indicador)).size ===
+      c.registrosSolicitados.length,
+    "Registro solicitado repetido",
+  )
+  .refine(
+    (c) => new Set(c.pruebasPrescritas.map((p) => p.id)).size === c.pruebasPrescritas.length,
+    "Prueba prescrita repetida",
+  )
+
+export const GuardarConfiguracionSeguimientoSchema =
+  DocumentoConfiguracionSeguimientoSchema.safeExtend({
+    revision: RevisionSchema,
+  })
+export type GuardarConfiguracionSeguimiento = z.infer<typeof GuardarConfiguracionSeguimientoSchema>
+export const ConfiguracionSeguimientoSchema = GuardarConfiguracionSeguimientoSchema
+export type ConfiguracionSeguimiento = z.infer<typeof ConfiguracionSeguimientoSchema>
+
+export const CONFIGURACION_SEGUIMIENTO_INICIAL: ConfiguracionSeguimiento = {
+  revision: 0,
+  indicadores: ["peso", "pasos", "sueno", "cintura", "fuerza", "pruebas"],
+  registrosSolicitados: [
+    { indicador: "peso", frecuencia: "diaria", diaSemana: null },
+    { indicador: "pasos", frecuencia: "diaria", diaSemana: null },
+    { indicador: "sueno", frecuencia: "diaria", diaSemana: null },
+  ],
+  objetivoPeso: null,
+  pruebasPrescritas: [],
+}
 
 export const DiaDeSeguimientoSchema = z.strictObject({
   fecha: FechaAgendaSchema,
@@ -90,19 +167,27 @@ export const ListadoMedidasSchema = z.strictObject({
 })
 export type ListadoMedidas = z.infer<typeof ListadoMedidasSchema>
 
-export const RegistrarPruebaSchema = z.strictObject({
-  operacionId: z.uuid(),
-  fecha: FechaAgendaSchema,
-  /** «Flexiones seguidas», «Plancha», «Salto vertical». */
-  nombre: z.string().trim().min(1).max(60),
-  valor: z.number().min(0).max(100_000),
-  /** «reps», «s», «cm», «kg». */
-  unidad: z.string().trim().min(1).max(12),
-})
+export const RegistrarPruebaSchema = z.union([
+  z.strictObject({
+    operacionId: z.uuid(),
+    fecha: FechaAgendaSchema,
+    pruebaId: z.uuid(),
+    valor: z.number().min(0).max(100_000),
+  }),
+  z.strictObject({
+    operacionId: z.uuid(),
+    fecha: FechaAgendaSchema,
+    /** Forma heredada; el cliente registra pruebas nuevas con `pruebaId`. */
+    nombre: z.string().trim().min(1).max(60),
+    valor: z.number().min(0).max(100_000),
+    unidad: z.string().trim().min(1).max(12),
+  }),
+])
 export type RegistrarPrueba = z.infer<typeof RegistrarPruebaSchema>
 
 export const PruebaFisicaSchema = z.strictObject({
   id: z.uuid(),
+  pruebaId: z.uuid().nullable().optional(),
   fecha: FechaAgendaSchema,
   nombre: z.string(),
   valor: z.number(),

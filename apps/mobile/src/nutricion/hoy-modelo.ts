@@ -1,4 +1,5 @@
 import type {
+  CambiarDia,
   Comida,
   ComidaRegistrada,
   DiaDeSeguimiento,
@@ -47,7 +48,7 @@ export function subtituloDeComida(
   if (eleccion?.tipo === "hecha") return "Hecha"
   if (comida.forma === "intercambio") return "Elige tu plato"
   const opciones = comida.grupos.flatMap((g) => g.alternativas)
-  return opciones.length === 1 ? opciones[0]!.titulo : `${opciones.length} opciones`
+  return opciones.length === 1 ? opciones[0]!.titulo : `${opciones.length} platos completos`
 }
 
 export type Reparto = Array<{
@@ -96,4 +97,15 @@ export function suplementoTomado(suplemento: Suplemento, dia: DiaDeSeguimiento |
   return esCreatina(suplemento)
     ? dia.creatina === true
     : dia.suplementos.includes(suplemento.nombre)
+}
+
+/** Inicio y Nutrición escriben el mismo campo del día, incluido el legado de creatina. */
+export function cambioDeSuplemento(
+  suplemento: Suplemento,
+  tomado: boolean,
+  dia: DiaDeSeguimiento | null,
+): CambiarDia {
+  if (esCreatina(suplemento)) return { creatina: tomado }
+  const otros = (dia?.suplementos ?? []).filter((nombre) => nombre !== suplemento.nombre)
+  return { suplementos: tomado ? [...otros, suplemento.nombre] : otros }
 }

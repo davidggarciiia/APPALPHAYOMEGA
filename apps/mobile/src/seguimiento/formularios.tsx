@@ -1,12 +1,17 @@
 import { useRef, useState } from "react"
 import { randomUUID } from "expo-crypto"
-import { StyleSheet, View } from "react-native"
-import type { RegistrarMedida, RegistrarPrueba } from "@alpha-omega/shared"
+import { Pressable, StyleSheet, Text, View } from "react-native"
+import type {
+  ConfiguracionSeguimiento,
+  RegistrarMedida,
+  RegistrarPrueba,
+} from "@alpha-omega/shared"
 
 import { AvisoDeError, Campo } from "../componentes/formulario"
 import { hoyAgenda } from "../entrenamiento/fechas"
 import { Dialogo } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
+import { tema } from "../tema"
 import { leerDecimal } from "./modelo"
 
 type Rango = { min: number; max: number; entero?: boolean }
@@ -115,42 +120,42 @@ export function AnadirMedida({
   )
 }
 
-/** «Añadir prueba»: nombre, resultado y unidad. */
+/** El cliente elige una prueba pautada; el servidor conserva su nombre y unidad. */
 export function AnadirPrueba({
   visible,
   cerrar,
   registrar,
+  pruebas,
 }: {
   visible: boolean
   cerrar: () => void
   registrar: (datos: RegistrarPrueba) => Promise<unknown>
+  pruebas: ConfiguracionSeguimiento["pruebasPrescritas"]
 }): React.JSX.Element {
-  const [nombre, setNombre] = useState("")
+  const [pruebaId, setPruebaId] = useState<string | null>(null)
   const [resultado, setResultado] = useState("")
-  const [unidad, setUnidad] = useState("")
   const [error, setError] = useState("")
   const [enviando, setEnviando] = useState(false)
   const operacion = useRef(randomUUID())
 
   const enviar = async (): Promise<void> => {
     const numero = leerDecimal(resultado)
-    if (nombre.trim() === "") return setError("Escribe qué prueba has hecho.")
-    if (numero === null || Number.isNaN(numero)) return setError("Escribe el resultado con cifras.")
-    if (unidad.trim() === "") return setError("Escribe la unidad: reps, s, cm, kg…")
+    if (!pruebaId || !pruebas.some((prueba) => prueba.id === pruebaId))
+      return setError("Elige una prueba pautada.")
+    if (numero === null || Number.isNaN(numero) || numero < 0 || numero > 100_000)
+      return setError("Escribe un resultado entre 0 y 100.000.")
     setError("")
     setEnviando(true)
     try {
       await registrar({
         operacionId: operacion.current,
         fecha: hoyAgenda(),
-        nombre: nombre.trim(),
+        pruebaId,
         valor: numero,
-        unidad: unidad.trim(),
       })
       operacion.current = randomUUID()
-      setNombre("")
+      setPruebaId(null)
       setResultado("")
-      setUnidad("")
       cerrar()
     } catch (e) {
       setError(faltaDe(e, "No se pudo guardar la prueba.").texto)
@@ -163,28 +168,34 @@ export function AnadirPrueba({
     <Dialogo
       visible={visible}
       titulo="Añadir prueba"
-      texto="La de hoy: por ejemplo, flexiones seguidas, 32 reps."
+      texto="Elige la prueba indicada por tu entrenador y apunta el resultado de hoy."
       confirmar={enviando ? "Guardando…" : "Guardar"}
       cancelar="Cancelar"
       alConfirmar={() => void (enviando ? undefined : enviar())}
       alCancelar={cerrar}
     >
       <View style={s.campos}>
-        <Campo etiqueta="Prueba" value={nombre} onChangeText={setNombre} maxLength={60} />
-        <View style={s.fila}>
-          <View style={s.mitad}>
-            <Campo
-              etiqueta="Resultado"
-              value={resultado}
-              onChangeText={setResultado}
-              keyboardType="decimal-pad"
-              maxLength={8}
-            />
-          </View>
-          <View style={s.mitad}>
-            <Campo etiqueta="Unidad" value={unidad} onChangeText={setUnidad} maxLength={12} />
-          </View>
-        </View>
+        {pruebas.map((prueba) => (
+          <Pressable
+            key={prueba.id}
+            accessibilityRole="button"
+            accessibilityLabel={`${prueba.nombre} · ${prueba.unidad}`}
+            accessibilityState={{ selected: pruebaId === prueba.id }}
+            onPress={() => setPruebaId(prueba.id)}
+            style={[s.opcion, pruebaId === prueba.id && s.elegida]}
+          >
+            <Text style={s.textoOpcion}>
+              {prueba.nombre} · {prueba.unidad}
+            </Text>
+          </Pressable>
+        ))}
+        <Campo
+          etiqueta="Resultado"
+          value={resultado}
+          onChangeText={setResultado}
+          keyboardType="decimal-pad"
+          maxLength={8}
+        />
       </View>
       {error !== "" && <AvisoDeError mensaje={error} />}
     </Dialogo>
@@ -193,6 +204,7 @@ export function AnadirPrueba({
 
 const s = StyleSheet.create({
   campos: { gap: 4 },
-  fila: { flexDirection: "row", gap: 12 },
-  mitad: { flex: 1 },
+  opcion: { padding: 12, borderRadius: 10, borderWidth: 1, borderColor: tema.bordeFuerte },
+  elegida: { borderColor: tema.acento },
+  textoOpcion: { color: tema.texto, fontSize: 15 },
 })

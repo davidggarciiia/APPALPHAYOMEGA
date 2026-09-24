@@ -12,6 +12,7 @@ import {
   type AlimentoEditable,
   type AlternativaEditable,
   type ComidaEditable,
+  type FormaDeComida,
   type GeneradorDeIds,
   type MacrosEditables,
 } from "./editor-modelo"
@@ -147,11 +148,11 @@ function Alternativa({
   puedeCrecer: boolean
 }): React.JSX.Element {
   const [conMacros, setConMacros] = useState(Object.values(valor.macros).some((v) => v !== ""))
-  const nombre = valor.titulo || "alternativa sin título"
+  const nombre = valor.titulo || "plato sin título"
   return (
     <View style={s.alternativa}>
       <Campo
-        etiqueta="Título de la alternativa"
+        etiqueta="Título del plato"
         value={valor.titulo}
         maxLength={80}
         onChangeText={(titulo) => cambiar({ ...valor, titulo })}
@@ -214,6 +215,7 @@ export function EditorComida({
   ids: GeneradorDeIds
 }): React.JSX.Element {
   const [abierta, setAbierta] = useState(valor.nombre === "")
+  const [formaPendiente, setFormaPendiente] = useState<FormaDeComida | null>(null)
   const nombre = valor.nombre || "Comida sin nombre"
   const total = valor.grupos.reduce((suma, g) => suma + g.alternativas.length, 0)
   const puedeCrecer = total < MAX_ALTERNATIVAS_POR_COMIDA
@@ -229,8 +231,8 @@ export function EditorComida({
         <Text style={s.titulo}>{nombre}</Text>
         <Text style={s.resumen}>
           {valor.forma === "alternativas"
-            ? `${total} alternativas`
-            : `${valor.columnas.length} columnas`}
+            ? `${total} ${total === 1 ? "plato completo" : "platos completos"}`
+            : `${valor.columnas.length} grupos de intercambio`}
           {valor.hora ? ` · ${valor.hora}` : ""} {abierta ? "▴" : "▾"}
         </Text>
       </Pressable>
@@ -264,33 +266,63 @@ export function EditorComida({
             maxLength={500}
             multiline
             onChangeText={(indicacion) => cambiar({ ...valor, indicacion })}
-            placeholder="Elige una de estas alternativas."
+            placeholder="Indica cómo preparar o combinar esta comida."
           />
-          <View style={s.formas} accessibilityRole="radiogroup">
+          <View
+            style={s.formas}
+            accessibilityRole="radiogroup"
+            accessibilityLabel={`Forma de ${nombre}`}
+          >
             {(["alternativas", "intercambio"] as const).map((forma) => (
               <Pressable
                 key={forma}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: valor.forma === forma }}
-                onPress={() => cambiar({ ...valor, forma })}
+                onPress={() => setFormaPendiente(forma === valor.forma ? null : forma)}
                 style={[s.forma, valor.forma === forma && s.formaActiva]}
               >
                 <Text style={[s.textoForma, valor.forma === forma && s.textoFormaActiva]}>
-                  {forma === "alternativas" ? "Alternativas" : "Tabla de intercambio"}
+                  {forma === "alternativas" ? "Platos completos" : "Intercambio"}
                 </Text>
               </Pressable>
             ))}
           </View>
+          {formaPendiente && formaPendiente !== valor.forma && (
+            <View style={s.avisoForma}>
+              <Text style={s.tituloAvisoForma}>
+                ¿Cambiar a {formaPendiente === "intercambio" ? "intercambio" : "platos completos"}?
+              </Text>
+              <Text style={s.textoAvisoForma}>
+                {valor.forma === "alternativas"
+                  ? "Los platos completos"
+                  : "Los grupos de intercambio"}{" "}
+                quedarán fuera de la dieta publicada si guardas o publicas esta comida como{" "}
+                {formaPendiente === "intercambio" ? "Intercambio" : "Platos completos"}. No se
+                convertirán automáticamente; el borrador guardado conservará solo el formato
+                elegido.
+              </Text>
+              <View style={s.acciones}>
+                <Accion texto="Cancelar cambio" onPress={() => setFormaPendiente(null)} />
+                <Accion
+                  texto={`Cambiar a ${formaPendiente === "intercambio" ? "intercambio" : "platos completos"}`}
+                  onPress={() => {
+                    cambiar({ ...valor, forma: formaPendiente })
+                    setFormaPendiente(null)
+                  }}
+                />
+              </View>
+            </View>
+          )}
           {valor.forma === "alternativas" ? (
             <>
               {valor.grupos.map((grupo, g) => (
                 <View key={grupo.clave} style={s.grupo}>
                   <Campo
-                    etiqueta="Grupo (opcional)"
+                    etiqueta="Grupo de platos (opcional)"
                     accessibilityLabel={`Nombre del grupo ${g + 1} — ${nombre}`}
                     value={grupo.nombre}
                     maxLength={40}
-                    placeholder="Opciones dulces"
+                    placeholder="Platos dulces"
                     onChangeText={(texto) =>
                       cambiar({
                         ...valor,
@@ -338,7 +370,7 @@ export function EditorComida({
                     )
                   })}
                   <Accion
-                    texto="+ Alternativa en este grupo"
+                    texto="+ Plato en este grupo"
                     deshabilitado={!puedeCrecer}
                     onPress={() =>
                       cambiar({
@@ -354,7 +386,7 @@ export function EditorComida({
                 </View>
               ))}
               <Accion
-                texto="+ Grupo de alternativas"
+                texto="+ Grupo de platos"
                 deshabilitado={valor.grupos.length >= 6 || !puedeCrecer}
                 onPress={() => cambiar({ ...valor, grupos: [...valor.grupos, nuevoGrupo(ids)] })}
               />
@@ -364,8 +396,8 @@ export function EditorComida({
               {valor.columnas.map((columna, c) => (
                 <View key={columna.clave} style={s.grupo}>
                   <Campo
-                    etiqueta="Columna"
-                    accessibilityLabel={`Nombre de la columna ${c + 1} — ${nombre}`}
+                    etiqueta="Grupo de alimentos"
+                    accessibilityLabel={`Nombre del grupo ${c + 1} — ${nombre}`}
                     value={columna.nombre}
                     maxLength={40}
                     onChangeText={(texto) =>
@@ -392,8 +424,8 @@ export function EditorComida({
                     }
                   />
                   <Accion
-                    texto="Quitar columna"
-                    etiqueta={`Quitar columna ${columna.nombre || c + 1}`}
+                    texto="Quitar grupo"
+                    etiqueta={`Quitar grupo ${columna.nombre || c + 1}`}
                     deshabilitado={valor.columnas.length === 1}
                     onPress={() =>
                       cambiar({
@@ -405,7 +437,7 @@ export function EditorComida({
                 </View>
               ))}
               <Accion
-                texto="+ Columna"
+                texto="+ Grupo de alimentos"
                 deshabilitado={valor.columnas.length >= 6}
                 onPress={() =>
                   cambiar({ ...valor, columnas: [...valor.columnas, nuevaColumna(ids)] })
@@ -478,6 +510,16 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
   },
   formaActiva: { ...degradadoOro, borderColor: "transparent" },
+  avisoForma: {
+    backgroundColor: tema.superficie,
+    borderColor: tema.bordeFuerte,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+  },
+  tituloAvisoForma: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  textoAvisoForma: { color: tema.textoSecundario, fontFamily: tema.fuenteTexto, fontSize: 13 },
   textoForma: {
     color: tema.textoSecundario,
     fontFamily: tema.fuenteBoton,

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto"
 import request from "supertest"
 import {
+  CONFIGURACION_SEGUIMIENTO_INICIAL,
+  ConfiguracionSeguimientoSchema,
   DiaDeSeguimientoSchema,
   ErrorDeApiSchema,
   ListadoDiasSchema,
@@ -26,9 +28,92 @@ describe("Seguimiento del cliente", () => {
     entorno = await entornoEntrenamiento("seguimiento")
   })
   afterAll(async () => {
+    if (entorno) {
+      await entorno.prisma.configuracionSeguimiento.deleteMany({
+        where: { clienteId: { in: [entorno.ids.cliente!, entorno.ids.otro!] } },
+      })
+    }
     await entorno?.cerrar()
   })
   const ruta = (clienteId: string, resto: string) => `/seguimiento/clientes/${clienteId}/${resto}`
+
+  it("configura con revisión optimista y limita la lectura del nutricionista a asignados", async () => {
+    const { app, como, ids, prisma } = entorno
+    const http = app.getHttpServer()
+    const url = ruta(ids.cliente!, "configuracion")
+    const inicial = ConfiguracionSeguimientoSchema.parse(
+      (await request(http).get(url).set(como("cliente")).expect(200)).body,
+    )
+    expect(inicial).toEqual(CONFIGURACION_SEGUIMIENTO_INICIAL)
+    await request(http).get(url).set(como("nutricionista")).expect(403)
+    const datos = {
+      ...inicial,
+      indicadores: ["peso", "pruebas", "cintura"],
+      registrosSolicitados: [{ indicador: "peso", frecuencia: "semanal", diaSemana: 1 }],
+      objetivoPeso: { direccion: "bajar", rangoKg: { minimo: 80, maximo: 85 } },
+      pruebasPrescritas: [{ id: randomUUID(), nombre: "Flexiones", unidad: "reps" }],
+    }
+    await request(http).put(url).set(como("cliente")).send(datos).expect(403)
+    await request(http).put(url).set(como("nutricionista")).send(datos).expect(403)
+    const guardada = ConfiguracionSeguimientoSchema.parse(
+      (await request(http).put(url).set(como("entrenador")).send(datos).expect(200)).body,
+    )
+    expect(guardada).toEqual({ ...datos, revision: 1 })
+    ErrorDeApiSchema.parse(
+      (await request(http).put(url).set(como("entrenador")).send(datos).expect(409)).body,
+    )
+    const actualizada = ConfiguracionSeguimientoSchema.parse(
+      (
+        await request(http)
+          .put(url)
+          .set(como("entrenador"))
+          .send({ ...guardada, indicadores: ["peso", "cintura", "pruebas"] })
+          .expect(200)
+      ).body,
+    )
+    expect(actualizada.revision).toBe(2)
+    await request(http).put(url).set(como("entrenador")).send(guardada).expect(409)
+    expect((await request(http).get(url).set(como("cliente")).expect(200)).body).toEqual(
+      actualizada,
+    )
+    await prisma.asignacionNutricionista.create({
+      data: { nutricionistaId: ids.nutricionista!, clienteId: ids.cliente! },
+    })
+    expect((await request(http).get(url).set(como("nutricionista")).expect(200)).body).toEqual(
+      actualizada,
+    )
+    await request(http).put(url).set(como("nutricionista")).send(actualizada).expect(403)
+    await prisma.asignacionNutricionista.delete({
+      where: {
+        nutricionistaId_clienteId: { nutricionistaId: ids.nutricionista!, clienteId: ids.cliente! },
+      },
+    })
+    await request(http).get(url).set(como("nutricionista")).expect(403)
+    await request(http).get(ruta(ids.otro!, "configuracion")).set(como("cliente")).expect(403)
+
+    const base = { operacionId: randomUUID(), fecha: dia(0), valor: 32 }
+    await request(http)
+      .post(ruta(ids.cliente!, "pruebas"))
+      .set(como("cliente"))
+      .send({ ...base, nombre: "Flexiones", unidad: "reps" })
+      .expect(400)
+    await request(http)
+      .post(ruta(ids.cliente!, "pruebas"))
+      .set(como("cliente"))
+      .send({ ...base, pruebaId: randomUUID() })
+      .expect(400)
+    const prueba = await request(http)
+      .post(ruta(ids.cliente!, "pruebas"))
+      .set(como("cliente"))
+      .send({ ...base, pruebaId: datos.pruebasPrescritas[0]!.id })
+      .expect(201)
+    expect(prueba.body).toMatchObject({
+      pruebaId: datos.pruebasPrescritas[0]!.id,
+      nombre: "Flexiones",
+      unidad: "reps",
+      valor: 32,
+    })
+  })
 
   it("el cliente guarda su día por partes y puede borrar un dato", async () => {
     const { app, como, ids } = entorno
@@ -194,9 +279,16 @@ describe("Seguimiento del cliente", () => {
       (await request(http).get(ruta(ids.cliente!, "pruebas")).set(como("cliente")).expect(200))
         .body,
     )
-    expect(listado.pruebas).toEqual([
-      expect.objectContaining({ nombre: "Flexiones seguidas", valor: 32, unidad: "reps" }),
-    ])
+    expect(listado.pruebas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          pruebaId: null,
+          nombre: "Flexiones seguidas",
+          valor: 32,
+          unidad: "reps",
+        }),
+      ]),
+    )
   })
 
   it("«Fuerza» sale de las series con carga de las sesiones enviadas", async () => {

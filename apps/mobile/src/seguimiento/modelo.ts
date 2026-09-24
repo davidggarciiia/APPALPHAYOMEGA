@@ -1,4 +1,4 @@
-import type { DiaDeSeguimiento } from "@alpha-omega/shared"
+import type { ConfiguracionSeguimiento, DiaDeSeguimiento, Medida } from "@alpha-omega/shared"
 
 import { sumarDias } from "../entrenamiento/fechas"
 
@@ -74,6 +74,60 @@ export function resumenDeSemana(
 /** Masa libre de grasa: peso × (1 − grasa). */
 export function masaLibre(pesoKg: number, grasaPct: number): number {
   return redondear(pesoKg * (1 - grasaPct / 100))
+}
+
+type Registrable = ConfiguracionSeguimiento["registrosSolicitados"][number]["indicador"]
+
+/** Siguiente fecha solicitada; un registro hecho hoy desplaza la siguiente ocasión. */
+export function proximosRegistros(
+  config: ConfiguracionSeguimiento,
+  dias: DiaDeSeguimiento[],
+  medidas: Array<Pick<Medida, "fecha" | "cinturaCm">>,
+  hoy: string,
+): Array<{ indicador: Registrable; fecha: string }> {
+  const diaHoy = dias.find((dia) => dia.fecha === hoy)
+  const hecho = (indicador: Registrable): boolean => {
+    if (indicador === "cintura") return medidas.some((m) => m.fecha === hoy && m.cinturaCm !== null)
+    const campo = indicador === "peso" ? "pesoKg" : indicador === "sueno" ? "suenoMin" : "pasos"
+    return diaHoy?.[campo] != null
+  }
+  const diaSemana = new Date(`${hoy}T00:00:00Z`).getUTCDay() || 7
+  return config.registrosSolicitados
+    .map((r) => {
+      const distancia =
+        r.frecuencia === "diaria"
+          ? hecho(r.indicador)
+            ? 1
+            : 0
+          : ((r.diaSemana! - diaSemana + 7) % 7) +
+            (r.diaSemana === diaSemana && hecho(r.indicador) ? 7 : 0)
+      return { indicador: r.indicador, fecha: sumarDias(hoy, distancia) }
+    })
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+/** Solo un objetivo pautado da contexto al signo de la variación de peso. */
+export function sentidoDelPeso(
+  objetivo: ConfiguracionSeguimiento["objetivoPeso"],
+  inicio: number,
+  actual: number,
+): "neutral" | "favorable" | "desfavorable" {
+  if (!objetivo) return "neutral"
+  const rango = objetivo.rangoKg
+  if (rango && actual >= rango.minimo && actual <= rango.maximo) return "favorable"
+  if (objetivo.direccion === "mantener") return rango ? "desfavorable" : "neutral"
+  if (
+    rango &&
+    ((objetivo.direccion === "bajar" && actual < rango.minimo) ||
+      (objetivo.direccion === "subir" && actual > rango.maximo))
+  )
+    return "desfavorable"
+  const cambio = actual - inicio
+  if (cambio === 0) return "neutral"
+  return (objetivo.direccion === "bajar" && cambio < 0) ||
+    (objetivo.direccion === "subir" && cambio > 0)
+    ? "favorable"
+    : "desfavorable"
 }
 
 /** Años cumplidos en `fecha`. */

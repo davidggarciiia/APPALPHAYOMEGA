@@ -1,9 +1,17 @@
 import { describe, expect, it, jest } from "@jest/globals"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
-import type { CambiarDia, DiaDeSeguimiento } from "@alpha-omega/shared"
+import {
+  CONFIGURACION_SEGUIMIENTO_INICIAL,
+  type CambiarDia,
+  type ConfiguracionSeguimiento,
+  type DiaDeSeguimiento,
+  type GuardarConfiguracionSeguimiento,
+  type RegistrarPrueba,
+} from "@alpha-omega/shared"
 
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { hoyAgenda, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
+import { ErrorDePeticion } from "../lib/http"
 import type { ApiSeguimiento } from "./api"
 import { HoyDiario } from "./hoy-diario"
 import { ProgresoCliente } from "./progreso"
@@ -18,6 +26,8 @@ const CLIENTE = "10000000-0000-4000-8000-000000000000"
 
 function api(dias: DiaDeSeguimiento[] = []): ApiSeguimiento {
   return {
+    configuracion: jest.fn(async () => CONFIGURACION_SEGUIMIENTO_INICIAL),
+    guardarConfiguracion: jest.fn(async () => CONFIGURACION_SEGUIMIENTO_INICIAL),
     cambiarDia: jest.fn(async (_c: string, fecha: string, cambio: CambiarDia) => ({
       fecha,
       pesoKg: null,
@@ -92,6 +102,246 @@ describe("HoyDiario", () => {
 })
 
 describe("ProgresoCliente", () => {
+  const entrenamiento = {
+    plan: jest.fn(async () => ({ plan: null })),
+    semana: jest.fn(async () => ({ sesiones: [], total: 0 })),
+  } as unknown as ApiEntrenamiento
+
+  it("respeta los indicadores visibles y registra solo una prueba pautada", async () => {
+    const seguimiento = api()
+    const pruebaId = "50000000-0000-4000-8000-000000000001"
+    seguimiento.configuracion = jest.fn(async (): Promise<ConfiguracionSeguimiento> => ({
+      ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+      indicadores: ["pruebas", "peso"],
+      pruebasPrescritas: [{ id: pruebaId, nombre: "Flexiones", unidad: "reps" }],
+    }))
+    seguimiento.registrarPrueba = jest.fn(async (_id: string, datos: RegistrarPrueba) => ({
+      id: pruebaId,
+      pruebaId,
+      fecha: datos.fecha,
+      nombre: "Flexiones",
+      valor: datos.valor,
+      unidad: "reps",
+      creadoEn: new Date().toISOString(),
+    }))
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+      />,
+    )
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Pruebas físicas" })).toBeTruthy())
+    expect(screen.queryByRole("tab", { name: "Fuerza" })).toBeNull()
+    expect(screen.getByText("Pruebas pautadas")).toBeTruthy()
+    expect(screen.getByText("Flexiones · reps")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir prueba" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Flexiones · reps" }))
+    await fireEvent.changeText(screen.getByLabelText("Resultado"), "32")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    await waitFor(() =>
+      expect(seguimiento.registrarPrueba).toHaveBeenCalledWith(
+        CLIENTE,
+        expect.objectContaining({ pruebaId, valor: 32 }),
+      ),
+    )
+  })
+
+  it("mantiene el histórico cuando ya no hay pruebas pautadas", async () => {
+    const seguimiento = api()
+    seguimiento.configuracion = jest.fn(async (): Promise<ConfiguracionSeguimiento> => ({
+      ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+      indicadores: ["pruebas"],
+      pruebasPrescritas: [],
+    }))
+    seguimiento.pruebas = jest.fn(async () => ({
+      pruebas: [
+        {
+          id: "50000000-0000-4000-8000-000000000002",
+          pruebaId: null,
+          fecha: "2026-09-20",
+          nombre: "Plancha",
+          valor: 60,
+          unidad: "s",
+          creadoEn: new Date().toISOString(),
+        },
+      ],
+    }))
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+      />,
+    )
+    await waitFor(() => expect(screen.getByText("Plancha")).toBeTruthy())
+    expect(screen.queryByRole("button", { name: "Añadir prueba" })).toBeNull()
+  })
+
+  it("ordena resultados de una prueba renombrada por fecha, no por nombre", async () => {
+    const seguimiento = api()
+    const pruebaId = "50000000-0000-4000-8000-000000000003"
+    seguimiento.configuracion = jest.fn(async (): Promise<ConfiguracionSeguimiento> => ({
+      ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+      indicadores: ["pruebas"],
+      pruebasPrescritas: [{ id: pruebaId, nombre: "Flexiones", unidad: "reps" }],
+    }))
+    seguimiento.pruebas = jest.fn(async () => ({
+      pruebas: [
+        {
+          id: "50000000-0000-4000-8000-000000000004",
+          pruebaId,
+          fecha: "2026-09-22",
+          nombre: "Flexiones",
+          valor: 40,
+          unidad: "reps",
+          creadoEn: "2026-09-22T10:00:00.000Z",
+        },
+        {
+          id: "50000000-0000-4000-8000-000000000005",
+          pruebaId,
+          fecha: "2026-09-20",
+          nombre: "Z-flexiones",
+          valor: 30,
+          unidad: "reps",
+          creadoEn: "2026-09-20T10:00:00.000Z",
+        },
+      ],
+    }))
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+      />,
+    )
+    await waitFor(() => expect(screen.getByText("40 reps")).toBeTruthy())
+  })
+
+  it("no presenta un resultado antiguo en una unidad nueva", async () => {
+    const seguimiento = api()
+    const pruebaId = "50000000-0000-4000-8000-000000000006"
+    seguimiento.configuracion = jest.fn(async (): Promise<ConfiguracionSeguimiento> => ({
+      ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+      indicadores: ["pruebas"],
+      pruebasPrescritas: [{ id: pruebaId, nombre: "Carga", unidad: "kg" }],
+    }))
+    seguimiento.pruebas = jest.fn(async () => ({
+      pruebas: [
+        {
+          id: "50000000-0000-4000-8000-000000000007",
+          pruebaId,
+          fecha: "2026-09-20",
+          nombre: "Carga",
+          valor: 30,
+          unidad: "reps",
+          creadoEn: "2026-09-20T10:00:00.000Z",
+        },
+      ],
+    }))
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+      />,
+    )
+    await waitFor(() => expect(screen.getByText("Pendiente")).toBeTruthy())
+    expect(screen.getByText("30 reps")).toBeTruthy()
+  })
+
+  it("permite al entrenador previsualizar y guardar cambios de configuración", async () => {
+    const seguimiento = api()
+    seguimiento.guardarConfiguracion = jest.fn(
+      async (_id: string, datos: GuardarConfiguracionSeguimiento) => ({ ...datos, revision: 1 }),
+    )
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+        modo="entrenador"
+      />,
+    )
+    await waitFor(() => expect(screen.getByText("Vista previa del cliente")).toBeTruthy())
+    await fireEvent.press(screen.getByRole("button", { name: "Ocultar Fuerza" }))
+    expect(screen.getByText("Peso · Pasos · Sueño · Cintura · Pruebas físicas")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar seguimiento" }))
+    await waitFor(() =>
+      expect(seguimiento.guardarConfiguracion).toHaveBeenCalledWith(
+        CLIENTE,
+        expect.objectContaining({ indicadores: ["peso", "pasos", "sueno", "cintura", "pruebas"] }),
+      ),
+    )
+  })
+
+  it("el editor pauta un registro semanal, objetivo y prueba con unidad", async () => {
+    const seguimiento = api()
+    seguimiento.guardarConfiguracion = jest.fn(
+      async (_id: string, datos: GuardarConfiguracionSeguimiento) => ({ ...datos, revision: 1 }),
+    )
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+        modo="entrenador"
+      />,
+    )
+    await waitFor(() => expect(screen.getByRole("button", { name: "Peso: semanal" })).toBeTruthy())
+    await fireEvent.press(screen.getByRole("button", { name: "Peso: semanal" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Peso: día 5" }))
+    await fireEvent.press(screen.getByRole("button", { name: "mantener" }))
+    await fireEvent.changeText(screen.getByLabelText("Rango mínimo (kg)"), "80,0")
+    await fireEvent.changeText(screen.getByLabelText("Rango máximo (kg)"), "85,0")
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir prueba pautada" }))
+    const nombre = screen.getByLabelText(/^Nombre de prueba /)
+    const unidad = screen.getByLabelText(/^Unidad de prueba /)
+    await fireEvent.changeText(nombre, "Flexiones")
+    await fireEvent.changeText(unidad, "reps")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar seguimiento" }))
+    await waitFor(() => expect(seguimiento.guardarConfiguracion).toHaveBeenCalled())
+    const datos = (seguimiento.guardarConfiguracion as jest.Mock).mock
+      .calls[0]![1] as GuardarConfiguracionSeguimiento
+    expect(datos.registrosSolicitados.find((r) => r.indicador === "peso")).toEqual({
+      indicador: "peso",
+      frecuencia: "semanal",
+      diaSemana: 5,
+    })
+    expect(datos.objetivoPeso).toEqual({
+      direccion: "mantener",
+      rangoKg: { minimo: 80, maximo: 85 },
+    })
+    expect(datos.pruebasPrescritas).toEqual([
+      expect.objectContaining({ nombre: "Flexiones", unidad: "reps" }),
+    ])
+  })
+
+  it("si la revisión es obsoleta conserva el borrador y ofrece recargar", async () => {
+    const seguimiento = api()
+    seguimiento.guardarConfiguracion = jest.fn(async () => {
+      throw new ErrorDePeticion({
+        statusCode: 409,
+        codigo: "revision_obsoleta",
+        message: "Conflicto",
+      })
+    })
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+        modo="entrenador"
+      />,
+    )
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ocultar Fuerza" })).toBeTruthy())
+    await fireEvent.press(screen.getByRole("button", { name: "Ocultar Fuerza" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar seguimiento" }))
+    await waitFor(() => expect(screen.getByText("Revisión obsoleta")).toBeTruthy())
+    expect(screen.getByText("Peso · Pasos · Sueño · Cintura · Pruebas físicas")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Cargar versión guardada" })).toBeTruthy()
+  })
+
   it("peso: media semanal, cambio desde el inicio y resumen de la semana", async () => {
     const hoy = hoyAgenda()
     const lunes = lunesDeSemana(hoy)
@@ -118,11 +368,6 @@ describe("ProgresoCliente", () => {
       ],
       fechaNacimiento: "2005-03-10",
     }))
-    const entrenamiento = {
-      plan: jest.fn(async () => ({ plan: null })),
-      semana: jest.fn(async () => ({ sesiones: [], total: 0 })),
-    } as unknown as ApiEntrenamiento
-
     await render(
       <ProgresoCliente
         clienteId={CLIENTE}

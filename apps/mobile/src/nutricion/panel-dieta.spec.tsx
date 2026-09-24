@@ -4,6 +4,8 @@ import { ErrorDeRed } from "../lib/http"
 import type { ApiNutricion } from "./api"
 import { PanelDieta } from "./panel-dieta"
 
+jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
+
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),

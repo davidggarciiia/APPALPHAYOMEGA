@@ -11,6 +11,7 @@ import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { conflicto, invalida, leerDocumento } from "./documentos.js"
 import { SesionesService } from "./sesiones.service.js"
+import { registrarNovedad } from "./novedades.js"
 
 type ConAutor = FilaComentario & { autor: Pick<Usuario, "id" | "nombre" | "rol"> }
 
@@ -71,17 +72,27 @@ export class ComentariosService {
         throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
       return aComentario(anterior)
     }
-    const creado = await this.prisma.comentarioSesion.create({
-      data: {
+    const creado = await this.prisma.$transaction(async (tx) => {
+      const comentario = await tx.comentarioSesion.create({
+        data: {
+          sesionId,
+          clienteId: fila.clienteId,
+          autorId: identidad.sub,
+          operacionId: datos.operacionId,
+          ejercicioPrescritoId: datos.ejercicioPrescritoId,
+          ejercicio: ejercicio?.nombre ?? null,
+          texto: datos.texto,
+        },
+        include: CON_AUTOR,
+      })
+      await registrarNovedad(tx, {
         sesionId,
         clienteId: fila.clienteId,
         autorId: identidad.sub,
-        operacionId: datos.operacionId,
-        ejercicioPrescritoId: datos.ejercicioPrescritoId,
-        ejercicio: ejercicio?.nombre ?? null,
-        texto: datos.texto,
-      },
-      include: CON_AUTOR,
+        audiencia: identidad.rol === "cliente" ? "entrenador" : "cliente",
+        tipo: "comentario",
+      })
+      return comentario
     })
     return aComentario(creado)
   }

@@ -21,10 +21,16 @@ import {
   ComentarSesionSchema,
   ComentarioSesionSchema,
   ListadoComentariosSchema,
+  ListadoNovedadesSchema,
+  MarcarNovedadesLeidasSchema,
+  NovedadesLeidasSchema,
   type ListadoResultados,
   type ComentarSesion,
   type ComentarioSesion,
   type ListadoComentarios,
+  type ListadoNovedades,
+  type MarcarNovedadesLeidas,
+  type NovedadesLeidas,
   PlanVigenteSchema,
   CambiarBloqueSchema,
   type CambiarBloque,
@@ -76,6 +82,9 @@ export type ApiEntrenamiento = {
   resultados: (clienteId: string, limite?: number) => Promise<ListadoResultados>
   comentar: (sesionId: string, datos: ComentarSesion) => Promise<ComentarioSesion>
   comentarios: (sesionId: string) => Promise<ListadoComentarios>
+  revisar: (sesionId: string) => Promise<SesionEntrenador>
+  novedades: (clienteId: string, desplazamiento?: number) => Promise<ListadoNovedades>
+  leerNovedades: (sesionId: string, datos: MarcarNovedadesLeidas) => Promise<NovedadesLeidas>
 }
 
 export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamiento {
@@ -172,6 +181,28 @@ export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamie
       pedir(
         `/entrenamiento/sesiones/${encodeURIComponent(sesionId)}/comentarios`,
         ListadoComentariosSchema,
+      ),
+    revisar: (sesionId) =>
+      pedir(
+        `/entrenamiento/sesiones/${encodeURIComponent(sesionId)}/revision`,
+        SesionEntrenadorSchema,
+        {
+          method: "PUT",
+        },
+      ),
+    novedades: (clienteId, desplazamiento = 0) =>
+      pedir(
+        `/entrenamiento/clientes/${encodeURIComponent(clienteId)}/novedades?limite=8&desplazamiento=${desplazamiento}`,
+        ListadoNovedadesSchema,
+      ),
+    leerNovedades: (sesionId, datos) =>
+      pedir(
+        `/entrenamiento/sesiones/${encodeURIComponent(sesionId)}/novedades/leidas`,
+        NovedadesLeidasSchema,
+        {
+          method: "POST",
+          body: JSON.stringify(MarcarNovedadesLeidasSchema.parse(datos)),
+        },
       ),
   }
 }

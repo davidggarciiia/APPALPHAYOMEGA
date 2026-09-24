@@ -5,6 +5,7 @@ import { crearApiEntrenamiento } from "./api"
 import { crearPeticionAutenticada } from "../lib/peticion-autenticada"
 import { DocumentoSesionSchema, claveSesion, hayCambiosLocales } from "./documento-local"
 import type { Borrador, SesionCliente, ResultadoEntrenamiento } from "@alpha-omega/shared"
+import { iniciarTramo } from "./sesion/tiempo"
 
 jest.mock("../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 const cuenta = randomUUID(),
@@ -149,6 +150,30 @@ it("un guardado lento no sustituye una edición posterior", async () => {
   expect(control.documento?.secuencia).toBeGreaterThan(control.documento!.sincronizada)
 })
 
+it("la lectura tras sincronizar conserva el tramo activo del cronómetro", async () => {
+  const { control, api } = preparar()
+  await control.abrir()
+  const instante = "2026-09-24T10:00:00.000Z"
+  await control.editar(iniciarTramo(control.documento!.edicion, instante))
+  let borrador: Borrador | null = null
+  jest.spyOn(api, "guardar").mockImplementation(async (_id, datos) => {
+    borrador = {
+      revision: 1,
+      revisionPrescripcion: 0,
+      registro: datos.registro,
+      actualizadoEn: instante,
+    }
+    return borrador
+  })
+  await control.sincronizar()
+  jest.mocked(api.leerCliente).mockImplementation(async () => ({ ...sesion, borrador }))
+
+  await control.actualizar()
+
+  expect(control.documento?.edicion.tramoActivoDesde).toBe(instante)
+  expect(control.documento?.edicion.tiempoActivoSegundos).toBe(0)
+})
+
 it("descarta una lectura que llega detrás de una versión más nueva", async () => {
   const { control, api } = preparar()
   await control.abrir()
@@ -181,6 +206,9 @@ it("recupera solo series compatibles y conserva las nuevas visibles y vacías", 
   await control.abrir()
   await control.editar({
     notas: "mi copia",
+    inicio: "2026-09-24T10:00:00.000Z",
+    tiempoActivoSegundos: 125,
+    checkin: { sensacion: 4, molestia: "nada" },
     series: [{ serieId, peso: "20", valor: "10", hecha: true }],
   })
   const nueva = { id: randomUUID(), tipoMedicion: "tiempo" as const, pesoKg: null, segundos: 30 }
@@ -200,6 +228,11 @@ it("recupera solo series compatibles y conserva las nuevas visibles y vacías", 
     { serieId, peso: "20", valor: "10", hecha: true },
     { serieId: nueva.id, peso: "", valor: "", hecha: false },
   ])
+  expect(control.documento?.edicion).toMatchObject({
+    inicio: "2026-09-24T10:00:00.000Z",
+    tiempoActivoSegundos: 125,
+    checkin: { sensacion: 4, molestia: "nada" },
+  })
 })
 it("recupera offline y reutiliza la operación cuya respuesta se perdió", async () => {
   const { control, api, almacen } = preparar()
@@ -218,4 +251,104 @@ it("recupera offline y reutiliza la operación cuya respuesta se perdió", async
   expect(
     (await almacen.leer(cuenta, claveSesion(id), DocumentoSesionSchema))?.pendiente?.peticion,
   ).toEqual(primera)
+})
+
+it("conserva la intención de enviar cuando el primer guardado falla sin conexión", async () => {
+  const { control, api, almacen } = preparar()
+  await control.abrir()
+  await control.editar({
+    notas: "para el entrenador",
+    series: [{ serieId, peso: "20", valor: "10", hecha: true }],
+  })
+  const guardar = jest
+    .spyOn(api, "guardar")
+    .mockRejectedValueOnce(new Error("sin red"))
+    .mockImplementation(async (_id, datos) => ({
+      revision: 1,
+      revisionPrescripcion: 0,
+      registro: datos.registro,
+      actualizadoEn: new Date().toISOString(),
+    }))
+  const enviar = jest.spyOn(api, "enviar").mockResolvedValue(resultado)
+
+  await expect(control.enviar()).rejects.toThrow("sin red")
+  const copia = await almacen.leer(cuenta, claveSesion(id), DocumentoSesionSchema)
+  expect(copia).toMatchObject({
+    intencionEnvio: {
+      operacionId: expect.any(String),
+      registro: { notas: "para el entrenador" },
+    },
+  })
+  expect(enviar).not.toHaveBeenCalled()
+  expect(await hayCambiosLocales(almacen, cuenta)).toBe(true)
+
+  control.cerrar()
+  const nueva = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+  await nueva.abrir()
+  await nueva.enviar()
+  expect(guardar).toHaveBeenCalledTimes(2)
+  expect(enviar).toHaveBeenCalledTimes(1)
+  expect(enviar.mock.calls[0]?.[1].operacionId).toBe(
+    (copia as { intencionEnvio: { operacionId: string } }).intencionEnvio.operacionId,
+  )
+  expect(nueva.documento?.resultado).toEqual(resultado)
+})
+it("no bloquea un borrador sin series hechas por una intención inválida", async () => {
+  const { control } = preparar()
+  await control.abrir()
+  await expect(control.enviar()).rejects.toThrow()
+  expect(control.documento?.intencionEnvio).toBeNull()
+  expect(control.sinRed).toBe(false)
+})
+it("actualiza la revisión del entrenador después de un envío confirmado", async () => {
+  const { control, api } = preparar()
+  await control.abrir()
+  control.documento = {
+    ...control.documento!,
+    resultado,
+    sesion: { ...sesion, enviadoEn: resultado.enviadoEn },
+  }
+  jest.mocked(api.leerCliente).mockResolvedValue({
+    ...sesion,
+    enviadoEn: resultado.enviadoEn,
+    revisadaEn: "2026-09-24T12:00:00.000Z",
+  })
+  await control.actualizar()
+  expect(control.documento?.sesion.revisadaEn).toBe("2026-09-24T12:00:00.000Z")
+})
+
+it("pausa el tramo al abandonar la pantalla y conserva el tiempo en el dispositivo", async () => {
+  const { control, almacen } = preparar()
+  await control.abrir()
+  const inicio = "2026-09-24T10:00:00.000Z"
+  await control.editar(iniciarTramo(control.documento!.edicion, inicio))
+  await control.pausar("2026-09-24T10:01:30.000Z")
+  expect(control.documento?.edicion).toMatchObject({
+    tiempoActivoSegundos: 90,
+    tramoActivoDesde: null,
+  })
+  expect(
+    (await almacen.leer(cuenta, claveSesion(id), DocumentoSesionSchema))?.edicion
+      .tiempoActivoSegundos,
+  ).toBe(90)
+})
+it("recupera ejercicio elegido y descanso tras reabrir sin alterar el borrador", async () => {
+  const { control, api, almacen } = preparar()
+  await control.abrir()
+  const elegido = sesion.prescripcion.ejercicios[0]!.id
+  const hasta = "2026-09-24T10:05:00.000Z"
+  await control.guardarVista({
+    ejercicioElegidoId: elegido,
+    descansoHasta: hasta,
+    descansoTotal: 90,
+  })
+  control.cerrar()
+  const nueva = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+  await nueva.abrir()
+  expect(nueva.documento).toMatchObject({
+    ejercicioElegidoId: elegido,
+    descansoHasta: hasta,
+    descansoTotal: 90,
+  })
+  expect(nueva.documento?.secuencia).toBe(0)
 })

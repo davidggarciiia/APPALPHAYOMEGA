@@ -1,5 +1,9 @@
 # Mapa de capacidades — App Alpha & Omega
 
+> Plan activo de experiencia del cliente: [plan](tasks/plan.md) y
+> [tareas](tasks/todo.md). Los planes previos y sus pendientes siguen
+> disponibles en el [archivo](tasks/planes%20antiguos/2026-09-24/INDEX.md).
+
 > Aprobado por David el 2026-09-11. Producido por `spec-driven-development`, fase 0.
 > Este documento es el índice del proyecto. Las especificaciones se nombran por
 > el id de módulo (`SPEC-identity.md`, `SPEC-agenda.md`...). Los ids no se renombran.
@@ -8,16 +12,16 @@
 
 ## Módulos
 
-| Id                     | Responsabilidad                                                                 | Depende de                                  |
-| ---------------------- | ------------------------------------------------------------------------------- | ------------------------------------------- |
-| `identity`             | Cuentas, sesión, los cuatro roles y qué ve cada uno                             | —                                           |
-| `catalogo-ejercicios`  | Ejercicios, grupos musculares, mapa Symmetry, figuras animadas, hueco de vídeo  | `identity`                                  |
-| `agenda`               | Sesión programada: cliente, fecha, hora, tipo. Clases de boxeo                  | `identity`                                  |
-| `entrenamiento`        | Rutina prescrita, registro real de series/peso/reps/notas, panel del entrenador | `identity`, `catalogo-ejercicios`, `agenda` |
-| `seguimiento-corporal` | Peso, bioimpedancia, plicómetro, medidas, fotos de evolución                    | `identity`                                  |
-| `nutricion`            | Dietas por cliente, alimentos, macros, notas. Cliente en solo lectura           | `identity`                                  |
-| `leads`                | Envíos del formulario de la landing y su seguimiento                            | `identity`                                  |
-| `fichajes`             | Registro de jornada del empleado                                                | `identity`                                  |
+| Id                     | Responsabilidad                                                                      | Depende de                                  |
+| ---------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `identity`             | Cuentas, sesión, los cuatro roles y qué ve cada uno                                  | —                                           |
+| `catalogo-ejercicios`  | Ejercicios, grupos musculares, mapa Symmetry, figuras animadas, hueco de vídeo       | `identity`                                  |
+| `agenda`               | Sesión programada: cliente, fecha, hora, tipo. Clases de boxeo                       | `identity`                                  |
+| `entrenamiento`        | Rutina prescrita, registro real de series/peso/reps/notas, panel del entrenador      | `identity`, `catalogo-ejercicios`, `agenda` |
+| `seguimiento-corporal` | Configuración profesional de indicadores y pruebas; registro e historial del cliente | `identity`                                  |
+| `nutricion`            | Dietas por comida configuradas por profesional; elección y registro del cliente      | `identity`                                  |
+| `leads`                | Envíos del formulario de la landing y su seguimiento                                 | `identity`                                  |
+| `fichajes`             | Registro de jornada del empleado                                                     | `identity`                                  |
 
 ## Orden de construcción
 
@@ -60,7 +64,7 @@ Secuencia: `identity` → `catalogo-ejercicios` + `agenda` → `entrenamiento` �
 | Detalle de ejercicio               | `catalogo-ejercicios` + `entrenamiento`       |
 | Librería Symmetry                  | `catalogo-ejercicios`                         |
 | Panel admin de entrenos            | `entrenamiento`                               |
-| Nutrición cliente (solo lectura)   | `nutricion`                                   |
+| Nutrición cliente y registro       | `nutricion`                                   |
 | Nutrición del nutricionista        | `nutricion`                                   |
 | Seguimiento corporal               | `seguimiento-corporal`                        |
 | Horarios (admin)                   | `agenda`                                      |
@@ -72,15 +76,17 @@ dibujadas por nadie y no son opcionales.
 
 ## Estado
 
-| Módulo              | Spec     | Plan                 | Implementación                                                                            |
-| ------------------- | -------- | -------------------- | ----------------------------------------------------------------------------------------- |
-| identity            | aprobada | aprobado             | 17 de 21 tareas; pendientes originales conservados                                        |
-| catalogo-ejercicios | definida | subconjunto aprobado | Catálogo textual integrado; figuras, vídeo y mapa pendientes                              |
-| agenda              | aprobada | aprobado             | Sesiones de entrenamiento por día y cambios auditados; clases/horas fuera de esta entrega |
-| entrenamiento       | aprobada | aprobado             | Iteración 2 integrada; validación web completa, dispositivo físico pendiente              |
-| resto               | —        | —                    | Pendiente                                                                                 |
+| Módulo               | Spec     | Plan                  | Implementación                                                                            |
+| -------------------- | -------- | --------------------- | ----------------------------------------------------------------------------------------- |
+| identity             | aprobada | aprobado              | 17 de 21 tareas; pendientes originales conservados                                        |
+| catalogo-ejercicios  | definida | subconjunto aprobado  | Catálogo textual integrado; figuras, vídeo y mapa pendientes                              |
+| agenda               | aprobada | aprobado              | Sesiones de entrenamiento por día y cambios auditados; clases/horas fuera de esta entrega |
+| entrenamiento        | aprobada | iteración de cliente  | Sesión guiada, guardado y revisión integrados; prueba en móvil físico pendiente           |
+| nutricion            | aprobada | iteración de cliente  | Formato por comida, elección y registro explícito; prueba de usabilidad pendiente         |
+| seguimiento-corporal | definida | iteración de cliente  | Configuración profesional, registros y progreso; prueba de usabilidad pendiente           |
+| leads y fichajes     | —        | fuera de esta entrega | Conservan el estado documentado en sus planes anteriores                                  |
 
-Evidencia, trazabilidad y límites en [verificación de la iteración 2](tasks/entrenamiento/verificacion.md).
+Evidencia histórica de la iteración 2 en [su verificación archivada](tasks/planes%20antiguos/2026-09-24/entrenamiento/verificacion.md). La evidencia de esta iteración se recoge en [tareas activas](tasks/todo.md).
 
 ### Detalle de `identity`
 

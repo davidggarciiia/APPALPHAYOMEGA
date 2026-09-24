@@ -86,7 +86,7 @@ El proyecto se escribió antes de programarse, y esos documentos siguen vivos.
 - [SPEC-identity.md](SPEC-identity.md) — cuentas, sesión y permisos
 - [SPEC-catalogo-ejercicios.md](SPEC-catalogo-ejercicios.md) — alcance completo del catálogo
 - [SPEC-entrenamiento.md](SPEC-entrenamiento.md) y [SPEC-agenda.md](SPEC-agenda.md) — segunda iteración
-- [Verificación integrada](tasks/entrenamiento/verificacion.md) — pruebas, cobertura y límites
+- [Verificación de la iteración 2](tasks/planes%20antiguos/2026-09-24/entrenamiento/verificacion.md) — pruebas, cobertura y límites históricos
 - [tasks/](tasks/) — el plan y el estado de cada tarea
 - [docs/adr/](docs/adr/) — decisiones técnicas con su porqué
 - [docs/PENDIENTE-PARA-PRODUCCION.md](docs/PENDIENTE-PARA-PRODUCCION.md) — lo que

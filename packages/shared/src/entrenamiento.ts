@@ -42,6 +42,10 @@ const CamposPrescripcionAmpliada = {
   seccion: SeccionDeSesionSchema.optional(),
   /** RIR objetivo: «RIR 3» es { min: 3, max: 3 }; «RIR 2–3», { min: 2, max: 3 }. */
   rir: z.strictObject({ min: RirSchema, max: RirSchema }).optional(),
+  /** Cuándo se ofrece el RIR al cliente; nunca se exige respuesta. */
+  modoRir: z.enum(["desactivado", "alFinalizarEjercicio", "cadaSerie"]).optional(),
+  /** Ausente en prescripciones antiguas, que conservan su comportamiento anterior. */
+  tipoCarga: z.enum(["conCargaExterna", "sinCarga"]).optional(),
   descanso: TextoCorto(30).optional(),
   /** Cómo se hace en calentamiento o final: «1×8 por lado», «3–4 min». */
   dosis: TextoCorto(60).optional(),
@@ -89,7 +93,10 @@ const CamposSesionAmpliada = {
 }
 
 function rangosValidos(sesion: {
-  ejercicios: Array<{ rir?: { min: number; max: number }; series: SeriePrescrita[] }>
+  ejercicios: Array<{
+    rir?: { min: number; max: number }
+    series: SeriePrescrita[]
+  }>
 }): boolean {
   return sesion.ejercicios.every(
     (ejercicio) =>
@@ -100,6 +107,23 @@ function rangosValidos(sesion: {
           serie.repeticionesMax === undefined ||
           serie.repeticionesMax >= serie.repeticiones,
       ),
+  )
+}
+
+function cargasValidas(sesion: {
+  ejercicios: Array<{
+    tipoCarga?: "conCargaExterna" | "sinCarga"
+    calibrar?: boolean
+    subidaKg?: number
+    series: SeriePrescrita[]
+  }>
+}): boolean {
+  return sesion.ejercicios.every(
+    (ejercicio) =>
+      ejercicio.tipoCarga !== "sinCarga" ||
+      (!ejercicio.calibrar &&
+        ejercicio.subidaKg === undefined &&
+        ejercicio.series.every((serie) => serie.pesoKg === null)),
   )
 }
 export const EjercicioEnRutinaSchema = z.strictObject(CamposEjercicioEnRutina)
@@ -127,6 +151,7 @@ export const PrescripcionSchema = z
     "Los identificadores de ejercicios y series deben ser únicos dentro de la sesión",
   )
   .refine(rangosValidos, "Un rango no puede acabar antes de empezar")
+  .refine(cargasValidas, "Un ejercicio sin carga externa no admite kilos ni calibración")
 export type Prescripcion = z.infer<typeof PrescripcionSchema>
 
 export const SesionEnRutinaSchema = z
@@ -139,6 +164,7 @@ export const SesionEnRutinaSchema = z
   })
   .refine(idsDeSesionUnicos, "Hay identificadores repetidos en la sesión")
   .refine(rangosValidos, "Un rango no puede acabar antes de empezar")
+  .refine(cargasValidas, "Un ejercicio sin carga externa no admite kilos ni calibración")
 export type SesionEnRutina = z.infer<typeof SesionEnRutinaSchema>
 
 export const PatronRutinaSchema = z
@@ -264,12 +290,15 @@ export const CambiarPrescripcionSchema = z
   })
   .refine(idsDeSesionUnicos, "Hay identificadores repetidos en la sesión")
   .refine(rangosValidos, "Un rango no puede acabar antes de empezar")
+  .refine(cargasValidas, "Un ejercicio sin carga externa no admite kilos ni calibración")
 export type CambiarPrescripcion = z.infer<typeof CambiarPrescripcionSchema>
 
 const CamposRegistroSerie = {
   serieId: z.uuid(),
   pesoKg: PesoSchema,
   hecha: z.boolean(),
+  /** Ausente y hecha=false significa pendiente en registros históricos. */
+  omitida: z.literal(true).optional(),
   /** «¿Cuántas te quedaban?»: 0 a 5, donde 5 es «5 o más». */
   rir: RirSchema.nullable().optional(),
 }
@@ -294,6 +323,10 @@ export const SerieRegistradaSchema = z
         : serie.segundos !== null),
     "Una serie hecha necesita repeticiones o segundos registrados",
   )
+  .refine(
+    (serie) => !serie.hecha || serie.omitida !== true,
+    "Una serie hecha no puede estar omitida",
+  )
 export type SerieRegistrada = z.infer<typeof SerieRegistradaSchema>
 
 /** Antes de empezar: cómo llega el cliente. */
@@ -316,6 +349,8 @@ const CamposSesionVivida = {
   cierre: CierreSchema.nullable().optional(),
   /** Cuándo empezó: el cronómetro y la duración salen de aquí. */
   inicio: z.iso.datetime().nullable().optional(),
+  /** Tiempo real de actividad; ausente en registros previos al cronómetro con pausas. */
+  tiempoActivoSegundos: z.number().int().nonnegative().optional(),
 }
 
 export const RegistroSchema = z
@@ -331,21 +366,35 @@ export const RegistroSchema = z
   )
 export type Registro = z.infer<typeof RegistroSchema>
 
+function cargaEjecutadaValida(
+  hecha: boolean,
+  pesoKg: number | null,
+  objetivo: SeriePrescrita,
+  tipoCarga: "conCargaExterna" | "sinCarga" | undefined,
+): boolean {
+  if (!hecha) return true
+  if (tipoCarga === "sinCarga") return pesoKg === null
+  if (tipoCarga === "conCargaExterna") return pesoKg !== null
+  return objetivo.pesoKg === null || pesoKg !== null
+}
+
 /** Usar la prescripción leída por el servidor tras comprobar propietario y revisión. */
 export function crearRegistroDeSesionSchema(prescripcion: Prescripcion): z.ZodType<Registro> {
   const prescritas = new Map(
     prescripcion.ejercicios.flatMap((ejercicio) =>
-      ejercicio.series.map((serie) => [serie.id, serie] as const),
+      ejercicio.series.map(
+        (serie) => [serie.id, { serie, tipoCarga: ejercicio.tipoCarga }] as const,
+      ),
     ),
   )
   return RegistroSchema.refine(
     (registro) =>
       registro.series.every((serie) => {
-        const objetivo = prescritas.get(serie.serieId)
+        const prescrita = prescritas.get(serie.serieId)
         return (
-          objetivo !== undefined &&
-          objetivo.tipoMedicion === serie.tipoMedicion &&
-          (!serie.hecha || objetivo.pesoKg === null || serie.pesoKg !== null)
+          prescrita !== undefined &&
+          prescrita.serie.tipoMedicion === serie.tipoMedicion &&
+          cargaEjecutadaValida(serie.hecha, serie.pesoKg, prescrita.serie, prescrita.tipoCarga)
         )
       }),
     "Las series deben pertenecer a la sesión, mantener su unidad y registrar la carga requerida",
@@ -379,6 +428,8 @@ const CamposSesionPublica = {
   revisionPrescripcion: RevisionSchema,
   permiteAjuste: z.boolean(),
   enviadoEn: z.iso.datetime().nullable(),
+  /** Se marca únicamente mediante la acción explícita del entrenador. */
+  revisadaEn: z.iso.datetime().nullable().optional(),
 }
 export const SesionEntrenadorSchema = z.strictObject(CamposSesionPublica)
 export type SesionEntrenador = z.infer<typeof SesionEntrenadorSchema>
@@ -422,7 +473,11 @@ export const ValoresEjecutadosSchema = z.discriminatedUnion("tipoMedicion", [
 ])
 export type ValoresEjecutados = z.infer<typeof ValoresEjecutadosSchema>
 export const ResultadoSerieSchema = z.discriminatedUnion("hecha", [
-  z.strictObject({ serieId: z.uuid(), hecha: z.literal(false) }),
+  z.strictObject({
+    serieId: z.uuid(),
+    hecha: z.literal(false),
+    omitida: z.literal(true).optional(),
+  }),
   z.strictObject({ serieId: z.uuid(), hecha: z.literal(true), valores: ValoresEjecutadosSchema }),
 ])
 export type ResultadoSerie = z.infer<typeof ResultadoSerieSchema>
@@ -440,7 +495,9 @@ export const ResultadoEntrenamientoSchema = z
   .refine((resultado) => {
     const prescritas = new Map(
       resultado.prescripcion.ejercicios.flatMap((ejercicio) =>
-        ejercicio.series.map((serie) => [serie.id, serie] as const),
+        ejercicio.series.map(
+          (serie) => [serie.id, { serie, tipoCarga: ejercicio.tipoCarga }] as const,
+        ),
       ),
     )
     return (
@@ -448,12 +505,17 @@ export const ResultadoEntrenamientoSchema = z
       new Set(resultado.series.map((serie) => serie.serieId)).size === prescritas.size &&
       resultado.series.some((serie) => serie.hecha) &&
       resultado.series.every((serie) => {
-        const objetivo = prescritas.get(serie.serieId)
+        const prescrita = prescritas.get(serie.serieId)
         return (
-          objetivo !== undefined &&
+          prescrita !== undefined &&
           (!serie.hecha ||
-            (objetivo.tipoMedicion === serie.valores.tipoMedicion &&
-              (objetivo.pesoKg === null || serie.valores.pesoKg !== null)))
+            (prescrita.serie.tipoMedicion === serie.valores.tipoMedicion &&
+              cargaEjecutadaValida(
+                true,
+                serie.valores.pesoKg,
+                prescrita.serie,
+                prescrita.tipoCarga,
+              )))
         )
       })
     )
@@ -499,7 +561,11 @@ export const ComentarioSesionSchema = z.strictObject({
   /** Nombre del ejercicio cuando se comentó, para «sobre el press banca». */
   ejercicio: z.string().nullable(),
   texto: z.string(),
-  autor: z.strictObject({ id: z.uuid(), nombre: z.string(), rol: z.enum(["cliente", "entrenador"]) }),
+  autor: z.strictObject({
+    id: z.uuid(),
+    nombre: z.string(),
+    rol: z.enum(["cliente", "entrenador"]),
+  }),
   creadoEn: z.iso.datetime(),
 })
 export type ComentarioSesion = z.infer<typeof ComentarioSesionSchema>
@@ -507,3 +573,54 @@ export const ListadoComentariosSchema = z.strictObject({
   comentarios: z.array(ComentarioSesionSchema),
 })
 export type ListadoComentarios = z.infer<typeof ListadoComentariosSchema>
+
+export const TiposNovedadEntrenamientoSchema = z.enum([
+  "entrenamiento_enviado",
+  "sesion_revisada",
+  "comentario",
+  "molestia",
+  "molestia_atendida",
+  "fecha_cambiada",
+])
+export type TipoNovedadEntrenamiento = z.infer<typeof TiposNovedadEntrenamientoSchema>
+
+export const NovedadEntrenamientoSchema = z.strictObject({
+  id: z.uuid(),
+  sesionId: z.uuid(),
+  clienteId: z.uuid(),
+  tipo: TiposNovedadEntrenamientoSchema,
+  sesionNombre: NombreSchema,
+  autor: z.strictObject({
+    id: z.uuid(),
+    nombre: NombreSchema,
+    rol: z.enum(["cliente", "entrenador"]),
+  }),
+  creadaEn: z.iso.datetime(),
+  leidaEn: z.iso.datetime().nullable(),
+})
+export type NovedadEntrenamiento = z.infer<typeof NovedadEntrenamientoSchema>
+
+export const ConsultarNovedadesSchema = z.strictObject({
+  limite: z.coerce.number().int().min(1).max(100).default(30),
+  desplazamiento: z.coerce.number().int().min(0).max(100000).default(0),
+})
+export type ConsultarNovedades = z.infer<typeof ConsultarNovedadesSchema>
+
+export const ListadoNovedadesSchema = z.strictObject({
+  novedades: z.array(NovedadEntrenamientoSchema),
+  total: z.number().int().nonnegative(),
+  sinLeer: z.number().int().nonnegative(),
+})
+export type ListadoNovedades = z.infer<typeof ListadoNovedadesSchema>
+
+export const MarcarNovedadesLeidasSchema = z.strictObject({
+  novedadIds: z
+    .array(z.uuid())
+    .min(1)
+    .max(100)
+    .refine((ids) => new Set(ids).size === ids.length, "Elige cada novedad una sola vez"),
+})
+export type MarcarNovedadesLeidas = z.infer<typeof MarcarNovedadesLeidasSchema>
+
+export const NovedadesLeidasSchema = z.strictObject({ leidas: z.number().int().nonnegative() })
+export type NovedadesLeidas = z.infer<typeof NovedadesLeidasSchema>

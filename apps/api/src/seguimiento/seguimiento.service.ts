@@ -1,12 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common"
 import {
+  CONFIGURACION_SEGUIMIENTO_INICIAL,
+  ConfiguracionSeguimientoSchema,
   ZONA_AGENDA,
   type CambiarDia,
+  type ConfiguracionSeguimiento,
   type ConsultarPeriodo,
   type DiaDeSeguimiento,
   type ListadoDias,
   type ListadoMedidas,
   type ListadoPruebas,
+  type GuardarConfiguracionSeguimiento,
   type Medida,
   type PruebaFisica,
   type RegistrarMedida,
@@ -42,13 +46,62 @@ function hoy(): string {
 export class SeguimientoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async cliente(clienteId: string): Promise<{ fechaNacimiento: Date | null }> {
+  private async cliente(
+    clienteId: string,
+  ): Promise<{ fechaNacimiento: Date | null; estado: string }> {
     const cliente = await this.prisma.usuario.findFirst({
       where: { id: clienteId, rol: "cliente" },
-      select: { fechaNacimiento: true },
+      select: { fechaNacimiento: true, estado: true },
     })
     if (!cliente) throw new NotFoundException("Cliente no disponible")
     return cliente
+  }
+
+  async configuracion(clienteId: string): Promise<ConfiguracionSeguimiento> {
+    await this.cliente(clienteId)
+    const fila = await this.prisma.configuracionSeguimiento.findUnique({ where: { clienteId } })
+    return fila === null
+      ? CONFIGURACION_SEGUIMIENTO_INICIAL
+      : ConfiguracionSeguimientoSchema.parse({
+          ...(fila.documento as object),
+          revision: fila.revision,
+        })
+  }
+
+  async guardarConfiguracion(
+    clienteId: string,
+    datos: GuardarConfiguracionSeguimiento,
+  ): Promise<ConfiguracionSeguimiento> {
+    const cliente = await this.cliente(clienteId)
+    if (cliente.estado === "desactivado")
+      throw conflicto("operacion_incompatible", "Este cliente está dado de baja")
+    const { revision, ...documento } = datos
+    const obsoleta = () =>
+      conflicto("revision_obsoleta", "El seguimiento ha cambiado. Recarga antes de guardar.")
+    try {
+      const fila =
+        revision === 0
+          ? await this.prisma.configuracionSeguimiento.create({
+              data: { clienteId, revision: 1, documento },
+            })
+          : await this.prisma.configuracionSeguimiento.update({
+              where: { clienteId, revision },
+              data: { revision: { increment: 1 }, documento },
+            })
+      return ConfiguracionSeguimientoSchema.parse({
+        ...(fila.documento as object),
+        revision: fila.revision,
+      })
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error.code === "P2002" || error.code === "P2025")
+      )
+        throw obsoleta()
+      throw error
+    }
   }
 
   private comprobarFecha(dia: string): void {
@@ -129,7 +182,7 @@ export class SeguimientoService {
   ): Promise<PruebaFisica> {
     this.comprobarFecha(datos.fecha)
     await this.cliente(clienteId)
-    const { operacionId, fecha: dia, ...valores } = datos
+    const { operacionId, fecha: dia } = datos
     const anterior = await this.prisma.pruebaFisica.findUnique({
       where: { autorId_operacionId: { autorId: identidad.sub, operacionId } },
     })
@@ -137,12 +190,31 @@ export class SeguimientoService {
       const igual =
         anterior.clienteId === clienteId &&
         fecha(anterior.fecha) === dia &&
-        anterior.nombre === valores.nombre &&
-        Number(anterior.valor) === valores.valor &&
-        anterior.unidad === valores.unidad
+        Number(anterior.valor) === datos.valor &&
+        ("pruebaId" in datos
+          ? anterior.pruebaId === datos.pruebaId
+          : anterior.pruebaId === null &&
+            anterior.nombre === datos.nombre &&
+            anterior.unidad === datos.unidad)
       if (!igual)
         throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
       return prueba(anterior)
+    }
+    if (identidad.rol === "cliente" && !("pruebaId" in datos))
+      throw new BadRequestException("Elige una prueba prescrita por tu entrenador")
+    let valores: { pruebaId: string | null; nombre: string; unidad: string; valor: number }
+    if ("pruebaId" in datos) {
+      const configuracion = await this.configuracion(clienteId)
+      const prescrita = configuracion.pruebasPrescritas.find((p) => p.id === datos.pruebaId)
+      if (!prescrita) throw new BadRequestException("La prueba no está prescrita para este cliente")
+      valores = {
+        pruebaId: prescrita.id,
+        nombre: prescrita.nombre,
+        unidad: prescrita.unidad,
+        valor: datos.valor,
+      }
+    } else {
+      valores = { pruebaId: null, nombre: datos.nombre, unidad: datos.unidad, valor: datos.valor }
     }
     const fila = await this.prisma.pruebaFisica.create({
       data: { clienteId, autorId: identidad.sub, operacionId, fecha: fechaSql(dia), ...valores },
@@ -189,6 +261,7 @@ function medida(fila: MedidaCorporal): Medida {
 function prueba(fila: FilaPrueba): PruebaFisica {
   return {
     id: fila.id,
+    pruebaId: fila.pruebaId,
     fecha: fecha(fila.fecha),
     nombre: fila.nombre,
     valor: Number(fila.valor),

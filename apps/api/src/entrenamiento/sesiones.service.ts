@@ -82,6 +82,7 @@ export class SesionesService {
       revisionPrescripcion: fila.revisionPrescripcion,
       permiteAjuste: !fila.iniciada && fila.enviadoEn === null,
       enviadoEn: fila.enviadoEn?.toISOString() ?? null,
+      revisadaEn: fila.revisadaEn?.toISOString() ?? null,
     })
   }
 

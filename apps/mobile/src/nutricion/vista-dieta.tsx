@@ -12,7 +12,7 @@ import type {
 import type { ApiSeguimiento } from "../seguimiento/api"
 import { Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
-import { esCreatina } from "./hoy-modelo"
+import { cambioDeSuplemento } from "./hoy-modelo"
 import { HoyNutricion } from "./hoy-nutricion"
 import type { AlmacenLocal } from "../entrenamiento/almacen-local"
 import { hoyAgenda } from "../entrenamiento/fechas"
@@ -232,41 +232,18 @@ export function VistaDieta({
         (() => {
           const dieta = estado.dieta
           const enLinea = estado.copiaDel === null
-          const marcarComida = async (comida: Comida, hecha: boolean): Promise<void> => {
-            setAviso("")
-            try {
-              if (hecha) {
-                const nueva = await api.registrarComida(clienteId, hoy, comida.id, {
-                  dietaId: dieta.id,
-                  eleccion: { tipo: "hecha" },
-                })
-                setRegistradas((actual) => [
-                  ...(actual ?? []).filter((r) => r.comidaId !== comida.id),
-                  nueva,
-                ])
-              } else {
-                await api.quitarComida(clienteId, hoy, comida.id)
-                setRegistradas((actual) => (actual ?? []).filter((r) => r.comidaId !== comida.id))
-              }
-            } catch (error) {
-              setAviso(faltaDe(error, "No se pudo guardar la comida.").texto)
-            }
-          }
           const tomarSuplemento = async (
             suplemento: Suplemento,
             tomado: boolean,
           ): Promise<void> => {
             if (!seguimiento) return
             setAviso("")
-            const otros = (dia?.suplementos ?? []).filter((n) => n !== suplemento.nombre)
             try {
               setDia(
                 await seguimiento.cambiarDia(
                   clienteId,
                   hoy,
-                  esCreatina(suplemento)
-                    ? { creatina: tomado }
-                    : { suplementos: tomado ? [...otros, suplemento.nombre] : otros },
+                  cambioDeSuplemento(suplemento, tomado, dia),
                 ),
               )
             } catch (error) {
@@ -292,12 +269,8 @@ export function VistaDieta({
                 hora={horaActual()}
                 registradas={registradas ?? []}
                 dia={dia}
-                puedeMarcar={
-                  enLinea && registradas !== null && dieta.documento.registroComidas !== false
-                }
                 puedeTomar={enLinea && seguimiento !== undefined}
                 abrirComida={(comida) => (abrirComida ? abrirComida(comida) : setSemana(true))}
-                marcarComida={(comida, hecha) => void marcarComida(comida, hecha)}
                 tomarSuplemento={(suplemento, tomado) => void tomarSuplemento(suplemento, tomado)}
                 verSemana={() => setSemana(true)}
               />

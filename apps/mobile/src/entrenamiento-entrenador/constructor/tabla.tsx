@@ -109,7 +109,11 @@ export function TablaPrincipal({
               ancho={84}
               marcador="2 min"
             />
-            {e.calibrar ? (
+            {e.tipoCarga === "sinCarga" ? (
+              <View style={[s.celda, s.calibrar, { width: 96 }]}>
+                <Text style={s.textoCalibrar}>Sin carga</Text>
+              </View>
+            ) : e.calibrar ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Carga inicial de ${e.nombre}: calibrar. Tocar para fijar una carga`}
@@ -128,14 +132,20 @@ export function TablaPrincipal({
                 marcador="kg"
               />
             )}
-            <Celda
-              etiqueta={`Subida de ${e.nombre} en kg`}
-              valor={e.subida}
-              cambiar={(v) => cambiar(e.id, { subida: v })}
-              ancho={64}
-              teclado="decimal-pad"
-              marcador="kg"
-            />
+            {e.tipoCarga === "sinCarga" ? (
+              <View style={[s.celda, s.calibrar, { width: 64 }]}>
+                <Text style={s.textoCalibrar}>—</Text>
+              </View>
+            ) : (
+              <Celda
+                etiqueta={`Subida de ${e.nombre} en kg`}
+                valor={e.subida}
+                cambiar={(v) => cambiar(e.id, { subida: v })}
+                ancho={64}
+                teclado="decimal-pad"
+                marcador="kg"
+              />
+            )}
           </>
         )
         return (
@@ -211,6 +221,38 @@ export function PanelEjercicio({
   return (
     <View style={s.panel}>
       <Text style={s.tituloPanel}>{ejercicio.nombre}</Text>
+      <Text style={s.etiquetaPanel}>Preguntar RIR (respuesta opcional)</Text>
+      <View style={s.opcionesPanel}>
+        {(
+          [
+            ["desactivado", "Desactivado"],
+            ["alFinalizarEjercicio", "Al finalizar ejercicio"],
+            ["cadaSerie", "Cada serie"],
+          ] as const
+        ).map(([modo, etiqueta]) => (
+          <Enlace
+            key={modo}
+            texto={`${ejercicio.modoRir === modo ? "✓ " : ""}${etiqueta}`}
+            etiqueta={`RIR ${etiqueta.toLowerCase()} de ${ejercicio.nombre}`}
+            onPress={() => cambiar(ejercicio.id, { modoRir: modo })}
+          />
+        ))}
+      </View>
+      <Text style={s.etiquetaPanel}>Tipo de carga</Text>
+      <View style={s.opcionesPanel}>
+        <Enlace
+          texto={`${ejercicio.tipoCarga !== "sinCarga" ? "✓ " : ""}Con carga externa`}
+          etiqueta={`Con carga externa de ${ejercicio.nombre}`}
+          onPress={() => cambiar(ejercicio.id, { tipoCarga: "conCargaExterna" })}
+        />
+        <Enlace
+          texto={`${ejercicio.tipoCarga === "sinCarga" ? "✓ " : ""}Sin carga externa`}
+          etiqueta={`Sin carga externa de ${ejercicio.nombre}`}
+          onPress={() =>
+            cambiar(ejercicio.id, { tipoCarga: "sinCarga", calibrar: false, carga: "", subida: "" })
+          }
+        />
+      </View>
       <View style={s.conmutador}>
         <Text style={[s.tenue, s.flex]}>
           {ejercicio.compuesto ? "Compuesto · nunca se recorta" : "Accesorio · se recorta primero"}
@@ -227,7 +269,8 @@ export function PanelEjercicio({
         <Text style={[s.tenue, s.flex]}>Calibrar la carga las primeras sesiones</Text>
         <Switch
           accessibilityLabel="Calibrar la carga"
-          value={ejercicio.calibrar}
+          value={ejercicio.tipoCarga !== "sinCarga" && ejercicio.calibrar}
+          disabled={ejercicio.tipoCarga === "sinCarga"}
           onValueChange={(v) => cambiar(ejercicio.id, { calibrar: v })}
           trackColor={{ true: tema.acento, false: tema.superficieAlta }}
           thumbColor={tema.texto}
@@ -322,6 +365,7 @@ const s = StyleSheet.create({
   },
   tituloPanel: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 17 },
   conmutador: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 40 },
+  opcionesPanel: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   etiquetaPanel: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 14, marginTop: 4 },
   area: {
     minHeight: 72,

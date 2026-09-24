@@ -91,14 +91,54 @@ export function seriesDeTrabajo(prescripcion: Prescripcion): string[] {
   return seriesDe(prescripcion, "principal")
 }
 
-/** La primera serie de trabajo sin hacer: la que se resalta como «en curso». */
+/** El recorrido conserva el orden de calentamiento, principal, circuito y vuelta a la calma. */
+export function ejerciciosOrdenados(prescripcion: Prescripcion): EjercicioPrescrito[] {
+  return porSecciones(prescripcion).flatMap((grupo) => grupo.ejercicios)
+}
+
+/** La primera serie pendiente; una omisión explícita permite seguir adelante. */
 export function serieEnCurso(prescripcion: Prescripcion, edicion: EdicionRegistro): string | null {
-  const hechas = new Set(edicion.series.filter((s) => s.hecha).map((s) => s.serieId))
+  const cerradas = new Set(edicion.series.filter((s) => s.hecha || s.omitida).map((s) => s.serieId))
   return (
-    [...seriesDeTrabajo(prescripcion), ...seriesDe(prescripcion, "circuito")].find(
-      (id) => !hechas.has(id),
-    ) ?? null
+    ejerciciosOrdenados(prescripcion)
+      .flatMap((e) => e.series.map((s) => s.id))
+      .find((id) => !cerradas.has(id)) ?? null
   )
+}
+
+export function ejercicioEnCurso(
+  prescripcion: Prescripcion,
+  edicion: EdicionRegistro,
+): EjercicioPrescrito | null {
+  const serie = serieEnCurso(prescripcion, edicion)
+  return ejerciciosOrdenados(prescripcion).find((e) => e.series.some((s) => s.id === serie)) ?? null
+}
+
+/** Retiene el ejercicio resuelto para que el RIR final opcional no desaparezca al avanzar. */
+export function ejercicioParaRirFinal(
+  prescripcion: Prescripcion,
+  edicion: EdicionRegistro,
+  serieId: string,
+): string | null {
+  const ejercicio = prescripcion.ejercicios.find((e) => e.series.some((s) => s.id === serieId))
+  if (ejercicio?.modoRir !== "alFinalizarEjercicio") return null
+  const reales = ejercicio.series.map((s) => edicion.series.find((r) => r.serieId === s.id))
+  return reales.some((r) => r?.hecha) && reales.every((r) => r?.hecha || r?.omitida)
+    ? ejercicio.id
+    : null
+}
+
+export function estadoDeEjercicio(
+  ejercicio: EjercicioPrescrito,
+  edicion: EdicionRegistro,
+): "pendiente" | "enCurso" | "hecho" | "omitido" | "mixto" {
+  const reales = ejercicio.series.map((s) => edicion.series.find((r) => r.serieId === s.id))
+  const hechas = reales.filter((r) => r?.hecha).length
+  const omitidas = reales.filter((r) => r?.omitida).length
+  if (hechas === reales.length) return "hecho"
+  if (omitidas === reales.length) return "omitido"
+  if (hechas + omitidas === reales.length) return "mixto"
+  return hechas + omitidas > 0 ? "enCurso" : "pendiente"
 }
 
 export type ProximaVez = {

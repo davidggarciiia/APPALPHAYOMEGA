@@ -10,6 +10,9 @@ import {
   resumenPrescrito,
   segundosDeDescanso,
   serieEnCurso,
+  ejercicioEnCurso,
+  ejercicioParaRirFinal,
+  estadoDeEjercicio,
   seriesDeTrabajo,
 } from "./modelo"
 
@@ -80,6 +83,29 @@ function edicion(
 }
 
 describe("Lógica de la sesión en curso", () => {
+  it("mantiene el ejercicio terminado a la vista hasta responder o saltar el RIR final", () => {
+    const conRirFinal = PrescripcionSchema.parse({
+      ...prescripcion,
+      ejercicios: prescripcion.ejercicios.map((ejercicio) =>
+        ejercicio.id === u(2) ? { ...ejercicio, modoRir: "alFinalizarEjercicio" } : ejercicio,
+      ),
+    })
+    const anterior = desdePrescripcion(conRirFinal)
+    const primera = {
+      ...anterior,
+      series: anterior.series.map((serie) =>
+        serie.serieId === u(21) ? { ...serie, hecha: true, valor: "6", peso: "67,5" } : serie,
+      ),
+    }
+    expect(ejercicioParaRirFinal(conRirFinal, primera, u(21))).toBeNull()
+    const resuelto = {
+      ...primera,
+      series: primera.series.map((serie) =>
+        serie.serieId === u(22) ? { ...serie, hecha: true, valor: "6", peso: "67,5" } : serie,
+      ),
+    }
+    expect(ejercicioParaRirFinal(conRirFinal, resuelto, u(22))).toBe(u(2))
+  })
   it("lee el descanso del texto del entrenador", () => {
     expect(segundosDeDescanso("2–3 min")).toBe(120)
     expect(segundosDeDescanso("90–120 s")).toBe(90)
@@ -133,12 +159,19 @@ describe("Lógica de la sesión en curso", () => {
     const todoPrincipal = Object.fromEntries(
       [u(21), u(22), u(31), u(41)].map((id) => [id, { hecha: true }]),
     )
-    expect(serieEnCurso(conCircuito, edicion(todoPrincipal))).toBe(u(51))
+    expect(serieEnCurso(conCircuito, edicion({ ...todoPrincipal, [u(11)]: { hecha: true } }))).toBe(
+      u(51),
+    )
   })
 
-  it("la serie en curso es la primera de trabajo sin hacer", () => {
-    expect(serieEnCurso(prescripcion, edicion({}))).toBe(u(21))
-    expect(serieEnCurso(prescripcion, edicion({ [u(21)]: { hecha: true } }))).toBe(u(22))
+  it("guía por calentamiento y trabajo, y salta las series omitidas", () => {
+    expect(serieEnCurso(prescripcion, edicion({}))).toBe(u(11))
+    expect(ejercicioEnCurso(prescripcion, edicion({}))?.id).toBe(u(1))
+    const registro = edicion({ [u(11)]: { hecha: true }, [u(21)]: { omitida: true } })
+    expect(serieEnCurso(prescripcion, registro)).toBe(u(22))
+    expect(ejercicioEnCurso(prescripcion, registro)?.id).toBe(u(2))
+    expect(estadoDeEjercicio(prescripcion.ejercicios[1]!, registro)).toBe("enCurso")
+    expect(estadoDeEjercicio(prescripcion.ejercicios[0]!, registro)).toBe("hecho")
   })
 
   it("«La próxima vez» sube, mantiene, toma referencia o deja en revisión", () => {

@@ -148,9 +148,9 @@ it("duplica una alternativa con un identificador nuevo", async () => {
     />,
   )
   await fireEvent.changeText(screen.getByLabelText("Nombre de la dieta"), "Con desayuno")
-  await fireEvent.press(screen.getByRole("button", { name: "+ Comida con alternativas" }))
-  await fireEvent.changeText(screen.getByLabelText("Nombre de la comida"), "Desayuno")
-  await fireEvent.changeText(screen.getByLabelText("Título de la alternativa"), "Tostadas")
+  await fireEvent.press(screen.getByRole("button", { name: "+ Comida" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Desayuno, desplegar" }))
+  await fireEvent.changeText(screen.getByLabelText("Título del plato"), "Tostadas")
   await fireEvent.changeText(screen.getByLabelText("Alimento 1 — Tostadas"), "Pan integral")
   await fireEvent.changeText(screen.getByLabelText("Cantidad 1 — Tostadas"), "60 g")
   await fireEvent.press(screen.getByRole("button", { name: "Duplicar Tostadas" }))
@@ -161,4 +161,55 @@ it("duplica una alternativa con un identificador nuevo", async () => {
   const [primera, segunda] = comida.grupos[0]!.alternativas
   expect(segunda?.alimentos).toEqual([{ nombre: "Pan integral", cantidad: "60 g" }])
   expect(segunda?.id).not.toBe(primera?.id)
+})
+
+it("permite elegir la forma de cada comida y propone intercambio para Comida y Cena", async () => {
+  await render(
+    <EditorDieta
+      clienteId={CLIENTE}
+      api={api()}
+      origen="nueva"
+      ids={generador()}
+      volver={jest.fn()}
+    />,
+  )
+  for (let n = 0; n < 3; n++) {
+    await fireEvent.press(screen.getByRole("button", { name: "+ Comida" }))
+  }
+  await fireEvent.press(screen.getByRole("button", { name: "Comida, desplegar" }))
+  expect(screen.getByRole("radio", { name: "Intercambio" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("radio", { name: "Platos completos" }))
+  expect(
+    screen.getByText(/los grupos de intercambio.*quedarán fuera de la dieta/i),
+  ).toBeOnTheScreen()
+  expect(screen.getByRole("radio", { name: "Intercambio" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("button", { name: "Cambiar a platos completos" }))
+  expect(screen.getByRole("radio", { name: "Platos completos" })).toBeChecked()
+})
+
+it("avisa antes de apartar platos completos y deja cancelar el cambio sin perderlos", async () => {
+  await render(
+    <EditorDieta
+      clienteId={CLIENTE}
+      api={api()}
+      origen="nueva"
+      ids={generador()}
+      volver={jest.fn()}
+    />,
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "+ Comida" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Desayuno, desplegar" }))
+  await fireEvent.changeText(screen.getByLabelText("Título del plato"), "Tostadas")
+  await fireEvent.changeText(screen.getByLabelText("Alimento 1 — Tostadas"), "Pan")
+
+  await fireEvent.press(screen.getByRole("radio", { name: "Intercambio" }))
+  expect(screen.getByText(/los platos completos.*quedarán fuera de la dieta/i)).toBeOnTheScreen()
+  expect(screen.getByRole("radio", { name: "Platos completos" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("button", { name: "Cancelar cambio" }))
+  expect(screen.getByDisplayValue("Tostadas")).toBeOnTheScreen()
+  expect(screen.queryByText(/quedarán fuera de la dieta/i)).toBeNull()
+
+  await fireEvent.press(screen.getByRole("radio", { name: "Intercambio" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Cambiar a intercambio" }))
+  expect(screen.getByRole("radio", { name: "Intercambio" })).toBeChecked()
 })

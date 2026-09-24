@@ -61,6 +61,20 @@ export function TablaSeries({
       ? sugerida - anterior.pesoKg
       : null
   const rirObjetivo = ejercicio.rir?.min
+  const modoRir = ejercicio.modoRir ?? (ejercicio.rir ? "cadaSerie" : "desactivado")
+  const mostrarRirPorSerie = modoRir === "cadaSerie"
+  const mostrarPeso =
+    ejercicio.tipoCarga === "conCargaExterna" ||
+    ejercicio.calibrar === true ||
+    (ejercicio.tipoCarga === undefined && ejercicio.series.some((serie) => serie.pesoKg !== null))
+  const ejercicioResuelto = ejercicio.series.every((s) => {
+    const real = series.find((r) => r.serieId === s.id)
+    return real?.hecha || real?.omitida
+  })
+  const haySerieHecha = ejercicio.series.some((s) => series.find((r) => r.serieId === s.id)?.hecha)
+  const ultimaHecha = [...ejercicio.series]
+    .reverse()
+    .find((s) => series.find((r) => r.serieId === s.id)?.hecha)
   return (
     <View style={s.bloque}>
       <View style={s.cabecera}>
@@ -96,9 +110,9 @@ export function TablaSeries({
       )}
       <View style={s.fila} accessible={false}>
         <Text style={[s.etiqueta, s.numero]}>Serie</Text>
-        <Text style={[s.etiqueta, s.valor]}>Kg</Text>
+        {mostrarPeso && <Text style={[s.etiqueta, s.valor]}>Kg</Text>}
         <Text style={[s.etiqueta, s.valor]}>{columna}</Text>
-        <Text style={[s.etiqueta, s.rir]}>RIR</Text>
+        {mostrarRirPorSerie && <Text style={[s.etiqueta, s.rir]}>RIR</Text>}
         <Text style={[s.etiqueta, s.marca]} />
       </View>
       {ejercicio.series.map((prescrita, n) => {
@@ -124,19 +138,21 @@ export function TablaSeries({
               >
                 {n + 1}
               </Text>
-              <TextInput
-                accessibilityLabel={`Peso — ${ejercicio.nombre}, serie ${n + 1}`}
-                accessibilityHint={sugerencia}
-                editable={!bloqueado}
-                value={real.peso}
-                onChangeText={(peso) => cambiar(prescrita.id, { peso })}
-                placeholder={prescrita.pesoKg === null ? "—" : decimal(prescrita.pesoKg)}
-                placeholderTextColor={tema.marcador}
-                selectionColor={tema.acento}
-                keyboardType="decimal-pad"
-                maxLength={30}
-                style={[s.valor, s.campo, actual && s.campoActual, real.hecha && s.campoHecho]}
-              />
+              {mostrarPeso && (
+                <TextInput
+                  accessibilityLabel={`Peso — ${ejercicio.nombre}, serie ${n + 1}`}
+                  accessibilityHint={sugerencia}
+                  editable={!bloqueado}
+                  value={real.peso}
+                  onChangeText={(peso) => cambiar(prescrita.id, { peso })}
+                  placeholder={prescrita.pesoKg === null ? "—" : decimal(prescrita.pesoKg)}
+                  placeholderTextColor={tema.marcador}
+                  selectionColor={tema.acento}
+                  keyboardType="decimal-pad"
+                  maxLength={30}
+                  style={[s.valor, s.campo, actual && s.campoActual, real.hecha && s.campoHecho]}
+                />
+              )}
               <TextInput
                 accessibilityLabel={`${unidad} — ${ejercicio.nombre}, serie ${n + 1}`}
                 accessibilityHint={sugerencia}
@@ -150,20 +166,22 @@ export function TablaSeries({
                 maxLength={30}
                 style={[s.valor, s.campo, real.hecha && s.campoHecho]}
               />
-              <View
-                style={[s.rir, s.campo, s.celdaRir, fueraDeObjetivo && s.rirFuera]}
-                accessibilityLabel={`RIR, serie ${n + 1}: ${rir === null ? "sin anotar" : rir === 5 ? "5 o más" : rir}${fueraDeObjetivo ? ", menos del objetivo" : ""}`}
-              >
-                <Text
-                  style={[
-                    s.textoRir,
-                    rir === null && s.textoRirObjetivo,
-                    fueraDeObjetivo && s.textoRirFuera,
-                  ]}
+              {mostrarRirPorSerie && (
+                <View
+                  style={[s.rir, s.campo, s.celdaRir, fueraDeObjetivo && s.rirFuera]}
+                  accessibilityLabel={`RIR, serie ${n + 1}: ${rir === null ? "sin anotar" : rir === 5 ? "5 o más" : rir}${fueraDeObjetivo ? ", menos del objetivo" : ""}`}
                 >
-                  {rir === null ? (rirObjetivo ?? "—") : rir === 5 ? "5+" : rir}
-                </Text>
-              </View>
+                  <Text
+                    style={[
+                      s.textoRir,
+                      rir === null && s.textoRirObjetivo,
+                      fueraDeObjetivo && s.textoRirFuera,
+                    ]}
+                  >
+                    {rir === null ? (rirObjetivo ?? "—") : rir === 5 ? "5+" : rir}
+                  </Text>
+                </View>
+              )}
               <Pressable
                 accessibilityRole="checkbox"
                 accessibilityLabel={`Hecha — ${ejercicio.nombre}, serie ${n + 1}`}
@@ -176,9 +194,11 @@ export function TablaSeries({
                       ? { hecha: false }
                       : {
                           hecha: true,
+                          omitida: undefined,
                           // La sugerencia del entrenador vale si no se escribió otra cosa.
                           ...(real.valor.trim() === "" && { valor: String(objetivo(prescrita)) }),
                           ...(real.peso.trim() === "" &&
+                            mostrarPeso &&
                             prescrita.pesoKg !== null && { peso: decimal(prescrita.pesoKg) }),
                         },
                   )
@@ -188,12 +208,28 @@ export function TablaSeries({
                 {real.hecha && <Icono nombre="hecho" color={tema.sobreExito} tamano={18} />}
               </Pressable>
             </View>
+            {!real.hecha && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${real.omitida ? "Recuperar" : "Omitir"} serie ${n + 1} — ${ejercicio.nombre}`}
+                disabled={bloqueado}
+                onPress={() =>
+                  cambiar(prescrita.id, { hecha: false, omitida: real.omitida ? undefined : true })
+                }
+                style={s.omitir}
+              >
+                <Text style={s.textoOmitir}>
+                  {real.omitida ? "Recuperar serie" : "Omitir serie"}
+                </Text>
+              </Pressable>
+            )}
+            {real.omitida && <Text style={s.resumen}>Serie omitida</Text>}
             {fueraDeObjetivo && rir !== null && rirObjetivo !== undefined && (
               <Text style={s.notaRir}>
                 {rirObjetivo - rir === 1 ? "Una menos" : `${rirObjetivo - rir} menos`} del objetivo
               </Text>
             )}
-            {actual && !bloqueado && (
+            {actual && !bloqueado && mostrarRirPorSerie && (
               <View style={s.pregunta}>
                 <Text style={s.textoPregunta}>¿Cuántas te quedaban?</Text>
                 <Opciones
@@ -207,6 +243,21 @@ export function TablaSeries({
           </View>
         )
       })}
+      {modoRir === "alFinalizarEjercicio" && ejercicioResuelto && haySerieHecha && !bloqueado && (
+        <View style={s.pregunta}>
+          <Text style={s.textoPregunta}>
+            Al terminar este ejercicio, ¿cuántas te quedaban? (opcional)
+          </Text>
+          <Opciones
+            etiqueta={`Repeticiones que te quedaban al terminar ${ejercicio.nombre}`}
+            opciones={RIRS}
+            valor={series.find((r) => r.serieId === ultimaHecha?.id)?.rir ?? null}
+            cambiar={(valor) => {
+              if (ultimaHecha) cambiar(ultimaHecha.id, { rir: valor })
+            }}
+          />
+        </View>
+      )}
     </View>
   )
 }
@@ -287,5 +338,7 @@ const s = StyleSheet.create({
   },
   marcada: { borderColor: "transparent" },
   pregunta: { gap: 8 },
+  omitir: { minHeight: 36, alignSelf: "flex-end", justifyContent: "center" },
+  textoOmitir: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   textoPregunta: { fontFamily: tema.fuenteTexto, fontSize: 13, color: tema.textoTenue },
 })

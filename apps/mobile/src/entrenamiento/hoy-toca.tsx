@@ -34,6 +34,7 @@ export function TarjetaHoy({
   hoy,
   abrir,
   detalle,
+  empezada = false,
 }: {
   sesion: ResumenSesion | undefined
   /** Qué decir si hoy no hay nada pendiente. */
@@ -41,11 +42,13 @@ export function TarjetaHoy({
   hoy: string
   abrir: (id: string) => void
   detalle?: DetalleDeHoy
+  empezada?: boolean
 }): React.JSX.Element {
   const [primero, setPrimero] = useState<Primero | null>(null)
   const id = sesion?.agenda.id
 
   useEffect(() => {
+    setPrimero(null)
     if (id === undefined || detalle === undefined) return
     let vigente = true
     void (async () => {
@@ -95,7 +98,7 @@ export function TarjetaHoy({
       <View style={s.cuerpo}>
         <View style={s.bloque}>
           <Text accessibilityRole="header" style={s.hoyToca}>
-            Hoy toca:
+            {empezada ? "En curso:" : sesion?.enviadoEn ? "Completado:" : "Hoy toca:"}
           </Text>
           <Text
             style={[
@@ -116,10 +119,16 @@ export function TarjetaHoy({
           <Pressable
             style={({ pressed }) => [s.accion, pressed && s.pulsado]}
             accessibilityRole="button"
-            accessibilityLabel={`Empezar ${sesion.nombre}`}
+            accessibilityLabel={`${sesion.enviadoEn ? "Ver resumen" : empezada ? "Continuar" : "Empezar"} ${sesion.nombre}`}
             onPress={() => abrir(sesion.agenda.id)}
           >
-            <Text style={s.textoAccion}>Empezar entreno</Text>
+            <Text style={s.textoAccion}>
+              {sesion.enviadoEn
+                ? "Ver resumen"
+                : empezada
+                  ? "Continuar entreno"
+                  : "Empezar entreno"}
+            </Text>
           </Pressable>
         )}
       </View>

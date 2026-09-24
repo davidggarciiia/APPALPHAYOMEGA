@@ -8,7 +8,10 @@ import {
   type DocumentoSesion,
 } from "./documento-local"
 import { desdePrescripcion, registroParaEnviar, type EdicionRegistro } from "./registro-modelo"
+import { pausarTramo } from "./sesion/tiempo"
 import { ErrorDelServidor } from "../lib/http"
+
+type VistaSesion = Pick<DocumentoSesion, "ejercicioElegidoId" | "descansoHasta" | "descansoTotal">
 
 /** Una instancia por pantalla; al cerrarla ninguna respuesta puede escribir detrás de la siguiente. */
 export class RegistroControl {
@@ -72,12 +75,21 @@ export class RegistroControl {
     const sesion = await this.api.leerCliente(this.id)
     if (!this.vigente || lectura !== this.lectura) return
     const conocido = this.documento
+    if (conocido?.resultado) {
+      if (sesion.revisadaEn !== conocido.sesion.revisadaEn) {
+        this.documento = {
+          ...conocido,
+          sesion: { ...conocido.sesion, revisadaEn: sesion.revisadaEn },
+        }
+        await this.persistir()
+      }
+      return
+    }
     if (
-      conocido?.resultado ||
-      (conocido &&
-        (sesion.revisionPrescripcion < conocido.sesion.revisionPrescripcion ||
-          sesion.agenda.revision < conocido.sesion.agenda.revision ||
-          (!sesion.enviadoEn && (sesion.borrador?.revision ?? 0) < conocido.revisionBorrador)))
+      conocido &&
+      (sesion.revisionPrescripcion < conocido.sesion.revisionPrescripcion ||
+        sesion.agenda.revision < conocido.sesion.agenda.revision ||
+        (!sesion.enviadoEn && (sesion.borrador?.revision ?? 0) < conocido.revisionBorrador))
     )
       return
     this.sinRed = false
@@ -98,7 +110,10 @@ export class RegistroControl {
     const local = this.documento
     if (
       local &&
-      (local.secuencia > local.sincronizada || local.pendiente || local.envioPendiente)
+      (local.secuencia > local.sincronizada ||
+        local.pendiente ||
+        local.intencionEnvio ||
+        local.envioPendiente)
     ) {
       // El replay pendiente resuelve si este incremento remoto es nuestro.
       if (
@@ -110,14 +125,67 @@ export class RegistroControl {
         this.conflicto = true
       }
       this.documento = { ...local, sesion: { ...local.sesion, agenda: sesion.agenda } }
-    } else this.documento = { ...nuevoDocumento(sesion), respaldo: local?.respaldo ?? null }
+    } else {
+      const nuevo = nuevoDocumento(sesion)
+      const mismoBorrador =
+        local &&
+        local.sesion.revisionPrescripcion === sesion.revisionPrescripcion &&
+        local.revisionBorrador === (sesion.borrador?.revision ?? 0)
+      this.documento = {
+        ...nuevo,
+        // El servidor conserva el tiempo acumulado, pero el tramo abierto solo existe
+        // en el dispositivo. Una lectura del mismo borrador no debe pausarlo.
+        edicion: mismoBorrador
+          ? {
+              ...nuevo.edicion,
+              ...(local.edicion.tiempoActivoSegundos !== undefined && {
+                tiempoActivoSegundos: local.edicion.tiempoActivoSegundos,
+              }),
+              ...(local.edicion.tramoActivoDesde !== undefined && {
+                tramoActivoDesde: local.edicion.tramoActivoDesde,
+              }),
+            }
+          : nuevo.edicion,
+        respaldo: local?.respaldo ?? null,
+        ejercicioElegidoId: local?.ejercicioElegidoId ?? null,
+        descansoHasta: local?.descansoHasta ?? null,
+        descansoTotal: local?.descansoTotal ?? null,
+      }
+    }
     await this.persistir()
   }
-  async editar(edicion: EdicionRegistro): Promise<void> {
+  async editar(edicion: EdicionRegistro, vista: Partial<VistaSesion> = {}): Promise<void> {
     const local = this.exigir()
-    if (local.resultado || local.envioPendiente || this.enviando || this.conflicto)
+    if (
+      local.resultado ||
+      local.intencionEnvio ||
+      local.envioPendiente ||
+      this.enviando ||
+      this.conflicto
+    )
       throw new Error("Resuelve la operación pendiente antes de editar")
-    this.documento = { ...local, edicion, secuencia: local.secuencia + 1 }
+    this.documento = { ...local, ...vista, edicion, secuencia: local.secuencia + 1 }
+    await this.persistir()
+  }
+  async guardarVista(vista: Partial<VistaSesion>): Promise<void> {
+    const local = this.exigir()
+    this.documento = { ...local, ...vista }
+    await this.persistir()
+  }
+  async pausar(instante: string): Promise<void> {
+    const local = this.exigir()
+    if (
+      !local.edicion.tramoActivoDesde ||
+      local.resultado ||
+      local.intencionEnvio ||
+      local.envioPendiente
+    )
+      return
+    this.documento = {
+      ...local,
+      edicion: pausarTramo(local.edicion, instante),
+      secuencia: local.secuencia + 1,
+    }
     await this.persistir()
   }
   async reintentarGuardado(): Promise<void> {
@@ -208,26 +276,50 @@ export class RegistroControl {
       ),
     )
     const valores = new Map(local.respaldo.edicion.series.map((s) => [s.serieId, s]))
-    const edicion = desdePrescripcion(local.sesion.prescripcion)
-    edicion.notas = local.respaldo.edicion.notas
-    edicion.series = edicion.series.map((s) =>
-      anteriores.get(s.serieId) === actuales.get(s.serieId) ? (valores.get(s.serieId) ?? s) : s,
-    )
+    const base = desdePrescripcion(local.sesion.prescripcion)
+    const edicion = {
+      ...base,
+      ...local.respaldo.edicion,
+      series: base.series.map((s) =>
+        anteriores.get(s.serieId) === actuales.get(s.serieId) ? (valores.get(s.serieId) ?? s) : s,
+      ),
+    }
     await this.editar(edicion)
   }
   async enviar(): Promise<void> {
     if (this.enviando) return
     this.enviando = true
     try {
-      await this.sincronizar()
+      await this.pausar(new Date().toISOString())
       let local = this.exigir()
-      if (this.conflicto) throw new Error("Recupera la versión del servidor antes de enviar")
-      if (!local.envioPendiente) {
+      if (!local.intencionEnvio && !local.envioPendiente) {
+        const registro = registroParaEnviar(local.sesion.prescripcion, local.edicion)
         const peticion = EnviarEntrenamientoSchema.parse({
           operacionId: this.uuid(),
           revisionPrescripcion: local.sesion.revisionPrescripcion,
           revisionBorrador: local.revisionBorrador,
-          registro: registroParaEnviar(local.sesion.prescripcion, local.edicion),
+          registro,
+        })
+        this.documento = {
+          ...local,
+          intencionEnvio: {
+            operacionId: peticion.operacionId,
+            revisionPrescripcion: peticion.revisionPrescripcion,
+            registro: peticion.registro,
+          },
+        }
+        await this.persistir()
+      }
+      await this.sincronizar()
+      local = this.exigir()
+      if (this.conflicto) throw new Error("Recupera la versión del servidor antes de enviar")
+      if (!local.envioPendiente) {
+        const intencion = local.intencionEnvio!
+        const peticion = EnviarEntrenamientoSchema.parse({
+          operacionId: intencion.operacionId,
+          revisionPrescripcion: intencion.revisionPrescripcion,
+          revisionBorrador: local.revisionBorrador,
+          registro: intencion.registro,
         })
         this.documento = { ...local, envioPendiente: peticion }
         await this.persistir()
@@ -235,7 +327,8 @@ export class RegistroControl {
       }
       await this.confirmarResultado(await this.api.enviar(this.id, local.envioPendiente!))
     } catch (error) {
-      this.falloRemoto(error)
+      if (!this.errorLocal && (this.documento?.intencionEnvio || this.documento?.envioPendiente))
+        this.falloRemoto(error)
       throw error
     } finally {
       this.enviando = false
@@ -260,9 +353,13 @@ export class RegistroControl {
       ...local,
       resultado,
       pendiente: null,
+      intencionEnvio: null,
       envioPendiente: null,
       respaldo: cierreRemoto
-        ? local.secuencia > local.sincronizada || local.pendiente || local.envioPendiente
+        ? local.secuencia > local.sincronizada ||
+          local.pendiente ||
+          local.intencionEnvio ||
+          local.envioPendiente
           ? { edicion: local.edicion, prescripcion: local.sesion.prescripcion }
           : local.respaldo
         : null,

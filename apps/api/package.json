@@ -7,7 +7,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "nest start --watch",
     "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config jest.config.mjs",
-    "test:e2e": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config test/jest-e2e.json",
+    "test:e2e": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config test/jest-e2e.json --runInBand",
     "build": "tsc -p tsconfig.build.json",
     "seed": "npm run build && node dist/seed.js"
   },

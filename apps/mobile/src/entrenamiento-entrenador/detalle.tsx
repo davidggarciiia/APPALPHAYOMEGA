@@ -19,6 +19,7 @@ export function DetalleEntrenador({
   const [resultado, setResultado] = useState<ResultadoEntrenamiento | undefined>()
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
+  const [revisando, setRevisando] = useState(false)
   const router = useRouter()
   useFocusEffect(
     useCallback(() => {
@@ -84,6 +85,26 @@ export function DetalleEntrenador({
             </Text>
           )}
           <PrescripcionVisible prescripcion={sesion.prescripcion} resultado={resultado} />
+          {resultado &&
+            (sesion.revisadaEn ? (
+              <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>Revisado</Text>
+            ) : (
+              <BotonSecundario
+                texto={revisando ? "Guardando revisión…" : "Marcar como revisado"}
+                onPress={() => {
+                  if (revisando) return
+                  setRevisando(true)
+                  void api
+                    .revisar(id)
+                    .then((actualizada) => {
+                      setSesion(actualizada)
+                      setError("")
+                    })
+                    .catch(() => setError("No se pudo guardar la revisión. Reintenta."))
+                    .finally(() => setRevisando(false))
+                }}
+              />
+            ))}
           {sesion.permiteAjuste && (
             <BotonSecundario
               texto="Ajustar esta sesión"

@@ -118,6 +118,28 @@ describe("Ficha del cliente para el entrenador", () => {
       "Buena calibración. Mantén la carga.",
       "¡Gracias!",
     ])
+    const clienteFeed = await request(http)
+      .get(`/entrenamiento/clientes/${entorno.ids.cliente}/novedades`)
+      .set(como("cliente"))
+      .expect(200)
+    expect(
+      clienteFeed.body.novedades.filter((n: { tipo: string }) => n.tipo === "comentario"),
+    ).toHaveLength(1)
+    const entrenadorFeed = await request(http)
+      .get(`/entrenamiento/clientes/${entorno.ids.cliente}/novedades`)
+      .set(como("entrenador"))
+      .expect(200)
+    expect(
+      entrenadorFeed.body.novedades.filter((n: { tipo: string }) => n.tipo === "comentario"),
+    ).toHaveLength(1)
+    expect(
+      (
+        await request(http)
+          .get(`/entrenamiento/sesiones/${sesionId}`)
+          .set(como("entrenador"))
+          .expect(200)
+      ).body.revisadaEn,
+    ).toBeNull()
   })
 
   it("rechaza ejercicios ajenos, textos vacíos y a quien no es de la sesión", async () => {

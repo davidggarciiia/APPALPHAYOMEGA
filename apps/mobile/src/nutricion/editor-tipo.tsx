@@ -5,7 +5,7 @@ import { Accion, CamposMacros, EditorComida } from "./editor-comida"
 import {
   copiarComida,
   mover,
-  nuevaComida,
+  siguienteComida,
   type GeneradorDeIds,
   type TipoEditable,
 } from "./editor-modelo"
@@ -81,17 +81,10 @@ export function EditorTipo({
       ))}
       <View style={s.acciones}>
         <Accion
-          texto="+ Comida con alternativas"
+          texto="+ Comida"
           deshabilitado={valor.comidas.length >= 10}
           onPress={() =>
-            cambiar({ ...valor, comidas: [...valor.comidas, nuevaComida(ids, "alternativas")] })
-          }
-        />
-        <Accion
-          texto="+ Comida con tabla de intercambio"
-          deshabilitado={valor.comidas.length >= 10}
-          onPress={() =>
-            cambiar({ ...valor, comidas: [...valor.comidas, nuevaComida(ids, "intercambio")] })
+            cambiar({ ...valor, comidas: [...valor.comidas, siguienteComida(ids, valor.comidas)] })
           }
         />
       </View>

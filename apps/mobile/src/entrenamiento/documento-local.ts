@@ -16,6 +16,19 @@ export const DocumentoSesionSchema = z.strictObject({
   secuencia: z.number().int().nonnegative(),
   sincronizada: z.number().int().nonnegative(),
   revisionBorrador: z.number().int().nonnegative(),
+  /** Navegación y descanso pertenecen a esta copia privada, no a la prescripción. */
+  ejercicioElegidoId: z.uuid().nullable().optional(),
+  descansoHasta: z.iso.datetime().nullable().optional(),
+  descansoTotal: z.number().int().nonnegative().nullable().optional(),
+  /** Envío confirmado por el cliente y guardado antes de necesitar red. */
+  intencionEnvio: z
+    .strictObject({
+      operacionId: z.uuid(),
+      revisionPrescripcion: z.number().int().nonnegative(),
+      registro: GuardarBorradorSchema.shape.registro,
+    })
+    .nullable()
+    .optional(),
   pendiente: z
     .strictObject({ peticion: GuardarBorradorSchema, secuencia: z.number().int().nonnegative() })
     .nullable(),
@@ -35,6 +48,10 @@ export function nuevoDocumento(sesion: SesionCliente): DocumentoSesion {
     secuencia: 0,
     sincronizada: 0,
     revisionBorrador: sesion.borrador?.revision ?? 0,
+    ejercicioElegidoId: null,
+    descansoHasta: null,
+    descansoTotal: null,
+    intencionEnvio: null,
     pendiente: null,
     envioPendiente: null,
     respaldo: null,
@@ -51,6 +68,7 @@ export async function hayCambiosLocales(almacen: AlmacenLocal, cuenta: string): 
       documento &&
       (documento.secuencia > documento.sincronizada ||
         documento.pendiente !== null ||
+        documento.intencionEnvio != null ||
         documento.envioPendiente !== null ||
         documento.respaldo !== null)
     )

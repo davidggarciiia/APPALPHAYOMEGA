@@ -14,14 +14,17 @@ import {
   CambiarDiaSchema,
   ConsultarPeriodoSchema,
   FechaAgendaSchema,
+  GuardarConfiguracionSeguimientoSchema,
   RegistrarMedidaSchema,
   RegistrarPruebaSchema,
   type CambiarDia,
+  type ConfiguracionSeguimiento,
   type ConsultarPeriodo,
   type DiaDeSeguimiento,
   type ListadoDias,
   type ListadoMedidas,
   type ListadoPruebas,
+  type GuardarConfiguracionSeguimiento,
   type Medida,
   type PruebaFisica,
   type RegistrarMedida,
@@ -50,6 +53,24 @@ export class SeguimientoController {
   private actor(peticion: PeticionAutenticada): IdentidadVerificada {
     if (!peticion.usuario) throw new UnauthorizedException()
     return peticion.usuario
+  }
+
+  @Roles("cliente", "entrenador", "nutricionista")
+  @Get("configuracion")
+  configuracion(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+  ): Promise<ConfiguracionSeguimiento> {
+    return this.seguimiento.configuracion(clienteId)
+  }
+
+  @Roles("entrenador")
+  @Put("configuracion")
+  guardarConfiguracion(
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Body(new EntradaApiPipe(GuardarConfiguracionSeguimientoSchema))
+    datos: GuardarConfiguracionSeguimiento,
+  ): Promise<ConfiguracionSeguimiento> {
+    return this.seguimiento.guardarConfiguracion(clienteId, datos)
   }
 
   @Roles("cliente")

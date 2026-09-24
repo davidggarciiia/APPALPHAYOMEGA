@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
 import type { EjercicioPrescrito } from "@alpha-omega/shared"
 
 import { Icono } from "../../componentes/iconos"
@@ -108,12 +108,14 @@ export function ListaMarcable({
   series,
   bloqueado,
   marcar,
+  cambiarPeso,
 }: {
   titulo: string
   ejercicios: EjercicioPrescrito[]
   series: EdicionRegistro["series"]
   bloqueado: boolean
   marcar: (ejercicio: EjercicioPrescrito, hecho: boolean) => void
+  cambiarPeso: (serieId: string, peso: string) => void
 }): React.JSX.Element {
   const hecho = (e: EjercicioPrescrito): boolean =>
     e.series.every((p) => series.find((r) => r.serieId === p.id)?.hecha === true)
@@ -140,24 +142,63 @@ export function ListaMarcable({
       {abierta &&
         ejercicios.map((ejercicio, n) => {
           const listo = hecho(ejercicio)
+          const mostrarPeso =
+            ejercicio.tipoCarga === "conCargaExterna" ||
+            (ejercicio.tipoCarga === undefined &&
+              ejercicio.series.some((serie) => serie.pesoKg !== null))
+          const faltaPeso =
+            ejercicio.tipoCarga === "conCargaExterna" &&
+            ejercicio.series.some(
+              (serie) =>
+                serie.pesoKg === null &&
+                !series.find((real) => real.serieId === serie.id)?.peso.trim(),
+            )
           return (
-            <Pressable
-              key={ejercicio.id}
-              style={[s.elemento, n === 0 && s.primero]}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: listo, disabled: bloqueado }}
-              accessibilityLabel={`${ejercicio.nombre}, ${ejercicio.dosis ?? resumenPrescrito(ejercicio)}`}
-              disabled={bloqueado}
-              onPress={() => marcar(ejercicio, !listo)}
-            >
-              <View style={[s.circulo, listo && [s.circuloHecho, degradadoExito]]}>
-                {listo && <Icono nombre="hecho" color={tema.sobreExito} tamano={14} />}
-              </View>
-              <View style={s.textos}>
-                <Text style={s.nombreElemento}>{ejercicio.nombre}</Text>
-                <Text style={s.tenue}>{ejercicio.dosis ?? resumenPrescrito(ejercicio)}</Text>
-              </View>
-            </Pressable>
+            <View key={ejercicio.id} style={[s.bloqueLista, n === 0 && s.primero]}>
+              <Pressable
+                style={s.elemento}
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: listo,
+                  disabled: bloqueado || (!listo && faltaPeso),
+                }}
+                accessibilityLabel={`${ejercicio.nombre}, ${ejercicio.dosis ?? resumenPrescrito(ejercicio)}`}
+                disabled={bloqueado || (!listo && faltaPeso)}
+                onPress={() => marcar(ejercicio, !listo)}
+              >
+                <View style={[s.circulo, listo && [s.circuloHecho, degradadoExito]]}>
+                  {listo && <Icono nombre="hecho" color={tema.sobreExito} tamano={14} />}
+                </View>
+                <View style={s.textos}>
+                  <Text style={s.nombreElemento}>{ejercicio.nombre}</Text>
+                  <Text style={s.tenue}>{ejercicio.dosis ?? resumenPrescrito(ejercicio)}</Text>
+                </View>
+              </Pressable>
+              {mostrarPeso &&
+                ejercicio.series.map((prescrita, indice) => (
+                  <View key={prescrita.id} style={s.filaPeso}>
+                    <Text style={s.tenue}>Serie {indice + 1} · kg</Text>
+                    <TextInput
+                      accessibilityLabel={`Peso — ${ejercicio.nombre}, serie ${indice + 1}`}
+                      editable={!bloqueado}
+                      keyboardType="decimal-pad"
+                      maxLength={30}
+                      value={series.find((real) => real.serieId === prescrita.id)?.peso ?? ""}
+                      onChangeText={(peso) => cambiarPeso(prescrita.id, peso)}
+                      placeholder={
+                        prescrita.pesoKg === null
+                          ? "Escribe kg"
+                          : String(prescrita.pesoKg).replace(".", ",")
+                      }
+                      placeholderTextColor={tema.marcador}
+                      style={s.campoPeso}
+                    />
+                  </View>
+                ))}
+              {faltaPeso && !listo && (
+                <Text style={s.tenue}>Escribe el peso usado antes de marcar el ejercicio.</Text>
+              )}
+            </View>
           )
         })}
     </View>
@@ -212,16 +253,32 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   circuloHecho: { borderColor: "transparent" },
+  bloqueLista: { gap: 8, borderTopWidth: 1, borderTopColor: tema.borde, paddingTop: 10 },
   elemento: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     minHeight: 48,
-    borderTopWidth: 1,
-    borderTopColor: tema.borde,
-    paddingTop: 10,
   },
   primero: { marginTop: 2 },
   textos: { flex: 1, gap: 2 },
   nombreElemento: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 15 },
+  filaPeso: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  campoPeso: {
+    width: 112,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    backgroundColor: tema.superficie,
+    color: tema.texto,
+    fontFamily: tema.fuenteBoton,
+    fontSize: 16,
+    textAlign: "center",
+  },
 })

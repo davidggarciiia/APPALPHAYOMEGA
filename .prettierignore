@@ -12,6 +12,8 @@ apps/mobile/expo-env.d.ts
 
 # Informe generado por un agente externo; no forma parte del código de la app.
 compass_artifact_*.md
+# Referencia HTML aportada por el usuario: se conserva sin reformatar.
+Alpha & Omega · Pantallas con el plan.html
 
 # Cliente de Prisma y migraciones. El SQL lo escribe la herramienta, o lo
 # escribimos a mano con un formato que Prettier no debe tocar.

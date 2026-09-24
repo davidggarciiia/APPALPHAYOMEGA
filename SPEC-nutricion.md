@@ -1,12 +1,19 @@
 # Spec: `nutricion` — dietas por cliente
 
 > Estado: **aprobada por David el 2026-09-24**. Redactada por Fable ese mismo
-> día, tarea F06 de la [iteración 3](tasks/iteracion-3/plan-fable.md).
+> día, tarea F06 de la [iteración 3 archivada](tasks/planes%20antiguos/2026-09-24/iteracion-3/plan-fable.md).
 > Módulo del [mapa aprobado](CAPABILITY-MAP.md). Solo depende de `identity`.
 > Stack, estilo y reglas comunes: [SPEC.md](SPEC.md). Permisos de partida:
 > [SPEC-identity.md](SPEC-identity.md).
 
 ## Objetivo
+
+La [iteración actual](tasks/plan.md) conserva las dos formas del documento y
+permite configurarlas por comida: `alternativas` muestra uno o varios platos
+completos con cantidades profesionales; `intercambio` permite elegir un
+alimento de cada grupo pautado. La elección y el registro son explícitos.
+Los suplementos del inicio dependen de la dieta publicada y comparten su
+estado con Nutrición.
 
 El profesional (el entrenador o el nutricionista asignado) prepara la dieta de
 un cliente y la publica. El cliente la consulta en el móvil, también sin
@@ -401,3 +408,23 @@ denegaciones son obligatorias sea cual sea la cobertura.
 
 1. **¿Hace falta adjuntar el PDF original de una dieta?** No está incluido;
    necesitaría el almacenamiento de objetos del ADR 0005.
+
+## Experiencia del cliente en la iteración del 24-09-2026
+
+El editor elige la forma por comida, sin crear un tercer formato. Al añadir
+Comida o Cena se propone `intercambio`; para las demás se propone
+`alternativas` como platos completos. El profesional puede cambiar esa
+propuesta antes de publicar. Cambiar de forma advierte si hay contenido que se
+perdería.
+
+En `alternativas` el cliente ve uno o varios platos definidos con sus
+ingredientes y cantidades; cuando hay varios elige uno. En `intercambio`
+elige explícitamente un alimento de cada grupo y consulta el resumen antes de
+registrar. No se confirma automáticamente la primera opción. La acción
+«Registrar comida» guarda lo elegido; una corrección posterior afecta al
+registro, no a la dieta publicada. Un fallo de red conserva la selección
+visible para reintentar y no muestra una confirmación falsa.
+
+Inicio y Nutrición muestran únicamente los suplementos incluidos en la dieta
+vigente y comparten su estado diario. Una dieta sin suplementos no añade
+obligaciones por defecto.

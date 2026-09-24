@@ -6,6 +6,7 @@ import {
   nuevaComida,
   nuevaDieta,
   quitarTipo,
+  siguienteComida,
   type DietaEditable,
   type GeneradorDeIds,
 } from "./editor-modelo"
@@ -21,6 +22,22 @@ function conObjetivo(ids: GeneradorDeIds, kcal: string): DietaEditable {
   dieta.tipos[0]!.objetivo.kcal = kcal
   return dieta
 }
+
+it("sugiere comidas y cena con intercambio y las demás con platos completos", () => {
+  const ids = generador()
+  const comidas: ReturnType<typeof siguienteComida>[] = []
+  for (let n = 0; n < 5; n++) {
+    const nueva = siguienteComida(ids, comidas)
+    comidas.push(nueva)
+  }
+  expect(comidas.map((c) => [c.nombre, c.forma])).toEqual([
+    ["Desayuno", "alternativas"],
+    ["Media mañana", "alternativas"],
+    ["Comida", "intercambio"],
+    ["Merienda", "alternativas"],
+    ["Cena", "intercambio"],
+  ])
+})
 
 it("una dieta nueva sin números ni comidas no se puede guardar y dice por qué", () => {
   const dieta = nuevaDieta(generador())

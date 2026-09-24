@@ -15,6 +15,7 @@ import type { IdentidadVerificada } from "../identity/peticion.js"
 import { AgendaService } from "../agenda/agenda.service.js"
 import { SesionesService, type FilaSesion } from "./sesiones.service.js"
 import { conflicto, hashPeticion, invalida, leerDocumento } from "./documentos.js"
+import { registrarNovedad } from "./novedades.js"
 
 @Injectable()
 export class RegistrosService {
@@ -138,10 +139,12 @@ export class RegistrosService {
         checkin: datos.registro.checkin ?? null,
         cierre: datos.registro.cierre ?? null,
         inicio: datos.registro.inicio ?? null,
+        tiempoActivoSegundos: datos.registro.tiempoActivoSegundos,
         series: prescripcion.ejercicios.flatMap((e) =>
           e.series.map((objetivo) => {
             const real = registradas.get(objetivo.id)
-            if (!real?.hecha) return { serieId: objetivo.id, hecha: false }
+            if (!real?.hecha)
+              return { serieId: objetivo.id, hecha: false, ...(real?.omitida && { omitida: true }) }
             return {
               serieId: objetivo.id,
               hecha: true,
@@ -167,6 +170,13 @@ export class RegistrosService {
         },
       })
       await this.agenda.cerrar(tx, id)
+      await registrarNovedad(tx, {
+        sesionId: id,
+        clienteId: fila.clienteId,
+        autorId: identidad.sub,
+        audiencia: "entrenador",
+        tipo: "entrenamiento_enviado",
+      })
       await tx.operacionEntrenamiento.deleteMany({ where: { sesionId: id, tipo: "borrador" } })
       await tx.operacionEntrenamiento.create({
         data: {

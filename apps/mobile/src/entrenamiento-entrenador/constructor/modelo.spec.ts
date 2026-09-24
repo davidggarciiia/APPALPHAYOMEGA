@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@jest/globals"
+import { PrescripcionSchema, crearRegistroDeSesionSchema } from "@alpha-omega/shared"
 
 import {
   aSesionEnRutina,
@@ -86,6 +87,62 @@ describe("constructor de planes", () => {
     expect(serie).toEqual(
       expect.objectContaining({ pesoKg: null, repeticiones: 8, repeticionesMax: 10 }),
     )
+  })
+
+  it("calentamiento y final nacen sin carga y se pueden completar con un toque", () => {
+    const dia = nuevoDia(nuevoId)
+    dia.nombre = "Empuje"
+    dia.ejercicios = [
+      nuevoEjercicio(TIJERAS, "calentamiento", nuevoId),
+      nuevoEjercicio(TIJERAS, "final", nuevoId),
+    ]
+    expect(dia.ejercicios.map((e) => e.tipoCarga)).toEqual(["sinCarga", "sinCarga"])
+    expect(dia.ejercicios.every((e) => e.calibrar === false)).toBe(true)
+    const sesion = aSesionEnRutina(dia, nuevoId)
+    const prescripcion = PrescripcionSchema.parse({
+      nombre: sesion.nombre,
+      ejercicios: sesion.ejercicios.map((e) => ({ ...e, nombre: TIJERAS.nombre })),
+    })
+    expect(
+      crearRegistroDeSesionSchema(prescripcion).safeParse({
+        notas: null,
+        series: sesion.ejercicios.flatMap((e) =>
+          e.series.map((s) => ({
+            serieId: s.id,
+            tipoMedicion: "repeticiones",
+            pesoKg: null,
+            repeticiones: 10,
+            hecha: true,
+          })),
+        ),
+      }).success,
+    ).toBe(true)
+  })
+
+  it("conserva los ajustes RIR y carga al duplicar o publicar un día", () => {
+    const dia = nuevoDia(nuevoId)
+    dia.nombre = "Empuje"
+    dia.ejercicios = [
+      {
+        ...nuevoEjercicio(BANCA, "principal", nuevoId),
+        modoRir: "cadaSerie",
+        tipoCarga: "sinCarga",
+        calibrar: false,
+        carga: "40",
+        subida: "2,5",
+      },
+    ]
+    const guardada = aSesionEnRutina(dia, nuevoId)
+    expect(guardada.ejercicios[0]).toEqual(
+      expect.objectContaining({ modoRir: "cadaSerie", tipoCarga: "sinCarga" }),
+    )
+    expect(guardada.ejercicios[0]!.series[0]!.pesoKg).toBeNull()
+    expect(guardada.ejercicios[0]!.subidaKg).toBeUndefined()
+    const duplicada = desdeSesionEnRutina(guardada, { [BANCA.id]: BANCA.nombre })
+    expect(duplicada.ejercicios[0]).toEqual(
+      expect.objectContaining({ modoRir: "cadaSerie", tipoCarga: "sinCarga" }),
+    )
+    expect(aSesionEnRutina(duplicada, nuevoId).ejercicios[0]!.modoRir).toBe("cadaSerie")
   })
 
   it("explica qué falta antes de publicar", () => {

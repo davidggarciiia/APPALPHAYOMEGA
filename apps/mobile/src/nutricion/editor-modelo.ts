@@ -91,9 +91,13 @@ export const nuevaColumna = (ids: GeneradorDeIds, nombre = ""): ColumnaEditable 
   nombre,
   alimentos: [nuevoAlimento(ids)],
 })
-export const nuevaComida = (ids: GeneradorDeIds, forma: FormaDeComida): ComidaEditable => ({
+export const nuevaComida = (
+  ids: GeneradorDeIds,
+  forma: FormaDeComida,
+  nombre = "",
+): ComidaEditable => ({
   id: ids(),
-  nombre: "",
+  nombre,
   hora: "",
   indicacion: "",
   forma,
@@ -102,6 +106,21 @@ export const nuevaComida = (ids: GeneradorDeIds, forma: FormaDeComida): ComidaEd
     nuevaColumna(ids, nombre),
   ),
 })
+
+/** La siguiente comida habitual ofrece una forma inicial; cada comida puede cambiarse después. */
+export function siguienteComida(ids: GeneradorDeIds, comidas: ComidaEditable[]): ComidaEditable {
+  const habituales = ["Desayuno", "Media mañana", "Comida", "Merienda", "Cena"]
+  const nombre =
+    habituales.find(
+      (candidata) =>
+        !comidas.some((comida) => comida.nombre.toLowerCase() === candidata.toLowerCase()),
+    ) ?? ""
+  return nuevaComida(
+    ids,
+    nombre === "Comida" || nombre === "Cena" ? "intercambio" : "alternativas",
+    nombre,
+  )
+}
 export const nuevoTipo = (ids: GeneradorDeIds, nombre = ""): TipoEditable => ({
   id: ids(),
   nombre,

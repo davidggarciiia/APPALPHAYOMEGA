@@ -40,10 +40,8 @@ export function HoyNutricion({
   hora,
   registradas,
   dia,
-  puedeMarcar,
   puedeTomar,
   abrirComida,
-  marcarComida,
   tomarSuplemento,
   verSemana,
 }: {
@@ -54,12 +52,9 @@ export function HoyNutricion({
   hora: string
   registradas: ComidaRegistrada[]
   dia: DiaDeSeguimiento | null
-  /** Sin conexión o sin registro de comidas no se marcan comidas. */
-  puedeMarcar: boolean
   /** Sin conexión no se apuntan suplementos. */
   puedeTomar: boolean
   abrirComida: (comida: Comida) => void
-  marcarComida: (comida: Comida, hecha: boolean) => void
   tomarSuplemento: (suplemento: Suplemento, tomado: boolean) => void
   verSemana: () => void
 }): React.JSX.Element {
@@ -110,23 +105,15 @@ export function HoyNutricion({
               const esAhora = comida.id === ahora
               const subtitulo = subtituloDeComida(comida, porComida.get(comida.id))
               return (
-                <View key={comida.id} style={[s.fila, n > 0 && s.separada]}>
-                  <Pressable
-                    accessibilityRole="checkbox"
-                    accessibilityLabel={`${comida.nombre} hecha`}
-                    accessibilityState={{ checked: hecha, disabled: !puedeMarcar }}
-                    disabled={!puedeMarcar}
-                    onPress={() => marcarComida(comida, !hecha)}
-                    hitSlop={8}
-                  >
-                    <Circulo hecho={hecha} />
-                  </Pressable>
-                  <Pressable
-                    style={s.cuerpoFila}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${comida.nombre}${esAhora ? ", ahora" : ""}: ${subtitulo}`}
-                    onPress={() => abrirComida(comida)}
-                  >
+                <Pressable
+                  key={comida.id}
+                  style={[s.fila, n > 0 && s.separada]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${comida.nombre}${esAhora ? ", ahora" : ""}: ${subtitulo}`}
+                  onPress={() => abrirComida(comida)}
+                >
+                  <Circulo hecho={hecha} />
+                  <View style={s.cuerpoFila}>
                     <View style={s.textos}>
                       <View style={s.nombreFila}>
                         <Text style={[s.nombre, esAhora && s.nombreAhora]}>{comida.nombre}</Text>
@@ -141,8 +128,8 @@ export function HoyNutricion({
                       </Text>
                     </View>
                     <Icono nombre="adelante" color={tema.textoTenue} tamano={18} />
-                  </Pressable>
-                </View>
+                  </View>
+                </Pressable>
               )
             })}
           </View>

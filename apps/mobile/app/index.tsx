@@ -5,11 +5,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
 import { Icono } from "../src/componentes/iconos"
 import { SemanaEntrenamiento } from "../src/entrenamiento/semana"
+import { NovedadesEntrenamiento } from "../src/entrenamiento/novedades"
 import { useAccesoAFiguras } from "../src/catalogo-ejercicios/figura-ejercicio"
 import { useCatalogo } from "../src/catalogo-ejercicios/use-catalogo"
 import { useEntrenamiento } from "../src/entrenamiento/use-entrenamiento"
 import { lunesDeSemana } from "../src/entrenamiento/fechas"
-import { HoyDiario } from "../src/seguimiento/hoy-diario"
+import { HoyInicio } from "../src/nutricion/hoy-inicio"
+import { useNutricion } from "../src/nutricion/api"
 import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
@@ -21,6 +23,7 @@ export default function Inicio(): React.JSX.Element {
   const accesoFiguras = useAccesoAFiguras()
   const router = useRouter()
   const seguimiento = useSeguimiento()
+  const nutricion = useNutricion()
   const [bloque, setBloque] = useState<Bloque | null>(null)
   const clienteId =
     estado.fase === "dentro" && estado.usuario.rol === "cliente" ? estado.usuario.id : null
@@ -78,9 +81,15 @@ export default function Inicio(): React.JSX.Element {
             deportes={bloque?.deportes}
             abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
           />
-          <HoyDiario
+          <NovedadesEntrenamiento
             clienteId={usuario.id}
-            api={seguimiento}
+            api={api}
+            abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
+          />
+          <HoyInicio
+            clienteId={usuario.id}
+            seguimiento={seguimiento}
+            nutricion={nutricion}
             objetivoPasos={bloque?.pasosDiarios ?? null}
           />
         </View>

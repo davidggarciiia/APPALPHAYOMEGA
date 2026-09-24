@@ -64,7 +64,7 @@ function Cabecera({
   )
 }
 
-/** «Media mañana»: elige una de las opciones, por grupos. */
+/** El cliente elige un plato completo, con sus ingredientes fijos. */
 function ElegirAlternativa({
   comida,
   registrada,
@@ -84,18 +84,19 @@ function ElegirAlternativa({
   )
   const [grupo, setGrupo] = useState(inicial)
   const [elegida, setElegida] = useState<string | null>(previa)
+  const [aviso, setAviso] = useState("")
   const alternativas = comida.grupos[grupo]?.alternativas ?? []
   return (
     <>
       {comida.grupos.length > 1 && (
         <Segmentos
-          etiqueta="Tipos de opción"
+          etiqueta="Grupos de platos"
           opciones={comida.grupos.map((g, n) => g.nombre ?? `Opciones ${n + 1}`)}
           activa={grupo}
           cambiar={setGrupo}
         />
       )}
-      <View style={s.lista} accessibilityRole="radiogroup" accessibilityLabel="Opciones">
+      <View style={s.lista} accessibilityRole="radiogroup" accessibilityLabel="Platos completos">
         {alternativas.map((alternativa) => {
           const activa = alternativa.id === elegida
           return (
@@ -106,7 +107,10 @@ function ElegirAlternativa({
               accessibilityLabel={`${alternativa.titulo}: ${alternativa.alimentos
                 .map((a) => `${a.nombre}${a.cantidad ? ` ${a.cantidad}` : ""}`)
                 .join(", ")}`}
-              onPress={() => setElegida(alternativa.id)}
+              onPress={() => {
+                setElegida(alternativa.id)
+                setAviso("")
+              }}
               style={[s.opcion, activa && s.opcionActiva]}
             >
               <View style={s.cabeceraOpcion}>
@@ -124,16 +128,21 @@ function ElegirAlternativa({
           )
         })}
       </View>
+      {aviso !== "" && <Text style={s.subtitulo}>{aviso}</Text>}
       <BotonDorado
-        texto="Guardar"
+        texto="Registrar comida"
         ocupado={enviando}
-        onPress={() => elegida !== null && guardar({ tipo: "alternativa", alternativaId: elegida })}
+        onPress={() =>
+          elegida !== null
+            ? guardar({ tipo: "alternativa", alternativaId: elegida })
+            : setAviso("Elige un plato completo antes de guardar.")
+        }
       />
     </>
   )
 }
 
-/** «Comida»: arma tu plato con uno de cada columna. */
+/** Intercambio: un alimento explícito de cada grupo. */
 function ArmarPlato({
   comida,
   registrada,
@@ -149,13 +158,9 @@ function ArmarPlato({
     registrada?.eleccion.tipo === "plato"
       ? Object.fromEntries(registrada.eleccion.elegidos.map((e) => [e.columna, e.alimento]))
       : {}
-  const [plato, setPlato] = useState<Record<string, string>>(() => ({
-    ...Object.fromEntries(
-      comida.columnas.map((c) => [c.nombre, c.alimentos[0]?.nombre ?? ""] as const),
-    ),
-    ...previos,
-  }))
+  const [plato, setPlato] = useState<Record<string, string>>(previos)
   const [columna, setColumna] = useState(0)
+  const [aviso, setAviso] = useState("")
   const actual = comida.columnas[columna]
   const cantidadDe = (nombreColumna: string, alimento: string): string | null =>
     comida.columnas
@@ -174,18 +179,27 @@ function ArmarPlato({
               key={c.nombre}
               style={s.caja}
               accessible
-              accessibilityLabel={`${c.nombre}: ${plato[c.nombre]} ${cantidadDe(c.nombre, plato[c.nombre] ?? "") ?? ""}`}
+              accessibilityLabel={`${c.nombre}: ${plato[c.nombre] ?? "sin elegir"}${plato[c.nombre] ? ` ${cantidadDe(c.nombre, plato[c.nombre] ?? "") ?? ""}` : ""}`}
             >
               <Text style={s.etiquetaCaja}>{c.nombre}</Text>
-              <Text style={s.nombreCaja}>{plato[c.nombre]}</Text>
-              <Text style={s.cantidadCaja}>{cantidadDe(c.nombre, plato[c.nombre] ?? "")}</Text>
+              <Text style={s.nombreCaja}>{plato[c.nombre] ?? "Elige un alimento"}</Text>
+              {plato[c.nombre] && (
+                <Text style={s.cantidadCaja}>{cantidadDe(c.nombre, plato[c.nombre] ?? "")}</Text>
+              )}
             </View>
           ))}
         </View>
+        {aviso !== "" && <Text style={s.subtitulo}>{aviso}</Text>}
         <BotonDorado
-          texto="Guardar comida"
+          texto="Registrar comida"
           ocupado={enviando}
-          onPress={() =>
+          onPress={() => {
+            const pendiente = comida.columnas.findIndex((c) => !plato[c.nombre])
+            if (pendiente >= 0) {
+              setColumna(pendiente)
+              setAviso("Elige un alimento de cada grupo antes de guardar.")
+              return
+            }
             guardar({
               tipo: "plato",
               elegidos: comida.columnas.map((c) => ({
@@ -193,7 +207,7 @@ function ArmarPlato({
                 alimento: plato[c.nombre]!,
               })),
             })
-          }
+          }}
         />
       </View>
       {comida.columnas.length > 1 && (
@@ -218,7 +232,10 @@ function ArmarPlato({
                 accessibilityRole="radio"
                 accessibilityState={{ checked: activo }}
                 accessibilityLabel={`${alimento.nombre}${alimento.cantidad ? `, ${alimento.cantidad}` : ""}`}
-                onPress={() => setPlato((p) => ({ ...p, [actual.nombre]: alimento.nombre }))}
+                onPress={() => {
+                  setPlato((p) => ({ ...p, [actual.nombre]: alimento.nombre }))
+                  setAviso("")
+                }}
                 style={[s.baldosa, activo && s.baldosaActiva]}
               >
                 <Text style={s.nombreBaldosa}>{alimento.nombre}</Text>
@@ -255,25 +272,47 @@ export function ComidaDelDia({
 }): React.JSX.Element {
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState("")
-  const ejecutar = async (accion: () => Promise<void>): Promise<void> => {
+  const [confirmada, setConfirmada] = useState<EleccionDeComida | null>(
+    registrada?.eleccion ?? null,
+  )
+  const [mensaje, setMensaje] = useState(registrada ? "Comida registrada" : "")
+  const ejecutar = async (accion: () => Promise<void>, alCompletar: () => void): Promise<void> => {
     if (soloLectura) return
     setError("")
     setEnviando(true)
     try {
       await accion()
-      volver()
+      alCompletar()
     } catch (e) {
       setError(faltaDe(e, "No se pudo guardar la comida.").texto)
     } finally {
       setEnviando(false)
     }
   }
-  const guardar = (eleccion: EleccionDeComida): void => void ejecutar(() => registrar(eleccion))
+  const guardar = (eleccion: EleccionDeComida): void =>
+    void ejecutar(
+      () => registrar(eleccion),
+      () => {
+        setConfirmada(eleccion)
+        setMensaje("Comida registrada")
+      },
+    )
+  const resumenConfirmado =
+    confirmada?.tipo === "alternativa" && comida.forma === "alternativas"
+      ? comida.grupos.flatMap((g) => g.alternativas).find((a) => a.id === confirmada.alternativaId)
+          ?.titulo
+      : confirmada?.tipo === "plato"
+        ? confirmada.elegidos.map((e) => `${e.columna}: ${e.alimento}`).join(" · ")
+        : confirmada?.tipo === "hecha"
+          ? "Hecha"
+          : null
   return (
     <View style={s.contenido}>
       <Cabecera
         comida={comida}
-        subtitulo={comida.forma === "alternativas" ? "Elige una" : "Elige uno de cada"}
+        subtitulo={
+          comida.forma === "alternativas" ? "Elige un plato completo" : "Elige uno de cada grupo"
+        }
         volver={volver}
       />
       {comida.forma === "alternativas" ? (
@@ -286,12 +325,26 @@ export function ComidaDelDia({
       ) : (
         <ArmarPlato comida={comida} registrada={registrada} guardar={guardar} enviando={enviando} />
       )}
+      {confirmada && (
+        <View style={s.confirmacion} accessibilityLiveRegion="polite">
+          <Text style={s.confirmacionTitulo}>{mensaje}</Text>
+          {resumenConfirmado && <Text style={s.subtitulo}>{resumenConfirmado}</Text>}
+        </View>
+      )}
       {soloLectura && (
         <Text style={s.subtitulo}>Sin conexión: podrás guardarla cuando vuelvas a tener red.</Text>
       )}
       {error !== "" && <AvisoDeError mensaje={error} />}
-      {registrada && !soloLectura && (
-        <Enlace texto="Quitar de hechas" onPress={() => void ejecutar(quitar)} />
+      {confirmada && !soloLectura && (
+        <Enlace
+          texto="Quitar de hechas"
+          onPress={() =>
+            void ejecutar(quitar, () => {
+              setConfirmada(null)
+              setMensaje("")
+            })
+          }
+        />
       )}
     </View>
   )
@@ -299,6 +352,15 @@ export function ComidaDelDia({
 
 const s = StyleSheet.create({
   contenido: { gap: 20, paddingBottom: 24 },
+  confirmacion: {
+    backgroundColor: tema.acentoSuave,
+    borderColor: tema.bordeDestacado,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    gap: 4,
+  },
+  confirmacionTitulo: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 16 },
   titulos: { gap: 6 },
   titulo: {
     color: tema.texto,
@@ -310,13 +372,15 @@ const s = StyleSheet.create({
   subtitulo: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15 },
   segmentos: {
     flexDirection: "row",
+    flexWrap: "wrap",
     backgroundColor: tema.superficie,
     borderRadius: 14,
     padding: 4,
     gap: 4,
   },
   segmento: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: "30%",
     minHeight: 44,
     borderRadius: 10,
     alignItems: "center",
@@ -362,8 +426,15 @@ const s = StyleSheet.create({
     borderColor: tema.bordeDestacado,
   },
   tituloPlato: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 17 },
-  cajas: { flexDirection: "row", gap: 8 },
-  caja: { flex: 1, backgroundColor: tema.superficieAlta, borderRadius: 14, padding: 12, gap: 4 },
+  cajas: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  caja: {
+    flexGrow: 1,
+    flexBasis: 120,
+    backgroundColor: tema.superficieAlta,
+    borderRadius: 14,
+    padding: 12,
+    gap: 4,
+  },
   etiquetaCaja: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 12 },
   nombreCaja: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
   cantidadCaja: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 14 },

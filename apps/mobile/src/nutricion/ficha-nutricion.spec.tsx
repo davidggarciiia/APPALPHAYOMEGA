@@ -6,6 +6,8 @@ import type { ApiSeguimiento } from "../seguimiento/api"
 import type { ApiNutricion } from "./api"
 import { FichaNutricion } from "./ficha-nutricion"
 
+jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
+
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),

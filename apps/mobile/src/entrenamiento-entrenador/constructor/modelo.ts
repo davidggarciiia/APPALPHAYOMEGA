@@ -19,6 +19,8 @@ export type EjercicioDelConstructor = {
   /** «6», «8–10» o, si es tiempo, segundos: «40». */
   objetivo: string
   rir: string
+  modoRir?: "desactivado" | "alFinalizarEjercicio" | "cadaSerie"
+  tipoCarga?: "conCargaExterna" | "sinCarga"
   descanso: string
   carga: string
   calibrar: boolean
@@ -78,6 +80,8 @@ export function nuevoEjercicio(
     series: principal ? "3" : "1",
     objetivo: principal ? "8–10" : "10",
     rir: principal ? "2" : "",
+    modoRir: "desactivado",
+    tipoCarga: seccion === "calentamiento" || seccion === "final" ? "sinCarga" : "conCargaExterna",
     descanso: principal ? "90 s" : "",
     carga: "",
     calibrar: principal,
@@ -143,6 +147,8 @@ export function desdeSesionEnRutina(
               ? String(primera.segundos)
               : rango(primera.repeticiones, primera.repeticionesMax),
         rir: e.rir ? rango(e.rir.min, e.rir.max) : "",
+        modoRir: e.modoRir,
+        tipoCarga: e.tipoCarga,
         descanso: e.descanso ?? "",
         carga: primera?.pesoKg != null ? coma(primera.pesoKg) : "",
         calibrar: e.calibrar ?? false,
@@ -172,9 +178,20 @@ export function faltaEnDia(dia: DiaDelConstructor): string | null {
       const r = leerRango(e.rir)
       if (!r || r.max > 5) return `${e.nombre}: el RIR va de 0 a 5, como 3 o 2–3.`
     }
-    if (!e.calibrar && e.carga.trim() !== "" && Number.isNaN(Number(e.carga.replace(",", "."))))
+    if (e.tipoCarga === "sinCarga" && e.calibrar)
+      return `${e.nombre}: solo se calibra una carga externa.`
+    if (
+      e.tipoCarga !== "sinCarga" &&
+      !e.calibrar &&
+      e.carga.trim() !== "" &&
+      Number.isNaN(Number(e.carga.replace(",", ".")))
+    )
       return `${e.nombre}: la carga inicial es un número de kilos.`
-    if (e.subida.trim() !== "" && !(Number(e.subida.replace(",", ".")) > 0))
+    if (
+      e.tipoCarga !== "sinCarga" &&
+      e.subida.trim() !== "" &&
+      !(Number(e.subida.replace(",", ".")) > 0)
+    )
       return `${e.nombre}: la subida es un número de kilos.`
   }
   if (dia.ejercicios.some((e) => e.seccion === "circuito")) {
@@ -212,7 +229,10 @@ export function aSesionEnRutina(dia: DiaDelConstructor, nuevoId: () => string): 
     ejercicios: dia.ejercicios.map((e) => {
       const objetivo = leerRango(e.objetivo)!
       const rir = e.rir.trim() === "" ? null : leerRango(e.rir)
-      const carga = e.calibrar || e.carga.trim() === "" ? null : Number(e.carga.replace(",", "."))
+      const carga =
+        e.tipoCarga === "sinCarga" || e.calibrar || e.carga.trim() === ""
+          ? null
+          : Number(e.carga.replace(",", "."))
       const alternativas = e.alternativas
         .split("\n")
         .map((a) => a.trim())
@@ -223,10 +243,13 @@ export function aSesionEnRutina(dia: DiaDelConstructor, nuevoId: () => string): 
         indicaciones: texto(e.indicaciones) ?? null,
         ...(e.seccion !== "principal" && { seccion: e.seccion }),
         ...(rir && { rir }),
+        ...(e.modoRir !== undefined && { modoRir: e.modoRir }),
+        ...(e.tipoCarga !== undefined && { tipoCarga: e.tipoCarga }),
         ...(texto(e.descanso) && { descanso: texto(e.descanso) }),
         ...(texto(e.dosis) && { dosis: texto(e.dosis) }),
         ...(e.calibrar && { calibrar: true }),
-        ...(texto(e.subida) && { subidaKg: Number(e.subida.replace(",", ".")) }),
+        ...(e.tipoCarga !== "sinCarga" &&
+          texto(e.subida) && { subidaKg: Number(e.subida.replace(",", ".")) }),
         ...(texto(e.nota) && { nota: texto(e.nota) }),
         ...(alternativas.length > 0 && { alternativas }),
         ...(e.compuesto && { compuesto: true }),

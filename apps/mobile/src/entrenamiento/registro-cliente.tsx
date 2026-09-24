@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { randomUUID } from "expo-crypto"
-import { AppState, Image, StyleSheet, Text, View } from "react-native"
+import { AppState, Image, Pressable, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
 import type { Checkin, Ejercicio, EjercicioPrescrito, ValoresEjecutados } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import { RegistroControl } from "./registro-control"
 import { registroParaEnviar, type EdicionRegistro } from "./registro-modelo"
-import { FechaSesion } from "./fecha-sesion"
 import { TablaSeries } from "./tabla-series"
 import { PrescripcionVisible } from "./resultado"
 import { VerTecnica } from "./ver-tecnica"
@@ -17,15 +16,17 @@ import { CierreDeSesion } from "./sesion/cierre"
 import { Dialogo, Enlace } from "./sesion/controles"
 import {
   duracionLegible,
-  porSecciones,
-  proximaVez,
+  ejercicioEnCurso,
+  ejercicioParaRirFinal,
+  ejerciciosOrdenados,
+  estadoDeEjercicio,
   reloj,
   segundosDeDescanso,
-  serieEnCurso,
   seriesDeTrabajo,
 } from "./sesion/modelo"
 import { RegistrarMolestiaPantalla, type LugarDeMolestia } from "./sesion/molestia"
 import { CabeceraSesion, Descanso, ListaMarcable } from "./sesion/partes"
+import { duracionDeSesion, iniciarTramo } from "./sesion/tiempo"
 import { RespuestasDelEntrenador } from "./sesion/respuestas"
 import { FiguraDeEjercicio, useAccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
 import { useCatalogo } from "../catalogo-ejercicios/use-catalogo"
@@ -68,12 +69,11 @@ export function RegistroCliente({
   const [fase, setFase] = useState<Fase>("sesion")
   const [dialogo, setDialogo] = useState<"salir" | "terminar" | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
-  const [descanso, setDescanso] = useState<{ hasta: number; total: number } | null>(null)
   const [ahora, setAhora] = useState(() => Date.now())
   const [anteriores, setAnteriores] = useState<Map<string, ValoresEjecutados>>(new Map())
-  const [conMolestia, setConMolestia] = useState<Set<string>>(new Set())
   const [fichas, setFichas] = useState<Map<string, Ejercicio>>(new Map())
   const [nota, setNota] = useState(false)
+  const [listaAbierta, setListaAbierta] = useState(false)
   const catalogo = useCatalogo()
   const acceso = useAccesoAFiguras()
 
@@ -101,7 +101,8 @@ export function RegistroCliente({
           return
         comprobando = true
         try {
-          await c.sincronizar()
+          if (c.documento.intencionEnvio || c.documento.envioPendiente) await c.enviar()
+          else await c.sincronizar()
           if (vigente) await c.actualizar()
         } catch {
           /* La copia local se conserva; el estado permite un reintento explícito. */
@@ -115,7 +116,11 @@ export function RegistroCliente({
       })
       return () => {
         vigente = false
-        c.cerrar()
+        // Blur de navegación pausa el entrenamiento; bloquear el teléfono no produce blur.
+        void c
+          .pausar(new Date().toISOString())
+          .catch(() => undefined)
+          .finally(() => c.cerrar())
         clearInterval(temporizador)
         actividad.remove()
       }
@@ -128,7 +133,7 @@ export function RegistroCliente({
     return () => clearInterval(tic)
   }, [])
 
-  // «Anterior» y molestias de esta sesión. Sin red, la sesión sigue sin ellos.
+  // «Anterior» sirve como referencia. Sin red, la sesión sigue sin él.
   useEffect(() => {
     let vigente = true
     api
@@ -138,29 +143,25 @@ export function RegistroCliente({
           setAnteriores(new Map(listado.anteriores.map((a) => [a.ejercicioId, a.valores])))
       })
       .catch(() => undefined)
-    api
-      .molestias(cuenta)
-      .then((listado) => {
-        if (!vigente) return
-        setConMolestia(
-          new Set(
-            listado.molestias
-              .filter((m) => m.sesionId === id && m.ejercicioPrescritoId !== null)
-              .map((m) => m.ejercicioPrescritoId!),
-          ),
-        )
-      })
-      .catch(() => undefined)
     return () => {
       vigente = false
     }
   }, [api, id, cuenta])
 
   const documento = control?.documento
-  const enCurso = documento ? serieEnCurso(documento.sesion.prescripcion, documento.edicion) : null
-  const ejercicioActual = documento?.sesion.prescripcion.ejercicios.find((e) =>
-    e.series.some((s) => s.id === enCurso),
-  )
+  const sugerido = documento
+    ? ejercicioEnCurso(documento.sesion.prescripcion, documento.edicion)
+    : null
+  const ejercicioElegido = documento?.ejercicioElegidoId ?? null
+  const ejercicioActual =
+    documento?.sesion.prescripcion.ejercicios.find((e) => e.id === ejercicioElegido) ??
+    sugerido ??
+    documento?.sesion.prescripcion.ejercicios.at(-1)
+  const enCurso =
+    ejercicioActual?.series.find((s) => {
+      const real = documento?.edicion.series.find((r) => r.serieId === s.id)
+      return !real?.hecha && !real?.omitida
+    })?.id ?? null
 
   // La ficha del ejercicio en curso, para su animación.
   const idActual = ejercicioActual?.ejercicioId
@@ -210,6 +211,9 @@ export function RegistroCliente({
   if (documento.resultado)
     return (
       <View style={e.contenedor}>
+        <Text accessibilityLiveRegion="polite" style={e.nota}>
+          {documento.sesion.revisadaEn ? "Revisado por el entrenador" : "Enviado al entrenador"}
+        </Text>
         <PrescripcionVisible
           prescripcion={documento.resultado.prescripcion}
           resultado={documento.resultado}
@@ -236,13 +240,26 @@ export function RegistroCliente({
 
   const { prescripcion } = documento.sesion
   const edicion = documento.edicion
-  const bloqueado = ocupado || control.conflicto || documento.envioPendiente !== null
-  const cambiar = (nueva: EdicionRegistro): void => {
+  const pausado = edicion.tiempoActivoSegundos !== undefined && !edicion.tramoActivoDesde
+  const bloqueadoPorEnvio =
+    ocupado ||
+    control.conflicto ||
+    documento.intencionEnvio != null ||
+    documento.envioPendiente !== null
+  const bloqueado = bloqueadoPorEnvio || pausado
+  const cambiar = (
+    nueva: EdicionRegistro,
+    vista: {
+      descansoHasta?: string | null
+      descansoTotal?: number | null
+      ejercicioElegidoId?: string | null
+    } = {},
+  ): void => {
     setError("")
     // La sesión empieza con la primera anotación si no pasó por el check-in.
-    const conInicio = nueva.inicio ? nueva : { ...nueva, inicio: new Date().toISOString() }
+    const conInicio = nueva.inicio ? nueva : iniciarTramo(nueva, new Date().toISOString())
     void control
-      .editar(conInicio)
+      .editar(conInicio, vista)
       .catch(() =>
         setError(
           "No se pudo guardar en este dispositivo. Mantén esta pantalla abierta y reintenta el guardado.",
@@ -255,6 +272,7 @@ export function RegistroCliente({
       ...edicion,
       series: edicion.series.map((s) => (s.serieId === serieId ? { ...s, ...cambio } : s)),
     }
+    let nuevoDescanso: { descansoHasta: string; descansoTotal: number } | undefined
     if (cambio.hecha) {
       try {
         registroParaEnviar(prescripcion, nueva)
@@ -266,9 +284,16 @@ export function RegistroCliente({
       const ejercicio = prescripcion.ejercicios.find((e) => e.series.some((s) => s.id === serieId))
       const segundos = segundosDeDescanso(ejercicio?.descanso)
       if (!anterior?.hecha && segundos !== null)
-        setDescanso({ hasta: Date.now() + segundos * 1000, total: segundos })
+        nuevoDescanso = {
+          descansoHasta: new Date(Date.now() + segundos * 1000).toISOString(),
+          descansoTotal: segundos,
+        }
     }
-    cambiar(nueva)
+    const retener = ejercicioParaRirFinal(prescripcion, nueva, serieId)
+    cambiar(nueva, {
+      ...nuevoDescanso,
+      ...(retener && { ejercicioElegidoId: retener }),
+    })
   }
   const marcarLista = (ejercicio: EjercicioPrescrito, hecho: boolean): void => {
     const ids = new Map(ejercicio.series.map((p) => [p.id, p]))
@@ -281,6 +306,7 @@ export function RegistroCliente({
         return {
           ...s,
           hecha: true,
+          omitida: undefined,
           valor:
             s.valor ||
             String(
@@ -296,8 +322,11 @@ export function RegistroCliente({
   const trabajo = seriesDeTrabajo(prescripcion)
   const hechasTrabajo = edicion.series.filter((s) => s.hecha && trabajo.includes(s.serieId)).length
   const empezada = edicion.checkin || edicion.inicio || edicion.series.some((s) => s.hecha)
-  const segundos = edicion.inicio ? (ahora - Date.parse(edicion.inicio)) / 1000 : null
-  const restante = descanso === null ? 0 : Math.max(0, Math.round((descanso.hasta - ahora) / 1000))
+  const duracion = duracionDeSesion(edicion, ahora)
+  const segundos = duracion.segundos
+  const restante = documento.descansoHasta
+    ? Math.max(0, Math.round((Date.parse(documento.descansoHasta) - ahora) / 1000))
+    : 0
 
   if (!empezada && !documento.envioPendiente)
     return (
@@ -305,7 +334,7 @@ export function RegistroCliente({
         nombre={prescripcion.nombre}
         volver={() => salir?.()}
         empezar={(checkin: Checkin) =>
-          cambiar({ ...edicion, checkin, inicio: new Date().toISOString() })
+          cambiar(iniciarTramo({ ...edicion, checkin }, new Date().toISOString()))
         }
       />
     )
@@ -325,9 +354,7 @@ export function RegistroCliente({
         reloj={segundos === null ? null : reloj(segundos)}
         uuid={randomUUID}
         avisar={async (datos) => {
-          const molestia = await api.avisarMolestia(id, datos)
-          if (molestia.ejercicioPrescritoId !== null)
-            setConMolestia((actual) => new Set(actual).add(molestia.ejercicioPrescritoId!))
+          await api.avisarMolestia(id, datos)
         }}
         volver={() => setFase("sesion")}
       />
@@ -339,18 +366,28 @@ export function RegistroCliente({
       <CierreDeSesion
         subtitulo={[
           prescripcion.nombre,
-          edicion.inicio ? duracionLegible(edicion.inicio, new Date(ahora)) : null,
+          segundos === null
+            ? null
+            : duracion.legado && edicion.inicio
+              ? `Tiempo transcurrido: ${duracionLegible(edicion.inicio, new Date(ahora))}`
+              : `Tiempo activo: ${reloj(segundos)}`,
         ]
           .filter(Boolean)
           .join(" · ")}
-        proxima={proximaVez(prescripcion, edicion, conMolestia)}
+        resumen={{
+          hechas: edicion.series.filter((s) => s.hecha).length,
+          omitidas: edicion.series.filter((s) => s.omitida).length,
+          pendientes: edicion.series.filter((s) => !s.hecha && !s.omitida).length,
+        }}
         notas={edicion.notas}
         enviando={ocupado}
+        pendiente={!!(documento.intencionEnvio || documento.envioPendiente)}
         error={error}
         volver={() => setFase("sesion")}
         enviar={(cierre, notas) =>
           void accion(async () => {
-            await control.editar({ ...edicion, cierre, notas })
+            if (!control.documento?.intencionEnvio && !control.documento?.envioPendiente)
+              await control.editar({ ...edicion, cierre, notas })
             await control.enviar()
           })
         }
@@ -382,16 +419,29 @@ export function RegistroCliente({
         salir={salir && (() => setDialogo("salir"))}
         terminar={documento.envioPendiente ? undefined : terminar}
       />
-      {/* El diseño no enseña el guardado: solo se avisa cuando algo no va bien. */}
-      {control.errorLocal && (
-        <Text accessibilityLiveRegion="polite" style={e.tenue}>
-          No guardado en el dispositivo
-        </Text>
+      {duracion.legado && <Text style={e.tenue}>Tiempo transcurrido de un registro anterior</Text>}
+      {pausado && !bloqueadoPorEnvio && (
+        <BotonPrincipal
+          texto="Continuar entrenamiento"
+          onPress={() =>
+            void accion(() => control.editar(iniciarTramo(edicion, new Date().toISOString())))
+          }
+        />
       )}
+      <Text accessibilityLiveRegion="polite" style={e.tenue}>
+        {control.errorLocal
+          ? "Error de guardado"
+          : control.guardando > 0
+            ? "Guardando…"
+            : "Guardado en el dispositivo"}
+        {" · "}
+        {documento.intencionEnvio || documento.envioPendiente ? "Pendiente de envío" : "En curso"}
+      </Text>
       {control.sinRed && (
         <Text style={e.nota}>
-          Conservas una copia local. El entrenador verá los resultados cuando confirmes el envío con
-          conexión.
+          {documento.intencionEnvio || documento.envioPendiente
+            ? "Tu envío está guardado en este dispositivo y se reintentará al recuperar conexión."
+            : "Conservas una copia local. El entrenador verá los resultados cuando confirmes el envío con conexión."}
         </Text>
       )}
       {control.errorLocal && (
@@ -448,46 +498,81 @@ export function RegistroCliente({
           </View>
         </View>
       )}
-      {descanso !== null && restante > 0 && (
-        <Descanso restante={restante} total={descanso.total} saltar={() => setDescanso(null)} />
+      <View style={e.acciones}>
+        <Enlace texto="Tengo una molestia" onPress={() => setFase("molestia")} />
+        <Enlace texto="Añadir nota" onPress={() => setNota(!nota)} />
+      </View>
+      {documento.descansoHasta && restante > 0 && (
+        <Descanso
+          restante={restante}
+          total={documento.descansoTotal ?? restante}
+          saltar={() => void control.guardarVista({ descansoHasta: null, descansoTotal: null })}
+        />
       )}
-      {porSecciones(prescripcion).map((grupo) =>
-        grupo.seccion === "calentamiento" || grupo.seccion === "final" ? (
+      {ejercicioActual &&
+        (ejercicioActual.seccion === "calentamiento" || ejercicioActual.seccion === "final" ? (
           <ListaMarcable
-            key={grupo.seccion}
-            titulo={TITULOS_DE_SECCION[grupo.seccion]}
-            ejercicios={grupo.ejercicios}
+            titulo={TITULOS_DE_SECCION[ejercicioActual.seccion]}
+            ejercicios={[ejercicioActual]}
             series={edicion.series}
-            bloqueado={bloqueado}
+            bloqueado={bloqueado || pausado}
             marcar={marcarLista}
+            cambiarPeso={(serieId, peso) => serie(serieId, { peso })}
           />
         ) : (
-          <View key={grupo.seccion} style={e.seccion}>
-            {grupo.seccion === "circuito" && (
-              <Text style={e.tituloSeccion} accessibilityRole="header">
-                {prescripcion.circuito?.nombre ?? TITULOS_DE_SECCION.circuito}
-                {prescripcion.circuito ? ` · ${prescripcion.circuito.vueltas} vueltas` : ""}
+          <TablaSeries
+            ejercicio={ejercicioActual}
+            series={edicion.series}
+            bloqueado={bloqueado || pausado}
+            cambiar={serie}
+            verTecnica={() => setTecnica(ejercicioActual)}
+            enCurso={enCurso}
+            anterior={anteriores.get(ejercicioActual.ejercicioId)}
+          />
+        ))}
+      {ejercicioElegido &&
+        ejercicioParaRirFinal(prescripcion, edicion, ejercicioActual?.series.at(-1)?.id ?? "") ===
+          ejercicioElegido && (
+          <BotonSecundario
+            texto="Ir al siguiente ejercicio"
+            onPress={() => void control.guardarVista({ ejercicioElegidoId: null })}
+          />
+        )}
+      <View style={e.listaEjercicios}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: listaAbierta }}
+          onPress={() => setListaAbierta(!listaAbierta)}
+          style={e.cabeceraLista}
+        >
+          <Text style={e.tituloSeccion}>Ejercicios de la sesión</Text>
+          <Text style={e.tenue}>{listaAbierta ? "Ocultar" : "Ver todos"}</Text>
+        </Pressable>
+        {listaAbierta &&
+          ejerciciosOrdenados(prescripcion).map((ejercicio, indice) => (
+            <Pressable
+              key={ejercicio.id}
+              accessibilityRole="button"
+              accessibilityLabel={`${indice + 1}. ${ejercicio.nombre}, ${estadoDeEjercicio(ejercicio, edicion)}`}
+              onPress={() => {
+                void control.guardarVista({ ejercicioElegidoId: ejercicio.id })
+                setListaAbierta(false)
+              }}
+              style={e.filaEjercicio}
+            >
+              <Text style={e.texto}>
+                {indice + 1}. {ejercicio.nombre}
               </Text>
-            )}
-            {grupo.ejercicios.map((ejercicio) => (
-              <TablaSeries
-                key={ejercicio.id}
-                ejercicio={ejercicio}
-                series={edicion.series}
-                bloqueado={bloqueado}
-                cambiar={serie}
-                verTecnica={() => setTecnica(ejercicio)}
-                enCurso={enCurso}
-                anterior={anteriores.get(ejercicio.ejercicioId)}
-              />
-            ))}
-          </View>
-        ),
-      )}
-      <View style={e.acciones}>
-        <Enlace texto="Añadir nota" onPress={() => setNota(!nota)} />
-        <Enlace texto="Añadir molestia" onPress={() => setFase("molestia")} />
+              <Text style={e.tenue}>{estadoDeEjercicio(ejercicio, edicion)}</Text>
+            </Pressable>
+          ))}
       </View>
+      {ejercicioElegido && (
+        <Enlace
+          texto="Ir al siguiente pendiente"
+          onPress={() => void control.guardarVista({ ejercicioElegidoId: null })}
+        />
+      )}
       {(nota || edicion.notas !== "") && (
         <Campo
           etiqueta="Nota para tu entrenador"
@@ -498,15 +583,10 @@ export function RegistroCliente({
           maxLength={2000}
         />
       )}
-      <FechaSesion
-        agenda={documento.sesion.agenda}
-        api={api}
-        actualizado={() => control.actualizar()}
-      />
       {error !== "" && <AvisoDeError mensaje={error} />}
-      {documento.envioPendiente && (
+      {(documento.intencionEnvio || documento.envioPendiente) && (
         <BotonPrincipal
-          texto="Confirmar envío pendiente"
+          texto="Reintentar envío pendiente"
           ocupado={ocupado}
           onPress={() => void accion(() => control.enviar())}
         />
@@ -530,6 +610,7 @@ export function RegistroCliente({
         cancelar="Seguir entrenando"
         alConfirmar={() => {
           setDialogo(null)
+          void control.pausar(new Date().toISOString())
           setFase("cierre")
         }}
         alCancelar={() => setDialogo(null)}
@@ -542,7 +623,7 @@ export function RegistroCliente({
         cancelar="Seguir entrenando"
         alConfirmar={() => {
           setDialogo(null)
-          salir?.()
+          void control.pausar(new Date().toISOString()).finally(() => salir?.())
         }}
         alCancelar={() => setDialogo(null)}
       />
@@ -552,7 +633,22 @@ export function RegistroCliente({
 
 const e = StyleSheet.create({
   contenedor: { gap: 24 },
-  seccion: { gap: 32 },
+  listaEjercicios: { backgroundColor: tema.superficie, borderRadius: 16, padding: 14 },
+  cabeceraLista: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  filaEjercicio: {
+    minHeight: 48,
+    borderTopWidth: 1,
+    borderColor: tema.borde,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
   tituloSeccion: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },

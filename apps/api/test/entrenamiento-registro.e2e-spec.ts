@@ -248,7 +248,19 @@ describe("Borrador privado y envío atómico", () => {
       .set(como("cliente"))
       .send(borrador)
       .expect(200)
-    const envio = { ...borrador, operacionId: randomUUID(), revisionBorrador: 1 }
+    const envio = {
+      ...borrador,
+      operacionId: randomUUID(),
+      revisionBorrador: 1,
+      registro: {
+        ...borrador.registro,
+        tiempoActivoSegundos: 125,
+        series: [
+          borrador.registro.series[0]!,
+          { ...borrador.registro.series[1]!, omitida: true as const },
+        ],
+      },
+    }
     const enviar = () =>
       request(app.getHttpServer()).post(`${base}/enviar`).set(como("cliente")).send(envio)
     const [uno, dos] = await Promise.all([enviar(), enviar()])
@@ -258,7 +270,9 @@ describe("Borrador privado y envío atómico", () => {
     expect(resultado.series[1]).toEqual({
       serieId: borrador.registro.series[1]!.serieId,
       hecha: false,
+      omitida: true,
     })
+    expect(resultado.tiempoActivoSegundos).toBe(125)
     const entrenador = await request(app.getHttpServer())
       .get(`${base}/resultado`)
       .set(como("entrenador"))

@@ -165,6 +165,25 @@ describe("Molestias durante el entrenamiento", () => {
       estado: "atendida",
       respuesta: "Cambia a press en multipower y baja a 22 kg.",
     })
+    const entrenadorFeed = await request(app.getHttpServer())
+      .get(`/entrenamiento/clientes/${ids.cliente}/novedades`)
+      .set(como("entrenador"))
+      .expect(200)
+    expect(
+      entrenadorFeed.body.novedades.filter(
+        (n: { tipo: string; sesionId: string }) => n.tipo === "molestia" && n.sesionId === id,
+      ),
+    ).toHaveLength(1)
+    const clienteFeed = await request(app.getHttpServer())
+      .get(`/entrenamiento/clientes/${ids.cliente}/novedades`)
+      .set(como("cliente"))
+      .expect(200)
+    expect(
+      clienteFeed.body.novedades.filter(
+        (n: { tipo: string; sesionId: string }) =>
+          n.tipo === "molestia_atendida" && n.sesionId === id,
+      ),
+    ).toHaveLength(1)
     await request(app.getHttpServer())
       .post(`/entrenamiento/molestias/${molestia.id}/atender`)
       .set(como("entrenador"))
@@ -183,5 +202,38 @@ describe("Molestias durante el entrenamiento", () => {
     expect(ListadoMolestiasSchema.parse(despues.body).molestias.map((m) => m.id)).not.toContain(
       molestia.id,
     )
+  })
+
+  it("dos respuestas simultáneas conservan solo la primera y emiten una novedad", async () => {
+    const { app, como, ids, prisma } = entorno
+    const { id } = await sesion()
+    const creada = await request(app.getHttpServer())
+      .post(`/entrenamiento/sesiones/${id}/molestias`)
+      .set(como("cliente"))
+      .send(aviso(null))
+      .expect(201)
+    const molestiaId = MolestiaSchema.parse(creada.body).id
+    const url = `/entrenamiento/molestias/${molestiaId}/atender`
+    const [primera, segunda] = await Promise.all([
+      request(app.getHttpServer()).post(url).set(como("entrenador")).send({ respuesta: "Para" }),
+      request(app.getHttpServer())
+        .post(url)
+        .set(como("entrenador"))
+        .send({ respuesta: "Reduce la carga" }),
+    ])
+    expect([primera.status, segunda.status].sort()).toEqual([200, 409])
+    const aceptada = primera.status === 200 ? primera : segunda
+    const guardada = await prisma.molestia.findUniqueOrThrow({ where: { id: molestiaId } })
+    expect(guardada.respuesta).toBe(aceptada.body.respuesta)
+    const novedades = await request(app.getHttpServer())
+      .get(`/entrenamiento/clientes/${ids.cliente}/novedades`)
+      .set(como("cliente"))
+      .expect(200)
+    expect(
+      novedades.body.novedades.filter(
+        (n: { tipo: string; sesionId: string }) =>
+          n.tipo === "molestia_atendida" && n.sesionId === id,
+      ),
+    ).toHaveLength(1)
   })
 })

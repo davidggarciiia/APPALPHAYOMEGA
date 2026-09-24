@@ -476,7 +476,10 @@ describe("Gestion de clientes", () => {
         .set("Authorization", como("entrenador"))
         .expect(200)
 
-      const antes = await prisma.tokenActivacion.count()
+      // Otras suites HTTP usan la misma base desechable en paralelo: contar solo
+      // las dos cuentas de este caso evita atribuirles enlaces ajenos.
+      const cuentas = { usuarioId: { in: [activo.id, deBaja.id] } }
+      const antes = await prisma.tokenActivacion.count({ where: cuentas })
 
       // Reenviar a un activo seria cambiarle la contrasena sin conocer la actual,
       // que es la tarea 20 con sus propias salvaguardas. A un desactivado seria
@@ -491,7 +494,7 @@ describe("Gestion de clientes", () => {
         .set("Authorization", como("entrenador"))
         .expect(400)
 
-      expect(await prisma.tokenActivacion.count()).toBe(antes)
+      expect(await prisma.tokenActivacion.count({ where: cuentas })).toBe(antes)
     })
 
     it("si el proveedor de correo falla, se dice la verdad y no se finge un error", async () => {

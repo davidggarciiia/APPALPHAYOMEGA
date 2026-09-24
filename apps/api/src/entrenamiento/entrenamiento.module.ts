@@ -10,6 +10,7 @@ import { RutinasService } from "./rutinas.service.js"
 import { MolestiasController } from "./molestias.controller.js"
 import { MolestiasService } from "./molestias.service.js"
 import { ComentariosService } from "./comentarios.service.js"
+import { NovedadesService } from "./novedades.service.js"
 
 @Module({
   imports: [AgendaModule],
@@ -22,6 +23,7 @@ import { ComentariosService } from "./comentarios.service.js"
     RutinasService,
     MolestiasService,
     ComentariosService,
+    NovedadesService,
   ],
 })
 export class EntrenamientoModule {}

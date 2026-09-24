@@ -74,16 +74,20 @@ model Usuario {
   dietasCreadas    Dieta[] @relation("DietasCreadas")
   dietasPublicadas Dieta[] @relation("DietasPublicadas")
 
-  molestias           Molestia[]         @relation("MolestiasCliente")
-  molestiasAtendidas  Molestia[]         @relation("MolestiasAtendidas")
-  diasSeguimiento     DiaSeguimiento[]
-  medidas             MedidaCorporal[]   @relation("MedidasCliente")
-  medidasTomadas      MedidaCorporal[]   @relation("MedidasAutor")
-  pruebas             PruebaFisica[]     @relation("PruebasCliente")
-  pruebasTomadas      PruebaFisica[]     @relation("PruebasAutor")
-  comidasRegistradas  ComidaRegistrada[]
-  comentariosSesion   ComentarioSesion[] @relation("ComentariosCliente")
-  comentariosEscritos ComentarioSesion[] @relation("ComentariosAutor")
+  molestias                Molestia[]                @relation("MolestiasCliente")
+  molestiasAtendidas       Molestia[]                @relation("MolestiasAtendidas")
+  diasSeguimiento          DiaSeguimiento[]
+  medidas                  MedidaCorporal[]          @relation("MedidasCliente")
+  medidasTomadas           MedidaCorporal[]          @relation("MedidasAutor")
+  pruebas                  PruebaFisica[]            @relation("PruebasCliente")
+  pruebasTomadas           PruebaFisica[]            @relation("PruebasAutor")
+  configuracionSeguimiento ConfiguracionSeguimiento?
+  comidasRegistradas       ComidaRegistrada[]
+  comentariosSesion        ComentarioSesion[]        @relation("ComentariosCliente")
+  comentariosEscritos      ComentarioSesion[]        @relation("ComentariosAutor")
+  sesionesRevisadas        SesionEntrenamiento[]     @relation("RevisionesEntrenamiento")
+  novedadesCreadas         NovedadEntrenamiento[]    @relation("AutoresNovedadEntrenamiento")
+  lecturasNovedades        LecturaNovedad[]
 
   @@map("usuarios")
 }
@@ -324,10 +328,14 @@ model SesionEntrenamiento {
   borrador             Json?
   resultado            Json?
   enviadoEn            DateTime?
+  revisadaEn           DateTime?
+  revisadaPorId        String?
+  revisadaPor          Usuario?                 @relation("RevisionesEntrenamiento", fields: [revisadaPorId], references: [id], onDelete: Restrict)
   referencias          ReferenciaEjercicio[]
   operaciones          OperacionEntrenamiento[]
   molestias            Molestia[]
   comentarios          ComentarioSesion[]
+  novedades            NovedadEntrenamiento[]
 
   @@unique([id, clienteId])
   @@index([planId])
@@ -516,6 +524,18 @@ model DiaSeguimiento {
   @@map("dias_seguimiento")
 }
 
+/// Preferencias y prescripciones de seguimiento por cliente. Sin fila se usa
+/// la configuración inicial del contrato compartido (revisión 0).
+model ConfiguracionSeguimiento {
+  clienteId     String   @id
+  cliente       Usuario  @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  revision      Int      @default(1)
+  documento     Json
+  actualizadoEn DateTime @updatedAt
+
+  @@map("configuraciones_seguimiento")
+}
+
 /// Medidas corporales: las toma el cliente o su equipo.
 model MedidaCorporal {
   id          String   @id @default(uuid())
@@ -544,6 +564,8 @@ model PruebaFisica {
   autorId     String
   autor       Usuario  @relation("PruebasAutor", fields: [autorId], references: [id], onDelete: Restrict)
   operacionId String
+  /// Nulo para el histórico creado antes de prescribir pruebas.
+  pruebaId    String?
   fecha       DateTime @db.Date
   nombre      String   @db.VarChar(60)
   valor       Decimal  @db.Decimal(8, 2)
@@ -552,6 +574,7 @@ model PruebaFisica {
 
   @@unique([autorId, operacionId])
   @@index([clienteId, nombre, fecha])
+  @@index([clienteId, pruebaId, fecha])
   @@map("pruebas_fisicas")
 }
 
@@ -589,4 +612,34 @@ model ComentarioSesion {
   @@unique([autorId, operacionId])
   @@index([sesionId, creadoEn])
   @@map("comentarios_sesion")
+}
+
+/// Evento dirigido a cliente o entrenador; cada usuario registra su propia lectura.
+model NovedadEntrenamiento {
+  id         String              @id @default(uuid())
+  sesionId   String
+  clienteId  String
+  sesion     SesionEntrenamiento @relation(fields: [sesionId, clienteId], references: [id, clienteId], onDelete: Restrict)
+  tipo       String              @db.VarChar(40)
+  audiencia  String              @db.VarChar(20)
+  autorId    String
+  autor      Usuario             @relation("AutoresNovedadEntrenamiento", fields: [autorId], references: [id], onDelete: Restrict)
+  creadaEn   DateTime            @default(now())
+  lecturas   LecturaNovedad[]
+
+  @@index([clienteId, audiencia, creadaEn])
+  @@index([sesionId, creadaEn])
+  @@map("novedades_entrenamiento")
+}
+
+model LecturaNovedad {
+  novedadId String
+  usuarioId String
+  novedad   NovedadEntrenamiento @relation(fields: [novedadId], references: [id], onDelete: Restrict)
+  usuario   Usuario              @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  leidaEn   DateTime             @default(now())
+
+  @@id([novedadId, usuarioId])
+  @@index([usuarioId])
+  @@map("lecturas_novedades")
 }

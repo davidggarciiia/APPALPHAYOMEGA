@@ -6,6 +6,8 @@ import { BotonSecundario } from "../componentes/formulario"
 import { Icono } from "../componentes/iconos"
 import { degradadoExito, degradadoSesion, tema } from "../tema"
 import { TarjetaHoy, type DetalleDeHoy } from "./hoy-toca"
+import { FechaSesion } from "./fecha-sesion"
+import type { ApiEntrenamiento } from "./api"
 
 const DIAS = ["L", "M", "X", "J", "V", "S", "D"]
 
@@ -22,6 +24,9 @@ export function AgendaSemanal({
   resumenHoy,
   detalle,
   deportes = [],
+  empezadas = {},
+  api,
+  actualizado,
 }: {
   semana: string
   listado: ListadoSesiones | null
@@ -32,15 +37,25 @@ export function AgendaSemanal({
   detalle?: DetalleDeHoy
   /** Otros deportes del bloque: se marcan con un círculo hueco en su día. */
   deportes?: DeporteDelPlan[]
+  /** Fecha de última actualización de cada sesión empezada. */
+  empezadas?: Record<string, string>
+  api?: Pick<ApiEntrenamiento, "mover" | "cambios">
+  actualizado?: () => Promise<void>
 }): React.JSX.Element {
   const [dia, setDia] = useState<string | null>(null)
+  const [moviendoId, setMoviendoId] = useState<string | null>(null)
   const hoy = hoyAgenda()
   const sesiones = listado?.sesiones ?? []
   const visibles = dia === null ? sesiones : sesiones.filter((s) => s.agenda.fechaActual === dia)
   const estaSemana = semana === lunesDeSemana(hoy)
+  const empezada = sesiones
+    .filter((sesion) => sesion.enviadoEn === null && empezadas[sesion.agenda.id])
+    .sort((a, b) => (empezadas[b.agenda.id] ?? "").localeCompare(empezadas[a.agenda.id] ?? ""))[0]
   const sesionHoy =
     resumenHoy && estaSemana
-      ? sesiones.find((s) => s.agenda.fechaActual === hoy && s.enviadoEn === null)
+      ? (empezada ??
+        sesiones.find((s) => s.agenda.fechaActual === hoy && s.enviadoEn === null) ??
+        sesiones.find((s) => s.agenda.fechaActual === hoy && s.enviadoEn !== null))
       : undefined
   const grupos = resumenHoy
     ? [
@@ -64,9 +79,10 @@ export function AgendaSemanal({
           sinSesion={
             sesiones.some((s) => s.agenda.fechaActual === hoy) ? "Trabajo completado" : "Descanso"
           }
-          hoy={hoy}
+          hoy={sesionHoy?.agenda.fechaActual ?? hoy}
           abrir={abrir}
           detalle={detalle}
+          empezada={sesionHoy?.agenda.id === empezada?.agenda.id}
         />
       )}
       {resumenHoy && estaSemana ? (
@@ -76,6 +92,7 @@ export function AgendaSemanal({
           sesiones={sesiones}
           deportes={deportes}
           abrir={abrir}
+          empezadas={empezadas}
         />
       ) : (
         <>
@@ -181,38 +198,58 @@ export function AgendaSemanal({
                 <View style={s.lista}>
                   {grupo.sesiones.map((sesion, n) => {
                     const enviada = sesion.enviadoEn !== null
+                    const enCurso = !enviada && Boolean(empezadas[sesion.agenda.id])
                     return (
-                      <Pressable
+                      <View
                         key={sesion.agenda.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Abrir ${sesion.nombre}, ${fechaLegible(sesion.agenda.fechaActual)}, ${enviada ? "enviado" : "pendiente"}`}
-                        onPress={() => abrir(sesion.agenda.id)}
-                        style={({ pressed }) => [
-                          s.renglon,
-                          n < grupo.sesiones.length - 1 && s.separado,
-                          pressed && s.pulsado,
-                        ]}
+                        style={n < grupo.sesiones.length - 1 && s.separado}
                       >
-                        <View style={s.informacion}>
-                          <Text style={s.nombre}>{sesion.nombre}</Text>
-                          <Text style={s.secundario}>
-                            {fechaLegible(sesion.agenda.fechaActual)} ·{" "}
-                            {enviada ? "Enviado" : "Pendiente"}
-                          </Text>
-                          {sesion.agenda.fechaActual !== sesion.agenda.fechaOriginal && (
-                            <Text style={s.movido}>
-                              Movido desde {fechaLegible(sesion.agenda.fechaOriginal)}
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${enviada ? "Ver resumen de" : enCurso ? "Continuar" : "Empezar"} ${sesion.nombre}, ${fechaLegible(sesion.agenda.fechaActual)}, ${enviada ? "enviado" : enCurso ? "en curso" : "pendiente"}`}
+                          onPress={() => abrir(sesion.agenda.id)}
+                          style={({ pressed }) => [s.renglon, pressed && s.pulsado]}
+                        >
+                          <View style={s.informacion}>
+                            <Text style={s.nombre}>{sesion.nombre}</Text>
+                            <Text style={s.secundario}>
+                              {fechaLegible(sesion.agenda.fechaActual)} ·{" "}
+                              {enviada ? "Enviado" : enCurso ? "En curso" : "Pendiente"}
                             </Text>
-                          )}
-                        </View>
-                        {enviada ? (
-                          <View style={[s.hecho, degradadoExito]}>
-                            <Icono nombre="hecho" color={tema.sobreExito} tamano={16} />
+                            {sesion.agenda.fechaActual !== sesion.agenda.fechaOriginal && (
+                              <Text style={s.movido}>
+                                Movido desde {fechaLegible(sesion.agenda.fechaOriginal)}
+                              </Text>
+                            )}
                           </View>
-                        ) : (
-                          <Icono nombre="adelante" color={tema.textoTenue} tamano={20} />
+                          {enviada ? (
+                            <View style={[s.hecho, degradadoExito]}>
+                              <Icono nombre="hecho" color={tema.sobreExito} tamano={16} />
+                            </View>
+                          ) : (
+                            <Icono nombre="adelante" color={tema.textoTenue} tamano={20} />
+                          )}
+                        </Pressable>
+                        {api && actualizado && !enviada && sesion.agenda.estado === "abierta" && (
+                          <BotonSecundario
+                            texto={`Cambiar día de ${sesion.nombre}`}
+                            onPress={() =>
+                              setMoviendoId(
+                                moviendoId === sesion.agenda.id ? null : sesion.agenda.id,
+                              )
+                            }
+                          />
                         )}
-                      </Pressable>
+                        {moviendoId === sesion.agenda.id && api && actualizado && (
+                          <FechaSesion
+                            agenda={sesion.agenda}
+                            api={api}
+                            actualizado={actualizado}
+                            iniciarAbierta
+                            onTerminar={() => setMoviendoId(null)}
+                          />
+                        )}
+                      </View>
                     )
                   })}
                 </View>
@@ -234,12 +271,14 @@ function TiraDeLaSemana({
   sesiones,
   deportes,
   abrir,
+  empezadas,
 }: {
   semana: string
   hoy: string
   sesiones: ListadoSesiones["sesiones"]
   deportes: DeporteDelPlan[]
   abrir: (id: string) => void
+  empezadas: Record<string, string>
 }): React.JSX.Element {
   return (
     <View style={s.seccion}>
@@ -251,7 +290,12 @@ function TiraDeLaSemana({
           const fecha = sumarDias(semana, n)
           const delDia = sesiones.filter((sesion) => sesion.agenda.fechaActual === fecha)
           const otros = deportes.filter((d) => d.dias.includes(n + 1))
-          const destino = delDia.find((sesion) => sesion.enviadoEn === null) ?? delDia[0]
+          const destino =
+            delDia
+              .filter((sesion) => sesion.enviadoEn === null)
+              .sort((a, b) =>
+                (empezadas[b.agenda.id] ?? "").localeCompare(empezadas[a.agenda.id] ?? ""),
+              )[0] ?? delDia[0]
           const que = [
             ...delDia.map((sesion) => `${sesion.nombre}${sesion.enviadoEn ? ", hecha" : ""}`),
             ...otros.map((d) => d.nombre),

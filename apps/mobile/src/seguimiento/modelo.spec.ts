@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@jest/globals"
+import { CONFIGURACION_SEGUIMIENTO_INICIAL } from "@alpha-omega/shared"
 
 import {
   edadEn,
@@ -9,7 +10,9 @@ import {
   mediaMovil,
   miles,
   pesoLegible,
+  proximosRegistros,
   resumenDeSemana,
+  sentidoDelPeso,
   suenoLegible,
 } from "./modelo"
 
@@ -53,6 +56,31 @@ describe("formatos del diseño", () => {
 })
 
 describe("cálculos", () => {
+  it("calcula el siguiente registro diario o semanal sin repetir el de hoy", () => {
+    const config = {
+      ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+      registrosSolicitados: [
+        { indicador: "peso" as const, frecuencia: "diaria" as const, diaSemana: null },
+        { indicador: "pasos" as const, frecuencia: "diaria" as const, diaSemana: null },
+        { indicador: "cintura" as const, frecuencia: "semanal" as const, diaSemana: 1 },
+      ],
+    }
+    expect(proximosRegistros(config, [dia("2026-09-24", 81, null)], [], "2026-09-24")).toEqual([
+      { indicador: "pasos", fecha: "2026-09-24" },
+      { indicador: "peso", fecha: "2026-09-25" },
+      { indicador: "cintura", fecha: "2026-09-28" },
+    ])
+  })
+
+  it("deja neutral el peso sin objetivo e interpreta dirección y rango pautados", () => {
+    expect(sentidoDelPeso(null, 90, 88)).toBe("neutral")
+    const bajar = { direccion: "bajar" as const, rangoKg: { minimo: 80, maximo: 85 } }
+    expect(sentidoDelPeso(bajar, 90, 88)).toBe("favorable")
+    expect(sentidoDelPeso(bajar, 90, 79)).toBe("desfavorable")
+    expect(
+      sentidoDelPeso({ direccion: "mantener", rangoKg: { minimo: 80, maximo: 85 } }, 82, 83),
+    ).toBe("favorable")
+  })
   it("media con un decimal, ignorando días sin dato", () => {
     expect(media([112.1, 112.1, 112.3, null])).toBe(112.2)
     expect(media([null])).toBeNull()

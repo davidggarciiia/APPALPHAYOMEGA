@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { fireEvent, render, screen } from "@testing-library/react-native"
 import type { DietaPublicada, DocumentoDieta } from "@alpha-omega/shared"
 import type { AlmacenLocal } from "../entrenamiento/almacen-local"
 import { ErrorDeRed } from "../lib/http"
 import type { ApiNutricion } from "./api"
 import { VistaDieta } from "./vista-dieta"
+
+jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
@@ -163,7 +165,7 @@ it("muestra alternativas, intercambio e indicaciones tal como se escribieron", a
   expect(screen.getByText("60 g")).toBeOnTheScreen()
   expect(screen.getByText("Pieza de fruta")).toBeOnTheScreen()
   expect(screen.getByText("al gusto")).toBeOnTheScreen()
-  expect(screen.getByText("Elige un alimento de cada columna y combínalos.")).toBeOnTheScreen()
+  expect(screen.getByText("Elige un alimento de cada grupo y combínalos.")).toBeOnTheScreen()
   expect(screen.getByRole("header", { name: "Cómo seguir el plan" })).toBeOnTheScreen()
 })
 
@@ -194,8 +196,9 @@ it("sin conexión enseña la última copia y, si no hay, pide conexión", async 
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
   expect(await screen.findByText(/Sin conexión · copia del/)).toBeOnTheScreen()
-  // Sin conexión se ve la dieta, pero no se marca nada.
-  expect(screen.getByRole("checkbox", { name: "Desayuno hecha" })).toBeDisabled()
+  // Sin conexión se ve la dieta y se puede consultar el plato; no se marca desde el resumen.
+  expect(screen.getByRole("button", { name: /^Desayuno, ahora: / })).toBeOnTheScreen()
+  expect(screen.queryByRole("checkbox", { name: "Desayuno hecha" })).toBeNull()
   await sinRed.unmount()
 
   await render(
@@ -209,16 +212,11 @@ it("sin conexión enseña la última copia y, si no hay, pide conexión", async 
   expect(await screen.findByText(/Necesitas conexión para descargar tu dieta/)).toBeOnTheScreen()
 })
 
-it("marca una comida como hecha y la cuenta en el progreso", async () => {
+it("abre la elección de comida sin registrarla desde el círculo del resumen", async () => {
   jest.useFakeTimers()
   jest.setSystemTime(new Date("2026-09-21T08:30:00Z")) // lunes 10:30 en Madrid
-  const registrarComida = jest.fn(async (_c: string, fecha: string, comidaId: string) => ({
-    fecha,
-    comidaId,
-    dietaId: publicada().id,
-    eleccion: { tipo: "hecha" as const },
-    registradaEn: "2026-09-21T08:30:00.000Z",
-  }))
+  const registrarComida = jest.fn()
+  const abrirComida = jest.fn()
   await render(
     <VistaDieta
       clienteId={CUENTA}
@@ -228,16 +226,14 @@ it("marca una comida como hecha y la cuenta en el progreso", async () => {
         registrarComida,
       }}
       almacen={almacenEnMemoria()}
+      abrirComida={abrirComida}
     />,
   )
   expect(await screen.findByText("Dieta de tu nutricionista")).toBeOnTheScreen()
   expect(screen.getByRole("button", { name: /^Desayuno, ahora: / })).toBeOnTheScreen()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Desayuno hecha" }))
-  await waitFor(() => expect(screen.getByText("1 de 2")).toBeOnTheScreen())
-  expect(registrarComida).toHaveBeenCalledWith(
-    CUENTA,
-    "2026-09-21",
-    "00000000-0000-4000-8000-000000000010",
-    { dietaId: publicada().id, eleccion: { tipo: "hecha" } },
-  )
+  expect(screen.queryByRole("checkbox", { name: "Desayuno hecha" })).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: /^Desayuno, ahora: / }))
+  expect(abrirComida).toHaveBeenCalledWith(documento().tiposDeDia[0]?.comidas[0])
+  expect(registrarComida).not.toHaveBeenCalled()
+  expect(screen.getByText("0 de 2")).toBeOnTheScreen()
 })

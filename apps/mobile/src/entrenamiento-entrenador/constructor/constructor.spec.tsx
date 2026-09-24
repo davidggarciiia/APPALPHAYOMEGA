@@ -13,6 +13,7 @@ import { ConstructorPlan } from "./constructor"
 jest.mock("expo-crypto", () => ({
   randomUUID: jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID,
 }))
+jest.mock("../../componentes/iconos", () => ({ Icono: () => null }))
 jest.mock("../../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 jest.mock("../../catalogo-ejercicios/figura-ejercicio", () => ({
   useAccesoAFiguras: () => ({
@@ -83,6 +84,15 @@ it("arma un día con la tabla del diseño y publica el plan con su bloque", asyn
   // Press banca desde la biblioteca, en la parte principal.
   await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
   await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca con barra" }))
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Press banca con barra: editar detalles" }),
+  )
+  await fireEvent.press(
+    screen.getByRole("button", { name: "RIR cada serie de Press banca con barra" }),
+  )
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Con carga externa de Press banca con barra" }),
+  )
   await fireEvent.changeText(screen.getByLabelText("Series de Press banca con barra"), "4")
   await fireEvent.changeText(screen.getByLabelText("Repeticiones de Press banca con barra"), "6")
   await fireEvent.changeText(screen.getByLabelText("RIR de Press banca con barra"), "3")
@@ -105,7 +115,12 @@ it("arma un día con la tabla del diseño y publica el plan con su bloque", asyn
   const sesion = datos.patron.sesiones[0]!
   expect(sesion).toEqual(expect.objectContaining({ nombre: "Empuje", duracion: "100–115 min" }))
   expect(sesion.ejercicios[0]).toEqual(
-    expect.objectContaining({ rir: { min: 3, max: 3 }, subidaKg: 2.5 }),
+    expect.objectContaining({
+      rir: { min: 3, max: 3 },
+      modoRir: "cadaSerie",
+      tipoCarga: "conCargaExterna",
+      subidaKg: 2.5,
+    }),
   )
   expect(sesion.ejercicios[0]!.series).toHaveLength(4)
   expect(sesion.ejercicios[0]!.series[0]).toEqual(

@@ -107,4 +107,21 @@ describe("Hoy toca", () => {
     expect(screen.getByText("Descanso")).toBeTruthy()
     expect(screen.queryByRole("button")).toBeNull()
   })
+
+  it("una sesión enviada ofrece ver su resumen", async () => {
+    await render(
+      <TarjetaHoy
+        sesion={{
+          ...resumen,
+          agenda: { ...agenda, estado: "cerrada" },
+          enviadoEn: "2026-09-24T12:00:00.000Z",
+        }}
+        sinSesion="Trabajo completado"
+        hoy={HOY}
+        abrir={jest.fn()}
+      />,
+    )
+    expect(screen.getByRole("button", { name: "Ver resumen Empuje y pierna" })).toBeTruthy()
+    expect(screen.getByRole("header", { name: "Completado:" })).toBeTruthy()
+  })
 })

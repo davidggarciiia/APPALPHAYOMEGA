@@ -287,8 +287,9 @@ implementación y el plan recogerá el comando exacto.
    sus registros o notas.
 3. Una sesión se mueve dentro de su semana, conserva sus datos y el entrenador
    ve el cambio. Un movimiento a otra semana se rechaza.
-4. Una serie muestra los objetivos tenues; sin escribir nada, no cuenta como
-   realizada ni puede convertirse en un registro válido por marcarla.
+4. Una serie muestra los objetivos tenues; sin marcarla no cuenta como
+   realizada. Al marcar «Hecha» sin escribir otros valores, se registran como
+   ejecución los objetivos pautados y ambas capas permanecen diferenciadas.
 5. El cliente introduce valores diferentes del objetivo; se conservan ambos
    sin sustituir la prescripción.
 6. Una serie por repeticiones y otra por tiempo se guardan y muestran con sus
@@ -340,17 +341,20 @@ nuevas y el alcance mínimo del catálogo y la agenda. Aprobarlas permite planif
 las migraciones necesarias para este recorrido. Las dependencias concretas se
 presentarán en el plan, después de comprobar compatibilidad.
 
-**Nunca:** copiar valores objetivo como si se hubieran registrado, publicar un
+**Nunca:** copiar valores objetivo como ejecución sin que el cliente marque «Hecha», publicar un
 borrador, mostrar un envío sin confirmación del servidor, sobrescribir otro
 cliente al adaptar una rutina, registrar valores personales en logs o dar por
 terminados módulos cuyo alcance restante sigue pendiente.
 
-## Continuación del flujo
+## Iteración de experiencia del cliente (24-09-2026)
 
-David ha aprobado esta especificación, `SPEC-agenda.md` y la ubicación separada
-del nuevo plan. El borrador del catálogo se mantiene como fuente de su módulo.
+El [plan vigente](tasks/plan.md) y sus [tareas](tasks/todo.md) amplían esta
+especificación: sesión guiada por ejercicio, registro de omisiones y RIR
+configurable, tiempo activo con pausa al salir, entrega con estado visible y
+revisión explícita del entrenador. El cliente sigue pudiendo cambiar de día
+dentro de la semana; el entrenador ve el cambio. Las propuestas automáticas de
+progresión se reservan para el panel profesional.
 
-El [plan de esta iteración](tasks/entrenamiento/plan.md) y sus
-[tareas](tasks/entrenamiento/todo.md) viven en `tasks/entrenamiento/`.
-Los archivos `tasks/plan.md` y `tasks/todo.md` conservan el seguimiento pendiente
-de identidad. El plan nuevo se revisa antes de implementar.
+Los planes y pendientes anteriores están en el
+[archivo de planes](tasks/planes%20antiguos/2026-09-24/INDEX.md), conservados
+como histórico y sin darlos por terminados.

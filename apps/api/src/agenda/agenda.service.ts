@@ -16,6 +16,7 @@ import {
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { agendaPublica, fechaSql, lunesDeSemana } from "./fechas.js"
+import { registrarNovedad } from "../entrenamiento/novedades.js"
 
 @Injectable()
 export class AgendaService {
@@ -71,6 +72,13 @@ export class AgendaService {
           fechaNueva: nueva.fechaActual,
           autorId: actor.sub,
         },
+      })
+      await registrarNovedad(tx, {
+        sesionId: id,
+        clienteId: fila.clienteId,
+        autorId: actor.sub,
+        audiencia: actor.rol === "cliente" ? "entrenador" : "cliente",
+        tipo: "fecha_cambiada",
       })
       return agendaPublica(nueva)
     })

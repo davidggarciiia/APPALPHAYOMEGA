@@ -61,3 +61,13 @@ it("acepta coma decimal y tiempo sin peso, conservando lo escrito al desmarcar",
     hecha: false,
   })
 })
+it("conserva la omisión y el tiempo activo sin convertir pendientes en omitidas", () => {
+  const edicion = desdePrescripcion(prescripcion)
+  edicion.series[0]!.omitida = true
+  edicion.tiempoActivoSegundos = 95
+  const registro = registroParaEnviar(prescripcion, edicion)
+  expect(registro.tiempoActivoSegundos).toBe(95)
+  expect(registro.series[0]).toMatchObject({ hecha: false, omitida: true })
+  expect(registro.series[1]?.omitida).toBeUndefined()
+  expect(desdePrescripcion(prescripcion, registro).series[0]?.omitida).toBe(true)
+})
