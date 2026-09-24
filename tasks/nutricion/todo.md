@@ -4,6 +4,13 @@
 > Los identificadores N son de este módulo. Las tareas de Codex se marcan como tales.
 > Ninguna tarea se marca hecha sin su verificación.
 
+**Estado a 24-09:** todo el código de N00–N12 está hecho, con sus pruebas en
+verde y el recorrido HTTP de N12 (28/28). Siguen sin marcar las tareas cuya
+verificación exige ver pantallas o un móvil: N04, N05b, N06, N07, N09 y N11
+(revisión o recorrido web), N10 y N12 (dispositivo físico) y los checkpoints de
+revisión de David. N00 y N11 los hizo Fable por encargo de David; su SHA está en
+`tasks/iteracion-3/entrega-fable.md`, no en `integracion.md`, que es de Codex.
+
 Comandos comunes, desde la raíz del worktree:
 
 ```bash
@@ -20,7 +27,7 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
 ## Fase 0 · Base común
 
-- [ ] **N00 (Codex, C09): contrato, modelo, migración y esqueleto**
+- [x] **N00 (Codex, C09): contrato, modelo, migración y esqueleto**
 
   Publica lo propuesto en `plan.md`: `packages/shared/src/nutricion.ts`, el
   modelo `Dieta`, la migración aditiva con los dos índices únicos parciales y
@@ -36,11 +43,11 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
 ### Checkpoint 0
 
-- [ ] Fable ha revisado el contrato publicado y rebasado su rama sobre ese SHA.
+- [x] Fable ha revisado el contrato publicado y rebasado su rama sobre ese SHA.
 
 ## Fase 1 · API
 
-- [ ] **N01: guardar y leer el borrador**
+- [x] **N01: guardar y leer el borrador**
 
   `GET` y `PUT /nutricion/clientes/:clienteId/borrador`, con `@Roles` y
   `AlcanceClienteGuard`. La revisión `0` crea; cualquier otra actualiza si coincide.
@@ -62,7 +69,7 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
   **Dependencias:** N00 · **Alcance:** M
 
-- [ ] **N02: publicar, descartar y leer la vigente**
+- [x] **N02: publicar, descartar y leer la vigente**
 
   `POST .../borrador/publicar`, `POST .../borrador/descartar` y
   `GET .../dieta`. Publicar archiva la vigente dentro de la misma transacción.
@@ -84,7 +91,7 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
   **Dependencias:** N01 · **Alcance:** M
 
-- [ ] **N03: histórico del profesional**
+- [x] **N03: histórico del profesional**
 
   `GET .../historico`, paginado y con el total, y `GET .../dietas/:dietaId`.
 
@@ -102,9 +109,9 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
 ### Checkpoint 1 — API
 
-- [ ] `npm test`, los tests HTTP de nutrición y los de identidad en verde; typecheck,
+- [x] `npm test`, los tests HTTP de nutrición y los de identidad en verde; typecheck,
       lint y build.
-- [ ] Matriz de permisos de la spec cubierta con una prueba por cada «No».
+- [x] Matriz de permisos de la spec cubierta con una prueba por cada «No».
 
 ## Fase 2 · Tramo «solo objetivos»
 
@@ -127,7 +134,7 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
   **Dependencias:** N02 · **Alcance:** M
 
-- [ ] **N05a: modelo del editor**
+- [x] **N05a: modelo del editor**
 
   Funciones puras: documento nuevo, añadir y quitar tipos de día, asignar la
   semana, editar objetivos y convertir a `DocumentoDietaSchema`.
@@ -213,7 +220,7 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
   **Dependencias:** N06 · **Alcance:** M
 
-- [ ] **N08: indicaciones generales**
+- [x] **N08: indicaciones generales**
 
   Secciones de título y texto («Cómo seguir el plan», «Recomendaciones») en el
   editor y al final de la vista del cliente.
@@ -304,5 +311,5 @@ Los tests HTTP usan una base de pruebas propia, nunca la base demo.
 
 ### Checkpoint final
 
-- [ ] `npm test`, tests HTTP completos, typecheck, lint y build en el SHA integrado.
+- [x] `npm test`, tests HTTP completos, typecheck, lint y build en el SHA integrado.
 - [ ] Revisión de David y de Codex (C07) del módulo.

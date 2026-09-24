@@ -6,6 +6,11 @@ Solo lo escribe Fable. Codex revisa e integra.
 Desde el 24-09 este archivo vive solo en el worktree de Fable. La copia sin
 seguimiento que dejé en la carpeta de Codex se trasladó aquí y se borró allí.
 
+**Resumen para integrar (24-09):** el plan está completo en código y verificado
+por HTTP; lo que falta es visual o físico (ver «F05 — Entrega para integración»,
+al final). La rama `codex/fable-iteracion-3` está rebasada sobre
+`codex/entrenamiento-iteracion-2` (`bb0af41`), sin push ni merge.
+
 ## F00 — Punto de partida (2026-09-23)
 
 **Estado:** hecha.
@@ -48,8 +53,8 @@ de reparto de `plan.md`.
 
 ## F01 — Figuras de ejercicios
 
-**Estado:** fuentes decididas por David; falta que Codex acuerde el contrato en
-C05. No se ha comprado nada ni se ha abierto ninguna cuenta.
+**Estado:** hecha. Implementada en F02–F03b (abajo). No se ha comprado nada ni
+se ha abierto ninguna cuenta.
 
 ### Decisiones de David (23 y 24-09)
 
@@ -197,11 +202,12 @@ Con Vital es `true`; con MoveKit, `false`.
 
 ### Pendiente
 
-- Codex: acordar el contrato, la entrega y la dependencia `expo-video` en C05, y
-  comprobar en la base demo los ids de Sentadilla con barra y Dominadas.
+- C05 lo hizo Fable por encargo de David (ver F02–F04); Codex lo revisa.
+- Asociar las figuras a los ejercicios de la base demo lo hace el entrenador
+  desde la ficha; no se ha tocado la base demo.
 - Guardar copia con fecha de la página del paquete gratuito y del EULA de Vital
-  junto a los archivos, cuando exista el almacenamiento.
-- Hecho en `1865449`: `docs/animaciones-ejercicios.md` recoge la decisión vigente.
+  junto a los archivos importados.
+- `docs/animaciones-ejercicios.md` recoge la decisión y cómo importar.
 
 ## F06 — Especificación de nutrición
 
@@ -250,7 +256,8 @@ copió al repositorio y los ejemplos de la especificación son inventados.
 
 **Estado:** plan escrito en [tasks/nutricion/plan.md](../nutricion/plan.md) y
 tareas en [tasks/nutricion/todo.md](../nutricion/todo.md). **Aprobado por David el
-24-09.** Pendiente de que Codex publique N00.
+24-09.** Implementado entero (ver «Nutrición N00–N12»), N00 y N11 incluidos por
+encargo de David.
 
 **Cómo se hizo:** con `planning-and-task-breakdown`. Hay 13 tareas (N00–N12) en
 tramos verticales:
@@ -279,8 +286,9 @@ tramos verticales:
 
 ## F08 — Diseño de las vistas de entrenamiento
 
-**Estado:** código hecho en `dc2b428`; **falta la comprobación visual con la API
-real**, porque Docker está apagado y no hay base de datos.
+**Estado:** código hecho en `393df77` (antes `dc2b428`). Con Docker ya en marcha,
+el borrador y el resultado se comprobaron por HTTP (F09). **Falta la revisión
+visual**, que requiere iniciar sesión en la app: queda en el guion para David.
 
 **Qué cambia:** solo `agenda-semanal.tsx`, `tabla-series.tsx`,
 `registro-cliente.tsx` y `resultado.tsx`, con los tokens de C01 y siguiendo
@@ -311,5 +319,143 @@ en la copia de Fable.
 - Guardar y reabrir un borrador sintético.
 - Consultar un resultado ya enviado.
 
-Todo eso necesita Docker encendido, una base de pruebas propia de Fable y la API
-en el puerto 3100 con Metro en el 8181.
+El guion está en [pruebas-entrenamiento-fable.md](pruebas-entrenamiento-fable.md).
+
+**Referencia nueva sin aplicar:** en la carpeta de Codex apareció
+`Alpha & Omega · Pantallas con el plan.html` (sin seguimiento). Tiene 14 pantallas
+(cliente: inicio, añadir deporte, check-in, sesión en curso, técnica del ejercicio,
+registrar molestia, cierre de sesión, plan, guía, nutrición y progreso; entrenador:
+ficha y constructor de planes; nutricionista: ficha) con un estilo oscuro distinto
+de la v2. F08 sigue la v2 que marca el plan, y varias de esas pantallas describen
+funciones que no están en ningún plan. Si David quiere que sea la nueva
+referencia, hay que decidirlo antes de rehacer vistas.
+
+## F02–F04 — Figuras en la app
+
+**Estado:** hecho y probado por HTTP y en componentes. Falta la prueba física
+sin conexión (F04, en el guion de F10).
+
+| Commit    | Qué                                                                                                                                                                              |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `db1738e` | **C05 (zona de Codex):** tabla `contenidos_de_ejercicio` (una figura y un vídeo por ejercicio, clave del índice, origen y licencia), con una reversión que no borra asociaciones |
+| `1975a54` | **F02:** contrato `figura` (zona de Codex), índice de 52 medios, importador con ffmpeg a `MEDIOS_DIR` y las rutas de medios, asignación, vídeo y póster                          |
+| `bfadf2b` | `expo-video` 57.0.4 con `npx expo install` (package.json, lockfile y app.json: zona de Codex). Un paquete MIT sin dependencias nuevas                                            |
+| `5e6b81f` | **F03:** reproductor y selector del entrenador en la ficha                                                                                                                       |
+| `0172761` | **F03b:** «Ver técnica» en el registro del cliente, con la ficha guardada para verla sin red                                                                                     |
+| `78fe623` | Documentación y `MEDIOS_DIR` en `.env.example` (zona común)                                                                                                                      |
+| `9e3600f` | Tipado de la prueba e2e para el typecheck del monorepo                                                                                                                           |
+
+**Decisiones de diseño:**
+
+- Los MP4 no entran en el repo: el EULA de Vital prohíbe redistribuirlos. La API
+  sirve solo medios del índice, por id de ejercicio y tras comprobar el rol;
+  nunca una URL ni una ruta que venga de fuera.
+- En Android e iOS el reproductor lleva la cabecera `Authorization` y caché solo
+  para Vital. En web `expo-video` no admite cabeceras: se descarga con `fetch` y se
+  reproduce un blob que se libera al salir.
+- La versión del medio va en la dirección, así que cambiar de figura invalida la
+  caché del móvil.
+- El clip va en bucle, silenciado y con botón de pausa (WCAG 2.2.2). Si el
+  sistema pide menos movimiento, empieza parado. Se para al salir de la pantalla.
+- **Sin conexión:** se usa la caché del reproductor, que el sistema puede vaciar.
+  No hay almacenamiento propio garantizado, y la app y la documentación lo dicen
+  así. Si David quiere garantía, es una tarea aparte.
+
+**Verificación:** 12 pruebas HTTP de figuras y 4 unitarias del índice; 10 del
+reproductor, 7 del selector y 5 de «Ver técnica». Contra la API real con los 52
+clips: 11 de 11 comprobaciones (vídeo de 256 KB, rangos 206, póster y
+denegaciones). Los bundles web y Android compilan.
+
+## Nutrición N00–N12
+
+**Estado:** implementada entera. Falta la revisión visual de David (checkpoints 2
+y 3 del plan) y la prueba en dispositivo del modo sin conexión.
+
+| Commit    | Tareas                                                                                                                                                                                            |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `84ae10f` | **N00 (zona de Codex):** contrato, modelo `Dieta`, migración con CHECK y reversión. Sin índices parciales (Prisma los ve como deriva): la unicidad la garantiza un bloqueo de la fila del cliente |
+| `ed2052e` | N01–N03: borrador, publicación idempotente, descarte, vigente e histórico                                                                                                                         |
+| `0cb121c` | N04–N09: vista del cliente (Hoy y Semana), editor con alternativas, intercambio, indicaciones y duplicados, panel del profesional e histórico                                                     |
+| `d21e9b0` | N10 y **N11 (zona de Codex):** copia cifrada sin conexión, pestaña «Dieta», botón en la ficha y filas de «Mis clientes»                                                                           |
+| `50fd8de` | Correos en minúsculas en las cuentas de prueba                                                                                                                                                    |
+| `6c6918a` | N12: recorrido HTTP reproducible (`tasks/iteracion-3/recorrido-n12.mjs`)                                                                                                                          |
+
+**N12, trazado de los 15 criterios de la spec:**
+
+| Criterio                                     | Prueba                                                                 |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| 1 Borrador invisible para el cliente         | e2e «el cliente no ve el borrador y sí la dieta…»; recorrido           |
+| 2 Publicar y archivar                        | e2e «una segunda publicación archiva la primera»; histórico; recorrido |
+| 3 El cliente B no ve al A                    | e2e de permisos; recorrido (403 en dieta, borrador e histórico)        |
+| 4 El cliente no escribe                      | e2e de permisos; recorrido                                             |
+| 5 Nutricionista con y sin asignación, y baja | e2e «pierde el acceso al retirarle la asignación»; recorrido           |
+| 6 Empleado y sin sesión                      | e2e; recorrido (403 y 401 en las seis rutas)                           |
+| 7 Revisión obsoleta                          | e2e del borrador; recorrido                                            |
+| 8 Publicación idempotente                    | e2e, incluida la carrera; recorrido                                    |
+| 9 «Hoy» en Madrid de domingo a lunes         | `vista-dieta.spec.tsx`                                                 |
+| 10 Números opcionales y límites              | pruebas del contrato; recorrido                                        |
+| 11 Cantidades en texto libre                 | contrato; `vista-dieta.spec.tsx`; recorrido                            |
+| 12 Sin conexión y cambio de cuenta           | `vista-dieta.spec.tsx` (copia y aviso); **dispositivo pendiente**      |
+| 13 Baja y pendiente                          | e2e del borrador; recorrido (histórico conservado)                     |
+| 14 Nada de la dieta en los registros         | recorrido con marcador único: 0 apariciones en el registro de la API   |
+| 15 Solo objetivos                            | contrato; editor; recorrido                                            |
+
+Recorrido N12 contra la API real (24-09, puerto 3101): **28 de 28 pasos** y
+limpieza completa.
+
+## F09 y F10 — Pruebas de entrenamiento
+
+Detalle en [pruebas-entrenamiento-fable.md](pruebas-entrenamiento-fable.md).
+
+- **F09:** recorrido HTTP de catálogo, rutinas, planes, agenda, registro y
+  resultados con cuentas sintéticas: **29 de 29**, reproducible con
+  `tasks/iteracion-3/recorrido-f09.mjs`. Sin defectos en catálogo, rutinas ni
+  resultados. La revisión en pantalla queda en el guion para David.
+- **F10:** sin dispositivo en esta sesión. El guion para Android e iOS está
+  preparado; no se sustituye por una prueba web.
+
+## F05 — Entrega para integración
+
+**Rama:** `codex/fable-iteracion-3`, 22 commits sobre `bb0af41`. SHA previo al
+rebase: `0107015`.
+
+**Verificación en el estado integrado (24-09):**
+
+| Comando                                       | Resultado                                 |
+| --------------------------------------------- | ----------------------------------------- |
+| `npm run typecheck`                           | OK                                        |
+| `npm run lint`                                | OK                                        |
+| `npm test`                                    | API 14 suites / 89; móvil 24 suites / 136 |
+| `npm run test:e2e`                            | 25 suites / 289                           |
+| `prisma migrate diff` (esquema frente a base) | Sin diferencias                           |
+
+**Commits en zona de Codex, para revisar:** `84ae10f` (contrato, modelo y
+migración de nutrición), `d21e9b0` (`_layout.tsx`, `armazon.tsx`, ficha del
+cliente y «Mis clientes»), `0a2bd82` (`direccion-api.ts`: puerto de desarrollo
+configurable), `db1738e` y `1975a54` (Prisma y contrato de figuras), `bfadf2b`
+(dependencia) y `78fe623` (`.env.example`). David pidió cerrar el plan entero,
+incluidas estas piezas.
+
+**Para Codex:**
+
+1. `carrera-refresco.e2e-spec.ts` falló una vez con toda la suite e2e en marcha
+   y aislado pasa 3 de 3. Parece intermitente bajo carga.
+2. Las migraciones `20260924010000_nutricion` y `20260924020000_figuras_de_ejercicio`
+   solo se han aplicado en `alpha_omega_fable_i3`. La base demo no se ha tocado.
+3. Para tener figuras hay que importar los clips a un `MEDIOS_DIR` privado
+   (`docs/animaciones-ejercicios.md`). Sin él, el catálogo funciona sin figuras.
+
+**Entorno que dejo en marcha** (procesos míos, se pueden cerrar): la API antigua
+en el 3100, la nueva en el 3101, Metro web en el 8181 y un servidor estático en
+el 8765. No pude pararlos porque el sistema de permisos lo denegó.
+
+**Pendiente, con dueño:**
+
+| Qué                                                                  | Dueño                      |
+| -------------------------------------------------------------------- | -------------------------- |
+| Revisión visual de F08, figuras y nutrición (guion)                  | David                      |
+| Prueba física en Android e iOS: F10, F04 y criterio 12 de nutrición  | David, con el guion        |
+| Revisión de los commits en su zona e integración (C07)               | Codex                      |
+| Decidir si `Pantallas con el plan.html` pasa a ser la referencia     | David                      |
+| Almacenamiento propio si hace falta garantía sin conexión en figuras | David decide; tarea aparte |
+| Pregunta abierta de la spec: adjuntar el PDF de la dieta             | David                      |
