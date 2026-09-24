@@ -41,7 +41,7 @@ type Operacion = "subir" | "leer"
 
 export type PermisoLocal = { operacion: Operacion; tipoMime: FormatoFoto; bytes: number }
 
-const CLAVE_VALIDA = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/
+export const CLAVE_VALIDA = /^[a-z0-9-]+(\/[a-z0-9-]+)*$/
 
 /**
  * Implementación local para desarrollo y pruebas. Los objetos viven en un
