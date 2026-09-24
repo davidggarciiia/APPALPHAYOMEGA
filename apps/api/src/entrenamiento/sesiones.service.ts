@@ -2,19 +2,35 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import {
   BorradorSchema,
   PrescripcionSchema,
+  ResultadoEntrenamientoSchema,
   SesionClienteSchema,
   SesionEntrenadorSchema,
+  type ListadoAnteriores,
   type ListadoSesiones,
+  type ValoresEjecutados,
   type SesionCliente,
   type SesionEntrenador,
 } from "@alpha-omega/shared"
-import type { Prisma } from "@prisma/client"
+import { Prisma } from "@prisma/client"
 import { agendaPublica, fechaSql, sumarDias } from "../agenda/fechas.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { leerDocumento } from "./documentos.js"
 
 export type FilaSesion = Prisma.SesionEntrenamientoGetPayload<{ include: { agenda: true } }>
+
+const DbNull = Prisma.DbNull
+
+function cantidad(v: ValoresEjecutados): number {
+  return v.tipoMedicion === "tiempo" ? v.segundos : v.repeticiones
+}
+
+function mejorSerie(a: ValoresEjecutados, b: ValoresEjecutados): ValoresEjecutados {
+  const cargaA = a.pesoKg ?? 0
+  const cargaB = b.pesoKg ?? 0
+  if (cargaA !== cargaB) return cargaA > cargaB ? a : b
+  return cantidad(b) > cantidad(a) ? b : a
+}
 
 @Injectable()
 export class SesionesService {
@@ -82,6 +98,51 @@ export class SesionesService {
               : leerDocumento(fila.borrador, BorradorSchema, fila.version),
         })
       : publica
+  }
+
+  /**
+   * Para cada ejercicio de la sesión, la mejor serie hecha la última vez que el
+   * cliente lo envió en otra sesión (más carga; a igual carga, más repeticiones).
+   */
+  async anteriores(identidad: IdentidadVerificada, id: string): Promise<ListadoAnteriores> {
+    const fila = await this.fila(this.prisma, identidad, id)
+    const buscados = new Set(
+      leerDocumento(fila.prescripcion, PrescripcionSchema, fila.version).ejercicios.map(
+        (e) => e.ejercicioId,
+      ),
+    )
+    const enviadas = await this.prisma.sesionEntrenamiento.findMany({
+      where: { clienteId: fila.clienteId, id: { not: id }, resultado: { not: DbNull } },
+      orderBy: { enviadoEn: "desc" },
+      take: 60,
+      select: { resultado: true, version: true },
+    })
+    const anteriores: ListadoAnteriores["anteriores"] = []
+    for (const enviada of enviadas) {
+      const resultado = leerDocumento(
+        enviada.resultado,
+        ResultadoEntrenamientoSchema,
+        enviada.version,
+      )
+      const hechas = new Map(
+        resultado.series.flatMap((s) => (s.hecha ? [[s.serieId, s.valores] as const] : [])),
+      )
+      for (const ejercicio of resultado.prescripcion.ejercicios) {
+        if (!buscados.has(ejercicio.ejercicioId)) continue
+        const valores = ejercicio.series
+          .map((serie) => hechas.get(serie.id))
+          .filter((v): v is ValoresEjecutados => v !== undefined)
+        if (valores.length === 0) continue
+        buscados.delete(ejercicio.ejercicioId)
+        anteriores.push({
+          ejercicioId: ejercicio.ejercicioId,
+          fecha: resultado.enviadoEn,
+          valores: valores.reduce(mejorSerie),
+        })
+      }
+      if (buscados.size === 0) break
+    }
+    return { anteriores }
   }
 
   async semana(

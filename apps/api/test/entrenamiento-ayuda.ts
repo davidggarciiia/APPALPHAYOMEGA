@@ -37,6 +37,7 @@ export async function entornoEntrenamiento(nombre: string): Promise<{
     })
     const sesionId = { in: sesiones.map((fila) => fila.id) }
     await prisma.$transaction([
+      prisma.molestia.deleteMany({ where: { sesionId } }),
       prisma.operacionEntrenamiento.deleteMany({ where: { sesionId } }),
       prisma.referenciaEjercicio.deleteMany({ where: { sesionId } }),
       prisma.cambioDeFecha.deleteMany({ where: { sesionId } }),

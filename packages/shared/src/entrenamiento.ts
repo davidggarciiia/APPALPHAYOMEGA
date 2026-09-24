@@ -400,3 +400,15 @@ export const ResultadoEntrenamientoSchema = z
     )
   }, "El resultado debe representar cada serie prescrita, con ejecución válida u omisión explícita")
 export type ResultadoEntrenamiento = z.infer<typeof ResultadoEntrenamientoSchema>
+
+/** «Anterior 65 kg × 6»: la mejor serie hecha la última vez de cada ejercicio. */
+export const AnteriorSchema = z.strictObject({
+  ejercicioId: z.uuid(),
+  fecha: z.iso.datetime(),
+  valores: ValoresEjecutadosSchema,
+})
+export type Anterior = z.infer<typeof AnteriorSchema>
+export const ListadoAnterioresSchema = z.strictObject({
+  anteriores: z.array(AnteriorSchema).max(40),
+})
+export type ListadoAnteriores = z.infer<typeof ListadoAnterioresSchema>

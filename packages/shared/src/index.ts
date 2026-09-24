@@ -5,6 +5,7 @@ export * from "./agenda"
 export * from "./entrenamiento"
 export * from "./errores-api"
 export * from "./nutricion"
+export * from "./molestias"
 
 /**
  * Vocabulario y contratos compartidos por la app y el servidor.

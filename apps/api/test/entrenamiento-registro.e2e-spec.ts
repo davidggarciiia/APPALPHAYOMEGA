@@ -4,6 +4,7 @@ import { SesionesService } from "../src/entrenamiento/sesiones.service.js"
 import request from "supertest"
 import {
   BorradorSchema,
+  ListadoAnterioresSchema,
   PlanAsignadoSchema,
   ResultadoEntrenamientoSchema,
   type GuardarBorrador,
@@ -135,6 +136,49 @@ describe("Borrador privado y envío atómico", () => {
       .set(como("entrenador"))
       .send(rango)
       .expect(400)
+  })
+
+  it("da la mejor serie de la última vez de cada ejercicio, solo a quien ve la sesión", async () => {
+    const { app, como } = entorno
+    const primera = await preparar()
+    const series = primera.borrador.registro.series
+    await request(app.getHttpServer())
+      .post(`${primera.base}/enviar`)
+      .set(como("cliente"))
+      .send({
+        ...primera.borrador,
+        registro: {
+          ...primera.borrador.registro,
+          series: [
+            { ...series[0]!, pesoKg: 25, repeticiones: 6 },
+            { ...series[1]!, hecha: true, segundos: 40 },
+          ],
+        },
+      })
+      .expect(200)
+    const segunda = await preparar()
+    const respuesta = await request(app.getHttpServer())
+      .get(`${segunda.base}/anteriores`)
+      .set(como("cliente"))
+      .expect(200)
+    const anteriores = ListadoAnterioresSchema.parse(respuesta.body).anteriores
+    expect(anteriores).toHaveLength(1)
+    expect(anteriores[0]).toMatchObject({
+      ejercicioId: entorno.ids.ejercicio,
+      valores: { tipoMedicion: "repeticiones", pesoKg: 25, repeticiones: 6 },
+    })
+    await request(app.getHttpServer())
+      .get(`${segunda.base}/anteriores`)
+      .set(como("entrenador"))
+      .expect(200)
+    await request(app.getHttpServer())
+      .get(`${segunda.base}/anteriores`)
+      .set(como("otro"))
+      .expect(404)
+    await request(app.getHttpServer())
+      .get(`${segunda.base}/anteriores`)
+      .set(como("nutricionista"))
+      .expect(403)
   })
 
   it("sincroniza solo para el propietario sin filtrar valores al entrenador", async () => {

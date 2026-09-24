@@ -74,6 +74,9 @@ model Usuario {
   dietasCreadas    Dieta[] @relation("DietasCreadas")
   dietasPublicadas Dieta[] @relation("DietasPublicadas")
 
+  molestias          Molestia[] @relation("MolestiasCliente")
+  molestiasAtendidas Molestia[] @relation("MolestiasAtendidas")
+
   @@map("usuarios")
 }
 
@@ -314,6 +317,7 @@ model SesionEntrenamiento {
   enviadoEn DateTime?
   referencias ReferenciaEjercicio[]
   operaciones OperacionEntrenamiento[]
+  molestias Molestia[]
   @@unique([id, clienteId])
   @@index([planId])
   @@map("sesiones_entrenamiento")
@@ -436,4 +440,46 @@ model ContenidoDeEjercicio {
 
   @@unique([ejercicioId, tipo])
   @@map("contenidos_de_ejercicio")
+}
+
+enum ZonaDeMolestia {
+  hombro
+  codo
+  muneca
+  lumbar
+  otra
+}
+
+enum EstadoMolestia {
+  abierta
+  atendida
+}
+
+/// Molestia avisada durante un entrenamiento (Design.html). La intensidad va de
+/// 0 a 10 (CHECK en la migración). El nombre del ejercicio se copia al avisar:
+/// la prescripción puede cambiar después y el aviso tiene que seguir diciendo lo mismo.
+model Molestia {
+  id                   String         @id @default(uuid())
+  clienteId            String
+  cliente              Usuario        @relation("MolestiasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  sesionId             String
+  sesion               SesionEntrenamiento @relation(fields: [sesionId, clienteId], references: [id, clienteId], onDelete: Restrict)
+  operacionId          String
+  ejercicioPrescritoId String?
+  ejercicio            String?        @db.VarChar(120)
+  serie                Int?
+  zona                 ZonaDeMolestia
+  intensidad           Int
+  sintomas             String[]
+  nota                 String?        @db.VarChar(1000)
+  estado               EstadoMolestia @default(abierta)
+  respuesta            String?        @db.VarChar(1000)
+  atendidaPorId        String?
+  atendidaPor          Usuario?       @relation("MolestiasAtendidas", fields: [atendidaPorId], references: [id], onDelete: Restrict)
+  atendidaEn           DateTime?
+  creadaEn             DateTime       @default(now())
+
+  @@unique([clienteId, operacionId])
+  @@index([clienteId, estado, creadaEn])
+  @@map("molestias")
 }

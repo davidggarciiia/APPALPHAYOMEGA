@@ -25,6 +25,7 @@ import {
   ConsultarSemanaSchema,
   type AsignarPlan,
   type ConsultarSemana,
+  type ListadoAnteriores,
   type ListadoSesiones,
   type PlanAsignado,
   type SesionCliente,
@@ -90,6 +91,15 @@ export class EntrenamientoController {
     @Body(new EntradaApiPipe(EnviarEntrenamientoSchema)) datos: EnviarEntrenamiento,
   ): Promise<ResultadoEntrenamiento> {
     return this.registros.enviar(this.actor(peticion), id, datos)
+  }
+
+  @Roles("cliente", "entrenador")
+  @Get("sesiones/:id/anteriores")
+  anteriores(
+    @Req() peticion: PeticionAutenticada,
+    @Param("id", new EntradaApiPipe(z.uuid())) id: string,
+  ): Promise<ListadoAnteriores> {
+    return this.sesiones.anteriores(this.actor(peticion), id)
   }
 
   @Roles("cliente", "entrenador")

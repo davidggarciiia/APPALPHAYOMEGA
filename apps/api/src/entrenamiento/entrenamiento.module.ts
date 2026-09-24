@@ -7,10 +7,19 @@ import { AgendaModule } from "../agenda/agenda.module.js"
 import { AjustesService } from "./ajustes.service.js"
 import { RutinasController } from "./rutinas.controller.js"
 import { RutinasService } from "./rutinas.service.js"
+import { MolestiasController } from "./molestias.controller.js"
+import { MolestiasService } from "./molestias.service.js"
 
 @Module({
   imports: [AgendaModule],
-  controllers: [EntrenamientoController, RutinasController],
-  providers: [PlanesService, SesionesService, RegistrosService, AjustesService, RutinasService],
+  controllers: [EntrenamientoController, RutinasController, MolestiasController],
+  providers: [
+    PlanesService,
+    SesionesService,
+    RegistrosService,
+    AjustesService,
+    RutinasService,
+    MolestiasService,
+  ],
 })
 export class EntrenamientoModule {}
