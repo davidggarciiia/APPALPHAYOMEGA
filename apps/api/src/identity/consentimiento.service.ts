@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common"
+import { ConflictException, Injectable } from "@nestjs/common"
+import type { Prisma } from "@prisma/client"
 import {
   VERSION_CONSENTIMIENTO,
   type AceptarConsentimiento,
@@ -35,6 +36,37 @@ export class ConsentimientoService {
       select: { retiradoEn: true },
     })
     return fila !== null && fila.retiradoEn === null
+  }
+
+  /**
+   * Con transacción, comparte el bloqueo de la fila hasta terminar la escritura.
+   * Retirar el consentimiento toma un bloqueo incompatible: o la escritura
+   * termina antes de retirarlo, o encuentra la retirada y se rechaza.
+   * El llamador debe haber comprobado antes el alcance sobre el cliente.
+   */
+  async exigirVigente(
+    clienteId: string,
+    autorId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const vigente = tx
+      ? (
+          await tx.$queryRaw<Array<{ retiradoEn: Date | null }>>`
+            SELECT "retiradoEn" FROM "consentimientos_salud"
+            WHERE "usuarioId" = ${clienteId} AND "version" = ${VERSION_CONSENTIMIENTO}
+            FOR SHARE
+          `
+        )[0]?.retiradoEn === null
+      : await this.vigente(clienteId)
+    if (!vigente)
+      throw new ConflictException({
+        statusCode: 409,
+        codigo: "consentimiento_pendiente",
+        message:
+          autorId === clienteId
+            ? "Antes de guardar datos de salud necesitamos tu consentimiento."
+            : "Este cliente aún no ha dado su consentimiento para tratar sus datos de salud.",
+      })
   }
 
   /**

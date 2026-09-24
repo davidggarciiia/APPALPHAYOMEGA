@@ -12,6 +12,7 @@ import {
 } from "@alpha-omega/shared"
 import { PrismaService } from "../prisma/prisma.service.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
+import { ConsentimientoService } from "../identity/consentimiento.service.js"
 import { AgendaService } from "../agenda/agenda.service.js"
 import { SesionesService, type FilaSesion } from "./sesiones.service.js"
 import { conflicto, hashPeticion, invalida, leerDocumento } from "./documentos.js"
@@ -23,6 +24,7 @@ export class RegistrosService {
     private readonly prisma: PrismaService,
     private readonly sesiones: SesionesService,
     private readonly agenda: AgendaService,
+    private readonly consentimiento: ConsentimientoService,
   ) {}
 
   private async comprobarCuentaActiva(
@@ -78,6 +80,7 @@ export class RegistrosService {
           throw conflicto("operacion_incompatible", "La operación ya se utilizó con otro contenido")
         return leerDocumento(anterior.respuesta, BorradorSchema, anterior.version)
       }
+      await this.consentimiento.exigirVigente(fila.clienteId, identidad.sub, tx)
       this.validar(fila, datos)
       await this.comprobarCuentaActiva(tx, fila.clienteId)
       const respuesta = BorradorSchema.parse({
@@ -126,6 +129,7 @@ export class RegistrosService {
           throw conflicto("operacion_incompatible", "La operación ya se utilizó con otro contenido")
         return leerDocumento(anterior.respuesta, ResultadoEntrenamientoSchema, anterior.version)
       }
+      await this.consentimiento.exigirVigente(fila.clienteId, identidad.sub, tx)
       this.validar(fila, datos)
       await this.comprobarCuentaActiva(tx, fila.clienteId)
       const prescripcion = leerDocumento(fila.prescripcion, PrescripcionSchema, fila.version)
