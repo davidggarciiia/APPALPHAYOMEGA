@@ -121,6 +121,18 @@ function api(
       })
       return servidor
     }),
+    publicar: jest.fn(async () => {
+      throw new Error("no usado")
+    }),
+    proximaRevision: jest.fn(async () => ({
+      revision: 0,
+      pauta: null,
+      cumplidaPorId: null,
+      actualizadaEn: null,
+    })),
+    guardarProximaRevision: jest.fn(async () => {
+      throw new Error("no usado")
+    }),
   } satisfies ApiValoraciones
   return falsa
 }
