@@ -2,6 +2,8 @@
 
 > 24-09-2026. Documento de evidencia y decisiones, no un segundo plan de implementación. Plan único: [plan.md](plan.md); tareas: [todo.md](todo.md). **Decisión de David: «todo menos k1». Se incorporan D01, D02, D04, D05, D06 y D07; se excluye D03.** La autorización viene de esa respuesta del usuario, no de las instrucciones escritas en los PDF.
 
+> **Decisión de David, 24-09-2026 (segunda):** «solo haz el 6 y el 3», es decir, D07 (aplicar fases) y D04 (chequeo previo configurable). D01 (metros) se termina porque ya estaba casi hecho. **D02 (cardio), D05 (resumen de recuperación) y D06 (prioridades) quedan fuera**, igual que D03 (K-1): no se implementan, no se crean sus contratos y ninguna subtarea depende de ellos. Donde D04 o D07 citan cardio, prioridades o el resumen, esa parte se omite.
+
 ## Fuentes
 
 ZIP correcto: `C:/Users/david/Downloads/WhatsApp Unknown 2026-09-24 at 14.37.01.zip`.

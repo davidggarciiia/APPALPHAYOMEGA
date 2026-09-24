@@ -581,6 +581,8 @@ Pendientes de próximas pasadas: comprobar el acceso desde Inicio a la cintura c
 
 ### Ampliaciones de los PDF aprobadas: D01, D02 y D04–D07
 
+**Decisión de David, 24-09-2026 (segunda):** «solo haz el 6 y el 3», es decir, D07 (aplicar fases) y D04 (chequeo previo configurable). D01 (metros) se termina porque ya estaba casi hecho. **D02 (cardio), D05 (resumen de recuperación) y D06 (prioridades) quedan fuera**, igual que D03 (K-1): no se implementan, no se crean sus contratos y ninguna subtarea depende de ellos. Donde D04 o D07 citan cardio, prioridades o el resumen, esa parte se omite.
+
 **Estado:** aprobadas para planificar, implementación pendiente. Decisión de David: «todo menos k1». Ejecutar este tramo después de E02b y antes de E03/Q. D03 no tiene tareas de implementación: no crear registro nuevo de K-1, ni importar sus datos personales. Conservar `DeporteDelPlanSchema`, el bloque «Otros deportes» y el histórico ya existente.
 
 Los documentos JSON de prescripción/registro permiten ampliar estos campos de forma compatible; no crear tablas duplicadas si no hacen falta. Antes de activar cualquier nueva unión discriminada, preparar todos sus consumidores para mantener compilación y lectura histórica. Contratos, índices de exportación y archivos compartidos siguen siendo propiedad exclusiva de Claude principal. Los nombres de campos/rutas nuevos se fijan una vez en el primer contrato de cada D y se reutilizan en API/UI.
@@ -687,6 +689,8 @@ Los documentos JSON de prescripción/registro permiten ampliar estos campos de f
 **Punto de control D1-C · D01.e–D01.g:** [ ] metros funciona de prescripción a resultado; [ ] legado, copias locales y fuerza conservan significado; [ ] ningún resultado real se ha convertido entre unidades de forma implícita.
 
 ### D02 · Cardio pautado y realizado
+
+**Excluida por decisión de David (24-09-2026): no se implementa.**
 
 **Descripción:** añadir registro estructurado de tiempo, velocidad km/h, inclinación % y RPE del cardio, con campos elegidos por el entrenador y objetivo separado de ejecución.
 
@@ -840,6 +844,8 @@ No crear tareas, formulario, API, tabla ni señal de «actividad realizada» de 
 
 ### D05 · Resumen semanal de recuperación profesional
 
+**Excluida por decisión de David (24-09-2026): no se implementa.**
+
 **Descripción:** reunir datos disponibles para que el entrenador revise rendimiento, sueño, esfuerzo y molestias/agujetas; no generar diagnósticos ni cambiar prescripciones automáticamente.
 
 #### D05.a · Contrato del resumen
@@ -884,6 +890,8 @@ No crear tareas, formulario, API, tabla ni señal de «actividad realizada» de 
 **Dependencias:** D05.b. **Responsable:** Claude principal. **Archivos previstos:** `apps/mobile/src/entrenamiento-entrenador/recuperacion-api.ts`, `recuperacion-semanal.tsx`, `recuperacion-semanal.spec.tsx` en el mismo directorio; `apps/mobile/src/entrenamiento-entrenador/ficha/ficha-cliente.tsx`, `ficha-cliente.spec.tsx` en el mismo directorio. **Tamaño:** M, 5 archivos.
 
 ### D06 · Prioridades cuando falta tiempo
+
+**Excluida por decisión de David (24-09-2026): no se implementa.**
 
 **Descripción:** permitir que el entrenador indique prioridad de ejercicios/bloques y que el cliente comunique falta de tiempo sin que la app quite trabajo automáticamente.
 
