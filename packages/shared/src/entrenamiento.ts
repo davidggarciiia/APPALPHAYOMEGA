@@ -80,6 +80,8 @@ const CamposSesionAmpliada = {
     .optional(),
   circuito: z
     .strictObject({
+      /** «Core»: cómo llama el entrenador al circuito. */
+      nombre: TextoCorto(30).optional(),
       vueltas: z.number().int().min(1).max(10),
       descanso: TextoCorto(30).optional(),
     })

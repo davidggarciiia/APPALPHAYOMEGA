@@ -48,7 +48,7 @@ export function textoRir(rir: EjercicioPrescrito["rir"]): string | null {
   return rir.min === rir.max ? `RIR ${rir.min}` : `RIR ${rir.min}–${rir.max}`
 }
 
-function objetivoDeSerie(serie: SeriePrescrita): string {
+export function objetivoDeSerie(serie: SeriePrescrita): string {
   if (serie.tipoMedicion === "tiempo") return `${serie.segundos} s`
   return serie.repeticionesMax !== undefined && serie.repeticionesMax !== serie.repeticiones
     ? `${serie.repeticiones}–${serie.repeticionesMax}`

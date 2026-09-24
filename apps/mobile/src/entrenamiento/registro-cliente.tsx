@@ -463,7 +463,7 @@ export function RegistroCliente({
           <View key={grupo.seccion} style={e.seccion}>
             {grupo.seccion === "circuito" && (
               <Text style={e.tituloSeccion} accessibilityRole="header">
-                {TITULOS_DE_SECCION.circuito}
+                {prescripcion.circuito?.nombre ?? TITULOS_DE_SECCION.circuito}
                 {prescripcion.circuito ? ` · ${prescripcion.circuito.vueltas} vueltas` : ""}
               </Text>
             )}

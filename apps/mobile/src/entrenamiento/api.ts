@@ -16,6 +16,12 @@ import {
   ListadoMolestiasSchema,
   MolestiaSchema,
   RegistrarMolestiaSchema,
+  PlanVigenteRespuestaSchema,
+  PlanVigenteSchema,
+  CambiarBloqueSchema,
+  type CambiarBloque,
+  type PlanVigente,
+  type PlanVigenteRespuesta,
   type ListadoAnteriores,
   type ListadoMolestias,
   type Molestia,
@@ -55,6 +61,9 @@ export type ApiEntrenamiento = {
     estado?: "abierta" | "atendida" | "todas",
   ) => Promise<ListadoMolestias>
   atenderMolestia: (id: string, respuesta: string) => Promise<Molestia>
+  /** El plan que cubre la semana (su bloque, fases y notas), o null. */
+  plan: (clienteId: string, semana: string) => Promise<PlanVigenteRespuesta>
+  cambiarBloque: (planId: string, datos: CambiarBloque) => Promise<PlanVigente>
 }
 
 export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamiento {
@@ -125,6 +134,16 @@ export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamie
       pedir(`/entrenamiento/molestias/${encodeURIComponent(id)}/atender`, MolestiaSchema, {
         method: "POST",
         body: JSON.stringify({ respuesta }),
+      }),
+    plan: (clienteId, semana) =>
+      pedir(
+        `/entrenamiento/clientes/${encodeURIComponent(clienteId)}/plan?semana=${encodeURIComponent(semana)}`,
+        PlanVigenteRespuestaSchema,
+      ),
+    cambiarBloque: (planId, datos) =>
+      pedir(`/entrenamiento/planes/${encodeURIComponent(planId)}/bloque`, PlanVigenteSchema, {
+        method: "PATCH",
+        body: JSON.stringify(CambiarBloqueSchema.parse(datos)),
       }),
   }
 }

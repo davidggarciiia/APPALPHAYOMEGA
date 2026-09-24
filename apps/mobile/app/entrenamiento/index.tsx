@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router"
 import { Text } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../../src/componentes/formulario"
-import { SemanaEntrenamiento } from "../../src/entrenamiento/semana"
+import { PlanCliente } from "../../src/entrenamiento/plan/plan-cliente"
 import { useEntrenamiento } from "../../src/entrenamiento/use-entrenamiento"
 import { useSesion } from "../../src/sesion"
 import { tema } from "../../src/tema"
@@ -13,10 +13,9 @@ export default function MiEntrenamiento(): React.JSX.Element {
   return (
     <PantallaDeFormulario sinTarjeta>
       {"usuario" in estado && estado.usuario.rol === "cliente" ? (
-        <SemanaEntrenamiento
+        <PlanCliente
           clienteId={estado.usuario.id}
           api={api}
-          copiaLocal
           abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
         />
       ) : (
@@ -32,9 +31,7 @@ export default function MiEntrenamiento(): React.JSX.Element {
           <BotonSecundario texto="Reconectar" onPress={reintentar} />
           <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
         </>
-      ) : (
-        <BotonSecundario texto="Volver al inicio" onPress={() => router.replace("/")} />
-      )}
+      ) : null}
     </PantallaDeFormulario>
   )
 }

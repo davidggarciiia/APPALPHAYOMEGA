@@ -25,7 +25,7 @@ const titulos: Record<string, string> = {
   cartera: "Mis clientes",
   rutinas: "Mis rutinas",
   catalogo: "Ejercicios",
-  entrenamiento: "Tu semana",
+  entrenamiento: "Tu plan",
   nutricion: "Nutrición",
   entrenador: "Plan de entrenamiento",
   cliente: "Ficha de cliente",
