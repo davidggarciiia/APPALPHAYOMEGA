@@ -75,8 +75,10 @@ function Enrutador(): React.JSX.Element {
         contentStyle: { backgroundColor: tema.fondo },
         // La transicion entre pantallas es la nativa y no se toca: corre en el
         // lado de la plataforma, conserva el gesto de volver y es la misma que en
-        // el resto de apps del movil. Con movimiento reducido pasa a fundido.
+        // el resto de apps del movil. Con movimiento reducido pasa a fundido, y el
+        // gesto de volver en iOS funde tambien en vez de deslizar la pantalla.
         animation: movimientoReducido ? "fade" : "default",
+        animationMatchesGesture: true,
       }}
     />
   )
