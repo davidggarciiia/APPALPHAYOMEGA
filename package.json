@@ -28,7 +28,9 @@
     "react-native": "0.86.3",
     "@react-native/virtualized-lists": "0.86.3",
     "@react-native/community-cli-plugin": "0.86.3",
-    "@react-native/metro-config": "0.86.3"
+    "@react-native/metro-config": "0.86.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
