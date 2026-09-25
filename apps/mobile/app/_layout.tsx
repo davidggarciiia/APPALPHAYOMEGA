@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar"
 import { useEffect } from "react"
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
 
+import { useMovimientoReducido } from "../src/lib/movimiento"
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
@@ -20,6 +21,7 @@ function Enrutador(): React.JSX.Element {
   const { estado, sinConexion, reintentar } = useSesion()
   const segmentos = useSegments()
   const router = useRouter()
+  const movimientoReducido = useMovimientoReducido()
 
   useEffect(() => {
     if (estado.fase === "comprobando") {
@@ -71,6 +73,10 @@ function Enrutador(): React.JSX.Element {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: tema.fondo },
+        // La transicion entre pantallas es la nativa y no se toca: corre en el
+        // lado de la plataforma, conserva el gesto de volver y es la misma que en
+        // el resto de apps del movil. Con movimiento reducido pasa a fundido.
+        animation: movimientoReducido ? "fade" : "default",
       }}
     />
   )
