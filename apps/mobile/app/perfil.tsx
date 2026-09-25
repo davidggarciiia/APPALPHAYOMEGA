@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { CambiosDePerfilSchema, type CambiosDePerfil } from "@alpha-omega/shared"
 
 import {
@@ -11,6 +11,7 @@ import {
   Campo,
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
+import { Pulsable } from "../src/componentes/pulsable"
 import { ErrorDeRed, guardarPerfil, leerPerfil } from "../src/lib/api"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
@@ -189,15 +190,16 @@ export default function Perfil(): React.JSX.Element {
 
       <BotonPrincipal texto="GUARDAR" onPress={() => void enviar()} ocupado={isSubmitting} />
 
-      <Pressable
+      <Pulsable
         style={estilos.volver}
+        hitSlop={4}
         onPress={() => {
           router.back()
         }}
         accessibilityRole="button"
       >
         <Text style={estilos.textoVolver}>VOLVER</Text>
-      </Pressable>
+      </Pulsable>
     </PantallaDeFormulario>
   )
 }

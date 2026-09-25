@@ -1,8 +1,9 @@
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useEffect } from "react"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 
+import { Pulsable } from "../src/componentes/pulsable"
 import { useMovimientoReducido } from "../src/lib/movimiento"
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
@@ -57,13 +58,9 @@ function Enrutador(): React.JSX.Element {
         <Text style={estilos.marca}>ALPHA &amp; OMEGA</Text>
         <Text style={estilos.aviso}>No hemos podido conectar con el servidor.</Text>
         <Text style={estilos.detalle}>Tu sesión sigue guardada. Comprueba tu conexión.</Text>
-        <Pressable
-          style={({ pressed }) => [estilos.boton, pressed && estilos.botonPulsado]}
-          onPress={reintentar}
-          accessibilityRole="button"
-        >
+        <Pulsable style={estilos.boton} onPress={reintentar} accessibilityRole="button">
           <Text style={estilos.textoBoton}>REINTENTAR</Text>
-        </Pressable>
+        </Pulsable>
       </View>
     )
   }
@@ -112,6 +109,5 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 14,
   },
-  botonPulsado: { opacity: 0.6 },
   textoBoton: { color: tema.oro, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
 })

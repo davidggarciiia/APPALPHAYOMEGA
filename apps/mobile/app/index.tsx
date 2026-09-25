@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { Pulsable } from "../src/componentes/pulsable"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
@@ -39,57 +40,53 @@ export default function Inicio(): React.JSX.Element {
             mano se encuentra con el 403 del servidor, que es quien decide. */}
         {usuario.rol === "entrenador" && (
           <>
-            <Pressable
-              style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+            <Pulsable
+              style={estilos.botonPrincipal}
               onPress={() => {
                 router.push("/cartera")
               }}
               accessibilityRole="button"
             >
               <Text style={estilos.textoPrincipal}>MI CARTERA</Text>
-            </Pressable>
+            </Pulsable>
 
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+            <Pulsable
+              style={estilos.boton}
               onPress={() => {
                 router.push("/nutricionista")
               }}
               accessibilityRole="button"
             >
               <Text style={estilos.textoBoton}>NUTRICIONISTA</Text>
-            </Pressable>
+            </Pulsable>
           </>
         )}
 
         {usuario.rol === "nutricionista" && (
-          <Pressable
-            style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+          <Pulsable
+            style={estilos.botonPrincipal}
             onPress={() => {
               router.push("/mis-clientes")
             }}
             accessibilityRole="button"
           >
             <Text style={estilos.textoPrincipal}>MIS CLIENTES</Text>
-          </Pressable>
+          </Pulsable>
         )}
 
-        <Pressable
-          style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+        <Pulsable
+          style={estilos.boton}
           onPress={() => {
             router.push("/perfil")
           }}
           accessibilityRole="button"
         >
           <Text style={estilos.textoBoton}>MI PERFIL</Text>
-        </Pressable>
+        </Pulsable>
 
-        <Pressable
-          style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
-          onPress={() => void salir()}
-          accessibilityRole="button"
-        >
+        <Pulsable style={estilos.boton} onPress={() => void salir()} accessibilityRole="button">
           <Text style={estilos.textoBoton}>CERRAR SESIÓN</Text>
-        </Pressable>
+        </Pulsable>
       </View>
     </SafeAreaView>
   )
@@ -131,6 +128,5 @@ const estilos = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
   },
-  pulsado: { opacity: 0.6 },
   textoBoton: { color: tema.textoTenue, fontSize: 13, fontWeight: "600", letterSpacing: 2 },
 })
