@@ -64,6 +64,11 @@ jobs:
       POSTGRES_HOST: localhost
       POSTGRES_PORT: "5432"
       RESEND_API_KEY: re_relleno_sin_envio
+      # Fotos en disco dentro del runner y sin esperar a la limpieza de subidas
+      # caducadas, igual que en las pruebas locales (tasks/para-claude.md).
+      ALMACEN: local
+      ALMACEN_LOCAL_DIR: ${{ runner.temp }}/almacen-fotos
+      MEDIOS_LIMPIEZA_MINUTOS: "0"
 
     steps:
       - uses: actions/checkout@v5
