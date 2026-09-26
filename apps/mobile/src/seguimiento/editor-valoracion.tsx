@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   BloqueValoracion,
   DefinicionCorporal,
@@ -23,6 +23,7 @@ import type { ReferenciaPrueba } from "./pruebas-valoracion"
 import type { ApiMedios } from "./medios-api"
 import { SolicitudesFotos } from "./solicitudes-fotos"
 import type { ApiValoraciones } from "./valoraciones-api"
+import { Pulsable } from "../componentes/pulsable"
 
 type Vista =
   | { tipo: "lista" }
@@ -314,7 +315,7 @@ export function ValoracionesProfesional({
         </View>
         <Enlace texto="Plantilla" onPress={() => setVista({ tipo: "plantilla" })} />
       </View>
-      <Pressable
+      <Pulsable
         accessibilityRole="button"
         accessibilityLabel={`Próxima revisión: ${textoDePauta(proxima.pauta)}. Cambiar`}
         onPress={() => setVista({ tipo: "pauta" })}
@@ -322,7 +323,7 @@ export function ValoracionesProfesional({
       >
         <Text style={s.texto}>Próxima revisión: {textoDePauta(proxima.pauta)}</Text>
         <Text style={s.enlace}>Cambiar</Text>
-      </Pressable>
+      </Pulsable>
       {enCurso ? (
         <BotonPrincipal
           texto="Continuar valoración"
@@ -347,7 +348,7 @@ export function ValoracionesProfesional({
             {disponibles.map((b) => {
               const elegido = eligiendo.includes(b)
               return (
-                <Pressable
+                <Pulsable
                   key={b}
                   accessibilityRole="checkbox"
                   accessibilityLabel={NOMBRE_DE_BLOQUE[b]}
@@ -359,7 +360,7 @@ export function ValoracionesProfesional({
                   style={[s.chip, elegido && s.chipElegido]}
                 >
                   <Text style={s.textoChip}>{NOMBRE_DE_BLOQUE[b]}</Text>
-                </Pressable>
+                </Pulsable>
               )
             })}
           </View>
@@ -396,7 +397,7 @@ export function ValoracionesProfesional({
       ) : (
         <Tarjeta>
           {listado.valoraciones.map((v, n) => (
-            <Pressable
+            <Pulsable
               key={v.id}
               accessibilityRole="button"
               accessibilityLabel={`${v.tipo === "inicial" ? "Inicial" : "Revisión"} del ${fechaLegible(v.fechaToma)}, ${NOMBRE_DE_ESTADO[v.estado]}`}
@@ -408,7 +409,7 @@ export function ValoracionesProfesional({
                 </Text>
                 <Text style={s.fuerte}>{NOMBRE_DE_ESTADO[v.estado]}</Text>
               </Fila>
-            </Pressable>
+            </Pulsable>
           ))}
         </Tarjeta>
       )}

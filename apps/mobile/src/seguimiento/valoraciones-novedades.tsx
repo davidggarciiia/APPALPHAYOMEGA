@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import {
   ZONA_AGENDA,
   type AvisoSeguimiento,
@@ -14,6 +14,7 @@ import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { faltaDe, type Falta } from "../lib/errores"
 import { tema } from "../tema"
 import type { ApiEvolucionAvisos } from "./valoraciones-api"
+import { Pulsable } from "../componentes/pulsable"
 
 type Modo = "cliente" | "entrenador"
 
@@ -95,13 +96,13 @@ function FilaAviso({
   }
   const nuevo = aviso.leidoEn === null
   return (
-    <Pressable
+    <Pulsable
       accessibilityRole="button"
       accessibilityLabel={`${texto}, ${fecha}${nuevo ? ", sin leer" : ""}`}
       accessibilityState={{ busy: abriendo, disabled: ocupado }}
       disabled={ocupado}
       onPress={pulsar}
-      style={({ pressed }) => [s.aviso, (pressed || abriendo) && s.pulsado]}
+      style={[s.aviso, abriendo && s.pulsado]}
     >
       <View style={s.textos}>
         <Text style={s.fuerte}>{texto}</Text>
@@ -109,7 +110,7 @@ function FilaAviso({
       </View>
       {nuevo && <Text style={s.nueva}>Nueva</Text>}
       <Icono nombre="adelante" color={nuevo ? tema.acento : tema.textoTenue} />
-    </Pressable>
+    </Pulsable>
   )
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { randomUUID } from "expo-crypto"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import {
   GuardarConfiguracionSeguimientoSchema,
   type ConfiguracionSeguimiento,
@@ -11,6 +11,7 @@ import { ErrorDePeticion } from "../lib/http"
 import { faltaDe } from "../lib/errores"
 import { tema } from "../tema"
 import { leerDecimal } from "./modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 type Indicador = ConfiguracionSeguimiento["indicadores"][number]
 type Registro = ConfiguracionSeguimiento["registrosSolicitados"][number]
@@ -41,7 +42,7 @@ function Opcion({
   deshabilitada?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
       accessibilityState={{ selected: elegida, disabled: deshabilitada }}
@@ -50,7 +51,7 @@ function Opcion({
       style={[s.opcion, elegida && s.opcionElegida, deshabilitada && s.deshabilitada]}
     >
       <Text style={s.texto}>{texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 

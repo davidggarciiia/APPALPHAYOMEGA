@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   BloqueValoracion,
   DefinicionCorporal,
@@ -20,6 +20,7 @@ import { Enlace } from "../entrenamiento/sesion/controles"
 import { tema } from "../tema"
 import { decimal } from "./valoracion-modelo"
 import type { ApiValoracionesCliente } from "./valoraciones-api"
+import { Pulsable } from "../componentes/pulsable"
 
 const PAGINA = 10
 const TIPO: Record<TipoValoracion, string> = { inicial: "Valoración inicial", revision: "Revisión" }
@@ -243,14 +244,13 @@ export function ValoracionesCliente({
               <Titulo>Historial de valoraciones</Titulo>
               <Tarjeta>
                 {datos.lista.slice(1).map((v, n) => (
-                  <Pressable
+                  <Pulsable
                     key={v.id}
                     accessibilityRole="button"
                     accessibilityLabel={`Abrir ${TIPO[v.tipo].toLowerCase()} del ${fecha(v.fechaToma)}${v.numeroPublicacion > 1 ? ", corregida" : ""}`}
                     accessibilityState={{ disabled: ocupado }}
                     disabled={ocupado}
                     onPress={() => void abrir(v.id)}
-                    style={({ pressed }) => pressed && s.pulsado}
                   >
                     <Fila primera={n === 0}>
                       <View style={[s.linea, s.flex]}>
@@ -259,7 +259,7 @@ export function ValoracionesCliente({
                       </View>
                       <Text style={s.valor}>{fecha(v.fechaToma)}</Text>
                     </Fila>
-                  </Pressable>
+                  </Pulsable>
                 ))}
               </Tarjeta>
             </View>

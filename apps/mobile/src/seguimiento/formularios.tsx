@@ -1,6 +1,6 @@
 import { useRef, useState } from "react"
 import { randomUUID } from "expo-crypto"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   ConfiguracionSeguimiento,
   RegistrarMedida,
@@ -13,6 +13,7 @@ import { Dialogo } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { tema } from "../tema"
 import { leerDecimal } from "./modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 type Rango = { min: number; max: number; entero?: boolean }
 
@@ -220,7 +221,7 @@ export function AnadirPrueba({
     >
       <View style={s.campos}>
         {pruebas.map((prueba) => (
-          <Pressable
+          <Pulsable
             key={prueba.id}
             accessibilityRole="button"
             accessibilityLabel={`${prueba.nombre} · ${prueba.unidad}`}
@@ -234,7 +235,7 @@ export function AnadirPrueba({
             <Text style={s.textoOpcion}>
               {prueba.nombre} · {prueba.unidad}
             </Text>
-          </Pressable>
+          </Pulsable>
         ))}
         <Campo
           etiqueta="Resultado"

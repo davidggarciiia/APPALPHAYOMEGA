@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Image,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -13,6 +12,7 @@ import type { EnlaceTemporal } from "@alpha-omega/shared"
 
 import { tema } from "../tema"
 import type { ApiMedios } from "./medios-api"
+import { Pulsable } from "../componentes/pulsable"
 
 type Carga =
   | { fase: "pidiendo" }
@@ -233,20 +233,16 @@ export function Accion({
   peligro?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       onPress={onPress}
       disabled={ocupado}
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
       accessibilityState={{ disabled: ocupado, busy: ocupado }}
-      style={({ pressed }) => [
-        s.accion,
-        peligro && s.accionPeligro,
-        (pressed || ocupado) && s.pulsada,
-      ]}
+      style={[s.accion, peligro && s.accionPeligro, ocupado && s.pulsada]}
     >
       <Text style={[s.textoAccion, peligro && s.textoPeligro]}>{texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 

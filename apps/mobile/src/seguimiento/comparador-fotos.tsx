@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
 import type { EstadoMedio, MedioFoto, VistaFoto } from "@alpha-omega/shared"
 
 import { hoyAgenda } from "../entrenamiento/fechas"
@@ -16,6 +16,7 @@ import {
 } from "./fotos-modelo"
 import { Accion, ImagenPrivada } from "./imagen-privada"
 import type { ApiMedios } from "./medios-api"
+import { Pulsable } from "../componentes/pulsable"
 
 type Api = Pick<ApiMedios, "acceso" | "borrar">
 type Hueco = "primera" | "segunda"
@@ -486,7 +487,7 @@ function SelectorFecha({
         // La fecha que ya ocupa la otra foto no se compara consigo misma.
         const ocupada = f.id === otra.id
         return (
-          <Pressable
+          <Pulsable
             key={f.id}
             accessibilityRole="radio"
             accessibilityLabel={
@@ -498,7 +499,7 @@ function SelectorFecha({
             style={[s.fecha, marcada && [s.fechaElegida, degradadoOro], ocupada && s.fechaOcupada]}
           >
             <Text style={[s.textoFecha, marcada && s.textoFechaElegida]}>{opcion.texto}</Text>
-          </Pressable>
+          </Pulsable>
         )
       })}
     </ScrollView>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { MedioFoto, SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
@@ -11,6 +11,7 @@ import { tema } from "../tema"
 import type { ApiMedios } from "./medios-api"
 import { obtenerFoto, type FotoPreparada, type OrigenFoto } from "./preparar-foto"
 import { enviarFoto, soltarCopia } from "./subir-foto"
+import { Pulsable } from "../componentes/pulsable"
 
 type VistaPedible = Exclude<VistaFoto, "otra">
 const VISTAS: Array<{ valor: VistaPedible; texto: string }> = [
@@ -89,7 +90,7 @@ function PedirFotos({
         {VISTAS.map((v) => {
           const elegida = vistas.includes(v.valor)
           return (
-            <Pressable
+            <Pulsable
               key={v.valor}
               accessibilityRole="checkbox"
               accessibilityLabel={v.texto}
@@ -101,7 +102,7 @@ function PedirFotos({
               style={[s.chip, elegida && s.chipElegido]}
             >
               <Text style={s.textoChip}>{v.texto}</Text>
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>
@@ -516,7 +517,7 @@ export function SolicitudesFotos({
                     {medio.valoracionId ? " · en una visita" : ""}
                   </Text>
                   {valoracionAbiertaId && medio.estado === "disponible" && !medio.valoracionId && (
-                    <Pressable
+                    <Pulsable
                       accessibilityRole="button"
                       accessibilityLabel={`Incorporar ${NOMBRE_DE_VISTA[medio.vista]} a la visita en curso`}
                       disabled={ocupado}
@@ -532,7 +533,7 @@ export function SolicitudesFotos({
                       style={s.accion}
                     >
                       <Text style={s.enlace}>Incorporar</Text>
-                    </Pressable>
+                    </Pulsable>
                   )}
                 </Fila>
               ))}
