@@ -7,7 +7,11 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    // TypeScript 6 ya no carga por su cuenta los tipos globales de @types. Los
+    // tests necesitan los de Jest (describe, it, expect y los matchers de
+    // Testing Library). Son los de Jest 29, el que usa jest-expo, no los de la API.
+    "types": ["jest"]
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
   "exclude": ["node_modules"]
