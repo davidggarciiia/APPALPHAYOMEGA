@@ -1,27 +1,36 @@
 import type { ReactNode } from "react"
 import { usePathname, useRouter, type Href } from "expo-router"
-import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native"
+import { Image, StyleSheet, Text, useWindowDimensions, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import emblema from "../../assets/emblema.png"
 import logotipo from "../../assets/logotipo.png"
 import { useSesion } from "../sesion"
 import { fondoDeMarca, tema } from "../tema"
 import { Icono, type NombreIcono } from "./iconos"
+import { Pulsable } from "./pulsable"
 
 type Destino = { ruta: Href; nombre: string; icono: NombreIcono }
+/** Hoy, su agenda de reservas y las herramientas de trabajo. */
 const entrenador: Destino[] = [
+  { ruta: "/", nombre: "Hoy", icono: "inicio" },
+  { ruta: "/agenda", nombre: "Agenda", icono: "agenda" },
   { ruta: "/cartera", nombre: "Clientes", icono: "clientes" },
   { ruta: "/rutinas", nombre: "Rutinas", icono: "plan" },
   { ruta: "/catalogo", nombre: "Ejercicios", icono: "ejercicios" },
 ]
-/** Como en el diseño: Entreno (hoy), Plan, Nutrición y Progreso. La cuenta, en el avatar. */
+/** Como en el diseño: Entreno (hoy), Plan, Reservar, Nutrición y Progreso. La cuenta, en el avatar. */
 const cliente: Destino[] = [
   { ruta: "/", nombre: "Entreno", icono: "entreno" },
   { ruta: "/entrenamiento", nombre: "Plan", icono: "plan" },
+  { ruta: "/reservar", nombre: "Reservar", icono: "reservar" },
   { ruta: "/nutricion", nombre: "Nutrición", icono: "nutricion" },
   { ruta: "/progreso", nombre: "Progreso", icono: "progreso" },
 ]
+/** Sin conexión solo funcionan el plan y la nutrición, que tienen copia guardada. */
+const SIN_CONEXION = ["/entrenamiento", "/nutricion"]
 const titulos: Record<string, string> = {
+  agenda: "Agenda",
+  reservar: "Reservar",
   cartera: "Mis clientes",
   rutinas: "Mis rutinas",
   catalogo: "Ejercicios",
@@ -36,6 +45,8 @@ const titulos: Record<string, string> = {
 }
 const PRINCIPALES = [
   "/",
+  "/agenda",
+  "/reservar",
   "/cartera",
   "/rutinas",
   "/catalogo",
@@ -60,7 +71,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const esCliente = usuario.rol === "cliente"
   const destinos: Destino[] =
     estado.fase === "local"
-      ? cliente.slice(1, 3)
+      ? cliente.filter((d) => SIN_CONEXION.includes(String(d.ruta)))
       : usuario.rol === "entrenador"
         ? entrenador
         : esCliente
@@ -93,25 +104,25 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
     .join("")
   const avatar =
     estado.fase === "dentro" ? (
-      <Pressable
+      <Pulsable
         style={s.avatar}
         accessibilityRole="button"
         accessibilityLabel={`${iniciales}, tu perfil`}
         onPress={() => router.push("/perfil")}
       >
         <Text style={s.iniciales}>{iniciales}</Text>
-      </Pressable>
+      </Pulsable>
     ) : null
   const atras =
     !enPrincipal && router.canGoBack() ? (
-      <Pressable
+      <Pulsable
         style={s.atras}
         accessibilityRole="button"
         accessibilityLabel="Volver"
         onPress={() => router.back()}
       >
         <Icono nombre="atras" color={tema.texto} />
-      </Pressable>
+      </Pulsable>
     ) : null
   const sinConexion =
     estado.fase === "local" ? <Text style={s.aviso}>Sin conexión · copia guardada</Text> : null
@@ -143,7 +154,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
             {lateral.map((d) => {
               const activa = ruta === d.ruta || `/${principal}` === d.ruta
               return (
-                <Pressable
+                <Pulsable
                   key={String(d.ruta)}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: activa }}
@@ -152,11 +163,11 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
                   style={[s.opcionMenu, activa && s.opcionMenuActiva]}
                 >
                   <Text style={[s.textoMenu, activa && s.textoMenuActivo]}>{d.nombre}</Text>
-                </Pressable>
+                </Pulsable>
               )
             })}
           </View>
-          <Pressable
+          <Pulsable
             style={[s.opcionMenu, s.cuenta, principal === "perfil" && s.opcionMenuActiva]}
             accessibilityRole="button"
             accessibilityLabel="Mi cuenta"
@@ -165,7 +176,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
             <Text style={[s.textoMenu, principal === "perfil" && s.textoMenuActivo]}>
               Mi cuenta
             </Text>
-          </Pressable>
+          </Pulsable>
         </SafeAreaView>
         <SafeAreaView edges={["top", "right"]} style={s.principalEscritorio}>
           <View style={[s.cabecera, s.cabeceraEscritorio]}>
@@ -230,7 +241,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
               const activa = ruta === d.ruta
               const color = activa ? tema.acento : tema.textoTenue
               return (
-                <Pressable
+                <Pulsable
                   key={String(d.ruta)}
                   accessibilityRole="tab"
                   accessibilityState={{ selected: activa }}
@@ -240,7 +251,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
                 >
                   <Icono nombre={d.icono} color={color} />
                   <Text style={[s.etiqueta, { color }]}>{d.nombre}</Text>
-                </Pressable>
+                </Pulsable>
               )
             })}
           </View>
