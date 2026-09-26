@@ -354,3 +354,223 @@ El [plan de esta iteración](tasks/entrenamiento/plan.md) y sus
 [tareas](tasks/entrenamiento/todo.md) viven en `tasks/entrenamiento/`.
 Los archivos `tasks/plan.md` y `tasks/todo.md` conservan el seguimiento pendiente
 de identidad. El plan nuevo se revisa antes de implementar.
+
+---
+
+## Ampliación 2026-09-26: el servicio completo del entrenador
+
+> Estado: **borrador para revisión de David** (checkpoint A del
+> [plan del panel](tasks/panel-entrenador/plan.md)). Diseño de pantallas en
+> [docs/diseno/panel-entrenador.md](docs/diseno/panel-entrenador.md) y
+> [prototipo](docs/diseno/prototipo-entrenador.html). Decisiones en la
+> [intención](docs/intent/app-alpha-omega.md), apartado del 2026-09-26.
+
+### Por qué se amplía
+
+El entrenador entrega hoy a cada cliente una rutina, una guía semanal y una guía
+de ejercicios, y pide que le cuenten sueño, agujetas, molestias, RIR y RPE. La
+primera entrega de este módulo solo cubría series con peso y repeticiones. Esta
+ampliación recoge lo que falta para que el servicio entero viva en la app.
+Revoca dos decisiones del 17-09: «nada de RPE ni descanso» y «sin plantillas».
+
+Todo lo anterior de este documento sigue vigente salvo donde esta sección lo
+cambia de forma explícita.
+
+### Prescripción
+
+Todos los campos nuevos son opcionales o tienen valor por defecto, así que las
+prescripciones ya guardadas siguen validando con los esquemas estrictos. Un test
+valida un documento antiguo.
+
+| Nivel     | Campo nuevo                                   | Uso                                                          |
+| --------- | --------------------------------------------- | ------------------------------------------------------------ |
+| Serie     | `repeticionesMax`, `segundosMax`, `metrosMax` | Rango: «8–10» es `repeticiones 8` y `repeticionesMax 10`     |
+| Serie     | `rir`, `rirMax` (0–5)                         | RIR objetivo o rango                                         |
+| Serie     | `tipoMedicion: "distancia"` con `metros`      | Farmer carry y similares                                     |
+| Ejercicio | `seccion`                                     | `calentamiento`, `principal`, `core`, `cardio` o `calma`     |
+| Ejercicio | `descansoSegundos`, `descansoMaxSegundos`     | Descanso o rango                                             |
+| Ejercicio | `unilateral`                                  | `no`, `por lado` o `por brazo`                               |
+| Ejercicio | `recorte`                                     | `nunca`, `normal` o `primero`                                |
+| Ejercicio | `alternativas`                                | Ejercicios del catálogo si molesta                           |
+| Ejercicio | `incrementoKg`                                | Incremento de carga de este ejercicio en el plan             |
+| Ejercicio | `dosis`                                       | Texto para calentamiento y calma («1×8/lado», «2–3 series»)  |
+| Ejercicio | `cardio`                                      | Rangos de inclinación, velocidad y RPE                       |
+| Sección   | `formato`, `vueltas`, descanso entre vueltas  | Circuito de core: cada vuelta es una serie de cada ejercicio |
+| Sesión    | `nota`                                        | «Carga inicial orientativa…»                                 |
+
+Calentamiento y vuelta a la calma no tienen series: se marcan como hechos. Una
+sesión admite así ejercicios sin series; los de las otras secciones siguen
+necesitando al menos una.
+
+### Bloque, fases y deporte
+
+El plan asignado y la rutina guardada ganan:
+
+- **Objetivos e indicaciones del bloque**, en texto.
+- **Fases por semanas**: nombre, RIR para compuestos y para accesorios, ajuste
+  de series en porcentaje (la descarga quita un 40–50 %), objetivos de la semana
+  y nota. Al asignar, el servidor aplica la fase de cada semana a la copia de esa
+  semana: la prescripción de la semana 6 ya lleva menos series y RIR 3–4.
+- **Deporte**: nombre, veces por semana, duración, días a evitar y reglas. No
+  crea sesiones con fecha. El cliente registra cada práctica (fecha, duración,
+  intensidad 0–10, si le pesaban las piernas y si fue antes o después de la
+  fuerza) y cuenta en la semana.
+- **NEAT**: objetivo de pasos, en texto hasta que exista seguimiento corporal.
+- **Incrementos de carga** por tren (superior e inferior), para la progresión.
+
+Qué es compuesto o accesorio lo dice el catálogo, y se puede cambiar por
+ejercicio en el plan.
+
+### Progresión sugerida
+
+La app sugiere la carga de la próxima vez de cada ejercicio con carga, con la
+doble progresión. La sugerencia **no se guarda en las ocurrencias**: el servidor
+la calcula al leer una sesión sin empezar, a partir del resultado enviado del
+mismo ejercicio en el mismo plan con la **fecha de sesión** (la actual, no el
+instante del envío) más reciente anterior a la de esa sesión. Así, enviar tarde
+una sesión antigua no pisa lo que dejó una posterior, y nunca se escribe en una
+sesión empezada o enviada.
+
+Las reglas se miran en este orden y manda **la primera que se cumple**; así una
+molestia nunca acaba en una subida y un RIR 0 nunca se queda en «Igual»:
+
+| Orden | Última sesión del mismo ejercicio en el plan                       | Próxima vez                                  |
+| ----- | ------------------------------------------------------------------ | -------------------------------------------- |
+| 1     | Molestia ámbar o roja en ese ejercicio en esa sesión               | Pendiente del entrenador                     |
+| 2     | Alguna serie a RIR 0, o bajó la carga dentro de la sesión          | Revisa: la carga de la última serie completa |
+| 3     | Alguna serie con RIR por debajo del mínimo                         | Igual                                        |
+| 4     | Todas las series hechas, al máximo del rango y con RIR ≥ el mínimo | Sube el incremento del ejercicio             |
+| 5     | Cualquier otro caso (dentro del rango, series sin hacer…)          | Igual                                        |
+
+El incremento se busca del más concreto al más general y manda el primero que
+exista: el del ejercicio en el plan (`incrementoKg` en la prescripción), el del
+ejercicio en el catálogo (`incrementoKg`, por ejemplo 1,25 kg en una polea), el
+del plan por tren (`incrementos.superiorKg` e `incrementos.inferiorKg`) y, si no
+hay ninguno, 2,5 kg en tren superior y 5 kg en inferior. La carga de cada
+ocurrencia tiene origen `inicial` o `fijada`. Una `inicial` se sustituye por la
+sugerencia cuando la hay; una `fijada` (el entrenador la ajustó) manda siempre.
+El cliente ve la sugerencia como objetivo tenue, nunca como valor registrado.
+
+### Señales de ajuste
+
+Calculadas por cliente y semana: rendimiento más bajo dos sesiones seguidas en un
+ejercicio principal; agujetas de 7 o más en la misma zona durante más de 72 horas;
+sueño o energía de 2 o menos en la mayoría de check-ins; molestia ámbar o roja o
+técnica incómoda en el cierre; piernas pesadas al registrar el deporte.
+
+Con el umbral del plan (2 por defecto) se avisa al entrenador. «Aplicar a la
+semana» calcula primero una propuesta sobre las sesiones sin empezar (quitar lo
+marcado `primero` y recortar un 25–30 % las series accesorias) y solo la guarda
+cuando el entrenador la confirma, con la revisión de cada prescripción.
+
+### Check-in
+
+Antes de empezar, el cliente rellena: horas de sueño, calidad del sueño,
+energía, motivación (1–5), agujetas por zona (0–10), dolor articular, rigidez o
+molestia de espalda (con zona), K-1 en las últimas 24 horas (con intensidad) y
+cómo recuperó de la sesión anterior, y si tiene **síntomas de alarma**: mareo,
+dolor en el pecho o dificultad para respirar anormal. Un síntoma de alarma da
+siempre rojo, con la decisión «Detén la sesión y pide valoración sanitaria», en
+el cálculo del teléfono y en el del servidor.
+
+La app calcula en el teléfono, con los umbrales de la guía descargados con la
+sesión, el nivel y la recomendación de «cuándo modificar la sesión», para que
+funcione sin red. El servidor lo recalcula al recibirlo. La recomendación no
+cambia la sesión. Un check-in rojo avisa al entrenador.
+
+### Molestias
+
+Zona, lado, intensidad 0–10, síntomas (rigidez, va a más, pinchazo o irradia,
+pérdida de fuerza y síntomas generales de alarma: mareo, dolor en el pecho o
+falta de aire, que la hoja ofrece como opción propia), ejercicio y serie
+opcionales, momento y nota. El servidor calcula el semáforo: rojo con pinchazo o
+irradiación, pérdida de fuerza, intensidad 7 o más o síntomas generales; ámbar
+con «va a más», rigidez o 4 a 6; verde en el resto. Con síntomas generales la
+app le dice al cliente que pare y pida valoración sanitaria.
+
+Se puede registrar dentro o fuera de una sesión. Sin red, queda en cola con su
+id de operación y la pantalla dice que se enviará al volver la conexión.
+
+### Excepción a la privacidad del borrador
+
+**El check-in, las molestias y los registros de deporte son avisos que el
+cliente envía a propósito**, y el entrenador los ve al momento. Los valores de
+las series, las notas y el cierre de un borrador siguen siendo privados hasta el
+envío, con las mismas pruebas de denegación.
+
+### Cierre
+
+El envío admite un cierre opcional, que el resultado muestra: RPE de la sesión
+(0–10), energía al terminar (1–5), ejercicios inestables o incómodos, cardio
+hecho (duración, inclinación, velocidad, RPE), deporte de ese día y notas.
+El registro de cada serie admite `rir` real.
+
+### Guía y reglas
+
+Textos del entrenador reutilizables: RIR, RPE, semáforo, «cuándo modificar la
+sesión» (con sus umbrales), señales para detener, respiración, normas técnicas,
+material, prioridades si falta tiempo, qué comunicar, registro mínimo e
+indicaciones por tipo de ejercicio. Hay una versión general y cada plan puede
+sustituir textos para su cliente. El cliente lee la guía que le aplica.
+
+### Notas de salud
+
+Notas del entrenador sobre salud que condicionan el trabajo, por cliente, con la
+opción de que el cliente las vea en su guía. Son datos de salud: hasta que
+existan las tareas 19 y 21 de `identity` (consentimiento), solo con datos de
+prueba.
+
+### Exportar a PDF
+
+La ficha genera un PDF con la rutina, la guía y la técnica de los ejercicios del
+plan, a partir de lo que ya hay en la app. Es lo último de esta ampliación.
+
+### Permisos nuevos
+
+| Acción                                          | Cliente              | Entrenador         | Nutricionista / empleado |
+| ----------------------------------------------- | -------------------- | ------------------ | ------------------------ |
+| Enviar check-in, molestia o registro de deporte | Solo propios         | No                 | No                       |
+| Ver check-ins, molestias y deporte              | Solo propios         | Todos sus clientes | No                       |
+| Marcar una molestia como vista                  | No                   | Sí                 | No                       |
+| Ver sugerencias y señales                       | Sugerencia propia    | Todos sus clientes | No                       |
+| Aplicar un ajuste de semana                     | No                   | Sí                 | No                       |
+| Editar guía y reglas                            | No                   | Sí                 | No                       |
+| Leer la guía                                    | La que le aplica     | Todas              | No                       |
+| Notas de salud                                  | Leer si son visibles | Leer y escribir    | No                       |
+| Exportar PDF                                    | No                   | Sí                 | No                       |
+
+### Criterios de aceptación de la ampliación
+
+16. Una prescripción antigua, sin campos nuevos, se lee y se registra igual que
+    antes.
+17. Rangos de repeticiones, RIR y descanso, series por distancia y ejercicios por
+    lado se guardan y se muestran con sus unidades; los incompatibles se rechazan.
+18. Un circuito de 2 vueltas se registra por vueltas y el resultado lo muestra así.
+19. Asignar un bloque con fases crea semanas cuya prescripción ya refleja su
+    fase; la descarga lleva menos series.
+20. Tras un envío, la próxima sesión del mismo ejercicio muestra la carga
+    sugerida según la tabla y en su orden, con un caso de prueba por cada
+    coincidencia de reglas (RIR 0 con RIR bajo el mínimo, molestia con subida).
+    Una carga fijada por el entrenador no se toca, una molestia deja el
+    ejercicio pendiente y un envío atrasado de una sesión anterior no cambia la
+    sugerencia que dejó una posterior.
+21. Dos señales en una semana avisan al entrenador; «Aplicar a la semana» no
+    cambia nada hasta confirmarse y no toca sesiones empezadas ni enviadas.
+22. El check-in funciona sin red, muestra la recomendación correcta para cada
+    fila de la tabla (un síntoma de alarma da siempre rojo) y un check-in rojo
+    aparece en el panel.
+23. Una molestia llega al panel en menos de 10 s con red; sin red, llega al
+    reconectar y no se duplica al reintentar.
+24. El entrenador no obtiene valores, notas ni cierre de un borrador, aunque sí
+    su check-in y sus molestias. Otro cliente no obtiene nada.
+25. Cambiar la guía general no cambia los textos sustituidos en un plan.
+26. Cliente ajeno, nutricionista, empleado y petición sin sesión tienen pruebas
+    de denegación en cada operación nueva.
+
+### Preguntas abiertas para David
+
+1. ¿Los umbrales por defecto de «cuándo modificar la sesión» (energía 2 o menos,
+   agujetas 7 o más, K-1 7 o más) son los que usa el entrenador?
+2. ¿Incremento por defecto de 2,5 y 5 kg, o el mínimo del rango (1 y 2,5 kg)?
+3. ¿La carga sugerida se aplica sola al cliente, o el entrenador la confirma
+   antes de que el cliente la vea?

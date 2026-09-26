@@ -9,6 +9,12 @@
 > **Cambio del 2026-09-25**, en el plan aprobado por David: se añade el módulo
 > `planes` y horarios pasa por delante de entrenamiento. Intención:
 > [horarios y reservas](docs/intent/horarios-y-reservas.md).
+>
+> **Cambio del 2026-09-26**, en el plan del panel del entrenador aprobado por
+> David: la API de entrenos ya existe, así que sus pantallas del entrenador van
+> antes que horarios. Se añade la pauta del entrenador a `nutricion`. Intención:
+> [decisiones del 26-09](docs/intent/app-alpha-omega.md); plan:
+> [tasks/panel-entrenador](tasks/panel-entrenador/plan.md).
 
 ## Módulos
 
@@ -36,9 +42,9 @@ identity
    └──→ fichajes              │
 ```
 
-Secuencia: `identity` → `planes` + `agenda` (horarios y reservas) →
-`catalogo-ejercicios` → `entrenamiento` → `nutricion` + `seguimiento-corporal` →
-`leads` → `fichajes`
+Secuencia desde el 2026-09-26: `identity` → `catalogo-ejercicios` + `entrenamiento`
+(panel del entrenador; las fechas de `agenda` ya están) → `planes` + `agenda`
+(horarios y reservas) → `nutricion` + `seguimiento-corporal` → `leads` → `fichajes`
 
 ## Decisiones de frontera
 
@@ -68,7 +74,12 @@ Secuencia: `identity` → `planes` + `agenda` (horarios y reservas) →
 | Entrenos — mes                     | `agenda` + `entrenamiento`                          |
 | Detalle de ejercicio               | `catalogo-ejercicios` + `entrenamiento`             |
 | Librería Symmetry                  | `catalogo-ejercicios`                               |
-| Panel admin de entrenos            | `entrenamiento`                                     |
+| Panel admin de entrenos (Hoy)      | `entrenamiento`                                     |
+| Ficha de entrenos del cliente      | `entrenamiento` + `nutricion`                       |
+| Constructor de planes y asignar    | `entrenamiento` + `catalogo-ejercicios`             |
+| Rutinas guardadas                  | `entrenamiento`                                     |
+| Guía y reglas                      | `entrenamiento`                                     |
+| Check-in, molestia y cierre        | `entrenamiento`                                     |
 | Nutrición cliente (solo lectura)   | `nutricion`                                         |
 | Nutrición del nutricionista        | `nutricion`                                         |
 | Seguimiento corporal               | `seguimiento-corporal`                              |
@@ -81,20 +92,22 @@ Secuencia: `identity` → `planes` + `agenda` (horarios y reservas) →
 | Leads                              | `leads`                                             |
 | Fichajes                           | `fichajes`                                          |
 
-Veintiuna pantallas, no las ocho del boceto. Las cuatro primeras no estaban
+Veintisiete pantallas, no las ocho del boceto. Las cuatro primeras no estaban
 dibujadas por nadie y no son opcionales. Las cinco que siguen a «Horarios» llegan
-con la ampliación del 2026-09-25.
+con la ampliación del 2026-09-25, y las seis del panel del entrenador, con la del
+2026-09-26 ([diseño](docs/diseno/panel-entrenador.md)).
 
 ## Estado
 
-| Módulo                | Spec                                         | Plan                                 | Implementación                               |
-| --------------------- | -------------------------------------------- | ------------------------------------ | -------------------------------------------- |
-| `identity`            | aprobada                                     | aprobado                             | 17 de 21 tareas. Fases 0, 1, 2 y 4 completas |
-| `planes`              | redactada, en revisión                       | aprobado el 2026-09-25               | Sin empezar. Es lo siguiente                 |
-| `agenda`              | aprobada; ampliación de horarios en revisión | aprobado el 2026-09-25               | Sin empezar. Es lo siguiente                 |
-| `catalogo-ejercicios` | borrador                                     | parcial, en el plan de entrenamiento | Sin empezar                                  |
-| `entrenamiento`       | aprobada                                     | aprobado; en pausa tras horarios     | Contratos Zod en `packages/shared`           |
-| resto                 | —                                            | —                                    | —                                            |
+| Módulo                | Spec                                         | Plan                                 | Implementación                                                   |
+| --------------------- | -------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
+| `identity`            | aprobada                                     | aprobado                             | 17 de 21 tareas. Fases 0, 1, 2 y 4 completas                     |
+| `planes`              | redactada, en revisión                       | aprobado el 2026-09-25               | Sin empezar; va después del panel del entrenador                 |
+| `agenda`              | aprobada; ampliación de horarios en revisión | aprobado el 2026-09-25               | Fechas de sesiones hechas en `dev`; horarios, después del panel  |
+| `catalogo-ejercicios` | borrador; ampliación del 26-09 en revisión   | parcial, en el plan de entrenamiento | API hecha en `dev`; falta la pantalla                            |
+| `entrenamiento`       | aprobada; ampliación del 26-09 en revisión   | panel del entrenador, 26-09          | API y lado cliente en `dev`; faltan las pantallas del entrenador |
+| `nutricion`           | borrador de la pauta del entrenador          | panel del entrenador, 26-09          | Sin empezar                                                      |
+| resto                 | —                                            | —                                    | —                                                                |
 
 ### Detalle de `identity`
 

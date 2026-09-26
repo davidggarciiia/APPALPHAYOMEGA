@@ -299,3 +299,36 @@ en cualquier momento. Está anotado como bloqueante blando en
    Define si hace falta una carga masiva desde un fichero o basta con la pantalla
    de alta, y si el entrenador dedica una tarde a escribirlos o lo hace sobre la
    marcha.
+
+---
+
+## Ampliación 2026-09-26: la técnica de cada ejercicio
+
+> Estado: **borrador para revisión de David**, junto con la ampliación de
+> [SPEC-entrenamiento.md](SPEC-entrenamiento.md) del mismo día. Diseño en
+> [docs/diseno/panel-entrenador.md](docs/diseno/panel-entrenador.md).
+
+La guía de ejercicios que el entrenador entrega hoy explica cada ejercicio con
+«Cómo realizarlo» y «Evita». Esa guía pasa a ser el catálogo. Campos nuevos,
+todos aditivos:
+
+| Campo           | Contenido                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `tipo`          | `fuerza`, `calentamiento`, `core`, `cardio`, `estiramiento` o `movilidad`                    |
+| `medicion`      | Por defecto al prescribirlo: repeticiones, tiempo o distancia                                |
+| `instrucciones` | Se muestra como «Cómo realizarlo»; ya existe                                                 |
+| `evita`         | Errores que evitar                                                                           |
+| `paraSi`        | Señales para parar, si las tiene                                                             |
+| `carga`         | `compuesto` o `accesorio`; decide qué RIR le da cada fase del plan                           |
+| `alternativas`  | Ejercicios del catálogo que suelen sustituirlo                                               |
+| `incrementoKg`  | Incremento mínimo de carga del ejercicio o de su máquina; si falta, el del plan o el general |
+
+El tren (superior o inferior) para el incremento de carga se deduce del grupo
+principal. Un ejercicio de cardio o de movilidad general puede no tener grupo
+principal.
+
+Grupos que usa el servicio y la lista de 11 no tiene: **aductores**, **flexores
+de cadera**, **lumbar** y **trapecio**. Añadirlos resuelve en parte la pregunta 3.
+
+**Carga inicial.** Los textos de la guía actual se teclean una vez desde la
+pantalla de alta; son del orden de 90 ejercicios. No hace falta importación masiva.

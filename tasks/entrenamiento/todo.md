@@ -9,6 +9,13 @@
 > **En pausa desde el 2026-09-25:** horarios va antes ([tasks/horarios](../horarios/todo.md)).
 > C01 pasa a ser H03, y C03 y C06 pasan a H04. Cuando esta lista se reanude, esas
 > tareas se dan por hechas si H03 y H04 lo están.
+>
+> **2026-09-26:** según sus commits en `dev` (c3eedbe, 8e4744a, dd9eb9c, 6096ef2,
+> 2b15cf1 y 4a4f6eb), el código de la API (C00, C02, C08, C09, C11, C13a, C14,
+> C16a, C16b y C17) y del lado cliente (C04, C05, C10, C12a, C12b, C13b y C15) ya
+> existe; lo hizo otra sesión. Falta comprobarlo tarea a tarea antes de marcarlas.
+> Las pantallas del entrenador (antes F04–F08) y lo que queda pasan a
+> [tasks/panel-entrenador](../panel-entrenador/todo.md).
 
 ## Regla de ejecución
 
