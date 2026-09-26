@@ -1,6 +1,7 @@
 import type { PrismaService } from "../prisma/prisma.service.js"
 
 import type { ActivacionService } from "./activacion.service.js"
+import { RegistroDeBajas } from "./bajas.js"
 import type { TokensRefrescoService } from "./tokens-refresco.service.js"
 import { UsuariosService } from "./usuarios.service.js"
 
@@ -120,7 +121,7 @@ function servicioCon(
   } as unknown as ActivacionService
 
   return {
-    servicio: new UsuariosService(falso.prisma, activacion, refrescos),
+    servicio: new UsuariosService(falso.prisma, activacion, refrescos, new RegistroDeBajas()),
     escrituras: falso.escrituras,
     sesionesRevocadas: () => revocadas,
     enlacesQuemados: () => falso.enlacesQuemados,

@@ -21,6 +21,7 @@ import type { Prisma } from "@prisma/client"
 import { PrismaService } from "../prisma/prisma.service.js"
 
 import { ActivacionService } from "./activacion.service.js"
+import { RegistroDeBajas } from "./bajas.js"
 import { TokensRefrescoService } from "./tokens-refresco.service.js"
 
 @Injectable()
@@ -31,6 +32,7 @@ export class UsuariosService {
     private readonly prisma: PrismaService,
     private readonly activacion: ActivacionService,
     private readonly refrescos: TokensRefrescoService,
+    private readonly bajas: RegistroDeBajas,
   ) {}
 
   /**
@@ -291,9 +293,13 @@ export class UsuariosService {
    */
   async desactivar(quienPregunta: string, id: string): Promise<FichaDeUsuario> {
     this.comprobarQueNoEsUnoMismo(quienPregunta, id)
-    await this.buscar(id)
+    const usuario = await this.buscar(id)
 
     const desactivado = await this.prisma.$transaction(async (tx) => {
+      // Antes de tocar su fila: cancelar sus reservas futuras toma el candado de
+      // la agenda, y el orden de candados es siempre agenda y después cliente.
+      if (usuario.rol === "cliente") await this.bajas.ejecutar(id, quienPregunta, tx)
+
       const actualizado = await tx.usuario.update({
         where: { id },
         data: { estado: "desactivado" },

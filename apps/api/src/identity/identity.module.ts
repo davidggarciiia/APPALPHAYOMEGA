@@ -22,6 +22,7 @@ import { RolesGuard } from "./roles.guard.js"
 import { RecuperacionService } from "./recuperacion.service.js"
 import { UsuariosController } from "./usuarios.controller.js"
 import { UsuariosService } from "./usuarios.service.js"
+import { RegistroDeBajas } from "./bajas.js"
 import { TokensRefrescoService } from "./tokens-refresco.service.js"
 
 const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
@@ -67,6 +68,7 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
     ActivacionService,
     RecuperacionService,
     UsuariosService,
+    RegistroDeBajas,
     PerfilService,
     AsignacionesService,
     LimitadorDeIntentos,
@@ -95,6 +97,7 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
     AlcanceClienteGuard,
     ConsentimientoService,
     JwtModule,
+    RegistroDeBajas,
   ],
 })
 export class IdentityModule {}
