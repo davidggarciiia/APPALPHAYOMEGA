@@ -74,6 +74,11 @@ export function fechaCorta(fecha: string): string {
   return `${numeroDia(fecha)} ${(MESES[Number(fecha.slice(5, 7)) - 1] ?? "").slice(0, 3)}`
 }
 
+/** `2027-09-01` → «1 de septiembre de 2027», para fechas lejanas como una caducidad. */
+export function fechaConAnio(fecha: string): string {
+  return `${numeroDia(fecha)} de ${nombreMes(fecha)}`
+}
+
 /** `2026-10-01` → «octubre de 2026». */
 export function nombreMes(mes: string): string {
   return `${MESES[Number(mes.slice(5, 7)) - 1] ?? ""} de ${mes.slice(0, 4)}`

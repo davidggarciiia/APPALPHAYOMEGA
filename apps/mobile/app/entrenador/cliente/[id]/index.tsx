@@ -8,6 +8,7 @@ import { PantallaDeFormulario } from "../../../../src/componentes/formulario"
 import { useEntrenamiento } from "../../../../src/entrenamiento/use-entrenamiento"
 import { FichaCliente } from "../../../../src/entrenamiento-entrenador/ficha/ficha-cliente"
 import { useNutricion } from "../../../../src/nutricion/api"
+import { SaldoCliente } from "../../../../src/reservas/saldo-cliente"
 import { useSeguimiento } from "../../../../src/seguimiento/use-seguimiento"
 import { useMedios } from "../../../../src/seguimiento/use-medios"
 import { useValoraciones } from "../../../../src/seguimiento/use-valoraciones"
@@ -56,6 +57,9 @@ export default function FichaDelCliente(): React.JSX.Element {
           Esta pantalla requiere una cuenta de entrenador.
         </Text>
       )}
+      {estado.fase === "dentro" &&
+        estado.usuario.rol === "entrenador" &&
+        typeof id === "string" && <SaldoCliente clienteId={id} />}
     </PantallaDeFormulario>
   )
 }

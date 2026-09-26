@@ -2,7 +2,7 @@ import { StyleSheet, View } from "react-native"
 import { mesDeFecha, type Producto, type ResumenSaldo, type Servicio } from "@alpha-omega/shared"
 
 import { NumeroGrande } from "./calendario"
-import { euros, fechaLarga, nombreMes, sesiones, soloMes } from "./formato"
+import { euros, fechaConAnio, nombreMes, sesiones, soloMes } from "./formato"
 import { Aviso, Tarjeta, Texto } from "./piezas"
 
 /** Bonos de EP con algo dentro. Los caducados y los gastados no suman. */
@@ -93,7 +93,7 @@ export function ResumenDeSaldo({
   for (const bono of bonos) {
     const caducidad =
       bono.caducaEn !== null
-        ? `caduca el ${fechaLarga(bono.caducaEn)}`
+        ? `caduca el ${fechaConAnio(bono.caducaEn)}`
         : "sin empezar: vale un año desde la primera sesión"
     const cuantas = bono.compensacion
       ? sesiones(bono.quedan)
