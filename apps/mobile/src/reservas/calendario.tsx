@@ -1,8 +1,10 @@
+import { useEffect, useRef, useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 import Animated, { css, cubicBezier } from "react-native-reanimated"
 import type { Disponibilidad, Hueco } from "@alpha-omega/shared"
 
 import { Pulsable } from "../componentes/pulsable"
+import { useMovimientoReducido } from "../lib/movimiento"
 import { tema } from "../tema"
 import { Eleccion, Grupo, Texto } from "./piezas"
 import { diaCorto, fechaLarga, horaDe, local, numeroDia, sesiones } from "./formato"
@@ -13,6 +15,9 @@ type Dia = Disponibilidad["dias"][number]
 const INICIO_TARDE_MIN = 14 * 60
 
 const SALIDA = cubicBezier(0.23, 1, 0.32, 1)
+/** Ancho de cada día de la tira y separación entre días. */
+const ANCHO_DIA = 52
+const SEPARACION_DIAS = 8
 
 /** El primer día con huecos, o el primero de todos si no hay ninguno. */
 export function primerDiaConHuecos(dias: Dia[]): string | null {
@@ -47,13 +52,34 @@ export function TiraDeDias({
   elegir: (fecha: string) => void
   describir?: (cuenta: number) => string
 }): React.JSX.Element {
+  const reducido = useMovimientoReducido()
+  const tira = useRef<ScrollView>(null)
+  const desplazado = useRef(0)
+  const [ancho, setAncho] = useState(0)
+  const indice = dias.findIndex((dia) => dia.fecha === elegida)
+
+  // El día elegido siempre a la vista: hoy puede caer al final de la semana y
+  // el primer día con huecos, a mitad de la quincena.
+  useEffect(() => {
+    if (ancho === 0 || indice < 0) return
+    const x = indice * (ANCHO_DIA + SEPARACION_DIAS)
+    if (x >= desplazado.current && x + ANCHO_DIA <= desplazado.current + ancho) return
+    tira.current?.scrollTo?.({ x: Math.max(0, x - (ancho - ANCHO_DIA) / 2), animated: !reducido })
+  }, [ancho, indice, reducido])
+
   return (
     <ScrollView
+      ref={tira}
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={estilos.tira}
       accessibilityRole="radiogroup"
       accessibilityLabel="Día"
+      onLayout={(evento) => setAncho(evento.nativeEvent.layout.width)}
+      onScroll={(evento) => {
+        desplazado.current = evento.nativeEvent.contentOffset.x
+      }}
+      scrollEventThrottle={32}
     >
       {dias.map((dia) => {
         const activa = dia.fecha === elegida
@@ -169,9 +195,9 @@ const transiciones = css.create({
 })
 
 const estilos = StyleSheet.create({
-  tira: { gap: 8, paddingVertical: 2 },
+  tira: { gap: SEPARACION_DIAS, paddingVertical: 2 },
   dia: {
-    width: 52,
+    width: ANCHO_DIA,
     minHeight: 72,
     borderRadius: 14,
     borderWidth: 1,
