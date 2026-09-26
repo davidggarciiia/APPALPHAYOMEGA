@@ -239,11 +239,13 @@ describe("Panel «Hoy» del entrenador", () => {
     })
 
     const despues = await panel()
-    const [activos, pendientes, bajas] = await Promise.all(
-      (["activo", "pendiente", "desactivado"] as const).map((estado) =>
-        prisma.usuario.count({ where: { rol: "cliente", estado } }),
-      ),
-    )
+    const contar = (estado: "activo" | "pendiente" | "desactivado"): Promise<number> =>
+      prisma.usuario.count({ where: { rol: "cliente", estado } })
+    const [activos, pendientes, bajas] = await Promise.all([
+      contar("activo"),
+      contar("pendiente"),
+      contar("desactivado"),
+    ])
     expect(despues.fecha).toBe(hoy)
     expect(despues.clientes).toMatchObject({
       activos,
