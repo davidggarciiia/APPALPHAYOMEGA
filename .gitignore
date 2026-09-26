@@ -20,3 +20,6 @@ coverage/
 .DS_Store
 Thumbs.db
 *.log
+
+# Copias de trabajo temporales de los agentes de Claude Code
+.claude/worktrees/
