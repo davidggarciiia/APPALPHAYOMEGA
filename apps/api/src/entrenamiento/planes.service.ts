@@ -8,6 +8,7 @@ import {
   type Prescripcion,
   type ResultadoAnulacion,
 } from "@alpha-omega/shared"
+import type { Prisma } from "@prisma/client"
 import { randomUUID } from "node:crypto"
 
 import { AgendaService, CAMPOS_AGENDA, aSesionProgramada } from "../agenda/agenda.service.js"
@@ -52,7 +53,9 @@ export class PlanesService {
     }
 
     await this.exigirClienteAsignable(clienteId)
-    const nombres = await this.nombresPublicados(datos.patron)
+    const nombres = await this.nombresPublicados(
+      datos.patron.sesiones.flatMap((sesion) => sesion.ejercicios.map((e) => e.ejercicioId)),
+    )
     const sesiones = fechasDelPlan(datos.semanaInicial, datos.semanas, datos.patron).map(
       (fecha) => ({
         id: randomUUID(),
@@ -127,6 +130,7 @@ export class PlanesService {
   async anularSesion(id: string): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {
+        await bloquearAgenda(tx, [id])
         const { count } = await tx.sesionEntrenamiento.updateMany({
           where: { id, iniciadaEn: null, enviadoEn: null },
           data: { revisionPrescripcion: { increment: 1 } },
@@ -168,6 +172,7 @@ export class PlanesService {
         select: { id: true },
       })
       const ids = candidatas.map((sesion) => sesion.id)
+      await bloquearAgenda(tx, ids)
       // Reclamarlas bloquea las filas; volver a leer dice cuáles se reclamaron de
       // verdad (una que el cliente empezó entre medias ya no cumple la condición).
       await tx.sesionEntrenamiento.updateMany({
@@ -246,10 +251,10 @@ export class PlanesService {
    * publicados: un retirado no entra en planes nuevos.
    */
   async nombresPublicados(
-    patron: Pick<PatronRutina, "sesiones">,
+    ejercicioIds: readonly string[],
     yaPrescritos: ReadonlySet<string> = new Set(),
   ): Promise<Map<string, string>> {
-    const ids = [...new Set(patron.sesiones.flatMap((s) => s.ejercicios.map((e) => e.ejercicioId)))]
+    const ids = [...new Set(ejercicioIds)]
     const filas = await this.prisma.ejercicio.findMany({
       where: { id: { in: ids } },
       select: { id: true, nombre: true, estado: true },
@@ -268,6 +273,19 @@ export class PlanesService {
       )
     }
     return nombres
+  }
+}
+
+/**
+ * Bloquea las filas de agenda antes que las de entrenamiento.
+ *
+ * Es el orden que sigue el envío (cierra la agenda y luego guarda el resultado).
+ * Anular en el orden contrario podría cruzarse con un envío y acabar en un
+ * interbloqueo que Postgres resolvería abortando una de las dos.
+ */
+async function bloquearAgenda(tx: Prisma.TransactionClient, ids: string[]): Promise<void> {
+  if (ids.length > 0) {
+    await tx.$queryRaw`SELECT "id" FROM "sesiones_programadas" WHERE "id" = ANY(${ids}::text[]) FOR UPDATE`
   }
 }
 

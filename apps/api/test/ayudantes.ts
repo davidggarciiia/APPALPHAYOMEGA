@@ -2,9 +2,12 @@ import type { INestApplication } from "@nestjs/common"
 import { Test } from "@nestjs/testing"
 import {
   PlanAsignadoSchema,
+  PrescripcionSchema,
   type EstadoUsuario,
   type PlanAsignado,
+  type Registro,
   type Rol,
+  type SesionCliente,
 } from "@alpha-omega/shared"
 import { randomUUID } from "node:crypto"
 import request from "supertest"
@@ -178,3 +181,84 @@ export async function asignar(
     .expect(201)
   return PlanAsignadoSchema.parse(respuesta.body)
 }
+
+/** Plan con una sesión de tres series: dos por repeticiones con carga y una por tiempo sin carga. */
+export async function sesionDePrueba(
+  entorno: Entorno,
+  entrenador: Cuenta,
+  clienteId: string,
+  ejercicioId: string,
+  semanaInicial = "2026-09-14",
+): Promise<{ sesion: SesionCliente; id: string; series: string[] }> {
+  const plan = await asignar(
+    entorno,
+    entrenador,
+    clienteId,
+    planDe(ejercicioId, semanaInicial, 1, [
+      {
+        nombre: "Torso",
+        diaSemana: 1,
+        series: [
+          { tipoMedicion: "repeticiones", pesoKg: 40, repeticiones: 10 },
+          { tipoMedicion: "repeticiones", pesoKg: 40, repeticiones: 10 },
+          { tipoMedicion: "tiempo", pesoKg: null, segundos: 45 },
+        ],
+      },
+    ]),
+  )
+  const agenda = plan.sesiones[0]?.agenda
+  if (agenda === undefined) {
+    throw new Error("El plan de prueba no creó ninguna sesión")
+  }
+  const id = agenda.id
+  const fila = await entorno.prisma.sesionEntrenamiento.findUniqueOrThrow({ where: { id } })
+  const prescripcion = PrescripcionSchema.parse(fila.prescripcion)
+  const series = prescripcion.ejercicios.flatMap((e) => e.series.map((s) => s.id))
+  const sesion: SesionCliente = {
+    agenda,
+    prescripcion,
+    revisionPrescripcion: 0,
+    permiteAjuste: true,
+    enviadoEn: null,
+    borrador: null,
+  }
+  return { sesion, id, series }
+}
+
+type Marca = { pesoKg: number | null; valor: number | null; hecha: boolean }
+
+/** Registro para las tres series de `sesionDePrueba`. */
+export function registroDe(
+  series: string[],
+  marcas: [Marca, Marca, Marca],
+  notas: string | null = null,
+): Registro {
+  return {
+    notas,
+    series: [
+      {
+        serieId: series[0] ?? "",
+        tipoMedicion: "repeticiones",
+        pesoKg: marcas[0].pesoKg,
+        repeticiones: marcas[0].valor,
+        hecha: marcas[0].hecha,
+      },
+      {
+        serieId: series[1] ?? "",
+        tipoMedicion: "repeticiones",
+        pesoKg: marcas[1].pesoKg,
+        repeticiones: marcas[1].valor,
+        hecha: marcas[1].hecha,
+      },
+      {
+        serieId: series[2] ?? "",
+        tipoMedicion: "tiempo",
+        pesoKg: marcas[2].pesoKg,
+        segundos: marcas[2].valor,
+        hecha: marcas[2].hecha,
+      },
+    ],
+  }
+}
+
+export const VACIA: Marca = { pesoKg: null, valor: null, hecha: false }
