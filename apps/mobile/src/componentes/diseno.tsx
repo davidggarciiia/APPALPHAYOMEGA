@@ -445,18 +445,25 @@ export function Pastilla({
   elegida,
   onPress,
   varias = false,
+  compacta = false,
   accessibilityLabel,
 }: {
   texto: string
   elegida: boolean
   onPress: () => void
   varias?: boolean
+  /** Para una letra (días de la semana): ancho fijo y los siete caben en fila. */
+  compacta?: boolean
   accessibilityLabel?: string
 }): React.JSX.Element {
   return (
     <Pulsable
       onPress={onPress}
-      style={[estilos.pastilla, elegida && estilos.pastillaElegida]}
+      style={[
+        estilos.pastilla,
+        compacta && estilos.pastillaCompacta,
+        elegida && estilos.pastillaElegida,
+      ]}
       accessibilityRole={varias ? "checkbox" : "radio"}
       accessibilityState={{ checked: elegida }}
       accessibilityLabel={accessibilityLabel}
@@ -540,7 +547,8 @@ const estilos = StyleSheet.create({
   campo: {
     minHeight: 52,
     borderRadius: 14,
-    backgroundColor: tema.superficie,
+    // Un tono por encima de la tarjeta, para que el campo se vea también dentro.
+    backgroundColor: tema.superficieAlta,
     color: tema.texto,
     fontFamily: fuentes.normal,
     fontSize: 16,
@@ -555,9 +563,11 @@ const estilos = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 16,
     justifyContent: "center",
-    backgroundColor: tema.superficie,
+    alignItems: "center",
+    backgroundColor: tema.superficieAlta,
     overflow: "hidden",
   },
+  pastillaCompacta: { width: 40, paddingHorizontal: 0 },
   pastillaElegida: { backgroundColor: "transparent" },
   textoPastilla: { color: tema.texto, fontFamily: fuentes.semi, fontSize: 14 },
   textoPastillaElegida: { color: tema.sobreOro },

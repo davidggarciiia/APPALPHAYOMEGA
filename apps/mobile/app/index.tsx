@@ -24,7 +24,8 @@ export default function Inicio(): React.JSX.Element {
 type Entrada = {
   titulo: string
   subtitulo: string
-  ruta: "/cartera" | "/nutricionista" | "/mis-clientes"
+  ruta:
+    "/cartera" | "/nutricionista" | "/mis-clientes" | "/entrenador/panel" | "/entrenador/rutinas"
 }
 
 function InicioDelEquipo(): React.JSX.Element {
@@ -35,7 +36,21 @@ function InicioDelEquipo(): React.JSX.Element {
   const entradas: Entrada[] =
     rol === "entrenador"
       ? [
-          { titulo: "Mi cartera", subtitulo: "Clientes, fichas y accesos", ruta: "/cartera" },
+          {
+            titulo: "Entrenos de la semana",
+            subtitulo: "Lo pendiente y lo que ya han enviado tus clientes",
+            ruta: "/entrenador/panel",
+          },
+          {
+            titulo: "Rutinas",
+            subtitulo: "Semanas tipo para cargar en un plan",
+            ruta: "/entrenador/rutinas",
+          },
+          {
+            titulo: "Mi cartera",
+            subtitulo: "Clientes, fichas, planes y accesos",
+            ruta: "/cartera",
+          },
           {
             titulo: "Nutricionista",
             subtitulo: "Quién lleva la nutrición",

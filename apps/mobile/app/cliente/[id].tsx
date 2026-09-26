@@ -461,6 +461,22 @@ export default function FichaDeCliente(): React.JSX.Element {
         ocupado={isSubmitting || ocupado === "guardar"}
       />
 
+      {ficha.rol === "cliente" && (
+        <>
+          <View style={estilos.separador} />
+          <Text style={estilos.etiquetaFija}>ENTRENAMIENTO</Text>
+          <BotonSecundario
+            texto="ENTRENOS Y PLANES"
+            onPress={() =>
+              router.push({
+                pathname: "/entrenador/cliente/[id]/entrenos",
+                params: { id: ficha.id, nombre: nombreCompleto },
+              })
+            }
+          />
+        </>
+      )}
+
       <View style={estilos.separador} />
       <Text style={estilos.etiquetaFija}>ACCESO</Text>
 
