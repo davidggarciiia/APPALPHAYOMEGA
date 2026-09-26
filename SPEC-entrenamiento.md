@@ -424,13 +424,16 @@ ejercicio en el plan.
 Tras cada envío, el servidor calcula la carga de la próxima vez de cada ejercicio
 con carga, con la doble progresión:
 
-| Última sesión del mismo ejercicio en el plan               | Próxima vez                                  |
-| ---------------------------------------------------------- | -------------------------------------------- |
-| Todas las series al máximo del rango y con RIR ≥ el mínimo | Sube el incremento del ejercicio             |
-| Dentro del rango con el RIR previsto                       | Igual                                        |
-| Alguna serie con RIR por debajo del mínimo                 | Igual                                        |
-| Alguna serie a RIR 0, o bajó la carga dentro de la sesión  | Revisa: la carga de la última serie completa |
-| Molestia ámbar o roja en ese ejercicio en esa sesión       | Pendiente del entrenador                     |
+Las reglas se miran en este orden y manda **la primera que se cumple**; así una
+molestia nunca acaba en una subida y un RIR 0 nunca se queda en «Igual»:
+
+| Orden | Última sesión del mismo ejercicio en el plan                       | Próxima vez                                  |
+| ----- | ------------------------------------------------------------------ | -------------------------------------------- |
+| 1     | Molestia ámbar o roja en ese ejercicio en esa sesión               | Pendiente del entrenador                     |
+| 2     | Alguna serie a RIR 0, o bajó la carga dentro de la sesión          | Revisa: la carga de la última serie completa |
+| 3     | Alguna serie con RIR por debajo del mínimo                         | Igual                                        |
+| 4     | Todas las series hechas, al máximo del rango y con RIR ≥ el mínimo | Sube el incremento del ejercicio             |
+| 5     | Cualquier otro caso (dentro del rango, series sin hacer…)          | Igual                                        |
 
 Incremento por defecto: 2,5 kg en tren superior y 5 kg en inferior; el plan y el
 ejercicio lo pueden cambiar. La carga de cada ocurrencia tiene origen `inicial`
@@ -532,8 +535,10 @@ plan, a partir de lo que ya hay en la app. Es lo último de esta ampliación.
 19. Asignar un bloque con fases crea semanas cuya prescripción ya refleja su
     fase; la descarga lleva menos series.
 20. Tras un envío, la próxima sesión del mismo ejercicio muestra la carga
-    sugerida según la tabla; una carga fijada por el entrenador no se toca; una
-    molestia deja el ejercicio pendiente.
+    sugerida según la tabla y en su orden, con un caso de prueba por cada
+    coincidencia de reglas (RIR 0 con RIR bajo el mínimo, molestia con subida).
+    Una carga fijada por el entrenador no se toca y una molestia deja el
+    ejercicio pendiente.
 21. Dos señales en una semana avisan al entrenador; «Aplicar a la semana» no
     cambia nada hasta confirmarse y no toca sesiones empezadas ni enviadas.
 22. El check-in funciona sin red, muestra la recomendación correcta para cada

@@ -295,13 +295,15 @@ incremento mínimo y se vuelve al mínimo del rango.
 
 Por cada ejercicio con carga, tras cada envío, la app calcula la próxima vez:
 
-| Qué pasó en la última sesión                                     | Próxima vez                                                        |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Todas las series al máximo del rango y con el RIR previsto o más | **Sube** el incremento (1–2,5 kg tren superior, 2,5–5 kg inferior) |
-| Dentro del rango, RIR previsto                                   | **Igual**                                                          |
-| Alguna serie con RIR por debajo de lo previsto                   | **Igual**, sin subir                                               |
-| Alguna serie al fallo (RIR 0) o bajó la carga a mitad            | **Revisa**: baja a la carga de la última serie completa            |
-| Molestia ámbar o roja en ese ejercicio                           | **Pendiente de ti**: no se sugiere nada                            |
+Manda la primera regla que se cumple, en este orden:
+
+| Orden | Qué pasó en la última sesión                                             | Próxima vez                                                        |
+| ----- | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| 1     | Molestia ámbar o roja en ese ejercicio                                   | **Pendiente de ti**: no se sugiere nada                            |
+| 2     | Alguna serie al fallo (RIR 0) o bajó la carga a mitad                    | **Revisa**: baja a la carga de la última serie completa            |
+| 3     | Alguna serie con RIR por debajo de lo previsto                           | **Igual**, sin subir                                               |
+| 4     | Todas las series hechas, al máximo del rango y con el RIR previsto o más | **Sube** el incremento (1–2,5 kg tren superior, 2,5–5 kg inferior) |
+| 5     | Cualquier otro caso                                                      | **Igual**                                                          |
 
 La sugerencia aparece al cliente como objetivo tenue de peso en la próxima sesión
 y al entrenador en la columna «Próxima vez». Si el entrenador fija una carga, la
