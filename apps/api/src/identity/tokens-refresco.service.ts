@@ -73,12 +73,19 @@ export class TokensRefrescoService {
    * distinguen por el reloj. Dentro de unos segundos es una respuesta que se
    * perdio y el movil reintenta. Mas tarde es una copia robada, y entonces se
    * corta la familia entera porque no se sabe quien tiene el token legitimo.
+   *
+   * `llegada` es el instante en que entro la peticion. Distingue la repeticion
+   * de un token ya revocado de la peticion simultanea que simplemente perdio la
+   * carrera. Solo los tests lo pasan a mano, para fijar el orden de una carrera.
    */
-  async canjear(token: string): Promise<{ usuarioId: string; nuevo: SesionEmitida }> {
+  async canjear(
+    token: string,
+    llegada: Date = new Date(),
+  ): Promise<{ usuarioId: string; nuevo: SesionEmitida }> {
     const fila = await this.buscarFila(token)
 
     const resultado = await this.prisma.$transaction(async (tx) =>
-      this.canjearDentroDeLaTransaccion(fila, tx),
+      this.canjearDentroDeLaTransaccion(fila, llegada, tx),
     )
 
     // El corte por reuso se hace FUERA de la transaccion, y no es un detalle de
@@ -123,6 +130,7 @@ export class TokensRefrescoService {
       revocadoEn: Date | null
       motivoRevocacion: "rotacion" | "cierre" | "reuso" | "reintento" | null
     },
+    llegada: Date,
     tx: ClientePrisma & Pick<PrismaService, "usuario">,
   ): Promise<ResultadoDeCanje> {
     await tx.usuario.updateMany({
@@ -136,7 +144,22 @@ export class TokensRefrescoService {
     })
 
     if (count !== 1) {
-      // El token ya estaba revocado. Hay dos explicaciones muy distintas.
+      // Antes de sospechar, cuando se revoco. Si fue DESPUES de que llegara esta
+      // peticion, no es una repeticion: es una peticion simultanea que perdio la
+      // carrera contra otra rotacion del mismo token. La fila se leyo antes del
+      // candado, asi que puede traer cualquier estado posterior (incluso la gracia
+      // ya consumida por una tercera peticion), y tratarla como un robo cortaba la
+      // familia entera y dejaba fuera al dueno legitimo. Se rechaza sin tocar nada.
+      //
+      // Una copia robada no se cuela por aqui: para llegar antes de la revocacion
+      // tiene que competir en el mismo instante con el canje legitimo, y aun asi
+      // solo obtiene un rechazo, nunca una sesion.
+      if (fila.revocadoEn === null || fila.revocadoEn.getTime() >= llegada.getTime()) {
+        return { tipo: "rechazo" }
+      }
+
+      // El token ya estaba revocado cuando llego la peticion. Hay dos
+      // explicaciones muy distintas.
       //
       // Una: alguien esta usando una copia robada. Es lo que la rotacion existe
       // para detectar.
