@@ -185,15 +185,25 @@ describe("Revocacion efectiva del token de acceso", () => {
       .send({ tokenRefresco: sesion.tokenRefresco })
       .expect(200)
 
-    // Tercero: ya no hay gracia que valga, y la familia entera queda cortada.
+    // Tercero: ya no hay gracia que valga. Dentro de la ventana se rechaza sin
+    // cortar, porque puede ser la cola de una rafaga simultanea, pero retira la
+    // gracia a toda la familia.
     await request(app.getHttpServer())
       .post("/auth/refresh")
       .send({ tokenRefresco: sesion.tokenRefresco })
       .expect(401)
 
+    // Por eso el token de la primera rotacion, que aun tenia su propia gracia,
+    // ya no abre nada: reaparece como un reuso y la familia entera queda cortada.
     await request(app.getHttpServer())
       .post("/auth/refresh")
       .send({ tokenRefresco: renovada.body.tokenRefresco })
       .expect(401)
+
+    expect(
+      await prisma.tokenRefresco.count({
+        where: { usuario: { email: EMAIL }, revocadoEn: null },
+      }),
+    ).toBe(0)
   })
 })

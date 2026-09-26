@@ -73,6 +73,11 @@ export class TokensRefrescoService {
    * distinguen por el reloj. Dentro de unos segundos es una respuesta que se
    * perdio y el movil reintenta. Mas tarde es una copia robada, y entonces se
    * corta la familia entera porque no se sabe quien tiene el token legitimo.
+   *
+   * El reintento se atiende una sola vez. Si el mismo token vuelve dentro de la
+   * ventana con la gracia ya gastada, se rechaza sin cortar: desde el servidor
+   * es indistinguible de la ultima de una rafaga de peticiones simultaneas, y
+   * cortar ahi dejaba al usuario sin sesion por refrescar en paralelo.
    */
   async canjear(token: string): Promise<{ usuarioId: string; nuevo: SesionEmitida }> {
     const fila = await this.buscarFila(token)
@@ -95,9 +100,9 @@ export class TokensRefrescoService {
     }
 
     if (resultado.tipo === "rechazo") {
-      // Otra peticion se llevo la gracia hace un instante. No hay motivo para
-      // sospechar de nadie, asi que no se toca la familia: quien tenga el token
-      // bueno sigue dentro.
+      // Perdio una carrera con otra peticion que llevaba el mismo token y que ya
+      // lo roto o se llevo la gracia. No se corta la familia: quien tenga el
+      // token bueno sigue dentro.
       throw new UnauthorizedException("Sesion no valida")
     }
 
@@ -136,6 +141,15 @@ export class TokensRefrescoService {
     })
 
     if (count !== 1) {
+      if (fila.revocadoEn === null) {
+        // Estaba vivo cuando se leyo y ya no lo esta: otra peticion con el mismo
+        // token gano la carrera por el candado, o un cierre de sesion se colo en
+        // medio. No es un reuso, es la misma persona refrescando dos veces a la
+        // vez. Antes caia en el corte de mas abajo y la perdedora tumbaba la
+        // sesion que acababa de emitir la ganadora.
+        return { tipo: "rechazo" }
+      }
+
       // El token ya estaba revocado. Hay dos explicaciones muy distintas.
       //
       // Una: alguien esta usando una copia robada. Es lo que la rotacion existe
@@ -182,6 +196,29 @@ export class TokensRefrescoService {
             nuevo: await this.crearFila(fila.usuarioId, fila.familiaId, fila.familiaCreadaEn, tx),
           },
         }
+      }
+
+      if (
+        fila.motivoRevocacion === "reintento" &&
+        this.dentroDeLaVentanaDeGracia(fila.revocadoEn)
+      ) {
+        // La gracia ya se gasto y el token vuelve dentro de la ventana. Puede ser
+        // la ultima de una rafaga de canjes simultaneos que llego cuando las
+        // otras ya habian rotado y reintentado, o una copia. Desde aqui no se
+        // distinguen, asi que se rechaza sin cortar: el token vivo sigue vivo.
+        //
+        // Lo que si se hace es retirar la gracia al resto de la familia. Sin eso,
+        // el token que salio de la rotacion original seguia con su propia gracia
+        // y abria una sesion nueva: rechazar sin cortar habria dejado una puerta
+        // en lugar de cerrarla.
+        await this.retirarGracia(fila.familiaId, "reuso", tx)
+
+        this.registro.log(
+          `Canje repetido con la gracia ya gastada. Rechazado sin cortar la ` +
+            `familia ${fila.familiaId}; su gracia queda retirada.`,
+        )
+
+        return { tipo: "rechazo" }
       }
 
       return { tipo: "reuso" }
@@ -351,11 +388,23 @@ export class TokensRefrescoService {
     })
 
     if (motivo === "cierre" || motivo === "reuso") {
-      await cliente.tokenRefresco.updateMany({
-        where: { familiaId, motivoRevocacion: "rotacion" },
-        data: { motivoRevocacion: motivo },
-      })
+      await this.retirarGracia(familiaId, motivo, cliente)
     }
+  }
+
+  /**
+   * Quita la indulgencia a los tokens ya rotados de una familia: si reaparecen,
+   * cuentan como reuso. No toca el token vivo, si lo hay.
+   */
+  private async retirarGracia(
+    familiaId: string,
+    motivo: "cierre" | "reuso",
+    cliente: ClientePrisma = this.prisma,
+  ): Promise<void> {
+    await cliente.tokenRefresco.updateMany({
+      where: { familiaId, motivoRevocacion: "rotacion" },
+      data: { motivoRevocacion: motivo },
+    })
   }
 
   /**

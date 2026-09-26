@@ -115,7 +115,12 @@ Las filas que mandan son la cuarta y la quinta. Todo lo demás se deriva de ella
 21. **La rotacion es atomica.** Dos canjes simultaneos del mismo token no pueden
     producir dos sesiones. Gana uno y el resto se rechaza.
 22. **Un token ya rotado que reaparece corta la cadena entera.** Es la firma de
-    una copia, y no se sabe quien tiene el bueno.
+    una copia, y no se sabe quien tiene el bueno. Hay dos excepciones, las dos
+    dentro de los treinta segundos siguientes a la rotacion. El primer canje
+    repetido se atiende como el reintento de una respuesta perdida, una sola
+    vez. Los siguientes se rechazan sin cortar, porque no se distinguen de la
+    cola de una rafaga simultanea, y retiran la gracia al resto de la cadena.
+    Pasada la ventana, cualquier reaparicion corta.
 23. **La cadena de refresco tiene vida maxima.** Rotar no la alarga
     indefinidamente. Al llegar al tope se vuelve a pedir la contrasena.
 
