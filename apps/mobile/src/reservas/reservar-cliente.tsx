@@ -15,7 +15,7 @@ import {
 import { faltaDe, type Falta } from "../lib/errores"
 import { useMovimientoReducido } from "../lib/movimiento"
 import type { ApiReservas } from "./api"
-import { HuecosDelDia, TiraDeDias, primerDiaConHuecos } from "./calendario"
+import { HuecosDelDia, TiraDeDias, diasConHuecos, primerDiaConHuecos } from "./calendario"
 import { codigoDe } from "./errores"
 import { ExitoReserva } from "./exito"
 import { euros, fechaTitulo, local, personas as textoPersonas, tramo } from "./formato"
@@ -355,7 +355,9 @@ export function ReservarCliente({
 
           {servicio !== undefined && (
             <>
-              {dias !== null && <TiraDeDias dias={dias} elegida={dia} elegir={setDia} />}
+              {dias !== null && (
+                <TiraDeDias dias={diasConHuecos(dias)} elegida={dia} elegir={setDia} />
+              )}
               <Estado
                 cargando={cargandoHuecos && dias === null}
                 error={falloHuecos}

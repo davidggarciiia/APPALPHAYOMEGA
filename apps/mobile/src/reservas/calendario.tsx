@@ -19,19 +19,33 @@ export function primerDiaConHuecos(dias: Dia[]): string | null {
   return (dias.find((dia) => dia.huecos.length > 0) ?? dias[0])?.fecha ?? null
 }
 
+/** «sin huecos libres», «1 hueco libre», «3 huecos libres». */
+export function describirHuecos(cuenta: number): string {
+  if (cuenta === 0) return "sin huecos libres"
+  return `${String(cuenta)} ${cuenta === 1 ? "hueco libre" : "huecos libres"}`
+}
+
+/** Los días de la disponibilidad con cuántos huecos tiene cada uno. */
+export function diasConHuecos(dias: Dia[]): Array<{ fecha: string; cuenta: number }> {
+  return dias.map((dia) => ({ fecha: dia.fecha, cuenta: dia.huecos.length }))
+}
+
 /**
- * Tira de días, como en Booksy: día de la semana y número. Los días sin huecos
- * se ven apagados pero se pueden elegir, para que el «no hay nada» se lea en
- * palabras y no solo en un color.
+ * Tira de días, como en Booksy: día de la semana y número. Los días sin nada
+ * (huecos para el cliente, reservas para el entrenador) se ven apagados pero se
+ * pueden elegir, para que el «no hay nada» se lea en palabras y no solo en un
+ * color.
  */
 export function TiraDeDias({
   dias,
   elegida,
   elegir,
+  describir = describirHuecos,
 }: {
-  dias: Dia[]
+  dias: ReadonlyArray<{ fecha: string; cuenta: number }>
   elegida: string | null
   elegir: (fecha: string) => void
+  describir?: (cuenta: number) => string
 }): React.JSX.Element {
   return (
     <ScrollView
@@ -43,17 +57,13 @@ export function TiraDeDias({
     >
       {dias.map((dia) => {
         const activa = dia.fecha === elegida
-        const libres = dia.huecos.length
+        const libres = dia.cuenta
         return (
           <Pulsable
             key={dia.fecha}
             onPress={() => elegir(dia.fecha)}
             accessibilityRole="radio"
-            accessibilityLabel={`${fechaLarga(dia.fecha)}, ${
-              libres === 0
-                ? "sin huecos libres"
-                : `${String(libres)} ${libres === 1 ? "hueco libre" : "huecos libres"}`
-            }`}
+            accessibilityLabel={`${fechaLarga(dia.fecha)}, ${describir(libres)}`}
             accessibilityState={{ checked: activa, selected: activa }}
           >
             <Animated.View
