@@ -1,6 +1,12 @@
 import type { INestApplication } from "@nestjs/common"
 import { Test } from "@nestjs/testing"
-import type { EstadoUsuario, Rol } from "@alpha-omega/shared"
+import {
+  PlanAsignadoSchema,
+  type EstadoUsuario,
+  type PlanAsignado,
+  type Rol,
+} from "@alpha-omega/shared"
+import { randomUUID } from "node:crypto"
 import request from "supertest"
 
 import { AppModule } from "../src/app.module.js"
@@ -113,4 +119,62 @@ export async function crearEjercicio(
     },
   })
   return { id: fila.id, nombre: fila.nombre }
+}
+
+type SerieDePrueba =
+  | { tipoMedicion: "repeticiones"; pesoKg: number | null; repeticiones: number }
+  | { tipoMedicion: "tiempo"; pesoKg: number | null; segundos: number }
+
+/** Un patrón semanal válido con un ejercicio por sesión e ids nuevos. */
+export function patronDe(
+  ejercicioId: string,
+  sesiones: ReadonlyArray<{ nombre: string; diaSemana: number; series?: SerieDePrueba[] }>,
+): { sesiones: Array<Record<string, unknown>> } {
+  return {
+    sesiones: sesiones.map((sesion) => ({
+      id: randomUUID(),
+      nombre: sesion.nombre,
+      diaSemana: sesion.diaSemana,
+      ejercicios: [
+        {
+          id: randomUUID(),
+          ejercicioId,
+          indicaciones: null,
+          series: (
+            sesion.series ?? [{ tipoMedicion: "repeticiones", pesoKg: 40, repeticiones: 10 }]
+          ).map((serie) => ({ id: randomUUID(), ...serie })),
+        },
+      ],
+    })),
+  }
+}
+
+export function planDe(
+  ejercicioId: string,
+  semanaInicial: string,
+  semanas: number,
+  sesiones: ReadonlyArray<{ nombre: string; diaSemana: number; series?: SerieDePrueba[] }>,
+): Record<string, unknown> {
+  return {
+    operacionId: randomUUID(),
+    nombre: "Plan de prueba",
+    semanaInicial,
+    semanas,
+    patron: patronDe(ejercicioId, sesiones),
+  }
+}
+
+/** Asigna un plan como entrenador y devuelve el cuerpo de la respuesta. */
+export async function asignar(
+  entorno: Entorno,
+  entrenador: Cuenta,
+  clienteId: string,
+  plan: Record<string, unknown>,
+): Promise<PlanAsignado> {
+  const respuesta = await request(entorno.servidor())
+    .post(`/entrenamiento/clientes/${clienteId}/planes`)
+    .set("Authorization", entrenador.cabecera)
+    .send(plan)
+    .expect(201)
+  return PlanAsignadoSchema.parse(respuesta.body)
 }
