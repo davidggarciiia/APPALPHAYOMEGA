@@ -240,6 +240,14 @@ export class ReservasService {
               ? `Este servicio es para ${servicio.minPersonas} persona${servicio.minPersonas === 1 ? "" : "s"}`
               : `Este servicio es de ${servicio.minPersonas} a ${servicio.maxPersonas} personas`,
           )
+        // Lo que no gasta saldo se cobra allí: sin precio para esas personas, la
+        // sesión saldría gratis sin que nadie lo supiera.
+        const importe = servicio.claseDeSaldo ? null : this.importeGrupo(servicio, datos.personas)
+        if (!servicio.claseDeSaldo && importe === null)
+          throw conflicto(
+            "operacion_incompatible",
+            `Este servicio no tiene precio para ${datos.personas} personas. Pide al entrenador que lo configure.`,
+          )
         await this.exigirHueco(tx, {
           servicio,
           ajustes,
@@ -269,18 +277,16 @@ export class ReservasService {
             origen: { tipo: "reserva", id },
             autorId: actor.sub,
           })
-        } else {
-          const importe = this.importeGrupo(servicio, datos.personas)
-          if (importe !== null)
-            await this.cobros.crear(tx, {
-              clienteId,
-              concepto: `${servicio.nombre} · ${datos.personas} personas · ${fechaCorta(inicio)}`,
-              importeCentimos: importe,
-              origenTipo: "reserva",
-              origenId: id,
-              cobrado: false,
-              autorId: actor.sub,
-            })
+        } else if (importe !== null) {
+          await this.cobros.crear(tx, {
+            clienteId,
+            concepto: `${servicio.nombre} · ${datos.personas} personas · ${fechaCorta(inicio)}`,
+            importeCentimos: importe,
+            origenTipo: "reserva",
+            origenId: id,
+            cobrado: false,
+            autorId: actor.sub,
+          })
         }
         const fila = await tx.reserva.findUniqueOrThrow({ where: { id }, include: incluirReserva })
         return (await this.publicas([fila], tx))[0]!
@@ -393,9 +399,11 @@ export class ReservasService {
         })
         await this.saldo.bloquearCliente(tx, reserva.clienteId, false)
         let cargoSaldo = reserva.cargoSaldo
-        const mesAntes = partesLocales(reserva.inicio, ZONA_AGENDA).fecha.slice(0, 7)
+        // Otro día puede necesitar otra fuente: otro mes del plan, o un bono que
+        // para entonces ya habrá caducado. Se devuelve y se vuelve a gastar.
+        const fechaAntes = partesLocales(reserva.inicio, ZONA_AGENDA).fecha
         const fechaNueva = partesLocales(inicio, ZONA_AGENDA).fecha
-        if (servicio.claseDeSaldo && reserva.cargoSaldo && mesAntes !== fechaNueva.slice(0, 7)) {
+        if (servicio.claseDeSaldo && reserva.cargoSaldo && fechaAntes !== fechaNueva) {
           await this.saldo.devolver(tx, {
             origen: { tipo: "reserva", id: reserva.cargoSaldo },
             autorId: actor.sub,

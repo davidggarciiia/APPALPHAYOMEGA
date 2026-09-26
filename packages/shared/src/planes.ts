@@ -157,7 +157,8 @@ export type PedirProducto = z.infer<typeof PedirProductoSchema>
 export const MESES_INICIO = ["actual", "siguiente"] as const
 
 export const ActivarSolicitudSchema = z.strictObject({
-  importeCentimos: CentimosSchema,
+  /** Lo cobrado. Sin él, el precio copiado al pedirlo (o el del producto). */
+  importeCentimos: CentimosSchema.optional(),
   mesInicio: z.enum(MESES_INICIO).default("actual"),
   /** Si ya se cobró en efectivo. Si no, el cobro queda pendiente. */
   cobrado: z.boolean().default(true),

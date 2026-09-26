@@ -1,4 +1,9 @@
-import { ErrorDeApiSchema, type ErrorDeApi } from "@alpha-omega/shared"
+import {
+  ConflictoAgendaSchema,
+  ErrorDeApiSchema,
+  type ConflictoAgenda,
+  type ErrorDeApi,
+} from "@alpha-omega/shared"
 import type { z } from "zod"
 import { direccionDeLaApi } from "./direccion-api"
 
@@ -24,6 +29,17 @@ export class ErrorDePeticion extends ErrorDelServidor {
   constructor(readonly detalle: ErrorDeApi) {
     super(detalle.statusCode)
     this.message = detalle.message
+  }
+}
+
+/**
+ * 409 de la agenda: el cambio de horario o el cierre dejaría fuera reservas ya
+ * confirmadas. No se ha aplicado nada y trae cuáles son, para enseñarlas.
+ */
+export class ErrorDeConflictoAgenda extends ErrorDelServidor {
+  constructor(readonly conflicto: ConflictoAgenda) {
+    super(409)
+    this.message = conflicto.message
   }
 }
 
@@ -61,6 +77,10 @@ export async function pedir(ruta: string, opciones: RequestInit = {}): Promise<u
         const error = ErrorDeApiSchema.safeParse(cuerpo)
         if (error.success && error.data.statusCode === respuesta.status) {
           throw new ErrorDePeticion(error.data)
+        }
+        const conflicto = ConflictoAgendaSchema.safeParse(cuerpo)
+        if (conflicto.success && respuesta.status === 409) {
+          throw new ErrorDeConflictoAgenda(conflicto.data)
         }
       }
       throw new ErrorDelServidor(respuesta.status)

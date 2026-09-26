@@ -7,6 +7,7 @@ import {
   hoyEnZona,
   mesDeFecha,
   sumarDiasFecha,
+  sumarMeses,
   ZONA_AGENDA,
   type Disponibilidad,
   type Reserva,
@@ -35,6 +36,9 @@ const PERSONAS = [
   "carla",
   "dora",
   "eva",
+  "fede",
+  "gala",
+  "hugo",
   "nutri",
   "empleado",
 ] as const
@@ -604,6 +608,146 @@ describe("baja del cliente", () => {
         where: { clienteId: ids.carla, estado: "pendiente" },
       }),
     ).toBe(0)
+  })
+})
+
+describe("casos límite de la revisión", () => {
+  it("un plan «este mes» no se desplaza detrás de un plan posterior con el que no se solapa", async () => {
+    await activar("fede", "presencial-esencial", "siguiente")
+    await activar("fede", "presencial-plus", "actual")
+    const resumen = await saldo("fede")
+    expect(resumen.ep.mesActual).toMatchObject({ cupo: 4, quedan: 4 })
+    expect(resumen.ep.mesSiguiente).toMatchObject({ cupo: 2 })
+    // Otro plan «este mes» sí pisa el Plus y empieza cuando acaban los dos.
+    await activar("fede", "presencial-integral", "actual")
+    const planes = (await saldo("fede")).suscripciones.map((s) => [s.nombre, s.mesInicio])
+    expect(planes).toContainEqual(["Presencial Integral", sumarMeses(mesDeFecha(hoy), 2)])
+  })
+
+  it("mismo id de operación con otro producto o importe: conflicto, no la activación anterior", async () => {
+    const operacionId = randomUUID()
+    const cuerpo = { operacionId, productoId: productos["bono-ep-6"], cobrado: true }
+    const primera = await http()
+      .post(`/planes/clientes/${ids.fede}/activaciones`)
+      .set(como("entrenador"))
+      .send(cuerpo)
+      .expect(200)
+    // Sin importe, el precio del producto.
+    expect(primera.body.cobro.importeCentimos).toBe(19200)
+    await http()
+      .post(`/planes/clientes/${ids.fede}/activaciones`)
+      .set(como("entrenador"))
+      .send(cuerpo)
+      .expect(200)
+    const otra = await http()
+      .post(`/planes/clientes/${ids.fede}/activaciones`)
+      .set(como("entrenador"))
+      .send({ ...cuerpo, productoId: productos["bono-ep-10"] })
+      .expect(409)
+    expect(otra.body.codigo).toBe("operacion_incompatible")
+    expect(await prisma.bono.count({ where: { clienteId: ids.fede, nombre: "Bono EP 10" } })).toBe(
+      0,
+    )
+  })
+
+  it("mover a una fecha en la que el bono ya habrá caducado vuelve a elegir la fuente, o no se mueve", async () => {
+    await activar("gala", "ep-suelta")
+    const bono = await prisma.bono.findFirstOrThrow({ where: { clienteId: ids.gala } })
+    // Una sesión gastada hace casi un año: el bono caduca dentro de cinco días.
+    const haceUnAnio = sumarDiasFecha(hoy, -360)
+    await prisma.bono.update({
+      where: { id: bono.id },
+      data: {
+        sesiones: 2,
+        primerUsoEn: new Date(`${haceUnAnio}T00:00:00Z`),
+        caducaEn: new Date(`${sumarDiasFecha(haceUnAnio, 365)}T00:00:00Z`),
+      },
+    })
+    await prisma.movimientoSaldo.create({
+      data: {
+        clienteId: ids.gala,
+        cantidad: -1,
+        motivo: "consumo",
+        bonoId: bono.id,
+        fechaSesion: new Date(`${haceUnAnio}T00:00:00Z`),
+        origenTipo: "manual",
+        origenId: randomUUID(),
+        autorId: ids.entrenador,
+      },
+    })
+    const reserva = (await reservar("gala", hora(sumarDiasFecha(hoy, 2), 10)).expect(201))
+      .body as Reserva
+    expect(reserva.fuenteSaldo).toBe("EP suelta")
+    const lejos = await http()
+      .patch(`/agenda/reservas/${reserva.id}`)
+      .set(como("entrenador"))
+      .send({ inicio: hora(sumarDiasFecha(hoy, 9), 9), revision: reserva.revision })
+      .expect(409)
+    expect(lejos.body.codigo).toBe("sin_saldo")
+    const intacta = await prisma.reserva.findUniqueOrThrow({ where: { id: reserva.id } })
+    expect(intacta.inicio.toISOString()).toBe(reserva.inicio)
+  })
+
+  it("la caducidad sigue a la sesión gastada más temprana, también si se reserva antes otra más tarde y se cancela", async () => {
+    await activar("hugo", "bono-ep-6")
+    const tarde = (
+      await http()
+        .post(`/agenda/clientes/${ids.hugo}/reservas`)
+        .set(como("entrenador"))
+        .send({
+          operacionId: randomUUID(),
+          servicioId: servicioEp,
+          inicio: hora(sumarDiasFecha(hoy, 20), 10),
+          personas: 1,
+        })
+        .expect(201)
+    ).body as Reserva
+    const pronto = sumarDiasFecha(hoy, 3)
+    await reservar("hugo", hora(pronto, 12)).expect(201)
+    let bono = (await saldo("hugo")).ep.bonos[0]
+    expect(bono).toMatchObject({ primerUsoEn: pronto, caducaEn: sumarDiasFecha(pronto, 365) })
+    await http()
+      .post(`/agenda/reservas/${tarde.id}/cancelar`)
+      .set(como("entrenador"))
+      .send({})
+      .expect(200)
+    bono = (await saldo("hugo")).ep.bonos[0]
+    expect(bono).toMatchObject({ quedan: 5, primerUsoEn: pronto })
+  })
+
+  it("las tarifas de grupo no admiten huecos, repetidos ni importes desorbitados, y se responde 400", async () => {
+    const ruta = `/agenda/servicios/${servicioGrupo}`
+    const incompleta = await http()
+      .patch(ruta)
+      .set(como("entrenador"))
+      .send({ tarifas: [{ personas: 2, precioPorPersonaCentimos: 2500 }] })
+      .expect(400)
+    expect(incompleta.body.message).toContain("3, 4, 5, 6")
+    await http()
+      .patch(ruta)
+      .set(como("entrenador"))
+      .send({
+        tarifas: [
+          { personas: 2, precioPorPersonaCentimos: 2500 },
+          { personas: 2, precioPorPersonaCentimos: 2000 },
+        ],
+      })
+      .expect(400)
+    await http()
+      .patch(ruta)
+      .set(como("entrenador"))
+      .send({ tarifas: [{ personas: 2, precioPorPersonaCentimos: 3_000_000_000 }] })
+      .expect(400)
+    const servicio = await prisma.servicio.findUniqueOrThrow({
+      where: { id: servicioGrupo },
+      include: { tarifas: true },
+    })
+    expect(servicio.tarifas).toHaveLength(5)
+  })
+
+  it("el saldo de alguien que no es cliente no existe", async () => {
+    await http().get(`/planes/clientes/${ids.entrenador}/saldo`).set(como("entrenador")).expect(404)
+    await http().get(`/planes/clientes/${randomUUID()}/saldo`).set(como("entrenador")).expect(404)
   })
 })
 

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect, useRouter } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_ZONA,
   type EstadoConsentimiento,
@@ -33,6 +33,7 @@ import { resumenDeResultado } from "../ficha-modelo"
 import { DialogoResponder, RequiereAtencion } from "./atencion"
 import { CheckinsYMolestias } from "./checkins"
 import { SesionesDelCliente } from "./sesiones"
+import { Pulsable } from "../../componentes/pulsable"
 
 export type PestanaDeFicha =
   "resumen" | "sesiones" | "progreso" | "checkins" | "nutricion" | "salud"
@@ -196,20 +197,16 @@ export function FichaCliente({
           )}
         </View>
         <View style={s.botones}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={verSemana}
-            style={({ pressed }) => [s.secundario, pressed && s.pulsado]}
-          >
+          <Pulsable accessibilityRole="button" onPress={verSemana} style={s.secundario}>
             <Text style={s.textoSecundario}>Semana</Text>
-          </Pressable>
-          <Pressable
+          </Pulsable>
+          <Pulsable
             accessibilityRole="button"
             onPress={editarPlan}
-            style={({ pressed }) => [s.principal, degradadoOro, pressed && s.pulsado]}
+            style={[s.principal, degradadoOro]}
           >
             <Text style={s.textoPrincipal}>Editar plan</Text>
-          </Pressable>
+          </Pulsable>
         </View>
       </View>
       <Pestanas opciones={PESTANAS} activa={pestana} cambiar={setPestana} />
