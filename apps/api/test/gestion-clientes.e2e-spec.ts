@@ -823,7 +823,11 @@ describe("Gestion de clientes", () => {
     })
 
     it("ni el entrenador puede crear otra cuenta de entrenador", async () => {
-      const antes = await prisma.usuario.count({ where: { rol: "entrenador" } })
+      // Se cuenta solo dentro de este fichero. Las demas suites crean y borran
+      // entrenadores en paralelo, y un conteo de toda la base fallaba segun por
+      // donde fueran ellas, no segun lo que hiciera esta ruta.
+      const deEsteFichero = { rol: "entrenador" as const, email: { endsWith: SUFIJO } }
+      const antes = await prisma.usuario.count({ where: deEsteFichero })
 
       await request(app.getHttpServer())
         .post("/usuarios")
@@ -834,7 +838,8 @@ describe("Gestion de clientes", () => {
       // La cuenta del entrenador nace del seed y de ningun otro sitio. Si esta
       // ruta pudiera crear administradores, colarse una vez con su sesion
       // bastaria para fabricarse una cuenta propia y no volver a necesitarla.
-      expect(await prisma.usuario.count({ where: { rol: "entrenador" } })).toBe(antes)
+      expect(await prisma.usuario.count({ where: deEsteFichero })).toBe(antes)
+      expect(await prisma.usuario.findUnique({ where: { email: `otro-jefe${SUFIJO}` } })).toBeNull()
     })
 
     it("un cliente no puede darse de alta a si mismo por la puerta de atras", async () => {
