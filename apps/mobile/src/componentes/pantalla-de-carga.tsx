@@ -1,3 +1,4 @@
+import * as SplashScreen from "expo-splash-screen"
 import { useEffect, useState, type ComponentType } from "react"
 import Animated, {
   css,
@@ -233,6 +234,14 @@ export function PantallaDeCarga({
   const reducido = useMovimientoReducido()
   const [vista, setVista] = useState(false)
   const saliendo = lista && vista
+
+  // La pantalla nativa de arranque es el mismo fondo, vacio: se quita en cuanto
+  // esta se pinta y el logo empieza a dibujarse sin corte. Si se esperase a
+  // expo-router, que la quita cuando hay navegacion, taparia toda la animacion,
+  // porque mientras se comprueba la sesion no hay navegacion montada.
+  useEffect(() => {
+    void SplashScreen.hideAsync()
+  }, [])
 
   useEffect(() => {
     const temporizador = setTimeout(
