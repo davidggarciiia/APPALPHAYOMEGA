@@ -12,6 +12,8 @@ import { useEntrenamiento } from "../src/entrenamiento/use-entrenamiento"
 import { lunesDeSemana } from "../src/entrenamiento/fechas"
 import { HoyInicio } from "../src/nutricion/hoy-inicio"
 import { useNutricion } from "../src/nutricion/api"
+import { usePanel } from "../src/panel/api"
+import { PanelHoy } from "../src/panel/panel-hoy"
 import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
 import { useValoraciones } from "../src/seguimiento/use-valoraciones"
 import { AvisosSeguimiento } from "../src/seguimiento/valoraciones-novedades"
@@ -27,6 +29,7 @@ export default function Inicio(): React.JSX.Element {
   const seguimiento = useSeguimiento()
   const nutricion = useNutricion()
   const valoraciones = useValoraciones()
+  const panel = usePanel()
   const [bloque, setBloque] = useState<Bloque | null>(null)
   const clienteId =
     estado.fase === "dentro" && estado.usuario.rol === "cliente" ? estado.usuario.id : null
@@ -103,30 +106,12 @@ export default function Inicio(): React.JSX.Element {
             objetivoPasos={bloque?.pasosDiarios ?? null}
           />
         </View>
+      ) : usuario.rol === "entrenador" ? (
+        // Su día con datos: quién entrena, qué revisar y cómo va la semana.
+        <PanelHoy api={panel} nombre={usuario.nombre} />
       ) : (
         <View style={s.contenido}>
           <Text style={s.leyenda}>Tu espacio de trabajo</Text>
-          {usuario.rol === "entrenador" && (
-            <>
-              {acceso(
-                "Mis clientes",
-                "Organiza sus semanas y revisa los entrenamientos enviados.",
-                "/cartera",
-                true,
-              )}
-              {acceso(
-                "Mis rutinas",
-                "Prepara tus sesiones y adáptalas a cada cliente.",
-                "/rutinas",
-              )}
-              {acceso("Ejercicios", "Gestiona los ejercicios de tu catálogo.", "/catalogo")}
-              {acceso(
-                "Nutricionista",
-                "Gestiona el acceso de tu profesional de nutrición.",
-                "/nutricionista",
-              )}
-            </>
-          )}
           {usuario.rol === "nutricionista" &&
             acceso(
               "Mis clientes",

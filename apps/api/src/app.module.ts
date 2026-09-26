@@ -7,6 +7,7 @@ import { IdentityModule } from "./identity/identity.module.js"
 import { MediosModule } from "./medios/medios.module.js"
 import { NutricionModule } from "./nutricion/nutricion.module.js"
 import { PlanesModule } from "./planes/planes.module.js"
+import { PanelModule } from "./panel/panel.module.js"
 import { PrismaModule } from "./prisma/prisma.module.js"
 import { SaludModule } from "./salud/salud.module.js"
 import { SeguimientoModule } from "./seguimiento/seguimiento.module.js"
@@ -26,6 +27,7 @@ import { SeguimientoModule } from "./seguimiento/seguimiento.module.js"
     SeguimientoModule,
     MediosModule,
     PlanesModule,
+    PanelModule,
   ],
 })
 export class AppModule {}

@@ -6,7 +6,7 @@ import type { ApiNutricion } from "../../nutricion/api"
 import type { ApiSeguimiento } from "../../seguimiento/api"
 import type { ApiMedios } from "../../seguimiento/medios-api"
 import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
-import { FichaCliente } from "./ficha-cliente"
+import { FichaCliente, esPestanaDeFicha } from "./ficha-cliente"
 
 const mockPush = jest.fn()
 jest.mock("expo-router", () => ({
@@ -85,4 +85,40 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
   expect(api.leerNovedades).toHaveBeenCalledWith(sesionId, {
     novedadIds: ["10000000-0000-4000-8000-000000000003"],
   })
+})
+
+it("abre en la pestaña que llega por la URL y descarta una que no existe", async () => {
+  expect(esPestanaDeFicha("progreso")).toBe(true)
+  expect(esPestanaDeFicha("otra")).toBe(false)
+  expect(esPestanaDeFicha(undefined)).toBe(false)
+  const api = {
+    plan: jest.fn(async () => ({ plan: null })),
+    resultados: jest.fn(async () => ({ resultados: [] })),
+    molestias: jest.fn(async () => ({ molestias: [] })),
+  } as unknown as ApiEntrenamiento
+  await render(
+    <FichaCliente
+      clienteId={clienteId}
+      cuentaId="40000000-0000-4000-8000-000000000000"
+      leerFicha={async () => ({ nombre: "Lara", apellidos: null }) as FichaDeUsuario}
+      api={api}
+      seguimiento={
+        {
+          medidas: jest.fn(async () => null),
+          consentimiento: jest.fn(async () => null),
+        } as unknown as ApiSeguimiento
+      }
+      valoraciones={{} as ApiValoraciones}
+      medios={{} as ApiMedios}
+      nutricion={{ vigente: jest.fn(async () => null) } as unknown as ApiNutricion}
+      nuevoId={() => "50000000-0000-4000-8000-000000000000"}
+      editarPlan={jest.fn()}
+      verSemana={jest.fn()}
+      abrirNutricion={jest.fn()}
+      pestanaInicial="sesiones"
+    />,
+  )
+
+  expect(await screen.findByText("El cliente aún no ha enviado ninguna sesión.")).toBeTruthy()
+  expect(screen.getByRole("tab", { name: "Sesiones", selected: true })).toBeTruthy()
 })
