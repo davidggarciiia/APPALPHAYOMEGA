@@ -2,6 +2,21 @@
 
 > [Plan y decisiones](plan.md). Marcar una tarea hecha solo con criterios y verificación demostrados. El archivo de planes anteriores conserva sus pendientes históricos sin declararlos terminados.
 
+## Unificación y noche del 26-09-2026
+
+Encargo de David: «termina 100 % la app… que se pueda reservar, usuarios con datos de ejemplo, pestaña del entrenador con datos, progreso claro, fotos comparables como MyFitnessPal, animaciones y logo animado en la carga». Detalle y cómo arrancar: [traspaso](panel-entrenador/continuar.md).
+
+- [x] **U00 · Unificar `dev` y la rama local** en `integracion/unificada` (`bfc51e0`). Manda la línea local; de `dev`, animaciones, carga con logo, refresco, CI y documentos.
+- [x] **U01 · Reservas y saldo (API)**: horario, excepciones, huecos en Madrid, reservar/cancelar/mover/devolver, planes, bonos, «Lo quiero», activación y cobros; baja del cliente con devolución. Revisión independiente con siete fallos corregidos (`032d053`). Pendiente: boxeo.
+- [x] **U02 · Pestañas Reservar y Agenda**, saldo en la ficha y «Tu próxima cita» en el inicio.
+- [x] **U03 · Panel «Hoy» del entrenador** con entrenos, revisión, semana, actividad, citas de hoy y negocio.
+- [x] **U04 · Fotos de progreso** (destino `progreso`, migración `20260926130000`) con comparador lado a lado y deslizante; Progreso ordenado con resumen arriba.
+- [x] **U05 · Respuesta al pulsar** (`Pulsable`) en toda la app y pantalla de carga con el logo animado.
+- [x] **U06 · Datos de demostración** (`npm run demo:seed --workspace apps/api`, [cuentas](../docs/DEMO.md)).
+- [ ] **U07 · Móvil físico**: comparador dentro del scroll, carga nativa, cámara y movimiento reducido en iOS/Android.
+
+**Evidencia:** typecheck, lint y build correctos; 207 unitarias de API, 719 móviles y 508 HTTP (47 suites) en `alpha_omega_e2e_unif`. Recorrido en web a 375 y 1440 px con las cuentas de demo, cliente y entrenador.
+
 ## Revisión integral posterior · 24-09-2026
 
 El [informe de revisión integral](revision-integral-2026-09-24.md) consolida fallos, integración y comprobaciones pendientes. No da por terminadas las tareas físicas ni reabre funciones aplazadas en la coordinación con Claude.

@@ -36,6 +36,22 @@ rama **`integracion/unificada`** (worktree `APP-ALPHA_OMEGA-unificada`) las junt
 | Respuesta al pulsar en toda la app                              | `Pulsable` sustituye a `Pressable`                                                                               | Hecho.                                                                                             |
 | Datos de demostración                                           | `apps/api/src/demo/`, `docs/DEMO.md`                                                                             | Ver ese documento.                                                                                 |
 
+## Verificación al cerrar la noche
+
+- `npm run typecheck`, `npm run lint`, `npm run build --workspace apps/api`: correctos.
+- `npm test`: 207 pruebas de API (26 suites) y 719 móviles (82 suites).
+- HTTP contra Postgres (`alpha_omega_e2e_unif`, 28 migraciones): 508 pruebas en 47
+  suites, entre ellas `reservas.e2e-spec.ts` (28), `panel-hoy.e2e-spec.ts` y
+  `fotos-progreso.e2e-spec.ts`.
+- Revisión independiente de reservas y saldo: siete fallos confirmados, todos
+  corregidos con su prueba (`032d053`).
+- Recorrido en el navegador (web, 375 px y 1440 px) con los datos de demo: login de
+  cliente y entrenador; inicio con «Tu próxima cita»; Progreso con resumen, fotos y
+  comparador lado a lado y deslizando; Reservar de principio a fin (hueco, hoja de
+  confirmación, «¡Reservado!»); panel «Hoy»; Agenda con semana y cobros; ficha con
+  saldo y reservas; Nutrición y Plan; la pantalla de carga con el logo.
+- No verificado: móvil físico (iOS/Android) ni la app compilada.
+
 ## Pendiente
 
 - **Probar en un móvil real** (Expo Go o compilación): arrastre del comparador de
@@ -61,4 +77,14 @@ cd ..\mobile; npx expo start --web --port 8181   # web en http://localhost:8181
 ```
 
 El `.env` de ese worktree apunta a `alpha_omega_demo` y a un almacén local de fotos
-propio. La base `alpha_omega` y la carpeta principal no se han tocado.
+propio. La base `alpha_omega` y la carpeta principal no se han tocado. Desde la
+app de escritorio de Claude, `.claude/launch.json` de la carpeta principal arranca
+lo mismo como `api-demo` y `web-demo`.
+
+Para volver a dejar la demo como recién sembrada (cuentas y qué enseña cada una en
+[docs/DEMO.md](../../docs/DEMO.md)):
+
+```powershell
+cd C:\Users\david\Desktop\APP-ALPHA_OMEGA-unificada
+npm run demo:seed --workspace apps/api
+```
