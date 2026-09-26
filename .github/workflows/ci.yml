@@ -1,0 +1,82 @@
+# Comprobaciones en cada push y en cada pull request.
+#
+# SPEC.md pide pasar test y typecheck antes de cada commit. Hasta ahora dependia
+# de la memoria de cada uno; aqui lo comprueba una maquina que no se olvida.
+#
+# Ningun secreto real. La base de datos es un contenedor desechable, el secreto
+# JWT se genera en cada ejecucion y la clave de correo es de relleno: los tests
+# sustituyen el envio por un doble en memoria y nunca salen a la red.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  comprobaciones:
+    name: Lint, typecheck y unitarios
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  e2e:
+    name: Extremo a extremo contra Postgres
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # La misma imagen que docker-compose.yml.
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: alpha
+          POSTGRES_PASSWORD: solo-para-ci
+          POSTGRES_DB: alpha_omega
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U alpha -d alpha_omega"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_USER: alpha
+      POSTGRES_PASSWORD: solo-para-ci
+      POSTGRES_DB: alpha_omega
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      RESEND_API_KEY: re_relleno_sin_envio
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # Distinto en cada ejecucion y nunca escrito en el repositorio.
+      - name: Generar el secreto JWT
+        run: echo "JWT_SECRET=$(openssl rand -base64 48)" >> "$GITHUB_ENV"
+
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run test:e2e
