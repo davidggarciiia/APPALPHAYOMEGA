@@ -22,6 +22,8 @@ La rama `dev` reúne las ramas paralelas del 18 al 26 de septiembre:
 - Lado cliente: semana, registro sin conexión, borrador cifrado y envío.
 - CI, tests móviles, renovación de sesión, animaciones y el logo en SVG.
 - El export de Claude Design (17 pantallas) y su auditoría de accesibilidad.
+- El sistema visual de Claude Design ya aplicado al lado cliente (tokens,
+  fuentes, degradados y `src/componentes/diseno.tsx`), hecho por otra sesión.
 
 No existe ninguna pantalla de entrenos del entrenador.
 

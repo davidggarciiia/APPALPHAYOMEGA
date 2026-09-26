@@ -34,17 +34,22 @@ seguir.
 
 ## Fase 2 — Sistema visual y navegación
 
-- [ ] **P02. Tokens y fuentes.** `src/tema.ts` con los tokens de Claude Design;
-      Anton y Archivo cargadas en `app/_layout.tsx` sin parpadeo; dependencias en
-      `package.json` y lockfile. _Verificar:_ typecheck, tests y la app en web.
-- [ ] **P03. Botón dorado, tarjeta, chip y pestañas.** En `src/componentes/`,
-      con el degradado probado en web y nativo, pestañas con sus roles y
-      zonas de 44 puntos. _Verificar:_ spec de componentes que comprueba roles y
-      estado seleccionado.
-- [ ] **P04. Tabla de series y selector de semana.** `TablaSeries` con cabeceras
-      reales; `SelectorSemana` sale de `entrenamiento-cliente/semana.tsx`;
-      `formatearNumero` pasa a `src/lib/`. _Verificar:_ tests de la semana del
-      cliente siguen verdes.
+> **Hecho en `dev` por otra sesión el 26-09** (`2b2b408`, `32dd55b`): tokens de
+> Claude Design en `src/tema.ts`, Anton y Archivo cargadas en `app/_layout.tsx`,
+> degradados con `expo-linear-gradient` y piezas base en
+> `src/componentes/diseno.tsx` (`BotonOro`, `BotonSobrio`, `Tarjeta`, `Lista`,
+> `FilaDeLista`, `Aviso`, `BarraDeProgreso`, `Avatar`…), además del rediseño del
+> inicio, la semana y el entreno activo del cliente. P02 a P04 se reducen a lo
+> que falta.
+
+- [x] **P02. Tokens y fuentes.** Hecho en `dev`.
+- [ ] **P03. Lo que falta del sistema visual.** Tokens de estado ámbar y rojo del
+      semáforo (`#F0B44C`, `#E06A5F`), borde de controles con 3:1, `Chip` y
+      `Pestanas` accesibles (roles y estado seleccionado) en `diseno.tsx`.
+      _Verificar:_ spec de componentes que comprueba roles y estado.
+- [ ] **P04. Tabla de series.** `TablaSeries` con cabeceras reales, para el
+      resultado y el constructor. La tira de semana ya existe
+      (`tira-de-semana.tsx`). _Verificar:_ spec y tests del cliente en verde.
 - [ ] **P05. Navegación adaptable.** `app/(entrenador)/_layout.tsx` con pestañas
       abajo y lateral desde 1024 px, `hoy.tsx` y `mas.tsx` de partida, lista de
       secciones en `src/navegacion/`. _Verificar:_ spec que cambia el ancho y
@@ -55,10 +60,10 @@ seguir.
 - [ ] **P07. Entrada por rol.** El `Enrutador` manda al entrenador a `/hoy`;
       nutricionistas y perfil dentro del grupo; `app.json` admite tablet.
       _Verificar:_ los cuatro roles aterrizan donde toca.
-- [ ] **P08. Estilo nuevo en las pantallas existentes.** Componentes de
-      formulario, cabecera e insignias primero; después login, activar,
-      recuperar, restablecer y perfil; al final las del cliente. Se divide en
-      tres tareas al empezarla. _Verificar:_ capturas antes y después.
+- [ ] **P08. Estilo nuevo en las pantallas que faltan.** Formulario, login,
+      activar, recuperar, restablecer, perfil y la cartera. Las del cliente ya
+      están rediseñadas en `dev`; se coordina con esa sesión para no pisarlas.
+      Se divide al empezarla. _Verificar:_ capturas antes y después.
 
 ### Checkpoint B
 

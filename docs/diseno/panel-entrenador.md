@@ -328,6 +328,10 @@ de guardar. Nada se aplica solo.
 
 Se adopta el de Claude Design en toda la app.
 
+Ya está en `src/tema.ts` y `src/componentes/diseno.tsx` de `dev`, con sus propios
+nombres (`superficie`, `superficieAlta`, `superficieBaja`…). Falta añadir el ámbar
+y el rojo del semáforo y un borde de controles con 3:1 (tarea P03).
+
 | Token      | Valor                                                                          |
 | ---------- | ------------------------------------------------------------------------------ |
 | fondo      | `#0E0D0B`                                                                      |
