@@ -55,6 +55,15 @@ describe("contratos de fotos privadas", () => {
     ).toBe(true)
   })
 
+  it("acepta una foto de progreso sin solicitud ni visita, y nada más en su destino", () => {
+    const progreso = (destino: Record<string, unknown>) =>
+      SolicitarSubidaSchema.safeParse({ ...subida, destino }).success
+    expect(progreso({ tipo: "progreso" })).toBe(true)
+    expect(progreso({ tipo: "progreso", solicitudId: id(4) })).toBe(false)
+    expect(progreso({ tipo: "progreso", valoracionId: id(3) })).toBe(false)
+    expect(progreso({ tipo: "galeria" })).toBe(false)
+  })
+
   it("rechaza formatos, tamaños y etiquetas no admitidos", () => {
     const valida = (cambios: Record<string, unknown>) =>
       SolicitarSubidaSchema.safeParse({ ...subida, ...cambios }).success

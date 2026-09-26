@@ -46,7 +46,10 @@ const EtiquetaSchema = z
 export const EstadoMedioSchema = z.enum(["pendiente", "disponible", "eliminando", "eliminado"])
 export type EstadoMedio = z.infer<typeof EstadoMedioSchema>
 
-/** Quién la aportó: el entrenador en una visita o el cliente en una solicitud. */
+/**
+ * Quién la aportó: el entrenador en una visita o el cliente, en una solicitud o
+ * por su cuenta desde Progreso.
+ */
 export const OrigenMedioSchema = z.enum(["profesional", "cliente"])
 export type OrigenMedio = z.infer<typeof OrigenMedioSchema>
 
@@ -54,6 +57,11 @@ const DestinoSchema = z.discriminatedUnion("tipo", [
   z.strictObject({ tipo: z.literal("valoracion"), valoracionId: z.uuid() }),
   /** Una solicitud propia puede recibir fotos aunque aún no exista la visita. */
   z.strictObject({ tipo: z.literal("solicitud"), solicitudId: z.uuid() }),
+  /**
+   * Foto de progreso que el cliente sube cuando quiere, sin solicitud ni visita.
+   * Solo la sube el propio cliente; su entrenador la ve como las demás.
+   */
+  z.strictObject({ tipo: z.literal("progreso") }),
 ])
 export type DestinoMedio = z.infer<typeof DestinoSchema>
 

@@ -9,6 +9,7 @@ import {
 import {
   MedioFotoSchema,
   type AccesoMedio,
+  type DestinoMedio,
   type FormatoFoto,
   type IntencionSubida,
   type ListadoFotos,
@@ -39,6 +40,23 @@ const minutos = (n: number): Date => new Date(Date.now() + n * 60_000)
 const fecha = (valor: Date): string => valor.toISOString().slice(0, 10)
 
 type FilaConAutor = FilaMedio & { autor: Pick<Usuario, "id" | "nombre" | "apellidos"> }
+
+/**
+ * ¿Se creó la foto para este destino? Una aportación del cliente conserva su
+ * destino aunque después el entrenador la incorpore a una visita: por eso no
+ * se mira `valoracionId` en las del cliente. Una de progreso es la del cliente
+ * que no responde a ninguna solicitud.
+ */
+function mismoDestino(fila: FilaMedio, destino: DestinoMedio): boolean {
+  switch (destino.tipo) {
+    case "valoracion":
+      return fila.origen === "profesional" && fila.valoracionId === destino.valoracionId
+    case "solicitud":
+      return fila.origen === "cliente" && fila.solicitudId === destino.solicitudId
+    case "progreso":
+      return fila.origen === "cliente" && fila.solicitudId === null
+  }
+}
 
 /** Lo que ven los roles autorizados: nunca la clave del objeto ni enlaces. */
 export function medioPublico(fila: FilaConAutor): MedioFoto {
@@ -115,6 +133,10 @@ export class MediosService {
         select: { id: true },
       })
       if (!visita) throw new NotFoundException("Valoración no disponible")
+    } else if (destino.tipo === "progreso") {
+      // Sin solicitud ni visita: cualquier vista, pero solo de uno mismo.
+      if (actor.rol !== "cliente" || actor.sub !== datos.clienteId)
+        throw new ForbiddenException("Solo el cliente sube sus fotos de progreso")
     } else {
       if (actor.rol !== "cliente" || actor.sub !== datos.clienteId)
         throw new ForbiddenException("Solo el cliente aporta las fotos que se le piden")
@@ -199,16 +221,13 @@ export class MediosService {
     fila: FilaConAutor,
     datos: SolicitarSubida,
   ): Promise<IntencionSubida | null> {
-    const destino = datos.destino
     const igual =
       fila.clienteId === datos.clienteId &&
       fila.vista === datos.vista &&
       fila.etiqueta === datos.etiqueta &&
       fecha(fila.fechaToma) === datos.fechaToma &&
       fila.tipoMime === datos.tipoMime &&
-      (destino.tipo === "valoracion"
-        ? fila.origen === "profesional" && fila.valoracionId === destino.valoracionId
-        : fila.solicitudId === destino.solicitudId)
+      mismoDestino(fila, datos.destino)
     if (!igual)
       throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
     if (fila.estado !== "pendiente") return { medio: medioPublico(fila), subida: null }
