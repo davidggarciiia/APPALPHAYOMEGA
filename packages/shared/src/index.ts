@@ -11,6 +11,9 @@ export * from "./valoraciones"
 export * from "./pruebas-valoracion"
 export * from "./medios"
 export * from "./consentimiento"
+export * from "./tiempo-local"
+export * from "./reservas"
+export * from "./planes"
 
 /**
  * Vocabulario y contratos compartidos por la app y el servidor.

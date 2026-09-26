@@ -17,6 +17,8 @@ export const ErrorDeApiSchema = z.discriminatedUnion("statusCode", [
       "operacion_incompatible",
       "estado_incompatible",
       "consentimiento_pendiente",
+      "hueco_no_disponible",
+      "sin_saldo",
     ]),
     message: MensajeSchema,
   }),
