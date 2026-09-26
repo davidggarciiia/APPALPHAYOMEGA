@@ -1,0 +1,2455 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Panel del entrenador</title>
+    <meta name="theme-color" content="#0E0D0B" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700&display=swap"
+    />
+    <style>
+      /* Una sola apariencia a propósito: la app es oscura (userInterfaceStyle: dark). */
+      :root {
+        color-scheme: dark;
+        --fondo: #0e0d0b;
+        --lateral: #151412;
+        --tarjeta: #1a1916;
+        --elevado: #1f1d19;
+        --campo: #26231e;
+        --borde: #2b2823;
+        --borde-control: #6e675b;
+        --texto: #f2ede1;
+        --texto-2: #a39c8f;
+        --parrafo: #d9d3c6;
+        --oro: #ffc34c;
+        --oro-grad: linear-gradient(135deg, #fff09a 0%, #ffcf52 38%, #ffb53c 72%, #e99a1f 100%);
+        --sobre-oro: #16140f;
+        --ambar: #f0b44c;
+        --ambar-fondo: #2a2213;
+        --verde: #5fb57a;
+        --verde-fondo: #14231a;
+        --rojo: #e06a5f;
+        --rojo-fondo: #2a1614;
+        --display: "Anton", "Impact", "Arial Narrow", sans-serif;
+        --cuerpo: "Archivo", "Helvetica Neue", Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--fondo);
+        color: var(--texto);
+        font-family: var(--cuerpo);
+        font-size: 15px;
+        line-height: 1.45;
+        padding-inline: 16px;
+        padding-block: 20px 40px;
+        font-variant-numeric: tabular-nums;
+      }
+      a {
+        color: inherit;
+      }
+      :focus-visible {
+        outline: 2px solid var(--oro);
+        outline-offset: 2px;
+        border-radius: 6px;
+      }
+      ::selection {
+        background: rgba(255, 195, 76, 0.35);
+      }
+      h1,
+      h2,
+      h3,
+      p,
+      ul,
+      ol {
+        margin: 0;
+      }
+      ul,
+      ol {
+        padding-left: 1.2em;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+      }
+
+      /* ---- Barra del prototipo, fuera de la app ---- */
+      .proto {
+        max-width: 1440px;
+        margin: 0 auto 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .proto h1 {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 26px;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+      }
+      .proto p {
+        color: var(--texto-2);
+        font-size: 13px;
+        max-width: 62ch;
+      }
+      .proto-controles {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      /* ---- Marco de la app: el ancho decide la navegación ---- */
+      .marco {
+        container-type: inline-size;
+        max-width: 1440px;
+        margin-inline: auto;
+        border: 1px solid var(--borde);
+        border-radius: 24px;
+        overflow: clip;
+        background: var(--fondo);
+        transition: max-width 0.25s ease;
+      }
+      .marco.telefono {
+        max-width: 390px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .marco {
+          transition: none;
+        }
+      }
+      .app {
+        display: flex;
+        flex-direction: column;
+        min-height: 780px;
+      }
+      .lateral {
+        display: none;
+      }
+      .contenido {
+        flex: 1;
+        padding: 20px 20px 28px;
+        min-width: 0;
+      }
+      .dos-columnas,
+      .constructor {
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+      }
+      .pestanas {
+        position: sticky;
+        bottom: 0;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        background: var(--lateral);
+        border-top: 1px solid var(--borde);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      .pestanas a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 10px 4px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--texto-2);
+        text-decoration: none;
+        min-height: 56px;
+      }
+      .pestanas a[aria-current="page"] {
+        color: var(--oro);
+      }
+      .pestanas svg,
+      .lateral svg {
+        width: 22px;
+        height: 22px;
+        flex: none;
+      }
+
+      @container (min-width: 1024px) {
+        .app {
+          display: grid;
+          grid-template-columns: 232px 1fr;
+          min-height: 880px;
+        }
+        .lateral {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          background: var(--lateral);
+          border-right: 1px solid var(--borde);
+          padding: 28px 16px;
+        }
+        .pestanas {
+          display: none;
+        }
+        .contenido {
+          padding: 36px 48px 48px;
+        }
+        .solo-telefono {
+          display: none !important;
+        }
+        .dos-columnas {
+          display: grid;
+          grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+          gap: 28px;
+          align-items: start;
+        }
+        .constructor {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 340px;
+          gap: 28px;
+          align-items: start;
+        }
+        .panel-ejercicio {
+          position: sticky;
+          top: 16px;
+        }
+      }
+
+      .marca {
+        font-family: var(--display);
+        font-size: 20px;
+        letter-spacing: 0.06em;
+        color: var(--oro);
+        padding: 0 12px 20px;
+      }
+      .marca small {
+        display: block;
+        font-family: var(--cuerpo);
+        font-size: 11px;
+        letter-spacing: 0.3em;
+        color: var(--texto-2);
+        font-weight: 600;
+      }
+      .lateral a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-weight: 600;
+        color: var(--texto-2);
+        text-decoration: none;
+        min-height: 44px;
+      }
+      .lateral a:hover {
+        color: var(--texto);
+      }
+      .lateral a[aria-current="page"] {
+        background: var(--elevado);
+        color: var(--texto);
+      }
+      .lateral a[aria-current="page"] svg {
+        color: var(--oro);
+      }
+      .lateral .separa {
+        height: 1px;
+        background: var(--borde);
+        margin: 12px 8px;
+      }
+      .lateral .fase-mini {
+        margin-left: auto;
+        font-size: 11px;
+        color: var(--texto-2);
+        font-weight: 600;
+      }
+
+      /* ---- Tipografía de pantalla ---- */
+      .encabezado {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        align-items: flex-end;
+        justify-content: space-between;
+        margin-bottom: 24px;
+      }
+      .encabezado h2 {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 34px;
+        line-height: 1.05;
+        text-transform: uppercase;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      .encabezado .sub {
+        color: var(--texto-2);
+        margin-top: 6px;
+      }
+      .acciones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      h3.seccion {
+        font-size: 20px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      h4 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .tenue {
+        color: var(--texto-2);
+      }
+      .pequeno {
+        font-size: 13px;
+      }
+      .pila {
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+      }
+      .pila-corta {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      /* ---- Controles ---- */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 15px;
+        text-decoration: none;
+        cursor: pointer;
+        border: 1px solid transparent;
+        background: none;
+      }
+      .btn-oro {
+        background: var(--oro-grad);
+        color: var(--sobre-oro);
+      }
+      .btn-oro:hover {
+        filter: brightness(1.05);
+      }
+      .btn-borde {
+        border-color: var(--borde-control);
+        color: var(--texto);
+      }
+      .btn-borde:hover {
+        background: var(--elevado);
+      }
+      .btn-texto {
+        color: var(--oro);
+        padding: 0 6px;
+      }
+      .btn-texto:hover {
+        text-decoration: underline;
+      }
+      .btn-peq {
+        min-height: 36px;
+        font-size: 14px;
+        padding: 0 12px;
+        border-radius: 10px;
+      }
+      .conmutador {
+        display: inline-flex;
+        border: 1px solid var(--borde-control);
+        border-radius: 12px;
+        padding: 3px;
+        gap: 2px;
+      }
+      .conmutador button {
+        border: 0;
+        background: none;
+        padding: 8px 14px;
+        border-radius: 9px;
+        font-weight: 600;
+        color: var(--texto-2);
+        cursor: pointer;
+        min-height: 38px;
+      }
+      .conmutador button[aria-pressed="true"] {
+        background: var(--oro-grad);
+        color: var(--sobre-oro);
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 36px;
+        padding: 0 14px;
+        border-radius: 18px;
+        background: var(--campo);
+        border: 1px solid var(--borde);
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        color: var(--texto);
+      }
+      .chip[aria-pressed="true"],
+      .chip[aria-checked="true"] {
+        background: var(--oro-grad);
+        color: var(--sobre-oro);
+        border-color: transparent;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--borde-control);
+        color: var(--texto-2);
+        white-space: nowrap;
+      }
+      .pill::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .pill.sin-punto::before {
+        display: none;
+      }
+      .pill.ambar {
+        color: var(--ambar);
+        border-color: rgba(240, 180, 76, 0.45);
+        background: var(--ambar-fondo);
+      }
+      .pill.rojo {
+        color: var(--rojo);
+        border-color: rgba(224, 106, 95, 0.45);
+        background: var(--rojo-fondo);
+      }
+      .pill.verde {
+        color: var(--verde);
+        border-color: rgba(95, 181, 122, 0.45);
+        background: var(--verde-fondo);
+      }
+      .pill.oro {
+        color: var(--oro);
+        border-color: rgba(255, 195, 76, 0.4);
+      }
+      .fase {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--texto-2);
+        border: 1px dashed var(--borde-control);
+        border-radius: 6px;
+        padding: 2px 8px;
+      }
+
+      .tarjeta {
+        background: var(--tarjeta);
+        border: 1px solid var(--borde);
+        border-radius: 20px;
+        padding: 20px;
+      }
+      .tarjeta.destacada {
+        border-color: rgba(255, 195, 76, 0.28);
+      }
+      .fila {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--borde);
+      }
+      .fila:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+      .fila:first-child {
+        padding-top: 0;
+      }
+      .fila .crece {
+        flex: 1;
+        min-width: 0;
+      }
+      .fila .acciones {
+        margin-top: 10px;
+      }
+      .punto {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-top: 6px;
+        flex: none;
+        background: var(--texto-2);
+      }
+      .punto.ambar {
+        background: var(--ambar);
+      }
+      .punto.rojo {
+        background: var(--rojo);
+      }
+      .punto.verde {
+        background: var(--verde);
+      }
+
+      /* ---- Pestañas de pantalla ---- */
+      .tabs {
+        display: flex;
+        gap: 22px;
+        border-bottom: 1px solid var(--borde);
+        margin-bottom: 24px;
+        overflow-x: auto;
+        scrollbar-width: thin;
+      }
+      .tabs a,
+      .tabs button {
+        flex: none;
+        background: none;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        padding: 10px 0 12px;
+        font-weight: 600;
+        color: var(--texto-2);
+        text-decoration: none;
+        cursor: pointer;
+        min-height: 44px;
+      }
+      .tabs [aria-selected="true"] {
+        color: var(--texto);
+        font-weight: 700;
+        border-bottom-color: var(--oro);
+      }
+
+      /* ---- Tablas ---- */
+      .tabla-scroll {
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      caption {
+        text-align: left;
+        color: var(--texto-2);
+        font-size: 13px;
+        padding-bottom: 8px;
+      }
+      th {
+        text-align: left;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--texto-2);
+        padding: 8px 12px 10px 0;
+        border-bottom: 1px solid var(--borde);
+        white-space: nowrap;
+      }
+      td {
+        padding: 12px 12px 12px 0;
+        border-bottom: 1px solid var(--borde);
+        vertical-align: top;
+      }
+      tbody tr:last-child td,
+      tbody tr:last-child th {
+        border-bottom: 0;
+      }
+      tbody th {
+        vertical-align: top;
+        color: var(--texto);
+        font-size: 14px;
+        font-weight: 600;
+        white-space: normal;
+        padding-top: 12px;
+      }
+      .num {
+        text-align: right;
+      }
+      .series-hechas {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        white-space: nowrap;
+      }
+      .aviso-texto {
+        color: var(--ambar);
+        font-weight: 600;
+      }
+      .sube {
+        color: var(--oro);
+        font-weight: 700;
+      }
+
+      /* ---- Constructor ---- */
+      .seccion-dia {
+        padding: 16px 0;
+        border-top: 1px solid var(--borde);
+      }
+      .seccion-dia:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+      .seccion-dia header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 12px;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .seccion-dia h4 {
+        margin: 0;
+      }
+      .lista-dosis {
+        display: grid;
+        gap: 6px;
+        list-style: none;
+        padding: 0;
+      }
+      .lista-dosis li {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--parrafo);
+      }
+      .lista-dosis li > span:last-child {
+        color: var(--texto-2);
+        text-align: right;
+      }
+      .fila-ejercicio button {
+        background: none;
+        border: 0;
+        padding: 0;
+        text-align: left;
+        font-weight: 600;
+        cursor: pointer;
+        color: var(--texto);
+      }
+      .fila-ejercicio button:hover {
+        color: var(--oro);
+      }
+      .fila-ejercicio[aria-current="true"] td,
+      .fila-ejercicio[aria-current="true"] th {
+        background: var(--elevado);
+      }
+      .fila-ejercicio[aria-current="true"] button {
+        color: var(--oro);
+      }
+      .campo {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .campo label,
+      .campo .etiqueta {
+        font-size: 13px;
+        color: var(--texto-2);
+        font-weight: 600;
+      }
+      .campo input,
+      .campo textarea,
+      .campo select {
+        background: var(--campo);
+        border: 1px solid var(--borde-control);
+        border-radius: 10px;
+        color: var(--texto);
+        font: inherit;
+        padding: 10px 12px;
+        min-height: 44px;
+      }
+      .campo textarea {
+        min-height: 88px;
+        resize: vertical;
+      }
+      .rejilla-campos {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .fases {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+      }
+      .fase-tarjeta {
+        border: 1px solid var(--borde);
+        border-radius: 16px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .fase-tarjeta[aria-current="step"] {
+        border-color: var(--oro);
+      }
+      .fase-tarjeta .semanas {
+        font-size: 13px;
+        color: var(--texto-2);
+        font-weight: 600;
+      }
+      .fase-tarjeta strong {
+        font-size: 17px;
+      }
+
+      /* ---- Cifras ---- */
+      .cifras {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+      }
+      .cifra {
+        border: 1px solid var(--borde);
+        border-radius: 16px;
+        padding: 14px;
+      }
+      .cifra .valor {
+        font-size: 24px;
+        font-weight: 700;
+        display: block;
+        margin-top: 2px;
+      }
+      .cifra .nota {
+        font-size: 13px;
+        color: var(--texto-2);
+      }
+      .barra-macros {
+        display: flex;
+        height: 12px;
+        border-radius: 6px;
+        overflow: hidden;
+        margin: 12px 0;
+        gap: 2px;
+      }
+      .barra-macros span:nth-child(1) {
+        background: var(--oro);
+      }
+      .barra-macros span:nth-child(2) {
+        background: var(--verde);
+      }
+      .barra-macros span:nth-child(3) {
+        background: #f28c38;
+      }
+
+      /* ---- Vista del cliente ---- */
+      .telefonos {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+      }
+      .telefono-maqueta {
+        border: 1px solid var(--borde);
+        border-radius: 28px;
+        padding: 20px 18px 22px;
+        background: radial-gradient(420px 360px at 85% 0%, #3a2a0c, var(--fondo) 62%);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .telefono-maqueta h3 {
+        font-family: var(--display);
+        font-weight: 400;
+        font-size: 28px;
+        text-transform: uppercase;
+      }
+      .pregunta {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .pregunta > span {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .escala {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+      }
+      .escala button {
+        min-height: 44px;
+        border-radius: 12px;
+        border: 1px solid var(--borde);
+        background: var(--campo);
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .escala button[aria-checked="true"] {
+        background: var(--oro-grad);
+        color: var(--sobre-oro);
+        border-color: transparent;
+      }
+      .extremos {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: var(--texto-2);
+      }
+      .deslizador {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .deslizador input {
+        accent-color: var(--oro);
+        width: 100%;
+      }
+      .recomendacion {
+        border-radius: 16px;
+        padding: 14px;
+        background: var(--ambar-fondo);
+        border: 1px solid rgba(240, 180, 76, 0.45);
+      }
+      .recomendacion strong {
+        color: var(--ambar);
+      }
+      .tabla-series input {
+        width: 56px;
+        background: var(--campo);
+        border: 1px solid var(--borde-control);
+        border-radius: 8px;
+        color: var(--texto);
+        font: inherit;
+        padding: 8px;
+        min-height: 40px;
+        text-align: center;
+      }
+      .tabla-series input::placeholder {
+        color: #948d80;
+      }
+      .tabla-series td,
+      .tabla-series th {
+        padding-right: 8px;
+      }
+      .hecha {
+        color: var(--verde);
+        font-weight: 700;
+      }
+
+      .aviso-proto {
+        border: 1px dashed var(--borde-control);
+        border-radius: 16px;
+        padding: 16px;
+        color: var(--parrafo);
+      }
+      .rejilla-mas {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+      }
+      .rejilla-mas a {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        text-decoration: none;
+      }
+      .rejilla-mas a:hover {
+        border-color: var(--borde-control);
+      }
+      .tarjeta.enlace {
+        display: block;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="proto">
+      <div>
+        <h1>Panel del entrenador · prototipo</h1>
+        <p>
+          Maqueta navegable para revisar antes de programar. Todos los clientes y cifras son
+          inventados. Las etiquetas «Fase» dicen en qué entrega del plan llega cada parte.
+        </p>
+      </div>
+      <div class="proto-controles">
+        <div class="conmutador" role="group" aria-label="Ancho de la maqueta">
+          <button type="button" id="ver-telefono" aria-pressed="false">Teléfono</button>
+          <button type="button" id="ver-escritorio" aria-pressed="true">Escritorio</button>
+        </div>
+        <a class="btn btn-borde btn-peq" href="#cliente">Lo que rellena el cliente</a>
+      </div>
+    </header>
+
+    <div class="marco" id="marco">
+      <div class="app">
+        <nav class="lateral" aria-label="Secciones">
+          <div class="marca">ALPHA &amp; OMEGA<small>TRAINING</small></div>
+          <div id="nav-lateral"></div>
+        </nav>
+        <main class="contenido" id="contenido" tabindex="-1"></main>
+        <nav class="pestanas" aria-label="Secciones" id="nav-pestanas"></nav>
+      </div>
+    </div>
+
+    <script>
+      "use strict"
+
+      // ---------- Iconos (trazo 2, esquinas redondas, como el export de Claude Design) ----------
+      const ICONOS = {
+        hoy: '<path d="M4 12h3l3-8 4 16 3-8h3"/>',
+        clientes:
+          '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/>',
+        rutinas:
+          '<rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+        ejercicios: '<path d="M3 9v6M6 6v12M18 6v12M21 9v6M6 12h12"/>',
+        guia: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>',
+        agenda:
+          '<rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+        cobros:
+          '<rect x="2.5" y="6" width="19" height="12" rx="3"/><circle cx="12" cy="12" r="2.5"/>',
+        boxeo:
+          '<path d="M7 11V7a4 4 0 0 1 8 0v1h1a3 3 0 0 1 3 3v3a6 6 0 0 1-6 6h-2a6 6 0 0 1-6-6v-2a1 1 0 0 1 2 0"/>',
+        ajustes:
+          '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+        leads: '<path d="M4 4h16v12H8l-4 4z"/>',
+        fichajes: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+        nutricionistas: '<path d="M4 13a8 8 0 0 0 16 0z"/><path d="M8 13V9M12 13V6M16 13V9"/>',
+        perfil: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+        mas: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+      }
+      const icono = (nombre) =>
+        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[nombre]}</svg>`
+
+      const SECCIONES = [
+        { clave: "hoy", texto: "Hoy" },
+        { clave: "clientes", texto: "Clientes" },
+        { clave: "rutinas", texto: "Rutinas" },
+        { clave: "ejercicios", texto: "Ejercicios" },
+        { clave: "guia", texto: "Guía y reglas" },
+        { separa: true },
+        { clave: "agenda", texto: "Agenda", fase: "F6" },
+        { clave: "cobros", texto: "Cobros", fase: "F6" },
+        { clave: "boxeo", texto: "Boxeo", fase: "F6" },
+        { clave: "ajustes", texto: "Ajustes", fase: "F6" },
+        { clave: "leads", texto: "Leads", fase: "F7" },
+        { clave: "fichajes", texto: "Fichajes", fase: "F7" },
+        { separa: true },
+        { clave: "nutricionistas", texto: "Nutricionistas" },
+        { clave: "perfil", texto: "Perfil" },
+      ]
+      const PESTANAS = ["hoy", "clientes", "rutinas", "ejercicios", "mas"]
+      const PENDIENTES = [
+        "agenda",
+        "cobros",
+        "boxeo",
+        "ajustes",
+        "leads",
+        "fichajes",
+        "nutricionistas",
+        "perfil",
+      ]
+
+      // ---------- Datos de ejemplo, todos inventados ----------
+      const CLIENTES = [
+        {
+          id: "jorge",
+          nombre: "Jorge Lozano",
+          objetivo: "Recomposición",
+          plan: "Semana 2 de 6",
+          estado: "Activo",
+          aviso: ["ambar", "Molestia"],
+        },
+        {
+          id: "marta",
+          nombre: "Marta Ruiz",
+          objetivo: "Fuerza general",
+          plan: "Semana 4 de 8",
+          estado: "Activo",
+          aviso: null,
+        },
+        {
+          id: "nerea",
+          nombre: "Nerea Castillo",
+          objetivo: "Vuelta tras lesión",
+          plan: "Semana 1 de 4",
+          estado: "Activo",
+          aviso: ["rojo", "Check-in rojo"],
+        },
+        {
+          id: "ivan",
+          nombre: "Iván Soler",
+          objetivo: "Hipertrofia",
+          plan: "Semana 5 de 6",
+          estado: "Activo",
+          aviso: ["ambar", "2 señales"],
+        },
+        {
+          id: "lucia",
+          nombre: "Lucía Beltrán",
+          objetivo: "Pérdida de grasa",
+          plan: "Semana 2 de 6",
+          estado: "Activo",
+          aviso: null,
+        },
+        {
+          id: "pablo",
+          nombre: "Pablo Ferrer",
+          objetivo: "Fuerza para K-1",
+          plan: "Semana 3 de 6",
+          estado: "Activo",
+          aviso: null,
+        },
+        {
+          id: "sara",
+          nombre: "Sara Gil",
+          objetivo: "Sin plan",
+          plan: "Sin plan",
+          estado: "Pendiente",
+          aviso: null,
+        },
+        {
+          id: "hugo",
+          nombre: "Hugo Martín",
+          objetivo: "Sin plan",
+          plan: "Sin plan",
+          estado: "Baja",
+          aviso: null,
+        },
+      ]
+
+      // [nombre, series, reps, rir, descanso, carga, recorte]
+      const DIAS = {
+        lun: {
+          corto: "Lun · Empuje",
+          titulo: "Lunes · Empuje",
+          duracion: "100–115 min",
+          nota: "Carga inicial orientativa del press banca: 70 kg para 4×6 si conservas 3 RIR y la técnica es estable.",
+          calentamiento: [
+            ["Cinta, remo o bicicleta suave", "3–4 min"],
+            ["Rotaciones torácicas en cuadrupedia", "1×8/lado"],
+            ["Círculos de brazos progresivos", "1×10/sentido"],
+            ["Pasadas con goma o pica", "1×10"],
+            ["Band pull-apart", "2×12"],
+            ["Rotación externa con goma", "1×12/brazo"],
+            ["Flexiones escapulares", "1×10"],
+            ["Aproximaciones del press banca", "2–3 series"],
+          ],
+          principal: [
+            ["Press banca con barra", 4, "6", "3", "2–3 min", "70 kg", "Nunca"],
+            ["Press inclinado con mancuernas", 3, "8–10", "2–3", "2 min", "26 kg", "Normal"],
+            ["Press de hombro en máquina", 3, "8–12", "2–3", "90–120 s", "Calibrar", "Normal"],
+            ["Aperturas en polea", 2, "12–15", "2", "60–75 s", "15 kg", "Normal"],
+            ["Elevaciones laterales en polea", 3, "12–18", "2", "60–75 s", "7,5 kg", "Normal"],
+            ["Extensión de tríceps con cuerda", 3, "10–15", "2", "60–75 s", "25 kg", "Normal"],
+            ["Extensión de tríceps sobre la cabeza", 2, "10–15", "2", "60–75 s", "20 kg", "Normal"],
+          ],
+          core: {
+            forma: "Circuito × 2 vueltas · 60–90 s entre vueltas",
+            items: [
+              ["Sit-ups con peso", "10–15 reps", "ABS / flexión de tronco"],
+              ["Tijeras", "20 totales", "ABS / control lumbopélvico"],
+              ["Toques de talón alternos", "16–20 totales", "ABS / oblicuos"],
+              ["Plancha RKC", "20–30 s", "CORE / antiextensión"],
+            ],
+          },
+          cardio: "Cinta · 15 min · 5–8 % · 4,5–5,5 km/h · RPE 5–6",
+          calma: "5 min · Pectoral, deltoides, tríceps y dorsal",
+        },
+        mar: {
+          corto: "Mar · Tracción",
+          titulo: "Martes · Tracción",
+          duracion: "95–110 min",
+          nota: "Remo en T: apoya el pecho si la máquina lo permite y no tires con la zona lumbar.",
+          calentamiento: [
+            ["Remo ergómetro o elíptica suave", "3–4 min"],
+            ["Rotaciones torácicas en cuadrupedia", "1×8/lado"],
+            ["Flexión y extensión torácica en banco", "1×8"],
+            ["Flexión escapular en cuadrupedia", "1×15"],
+            ["Band pull-apart", "2×12"],
+            ["Face pull ligero", "1×15"],
+            ["Curl con goma", "1×15"],
+            ["Aproximaciones del remo en T", "2–3 series"],
+          ],
+          principal: [
+            ["Remo en T", 3, "8–10", "2–3", "2 min", "50 kg", "Nunca"],
+            ["Jalón al pecho neutro", 3, "8–12", "2–3", "90–120 s", "55 kg", "Normal"],
+            ["Remo unilateral en polea", 2, "10–12/lado", "2", "75–90 s", "20 kg", "Normal"],
+            ["Reverse fly en máquina", 3, "12–18", "2", "60–75 s", "30 kg", "Normal"],
+            ["Face pull con rotación externa", 2, "12–15", "2–3", "60–75 s", "17,5 kg", "Normal"],
+            ["Curl inclinado con mancuernas", 3, "10–15", "2", "60–75 s", "10 kg", "Normal"],
+            ["Curl martillo", 2, "10–15", "2", "60–75 s", "12 kg", "Normal"],
+          ],
+          core: {
+            forma: "Circuito × 2 vueltas · 60–90 s entre vueltas",
+            items: [
+              ["Encogimientos de rodillas sentado", "10–15 reps", "ABS / control pélvico"],
+              ["Bicycle crunch controlado", "16–20 totales", "ABS / oblicuos"],
+              ["Plancha lateral con bajada de cadera", "10–12/lado", "ABS / pared lateral"],
+              ["Pallof press", "10–12/lado", "CORE / antirrotación"],
+            ],
+          },
+          cardio: "Cinta · 15 min · 5–8 % · ritmo controlado · RPE 5–6",
+          calma: "5 min · Dorsal, espalda alta, bíceps y deltoides posterior",
+        },
+        mie: {
+          corto: "Mié · Pierna",
+          titulo: "Miércoles · Pierna completa",
+          duracion: "95–110 min",
+          nota: "Único día de pierna: no añadas series ni ejercicios. Evita el K-1 intenso este día.",
+          calentamiento: [
+            ["Bicicleta o cinta suave", "4 min"],
+            ["Movilidad de tobillo hacia la pared", "1×10/lado"],
+            ["Rotaciones de cadera 90/90", "1×8–10/lado"],
+            ["Movilización del psoas en zancada", "1×10–12/lado"],
+            ["Balanceo frontal y lateral de pierna", "1×10/lado"],
+            ["Puente de glúteo", "2×12"],
+            ["Caminata lateral con minibanda", "1×12 pasos/lado"],
+            ["Aproximaciones de hack squat", "2–3 series"],
+          ],
+          principal: [
+            ["Hack squat o sentadilla", 4, "6–8", "3", "2–3 min", "80 kg", "Nunca"],
+            ["Peso muerto rumano", 3, "8–10", "3", "2 min", "60 kg", "Nunca"],
+            ["Prensa inclinada", 3, "10–12", "2", "2 min", "140 kg", "Normal"],
+            ["Hip thrust", 3, "8–12", "2", "90–120 s", "80 kg", "Normal"],
+            ["Curl femoral sentado", 3, "10–15", "2", "75–90 s", "40 kg", "Normal"],
+            ["Extensión de cuádriceps", 2, "12–15", "2", "75 s", "35 kg", "Normal"],
+            ["Gemelo de pie o en prensa", 4, "10–15", "2", "60–75 s", "60 kg", "Normal"],
+          ],
+          core: {
+            forma: "3 series · 45–60 s de descanso",
+            items: [["Pallof press", "3×10/lado · RIR 3", "CORE / antirrotación"]],
+          },
+          cardio: null,
+          calma: "5 min · Cuádriceps, isquios, glúteos, aductores, gemelos y flexores de cadera",
+        },
+        jue: {
+          corto: "Jue · Torso",
+          titulo: "Jueves · Torso completo",
+          duracion: "100–115 min",
+          nota: "Press banca con pausa: 60–62,5 kg, pausa de un segundo sin relajar la posición.",
+          calentamiento: [
+            ["Bicicleta o remo suave", "3–4 min"],
+            ["Extensión torácica sobre foam roller", "1×8"],
+            ["Rotaciones torácicas", "1×8/lado"],
+            ["Pasadas con goma", "1×10"],
+            ["Band pull-apart", "1×15"],
+            ["Flexiones escapulares", "1×10"],
+            ["Jalón con brazos rectos ligero", "1×15"],
+            ["Aproximaciones de press inclinado y jalón", "2 + 1 series"],
+          ],
+          principal: [
+            ["Press inclinado en máquina", 3, "8–10", "2–3", "2 min", "50 kg", "Normal"],
+            ["Jalón neutro o dominada asistida", 3, "8–10", "2–3", "90–120 s", "55 kg", "Normal"],
+            ["Press banca con pausa", 3, "8", "3", "2 min", "60 kg", "Nunca"],
+            ["Remo sentado en polea", 3, "10–12", "2–3", "90 s", "55 kg", "Normal"],
+            ["Press de hombro en máquina", 2, "10–12", "3", "90 s", "40 kg", "Normal"],
+            ["Pullover en polea", 2, "12–15", "2–3", "60–75 s", "25 kg", "Normal"],
+            ["Reverse fly", 2, "15–20", "3", "60 s", "25 kg", "Normal"],
+          ],
+          core: {
+            forma: "Circuito × 2 vueltas · 60–90 s entre vueltas",
+            items: [
+              ["Crunch en máquina", "12–15 reps", "ABS / flexión de tronco"],
+              ["Elevación de piernas desde el suelo", "10–15 reps", "ABS / control pélvico"],
+              ["Mountain climber cruzado", "16–20 totales", "ABS / oblicuos"],
+              ["Dead bug con exhalación", "8–10/lado", "CORE / antiextensión"],
+            ],
+          },
+          cardio: "Cinta · 15 min · 5–8 % · RPE 5–6 · con K-1 intenso, 8–10 min o nada",
+          calma: "5 min · Pectoral, dorsal, deltoides, bíceps y tríceps",
+        },
+        vie: {
+          corto: "Vie · Brazos",
+          titulo: "Viernes · Brazos, hombro lateral y core",
+          duracion: "80–95 min",
+          nota: "Fondos en banco sin buscar profundidad. Si molesta el hombro, usa la alternativa y avisa.",
+          calentamiento: [
+            ["Cinta o bicicleta suave", "3 min"],
+            ["Rotaciones torácicas", "1×8/lado"],
+            ["Círculos de hombros", "1×10/sentido"],
+            ["Band pull-apart", "1×15"],
+            ["Rotación externa con goma", "1×12/brazo"],
+            ["Flexión y extensión de codo con goma", "1×15"],
+            ["Empujes de tríceps con goma", "1×15"],
+            ["Curl con goma", "1×15"],
+          ],
+          principal: [
+            ["Curl predicador en máquina", 3, "10–15", "2", "60–75 s", "25 kg", "Normal"],
+            ["Fondos de tríceps en banco", 2, "10–15", "3", "75 s", "Corporal", "Normal"],
+            ["Curl martillo en polea", 2, "12–15", "2", "60 s", "20 kg", "Normal"],
+            [
+              "Extensión de tríceps unilateral con cuerda",
+              2,
+              "10–15/brazo",
+              "2",
+              "60 s",
+              "10 kg",
+              "Normal",
+            ],
+            ["Elevaciones laterales en polea", 3, "15–20", "2–3", "60 s", "7,5 kg", "Normal"],
+            [
+              "Extensión unilateral por encima de la cabeza",
+              2,
+              "10–15/brazo",
+              "2",
+              "60 s",
+              "10 kg",
+              "Normal",
+            ],
+            ["Farmer carry", 3, "30–40 m", "3", "60–90 s", "2 × 24 kg", "Se quita primero"],
+          ],
+          core: {
+            forma: "3 series · 45–60 s de descanso",
+            items: [["Dead bug", "3×8–10/lado · controlado", "CORE / antiextensión"]],
+          },
+          cardio: "Cinta · 15 min · 5–8 % · RPE 5–6 · se quita primero si hay K-1 intenso",
+          calma: "5–8 min · Bíceps, tríceps, deltoides, pectoral y dorsal",
+        },
+      }
+
+      const ALTERNATIVAS = {
+        "Press banca con barra": ["Press en multipower", "Press con mancuernas"],
+        "Press inclinado con mancuernas": [
+          "Press inclinado en máquina",
+          "Press inclinado en multipower",
+        ],
+        "Fondos de tríceps en banco": [
+          "Fondos asistidos en máquina",
+          "Press cerrado en multipower",
+        ],
+      }
+
+      const estado = { dia: "lun", ejercicio: 0, telefono: false }
+
+      // ---------- Utilidades ----------
+      const esc = (t) =>
+        String(t).replace(
+          /[&<>"]/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+        )
+      const fase = (n) => `<span class="fase">Fase ${n}</span>`
+      const pill = (tono, texto, sinPunto) =>
+        `<span class="pill ${tono}${sinPunto ? " sin-punto" : ""}">${esc(texto)}</span>`
+
+      function encabezado(titulo, sub, acciones = "") {
+        return `<div class="encabezado">
+      <div><h2>${titulo}</h2>${sub ? `<p class="sub">${sub}</p>` : ""}</div>
+      ${acciones ? `<div class="acciones">${acciones}</div>` : ""}
+    </div>`
+      }
+
+      function pestanasDe(base, lista, activa, etiqueta) {
+        return `<div class="tabs" role="tablist" aria-label="${etiqueta}">${lista
+          .map(
+            ([clave, texto]) =>
+              `<a role="tab" href="#${base}-${clave}" aria-selected="${clave === activa}">${texto}</a>`,
+          )
+          .join("")}</div>`
+      }
+
+      // ---------- Pantallas ----------
+      function pantallaHoy() {
+        const atencion = [
+          {
+            tono: "ambar",
+            nivel: "Ámbar",
+            quien: "Jorge Lozano",
+            que: "Molestia en el hombro derecho, 4 de 10 y va a más",
+            detalle:
+              "Press inclinado con mancuernas, serie 2 con 26 kg · bajó a 22 kg en la serie 3 · lunes 20:05",
+            acciones: ["Marcar como vista", "Ajustar próxima sesión"],
+            ficha: "#ficha-sesiones",
+          },
+          {
+            tono: "rojo",
+            nivel: "Rojo",
+            quien: "Nerea Castillo",
+            que: "Check-in: dolor en la rodilla izquierda desde el calentamiento",
+            detalle:
+              "La app le ha mostrado: «No fuerces el ejercicio, cambia la variante y avisa» · hoy 18:05",
+            acciones: ["Marcar como visto", "Ajustar sesión de hoy"],
+            ficha: "#ficha-checkins",
+          },
+          {
+            tono: "ambar",
+            nivel: "2 señales",
+            quien: "Iván Soler",
+            que: "2 señales para bajar volumen esta semana",
+            detalle:
+              "Agujetas de 8 en cuádriceps durante más de 72 h · sueño de 2 en 3 de 4 check-ins. Propuesta de su guía: −25 a 30 % de volumen o quitar primero la cinta y el farmer carry.",
+            acciones: ["Ver señales", "Aplicar a la semana"],
+            ficha: "#ficha-checkins",
+          },
+        ]
+        const hoy = [
+          ["Marta Ruiz", "Pierna", pill("verde", "Enviada 11:02"), "24 de 26 series · RPE 7"],
+          [
+            "Jorge Lozano",
+            "Tracción",
+            pill("oro", "Check-in hecho"),
+            "Sueño 7 h 30 · energía 4 de 5",
+          ],
+          [
+            "Nerea Castillo",
+            "Torso",
+            pill("rojo", "Check-in rojo"),
+            "Dolor en la rodilla izquierda",
+          ],
+          ["Lucía Beltrán", "Empuje", pill("", "Pendiente"), "Movida desde el lunes"],
+          ["Pablo Ferrer", "Brazos y core", pill("", "Pendiente"), "Sin check-in todavía"],
+        ]
+        const semana = [
+          ["Marta Ruiz", "2 de 4", "48 de 52", "7,0", "Hoy · Pierna", pill("verde", "Al día")],
+          ["Jorge Lozano", "1 de 5", "20 de 20", "7,0", "Lun · Empuje", pill("ambar", "Molestia")],
+          [
+            "Nerea Castillo",
+            "1 de 3",
+            "18 de 20",
+            "6,5",
+            "Lun · Pierna",
+            pill("rojo", "Check-in rojo"),
+          ],
+          ["Iván Soler", "1 de 4", "19 de 24", "8,0", "Lun · Pierna", pill("ambar", "2 señales")],
+          ["Pablo Ferrer", "1 de 4", "20 de 20", "6,0", "Lun · Empuje", pill("verde", "Al día")],
+          ["Lucía Beltrán", "0 de 3", "—", "—", "—", pill("", "Sin empezar")],
+        ]
+        return `${encabezado(
+          "Hoy",
+          "Martes 29 de septiembre · semana del 28 sep al 4 oct",
+          `${fase(3)} <span class="pill oro sin-punto" aria-live="polite">Actualizado hace 3 s</span>`,
+        )}
+    <div class="dos-columnas">
+      <div class="pila">
+        <section aria-labelledby="t-atencion">
+          <h3 class="seccion" id="t-atencion">Requiere tu atención ${fase(5)}</h3>
+          <div class="tarjeta destacada">
+            ${atencion
+              .map(
+                (a) => `<div class="fila">
+                <span class="punto ${a.tono}" aria-hidden="true"></span>
+                <div class="crece">
+                  <p><strong>${a.quien}</strong> · ${pill(a.tono, a.nivel)}</p>
+                  <p style="margin-top:4px">${a.que}</p>
+                  <p class="tenue pequeno" style="margin-top:4px">${a.detalle}</p>
+                  <div class="acciones">
+                    <a class="btn btn-borde btn-peq" href="${a.ficha}">Abrir ficha</a>
+                    ${a.acciones.map((t, i) => `<button type="button" class="btn ${i === a.acciones.length - 1 ? "btn-oro" : "btn-borde"} btn-peq">${t}</button>`).join("")}
+                  </div>
+                </div>
+              </div>`,
+              )
+              .join("")}
+          </div>
+        </section>
+        <section aria-labelledby="t-semana">
+          <h3 class="seccion" id="t-semana">Esta semana</h3>
+          <div class="tarjeta tabla-scroll">
+            <table>
+              <thead><tr><th scope="col">Cliente</th><th scope="col">Sesiones</th><th scope="col">Series hechas</th><th scope="col" class="num">RPE medio</th><th scope="col">Última enviada</th><th scope="col">Estado</th></tr></thead>
+              <tbody>${semana
+                .map(
+                  (f) =>
+                    `<tr><th scope="row"><a href="#ficha-sesiones">${f[0]}</a></th><td>${f[1]}</td><td>${f[2]}</td><td class="num">${f[3]}</td><td>${f[4]}</td><td>${f[5]}</td></tr>`,
+                )
+                .join("")}</tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      <div class="pila">
+        <section aria-labelledby="t-hoy">
+          <h3 class="seccion" id="t-hoy">Sesiones de hoy</h3>
+          <div class="tarjeta">
+            ${hoy
+              .map(
+                (s) => `<div class="fila"><div class="crece">
+                  <p><strong>${s[0]}</strong> · ${s[1]}</p>
+                  <p class="tenue pequeno">${s[3]}</p></div>${s[2]}</div>`,
+              )
+              .join("")}
+          </div>
+        </section>
+        <section aria-labelledby="t-recientes">
+          <h3 class="seccion" id="t-recientes">Enviadas recientemente</h3>
+          <div class="tarjeta">
+            <div class="fila"><div class="crece"><p><strong>Marta Ruiz</strong> · Pierna</p><p class="tenue pequeno">Hoy 11:02 · 24 de 26 series · RPE 7</p></div><a class="btn btn-texto btn-peq" href="#ficha-sesiones">Ver</a></div>
+            <div class="fila"><div class="crece"><p><strong>Jorge Lozano</strong> · Empuje</p><p class="tenue pequeno">Lunes 21:10 · 20 de 20 series · RPE 7</p></div><a class="btn btn-texto btn-peq" href="#ficha-sesiones">Ver</a></div>
+            <div class="fila"><div class="crece"><p><strong>Iván Soler</strong> · Pierna</p><p class="tenue pequeno">Lunes 19:30 · 19 de 24 series · RPE 8</p></div><a class="btn btn-texto btn-peq" href="#ficha-sesiones">Ver</a></div>
+          </div>
+        </section>
+        <p class="tenue pequeno">Se actualiza cada 5 segundos mientras miras esta pantalla. Lo que el cliente está registrando no aparece hasta que envía, salvo el check-in y las molestias, que manda a propósito.</p>
+      </div>
+    </div>`
+      }
+
+      function pantallaClientes() {
+        return `${encabezado(
+          "Clientes",
+          "8 clientes · 6 con plan en curso",
+          `${fase(2)} <button type="button" class="btn btn-oro">Nuevo cliente</button>`,
+        )}
+    <div class="pila-corta" style="margin-bottom:20px">
+      <div class="campo"><label for="buscar-cliente">Buscar por nombre o correo</label><input id="buscar-cliente" type="search" placeholder="Nombre o correo" /></div>
+      <div class="chips" role="group" aria-label="Filtrar por estado">
+        <button type="button" class="chip" aria-pressed="true">Todos</button>
+        <button type="button" class="chip" aria-pressed="false">Pendientes</button>
+        <button type="button" class="chip" aria-pressed="false">Activos</button>
+        <button type="button" class="chip" aria-pressed="false">Bajas</button>
+      </div>
+    </div>
+    <div class="tarjeta">
+      ${CLIENTES.map(
+        (c) => `<div class="fila">
+          <div class="crece"><p><a href="#ficha-sesiones"><strong>${c.nombre}</strong></a></p>
+          <p class="tenue pequeno">${c.objetivo} · ${c.plan}</p></div>
+          <div class="acciones" style="margin-top:0">${c.aviso ? pill(c.aviso[0], c.aviso[1]) : ""}${pill(c.estado === "Activo" ? "verde" : c.estado === "Baja" ? "" : "oro", c.estado)}</div>
+        </div>`,
+      ).join("")}
+    </div>`
+      }
+
+      function pantallaFicha(sub) {
+        const pestana = sub || "sesiones"
+        const lista = [
+          ["resumen", "Resumen"],
+          ["sesiones", "Sesiones"],
+          ["plan", "Plan de entrenamiento"],
+          ["checkins", "Check-ins y molestias"],
+          ["progreso", "Progreso"],
+          ["nutricion", "Nutrición"],
+          ["salud", "Salud"],
+        ]
+        const cuerpos = {
+          resumen: fichaResumen,
+          sesiones: fichaSesiones,
+          plan: fichaPlan,
+          checkins: fichaCheckins,
+          progreso: fichaProgreso,
+          nutricion: fichaNutricion,
+          salud: fichaSalud,
+        }
+        const cuerpo = (cuerpos[pestana] || fichaSesiones)()
+        return `${encabezado(
+          "Jorge Lozano",
+          "Recomposición · semana 2 de 6 · cinco días de fuerza y dos de K-1",
+          `<button type="button" class="btn btn-borde">Exportar PDF</button><a class="btn btn-oro" href="#constructor-dia">Editar plan</a>`,
+        )}
+    ${pestanasDe("ficha", lista, pestana, "Secciones del cliente")}
+    <div role="tabpanel">${cuerpo}</div>`
+      }
+
+      function fichaResumen() {
+        return `<div class="dos-columnas">
+      <div class="pila">
+        <section class="tarjeta">
+          <h3 class="seccion">Plan en curso ${fase(3)}</h3>
+          <p><strong>Bloque 1 · Recomposición</strong></p>
+          <p class="tenue">21 sep – 1 nov · semana 2 de 6 · fase «Calibrar»</p>
+          <div class="cifras" style="margin-top:16px">
+            <div class="cifra"><span class="nota">Semana 1</span><span class="valor">5 de 5</span><span class="nota">fuerza · 2 de 2 K-1</span></div>
+            <div class="cifra"><span class="nota">Series hechas</span><span class="valor">98 %</span><span class="nota">101 de 103</span></div>
+            <div class="cifra"><span class="nota">RPE medio</span><span class="valor">6,8</span><span class="nota">objetivo 6–7</span></div>
+          </div>
+        </section>
+        <section class="tarjeta">
+          <h3 class="seccion">Avisos abiertos</h3>
+          <div class="fila"><span class="punto ambar" aria-hidden="true"></span><div class="crece"><p>Molestia ámbar en el hombro derecho</p><p class="tenue pequeno">Lunes 20:05 · sin ver</p></div></div>
+        </section>
+      </div>
+      <section class="tarjeta">
+        <h3 class="seccion">Cuenta ${fase(2)}</h3>
+        <table><tbody>
+          <tr><th scope="row">Correo</th><td>jorge.lozano@ejemplo.com</td></tr>
+          <tr><th scope="row">Teléfono</th><td>600 000 000</td></tr>
+          <tr><th scope="row">Estado</th><td>${pill("verde", "Activo")}</td></tr>
+          <tr><th scope="row">Dado de alta</th><td>14 sep 2026</td></tr>
+          <tr><th scope="row">Nutricionista</th><td>Sin asignar</td></tr>
+        </tbody></table>
+        <p class="tenue pequeno" style="margin-top:12px">Es la ficha de cuenta que ya existe: editar datos, corregir el correo, dar de baja y reactivar.</p>
+      </section>
+    </div>`
+      }
+
+      function fichaSesiones() {
+        const filas = [
+          {
+            e: "Press banca con barra",
+            p: "4 × 6 · RIR 3",
+            s: "70 kg",
+            h: [
+              "70 × 6 · RIR 3",
+              "70 × 6 · RIR 3",
+              '70 × 6 · <span class="aviso-texto">RIR 2, por debajo</span>',
+              "70 × 6 · RIR 3",
+            ],
+            n: "Igual",
+          },
+          {
+            e: "Press inclinado con mancuernas",
+            p: "3 × 8–10 · RIR 2–3",
+            s: "26 kg",
+            h: [
+              "26 × 10 · RIR 3",
+              "26 × 9 · RIR 2",
+              '<span class="aviso-texto">22 × 10 · bajó la carga</span>',
+            ],
+            n: '<span class="aviso-texto">Pendiente de ti: molestia</span>',
+          },
+          {
+            e: "Press de hombro en máquina",
+            p: "3 × 8–12 · RIR 2–3",
+            s: "Calibrar",
+            h: ["45 × 12 · RIR 3", "45 × 12 · RIR 3", "45 × 12 · RIR 2"],
+            n: '<span class="sube">Sube a 47,5 kg</span>',
+          },
+          {
+            e: "Aperturas en polea",
+            p: "2 × 12–15 · RIR 2",
+            s: "15 kg",
+            h: ["15 × 15 · RIR 2", "15 × 14 · RIR 2"],
+            n: "Igual",
+          },
+          {
+            e: "Elevaciones laterales en polea",
+            p: "3 × 12–18 · RIR 2",
+            s: "7,5 kg",
+            h: ["7,5 × 18 · RIR 2", "7,5 × 18 · RIR 2", "7,5 × 18 · RIR 2"],
+            n: '<span class="sube">Sube a 8,75 kg</span>',
+          },
+          {
+            e: "Extensión de tríceps con cuerda",
+            p: "3 × 10–15 · RIR 2",
+            s: "25 kg",
+            h: ["25 × 15 · RIR 2", "25 × 15 · RIR 2", "25 × 15 · RIR 3"],
+            n: '<span class="sube">Sube a 27,5 kg</span>',
+          },
+          {
+            e: "Extensión de tríceps sobre la cabeza",
+            p: "2 × 10–15 · RIR 2",
+            s: "20 kg",
+            h: ["20 × 13 · RIR 2", "20 × 12 · RIR 2"],
+            n: "Igual",
+          },
+        ]
+        const semana = [
+          ["Lun 28", "Empuje", pill("verde", "Enviada"), "20 de 20 · RPE 7", true],
+          ["Mar 29", "Tracción", pill("oro", "Check-in hecho"), "Energía 4 de 5", false],
+          ["Mié 30", "Pierna", pill("", "Pendiente"), "", false],
+          ["Jue 1", "Torso", pill("", "Pendiente"), "", false],
+          ["Vie 2", "Brazos", pill("", "Pendiente"), "", false],
+          ["Días variables", "K-1 × 2", pill("", "0 de 2"), "Registra el cliente", false],
+        ]
+        return `<div class="pila">
+      <section class="tarjeta destacada" aria-labelledby="t-atencion-ficha">
+        <h3 class="seccion" id="t-atencion-ficha">Requiere tu atención ${fase(5)}</h3>
+        <div class="fila"><span class="punto ambar" aria-hidden="true"></span><div class="crece">
+          <p><strong>Molestia ámbar en el hombro derecho</strong></p>
+          <p class="tenue pequeno">4 de 10 y va a más · press inclinado, serie 2 con 26 kg · bajó a 22 kg en la serie 3</p>
+          <div class="acciones"><button type="button" class="btn btn-borde btn-peq">Marcar como vista</button><button type="button" class="btn btn-oro btn-peq">Ajustar próxima sesión</button></div>
+        </div></div>
+      </section>
+      <div class="dos-columnas">
+        <section aria-labelledby="t-resultado">
+          <div class="encabezado" style="margin-bottom:12px">
+            <div><h3 class="seccion" id="t-resultado" style="margin:0">Empuje · lunes 28 sep ${fase(3)}</h3>
+            <p class="tenue pequeno">Enviada el lunes a las 21:10 · 1 h 38 min · 20 de 20 series · RPE 7</p></div>
+            <div class="acciones"><button type="button" class="btn btn-borde btn-peq">Sesión anterior</button><button type="button" class="btn btn-borde btn-peq" disabled aria-disabled="true" style="opacity:.45">Sesión siguiente</button></div>
+          </div>
+          <div class="tarjeta tabla-scroll">
+            <table>
+              <caption>Previsto frente a hecho, serie a serie. La columna «Próxima vez» sale de la doble progresión ${fase(4)}</caption>
+              <thead><tr><th scope="col">Ejercicio</th><th scope="col">Prescrito</th><th scope="col">Sugerido</th><th scope="col">Hecho</th><th scope="col">Próxima vez</th></tr></thead>
+              <tbody>${filas
+                .map(
+                  (f) =>
+                    `<tr><th scope="row">${f.e}</th><td>${f.p}</td><td>${f.s}</td><td><div class="series-hechas">${f.h.map((x) => `<span>${x}</span>`).join("")}</div></td><td>${f.n}</td></tr>`,
+                )
+                .join("")}</tbody>
+            </table>
+          </div>
+          <div class="cifras" style="margin-top:12px">
+            <div class="cifra"><span class="nota">Calentamiento</span><span class="valor">8 de 8</span></div>
+            <div class="cifra"><span class="nota">Core · circuito</span><span class="valor">2 de 2</span><span class="nota">vueltas</span></div>
+            <div class="cifra"><span class="nota">Cinta</span><span class="valor">15 min</span><span class="nota">6 % · 5,0 km/h · RPE 6</span></div>
+            <div class="cifra"><span class="nota">Vuelta a la calma</span><span class="valor">Hecha</span></div>
+          </div>
+        </section>
+        <div class="pila">
+          <section class="tarjeta" aria-labelledby="t-checkin-dia">
+            <h3 class="seccion" id="t-checkin-dia">Cómo llegó ${fase(5)}</h3>
+            <p>${pill("verde", "Verde")} <span class="tenue pequeno">Realiza la sesión prevista</span></p>
+            <table style="margin-top:8px"><tbody>
+              <tr><th scope="row">Sueño</th><td>7 h 30 · calidad 4 de 5</td></tr>
+              <tr><th scope="row">Energía y motivación</th><td>4 y 5 de 5</td></tr>
+              <tr><th scope="row">Agujetas</th><td>Pecho 3</td></tr>
+              <tr><th scope="row">Dolor o rigidez</th><td>No</td></tr>
+              <tr><th scope="row">K-1 en 24 h</th><td>No</td></tr>
+            </tbody></table>
+          </section>
+          <section class="tarjeta" aria-labelledby="t-cierre">
+            <h3 class="seccion" id="t-cierre">Cierre ${fase(5)}</h3>
+            <table><tbody>
+              <tr><th scope="row">RPE de la sesión</th><td>7 de 10</td></tr>
+              <tr><th scope="row">Energía al terminar</th><td>4 de 5</td></tr>
+              <tr><th scope="row">Técnica incómoda</th><td><span class="aviso-texto">Press inclinado con mancuernas</span></td></tr>
+              <tr><th scope="row">K-1 hoy</th><td>No</td></tr>
+            </tbody></table>
+            <p style="margin-top:12px" class="tenue">«El hombro derecho empezó a molestar en la segunda serie del inclinado. Bajé a 22 kg y ya no molestaba.»</p>
+          </section>
+          <section class="tarjeta" aria-labelledby="t-semana-ficha">
+            <h3 class="seccion" id="t-semana-ficha">Semana 28 sep – 4 oct</h3>
+            ${semana
+              .map(
+                (s) =>
+                  `<div class="fila"><div class="crece"><p><strong>${s[0]}</strong> · ${s[1]}</p>${s[3] ? `<p class="tenue pequeno">${s[3]}</p>` : ""}</div>${s[2]}</div>`,
+              )
+              .join("")}
+          </section>
+        </div>
+      </div>
+    </div>`
+      }
+
+      function fichaPlan() {
+        return `<div class="pila">
+      <div class="acciones"><a class="btn btn-oro" href="#asignar">Asignar bloque nuevo</a><a class="btn btn-borde" href="#rutinas">Empezar desde una rutina</a></div>
+      <section class="tarjeta">
+        <div class="encabezado" style="margin-bottom:8px">
+          <div><h3 class="seccion" style="margin:0">Bloque 1 · Recomposición ${fase(3)}</h3><p class="tenue pequeno">21 sep – 1 nov · 6 semanas · 30 sesiones de fuerza y K-1 × 2 por semana</p></div>
+          ${pill("oro", "En curso")}
+        </div>
+        <div class="cifras">
+          <div class="cifra"><span class="nota">Enviadas</span><span class="valor">6</span></div>
+          <div class="cifra"><span class="nota">Sin empezar</span><span class="valor">24</span></div>
+          <div class="cifra"><span class="nota">Fase actual</span><span class="valor">Calibrar</span><span class="nota">semanas 1–2</span></div>
+        </div>
+        <div class="acciones" style="margin-top:16px">
+          <a class="btn btn-borde btn-peq" href="#constructor-bloque">Abrir en el constructor</a>
+          <button type="button" class="btn btn-borde btn-peq">Guardar como rutina</button>
+          <button type="button" class="btn btn-borde btn-peq">Anular lo no empezado</button>
+        </div>
+        <p class="tenue pequeno" style="margin-top:12px">Anular pide confirmación y conserva las 6 sesiones enviadas. Para una etapa nueva se asigna otro bloque; el histórico no se reescribe.</p>
+      </section>
+    </div>`
+      }
+
+      function fichaCheckins() {
+        const filas = [
+          ["Mar 29", "7 h 30 · 4", "4", "5", "—", "No", "No", pill("verde", "Verde")],
+          ["Lun 28", "7 h 30 · 4", "4", "5", "Pecho 3", "No", "No", pill("verde", "Verde")],
+          ["Dom 27", "—", "—", "—", "—", "—", "K-1 · 7", pill("", "Sin check-in")],
+          ["Vie 25", "6 h · 2", "2", "3", "Cuádriceps 5", "No", "Sí · 7", pill("ambar", "Ámbar")],
+          ["Jue 24", "7 h · 3", "3", "4", "Cuádriceps 7", "No", "No", pill("ambar", "Ámbar")],
+        ]
+        return `<div class="pila">
+      <div class="cifras">
+        <div class="cifra"><span class="nota">Sueño medio</span><span class="valor">7 h 05</span><span class="nota">calidad 3,3 de 5</span></div>
+        <div class="cifra"><span class="nota">Energía media</span><span class="valor">3,3</span><span class="nota">de 5</span></div>
+        <div class="cifra"><span class="nota">Señales de ajuste</span><span class="valor">1 de 2</span><span class="nota">agujetas altas &gt; 72 h</span></div>
+        <div class="cifra"><span class="nota">Molestias abiertas</span><span class="valor">1</span><span class="nota">hombro derecho</span></div>
+      </div>
+      <section aria-labelledby="t-molestias">
+        <h3 class="seccion" id="t-molestias">Molestias ${fase(5)}</h3>
+        <div class="tarjeta">
+          <div class="fila"><span class="punto ambar" aria-hidden="true"></span><div class="crece">
+            <p><strong>Hombro · derecho</strong> · ${pill("ambar", "Ámbar")}</p>
+            <p class="tenue pequeno">Intensidad 4 de 10 · va a más · press inclinado con mancuernas, serie 2 · durante la serie · lunes 28 a las 20:05</p>
+          </div><button type="button" class="btn btn-borde btn-peq">Marcar como vista</button></div>
+          <div class="fila"><span class="punto verde" aria-hidden="true"></span><div class="crece">
+            <p><strong>Lumbar · no aplica</strong> · ${pill("verde", "Verde")}</p>
+            <p class="tenue pequeno">Intensidad 2 de 10 · rigidez · peso muerto rumano · después del entreno · miércoles 23 · vista el 23</p>
+          </div></div>
+        </div>
+      </section>
+      <section aria-labelledby="t-checkins">
+        <h3 class="seccion" id="t-checkins">Check-ins ${fase(5)}</h3>
+        <div class="tarjeta tabla-scroll">
+          <table>
+            <thead><tr><th scope="col">Día</th><th scope="col">Sueño · calidad</th><th scope="col">Energía</th><th scope="col">Motivación</th><th scope="col">Agujetas</th><th scope="col">Dolor o rigidez</th><th scope="col">K-1 en 24 h</th><th scope="col">Nivel</th></tr></thead>
+            <tbody>${filas
+              .map(
+                (f) =>
+                  `<tr><th scope="row">${f[0]}</th>${f
+                    .slice(1)
+                    .map((c) => `<td>${c}</td>`)
+                    .join("")}</tr>`,
+              )
+              .join("")}</tbody>
+          </table>
+        </div>
+      </section>
+    </div>`
+      }
+
+      function fichaProgreso() {
+        return `<div class="pila">
+      <div class="aviso-proto">Llega con <strong>seguimiento corporal</strong> ${fase(7)}. Necesita su spec antes de programarse. Recoge lo que hoy la guía semanal pide anotar: peso en ayunas, cintura, pasos y sueño, además de las medidas con plicómetro.</div>
+      <div class="cifras">
+        <div class="cifra"><span class="nota">Peso · media semanal</span><span class="valor">93,6 kg</span><span class="nota">−0,4 kg frente a la semana 1</span></div>
+        <div class="cifra"><span class="nota">Cintura</span><span class="valor">96 cm</span><span class="nota">−1 cm</span></div>
+        <div class="cifra"><span class="nota">Pasos · media</span><span class="valor">6.850</span><span class="nota">objetivo 7.000</span></div>
+        <div class="cifra"><span class="nota">Press banca</span><span class="valor">70 × 6</span><span class="nota">RIR 3 · inicio 65 × 6</span></div>
+      </div>
+    </div>`
+      }
+
+      function fichaNutricion() {
+        return `<div class="dos-columnas">
+      <div class="pila">
+        <section class="tarjeta" aria-labelledby="t-gasto">
+          <h3 class="seccion" id="t-gasto">Cálculo del gasto ${fase(4)}</h3>
+          <table><tbody>
+            <tr><th scope="row">Datos de referencia</th><td>29 años · 182 cm · 94,0 kg</td></tr>
+            <tr><th scope="row">Grasa corporal</th><td>24,5 % · plicometría</td></tr>
+            <tr><th scope="row">Metabolismo basal</th><td>1.938 kcal · Mifflin-St Jeor</td></tr>
+            <tr><th scope="row">Factor de actividad</th><td>1,55 · cinco días de fuerza y dos de K-1</td></tr>
+            <tr><th scope="row">Gasto total estimado</th><td><strong>3.003 kcal</strong></td></tr>
+          </tbody></table>
+          <p class="tenue pequeno" style="margin-top:12px">Son estimaciones. Se ajustan con la media semanal del peso, la cintura, el rendimiento y la adherencia durante 2 o 3 semanas.</p>
+        </section>
+        <section class="tarjeta" aria-labelledby="t-objetivo">
+          <h3 class="seccion" id="t-objetivo">Objetivo diario</h3>
+          <p><strong>Recomposición:</strong> bajar grasa manteniendo o ganando músculo.</p>
+          <p class="tenue">2.700–2.900 kcal al día · ejemplo a 2.800 kcal</p>
+          <div class="barra-macros" role="img" aria-label="Reparto: 45 % hidratos, 25 % proteína, 30 % grasas"><span style="flex:45"></span><span style="flex:25"></span><span style="flex:30"></span></div>
+          <table><tbody>
+            <tr><th scope="row">Hidratos · 45 %</th><td>315 g</td></tr>
+            <tr><th scope="row">Proteína · 25 %</th><td>175 g · 1,9 g por kg</td></tr>
+            <tr><th scope="row">Grasas · 30 %</th><td>93 g</td></tr>
+          </tbody></table>
+        </section>
+      </div>
+      <div class="pila">
+        <section class="tarjeta" aria-labelledby="t-recomendaciones">
+          <h3 class="seccion" id="t-recomendaciones">Recomendaciones</h3>
+          <ul class="pila-corta">
+            <li>Priorizar alimentos poco procesados; limitar azúcares añadidos, refrescos, bollería y bebidas energéticas.</li>
+            <li>La comida más flexible, si la hay, entra en el total de la semana.</li>
+            <li>Repartir la proteína en 3 a 5 comidas; el batido es opcional.</li>
+            <li>Beber de forma regular y más alrededor del gimnasio y del K-1.</li>
+            <li>Verdura o fruta a diario; plancha, horno, airfryer, vapor o microondas.</li>
+          </ul>
+          <p class="tenue pequeno" style="margin-top:12px">Salen de plantillas de Guía y reglas; se editan para cada cliente.</p>
+        </section>
+        <section class="tarjeta" aria-labelledby="t-suplementos">
+          <h3 class="seccion" id="t-suplementos">Suplementos y descanso</h3>
+          <p>Creatina monohidrato, 3–5 g al día, también en descanso. Sin fases de carga.</p>
+          <p style="margin-top:8px">Dormir 7 a 9 horas. Con cinco días de fuerza y dos de K-1, el sueño condiciona la recuperación.</p>
+        </section>
+        <div class="acciones"><button type="button" class="btn btn-oro">Publicar cambios</button></div>
+        <p class="tenue pequeno">Pregunta abierta para el spec: si el cliente tiene nutricionista, ¿esta pestaña pasa a solo lectura con su pauta?</p>
+      </div>
+    </div>`
+      }
+
+      function fichaSalud() {
+        return `<div class="pila" style="max-width:720px">
+      <section class="tarjeta" aria-labelledby="t-salud">
+        <h3 class="seccion" id="t-salud">Notas de salud ${fase(4)}</h3>
+        <p><strong>Tendinopatía rotuliana izquierda en 2024, sin dolor ahora.</strong></p>
+        <p class="tenue" style="margin-top:6px">Evitar saltos. Extensión de cuádriceps en rango cómodo; si molesta, sustituir por prensa a una pierna.</p>
+        <div class="chips" style="margin-top:16px" role="radiogroup" aria-label="Quién la ve">
+          <button type="button" class="chip" role="radio" aria-checked="true">El cliente la ve en su guía</button>
+          <button type="button" class="chip" role="radio" aria-checked="false">Solo yo</button>
+        </div>
+      </section>
+      <p class="tenue pequeno">Dato de salud: hasta que exista el consentimiento pendiente (tareas 19 y 21 de identidad), solo se usa con datos de prueba.</p>
+    </div>`
+      }
+
+      function pantallaConstructor(sub) {
+        const vista = sub || "dia"
+        const cuerpo =
+          vista === "bloque"
+            ? constructorBloque()
+            : vista === "semana"
+              ? constructorSemana()
+              : constructorDia()
+        return `${encabezado(
+          "Bloque 1 · Recomposición",
+          "Jorge Lozano · 6 semanas desde el 21 sep · asignado el 21 sep",
+          `<button type="button" class="btn btn-texto">Ver como cliente</button><button type="button" class="btn btn-borde">Guardar como rutina</button><a class="btn btn-oro" href="#asignar">Asignar</a>`,
+        )}
+    ${pestanasDe(
+      "constructor",
+      [
+        ["bloque", "Bloque"],
+        ["semana", "Semana"],
+        ["dia", "Día"],
+      ],
+      vista,
+      "Vistas del constructor",
+    )}
+    <div role="tabpanel">${cuerpo}</div>`
+      }
+
+      function constructorBloque() {
+        const fases = [
+          [
+            "Semanas 1–2",
+            "Calibrar",
+            "Compuestos RIR 3 · accesorios 2–3",
+            "Aprender la rutina y fijar cargas iniciales",
+            true,
+          ],
+          [
+            "Semanas 3–4",
+            "Progresar",
+            "Doble progresión",
+            "Subir repeticiones y cargas sin perder técnica",
+            false,
+          ],
+          [
+            "Semana 5",
+            "Apretar",
+            "Accesorios RIR 1–2 · sin fallo en compuestos",
+            "Sin fallo en compuestos ni fondos",
+            false,
+          ],
+          [
+            "Semana 6",
+            "Descarga",
+            "−40 a −50 % de series · RIR 3–4",
+            "Recuperar antes del bloque 2",
+            false,
+          ],
+        ]
+        return `<div class="pila">
+      <section aria-labelledby="t-fases">
+        <h3 class="seccion" id="t-fases">Fases ${fase(4)}</h3>
+        <ol class="fases" style="list-style:none;padding:0">
+          ${fases
+            .map(
+              (f) => `<li class="fase-tarjeta"${f[4] ? ' aria-current="step"' : ""}>
+                <span class="semanas">${f[0]}${f[4] ? " · ahora" : ""}</span>
+                <strong>${f[1]}</strong><span>${f[2]}</span><span class="tenue pequeno">${f[3]}</span></li>`,
+            )
+            .join("")}
+        </ol>
+      </section>
+      <div class="dos-columnas">
+        <div class="pila">
+          <section class="tarjeta" aria-labelledby="t-objetivos-semana">
+            <h3 class="seccion" id="t-objetivos-semana">Objetivos de la semana · Calibrar</h3>
+            <table><tbody>
+              <tr><th scope="row">Aprender la rutina</th><td>Conocer el orden, regular las máquinas y completar sin llegar al fallo.</td></tr>
+              <tr><th scope="row">Establecer cargas iniciales</th><td>Pesos que respeten el rango de repeticiones y el RIR.</td></tr>
+              <tr><th scope="row">Tolerar el volumen</th><td>Cinco días de fuerza, la cinta y dos de K-1.</td></tr>
+              <tr><th scope="row">Crear una referencia</th><td>Registrar peso, cintura, pasos, sueño, cargas, RPE y K-1.</td></tr>
+            </tbody></table>
+            <p class="tenue pequeno" style="margin-top:12px">Nota que ve el cliente: «La primera semana sirve para calibrar, no para demostrar el máximo».</p>
+          </section>
+          <section class="tarjeta" aria-labelledby="t-indicaciones">
+            <h3 class="seccion" id="t-indicaciones">Indicaciones del plan</h3>
+            <ul class="pila-corta">
+              <li>Lunes empuje, martes tracción, miércoles pierna, jueves torso y viernes brazos, hombro lateral y core.</li>
+              <li>K-1: dos días variables de 60 min. Evitar el miércoles; si coincide con fuerza, separar varias horas.</li>
+              <li>NEAT: 7.000 pasos de media; subir a 8.000–9.000 si la recuperación va bien.</li>
+            </ul>
+          </section>
+        </div>
+        <div class="pila">
+          <section class="tarjeta" aria-labelledby="t-progresion">
+            <h3 class="seccion" id="t-progresion">Regla de progresión ${fase(4)}</h3>
+            <p><strong>Doble progresión.</strong> Misma carga hasta el máximo del rango en todas las series con el RIR indicado; entonces se sube la carga mínima y se vuelve al mínimo del rango.</p>
+            <table style="margin-top:12px"><tbody>
+              <tr><th scope="row">Tren superior</th><td>+1 a 2,5 kg</td></tr>
+              <tr><th scope="row">Tren inferior</th><td>+2,5 a 5 kg</td></tr>
+            </tbody></table>
+            <p class="tenue pequeno" style="margin-top:12px">La app calcula la próxima vez tras cada envío. Si fijas una carga, manda la tuya.</p>
+          </section>
+          <section class="tarjeta" aria-labelledby="t-ajuste">
+            <h3 class="seccion" id="t-ajuste">Criterios de ajuste ${fase(4)}</h3>
+            <p>Con <strong>2 o más señales</strong> en una semana se propone bajar un 25–30 % el volumen o quitar primero lo marcado.</p>
+            <ul class="pila-corta" style="margin-top:10px">
+              <li>Rendimiento más bajo dos sesiones seguidas</li>
+              <li>Agujetas intensas más de 72 horas</li>
+              <li>Sueño peor o cansancio persistente</li>
+              <li>Dolor articular o técnica alterada por fatiga</li>
+              <li>Piernas pesadas que perjudican el K-1</li>
+            </ul>
+            <p class="tenue pequeno" style="margin-top:12px">Se quita primero: cinta final y farmer carry.</p>
+          </section>
+        </div>
+      </div>
+    </div>`
+      }
+
+      function constructorSemana() {
+        const filas = [
+          ["Calentamiento", "8–10′", "8–10′", "10–12′", "8–10′", "8–10′", "", ""],
+          ["Fuerza", "70–85′", "65–80′", "75–90′", "70–85′", "45–60′", "", ""],
+          ["Cardio", "15′", "15′", "—", "15′", "15′", "", ""],
+          ["Vuelta a la calma", "5′", "5′", "5′", "5′", "5–8′", "", ""],
+        ]
+        return `<div class="pila">
+      <div class="tarjeta tabla-scroll">
+        <table>
+          <caption>Minutos por día. Se calcula a partir de lo que tiene cada día; no se escribe a mano.</caption>
+          <thead><tr><th scope="col">Bloque</th><th scope="col">Lun</th><th scope="col">Mar</th><th scope="col">Mié</th><th scope="col">Jue</th><th scope="col">Vie</th><th scope="col">Sáb</th><th scope="col">Dom</th></tr></thead>
+          <tbody>
+            ${filas
+              .map(
+                (f) =>
+                  `<tr><th scope="row">${f[0]}</th>${f
+                    .slice(1)
+                    .map((c) => `<td>${c}</td>`)
+                    .join("")}</tr>`,
+              )
+              .join("")}
+            <tr><th scope="row">K-1</th><td colspan="7">2 × 60′ en días variables · nunca el miércoles · separado varias horas de la fuerza</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="acciones"><button type="button" class="btn btn-borde">Añadir deporte</button><a class="btn btn-borde" href="#constructor-dia">Editar días</a></div>
+    </div>`
+      }
+
+      function constructorDia() {
+        if (estado.dia === "k1") return constructorDeporte()
+        const dia = DIAS[estado.dia]
+        const ej = dia.principal[Math.min(estado.ejercicio, dia.principal.length - 1)]
+        const alternativas = ALTERNATIVAS[ej[0]] || []
+        const totalSeries = dia.principal.reduce((t, e) => t + e[1], 0)
+        return `${tabsDias()}
+      <div class="constructor">
+        <div class="pila-corta">
+          <div class="encabezado" style="margin-bottom:4px">
+            <div><h3 class="seccion" style="margin:0">${dia.titulo}</h3><p class="tenue pequeno">Duración estimada ${dia.duracion} · calculada</p></div>
+            <button type="button" class="btn btn-borde btn-peq">Guardar como rutina</button>
+          </div>
+          <div class="campo"><label for="nota-sesion">Nota de la sesión (la ve el cliente)</label><textarea id="nota-sesion">${esc(dia.nota)}</textarea></div>
+          <div class="tarjeta">
+            <section class="seccion-dia" aria-labelledby="s-cal">
+              <header><h4 id="s-cal">Calentamiento</h4><span class="tenue pequeno">${dia.calentamiento.length} ejercicios · se marcan como hechos</span></header>
+              <ul class="lista-dosis">${dia.calentamiento.map((c) => `<li><span>${c[0]}</span><span>${c[1]}</span></li>`).join("")}</ul>
+            </section>
+            <section class="seccion-dia" aria-labelledby="s-pri">
+              <header><h4 id="s-pri">Parte principal</h4><span class="tenue pequeno">${dia.principal.length} ejercicios · ${totalSeries} series</span></header>
+              <div class="tabla-scroll"><table>
+                <thead><tr><th scope="col">Ejercicio</th><th scope="col" class="num">Series</th><th scope="col">Reps</th><th scope="col">RIR</th><th scope="col">Descanso</th><th scope="col">Carga ini.</th><th scope="col">Recorte</th></tr></thead>
+                <tbody>${dia.principal
+                  .map(
+                    (e, i) =>
+                      `<tr class="fila-ejercicio" aria-current="${i === estado.ejercicio}"><th scope="row"><button type="button" data-ejercicio="${i}" aria-pressed="${i === estado.ejercicio}">${e[0]}</button></th><td class="num">${e[1]}</td><td>${e[2]}</td><td>${e[3]}</td><td>${e[4]}</td><td>${e[5]}</td><td>${e[6]}</td></tr>`,
+                  )
+                  .join("")}</tbody>
+              </table></div>
+              <button type="button" class="btn btn-texto btn-peq" style="margin-top:8px">Añadir desde la biblioteca</button>
+            </section>
+            <section class="seccion-dia" aria-labelledby="s-core">
+              <header><h4 id="s-core">Core</h4><span class="tenue pequeno">${dia.core.forma}</span></header>
+              <ul class="lista-dosis">${dia.core.items.map((c) => `<li><span>${c[0]} · <span class="tenue">${c[2]}</span></span><span>${c[1]}</span></li>`).join("")}</ul>
+            </section>
+            <section class="seccion-dia" aria-labelledby="s-cardio">
+              <header><h4 id="s-cardio">Cardio</h4><span class="tenue pequeno">${dia.cardio ? "Se quita primero" : "Hoy no hay"}</span></header>
+              <p class="tenue">${dia.cardio || "Día de pierna: sin cardio final."}</p>
+            </section>
+            <section class="seccion-dia" aria-labelledby="s-calma">
+              <header><h4 id="s-calma">Vuelta a la calma</h4><span class="tenue pequeno">Opcional</span></header>
+              <p class="tenue">${dia.calma}</p>
+            </section>
+          </div>
+        </div>
+        <aside class="tarjeta destacada panel-ejercicio" aria-labelledby="t-panel">
+          <div class="pila-corta">
+            <div><h3 class="seccion" id="t-panel" style="margin:0">${ej[0]}</h3>
+            <p class="tenue pequeno" aria-live="polite">${ej[6] === "Nunca" ? "Compuesto · nunca se recorta" : ej[6] === "Se quita primero" ? "Se quita primero si hay que recortar" : "Accesorio"}</p></div>
+            <div class="rejilla-campos">
+              <div class="campo"><label for="p-series">Series</label><input id="p-series" inputmode="numeric" value="${ej[1]}" /></div>
+              <div class="campo"><label for="p-reps">Reps o rango</label><input id="p-reps" value="${esc(ej[2])}" /></div>
+              <div class="campo"><label for="p-rir">RIR o rango</label><input id="p-rir" value="${esc(ej[3])}" /></div>
+              <div class="campo"><label for="p-desc">Descanso</label><input id="p-desc" value="${esc(ej[4])}" /></div>
+              <div class="campo"><label for="p-carga">Carga inicial</label><input id="p-carga" value="${esc(ej[5])}" /></div>
+              <div class="campo"><label for="p-inc">Incremento</label><input id="p-inc" value="2,5 kg" /></div>
+            </div>
+            <div class="campo"><span class="etiqueta" id="e-medicion">Se mide por</span>
+              <div class="chips" role="radiogroup" aria-labelledby="e-medicion">
+                <button type="button" class="chip" role="radio" aria-checked="${!ej[2].includes("m")}">Repeticiones</button>
+                <button type="button" class="chip" role="radio" aria-checked="false">Tiempo</button>
+                <button type="button" class="chip" role="radio" aria-checked="${ej[2].includes("m")}">Distancia</button>
+              </div>
+            </div>
+            <div class="campo"><span class="etiqueta" id="e-recorte">Si hay que recortar</span>
+              <div class="chips" role="radiogroup" aria-labelledby="e-recorte">
+                ${["Nunca", "Normal", "Se quita primero"].map((t) => `<button type="button" class="chip" role="radio" aria-checked="${ej[6] === t}">${t}</button>`).join("")}
+              </div>
+            </div>
+            <div class="campo"><label for="p-indic">Indicaciones para el cliente</label><textarea id="p-indic">Escápulas colocadas antes de sacar la barra. Baja con control, sin rebotar.</textarea></div>
+            <div class="campo"><span class="etiqueta">Alternativas si molesta</span>
+              <div class="chips">${alternativas.length ? alternativas.map((a) => `<span class="chip" style="cursor:default">${a}</span>`).join("") : '<span class="tenue pequeno">Ninguna todavía</span>'}<button type="button" class="chip">+ Añadir</button></div>
+            </div>
+            <a class="btn btn-texto btn-peq" href="#ejercicio" style="align-self:flex-start">Ver técnica en el catálogo</a>
+          </div>
+        </aside>
+      </div>`
+      }
+
+      function tabsDias() {
+        return `<div class="tabs" role="tablist" aria-label="Días de la semana">
+        ${Object.entries(DIAS)
+          .map(
+            ([clave, d]) =>
+              `<button type="button" role="tab" data-dia="${clave}" aria-selected="${clave === estado.dia}">${d.corto}</button>`,
+          )
+          .join("")}
+        <button type="button" role="tab" data-dia="k1" aria-selected="${estado.dia === "k1"}">K-1 · 2 × 60′</button>
+      </div>`
+      }
+
+      function constructorDeporte() {
+        return `${tabsDias()}
+      <div class="tarjeta" style="max-width:720px">
+        <div class="pila-corta">
+          <h3 class="seccion" style="margin:0">K-1 ${fase(4)}</h3>
+          <div class="rejilla-campos">
+            <div class="campo"><label for="k-veces">Veces por semana</label><input id="k-veces" inputmode="numeric" value="2" /></div>
+            <div class="campo"><label for="k-min">Duración</label><input id="k-min" value="60 min" /></div>
+          </div>
+          <div class="campo"><span class="etiqueta" id="k-evitar">Días a evitar</span>
+            <div class="chips" role="group" aria-labelledby="k-evitar">${["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => `<button type="button" class="chip" role="checkbox" aria-checked="${d === "Mié"}">${d}</button>`).join("")}</div>
+          </div>
+          <div class="campo"><label for="k-reglas">Reglas que ve el cliente</label><textarea id="k-reglas">Si coincide con fuerza, sepáralos varias horas y apunta cuál hiciste primero. Con K-1 intenso, quita primero la cinta.</textarea></div>
+          <p class="tenue pequeno">Los días son variables: no se programan en la agenda. El cliente registra cada K-1 (duración, intensidad y si le pesaban las piernas) y cuenta en la semana del plan.</p>
+        </div>
+      </div>`
+      }
+
+      function pantallaAsignar() {
+        return `${encabezado("Asignar bloque", "Jorge Lozano · Bloque 2 · desde la copia del bloque 1", fase(3))}
+    <div class="dos-columnas">
+      <div class="pila">
+        <div class="tarjeta pila-corta">
+          <div class="rejilla-campos">
+            <div class="campo"><label for="a-inicio">Semana inicial (lunes)</label><input id="a-inicio" type="text" value="Lunes 2 nov 2026" /></div>
+            <div class="campo"><label for="a-semanas">Número de semanas</label><input id="a-semanas" inputmode="numeric" value="6" /></div>
+          </div>
+          <p class="tenue pequeno">Por defecto, las semanas del bloque. Las fases se reparten solas.</p>
+        </div>
+        <div class="tarjeta" style="border-color:rgba(240,180,76,.45)">
+          <p><strong class="aviso-texto">Ya hay sesiones en esas fechas</strong></p>
+          <p class="tenue" style="margin-top:6px">El lunes 2 nov tiene «Empuje» del bloque 1 (semana 6, descarga). No se sustituye: convivirán las dos. Si sobra, anúlala desde la ficha.</p>
+        </div>
+        <div class="acciones"><button type="button" class="btn btn-oro">Asignar 30 sesiones</button><a class="btn btn-borde" href="#constructor-dia">Volver al constructor</a></div>
+        <p class="tenue pequeno">Si la conexión falla, reintentar usa la misma operación y no duplica nada.</p>
+      </div>
+      <div class="tarjeta tabla-scroll">
+        <table>
+          <caption>Vista previa · primeras dos semanas de 6</caption>
+          <thead><tr><th scope="col">Fecha</th><th scope="col">Sesión</th><th scope="col">Fase</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Lun 2 nov</th><td>Empuje ${pill("ambar", "coincide")}</td><td>Calibrar</td></tr>
+            <tr><th scope="row">Mar 3 nov</th><td>Tracción</td><td>Calibrar</td></tr>
+            <tr><th scope="row">Mié 4 nov</th><td>Pierna</td><td>Calibrar</td></tr>
+            <tr><th scope="row">Jue 5 nov</th><td>Torso</td><td>Calibrar</td></tr>
+            <tr><th scope="row">Vie 6 nov</th><td>Brazos</td><td>Calibrar</td></tr>
+            <tr><th scope="row">Lun 9 nov</th><td>Empuje</td><td>Calibrar</td></tr>
+            <tr><th scope="row">Mar 10 nov</th><td>Tracción</td><td>Calibrar</td></tr>
+            <tr><th scope="row">…</th><td class="tenue" colspan="2">23 sesiones más hasta el 11 dic · K-1 × 2 por semana, días libres</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`
+      }
+
+      function pantallaRutinas() {
+        const rutinas = [
+          ["Recomposición 5 días + deporte", "6 semanas · 5 días · 4 fases", "Usada 3 veces"],
+          ["Fuerza general 3 días", "8 semanas · 3 días · 3 fases", "Usada 5 veces"],
+          ["Vuelta tras lesión de rodilla", "4 semanas · 3 días · 2 fases", "Usada 1 vez"],
+          ["Hipertrofia torso y pierna", "6 semanas · 4 días · 4 fases", "Usada 2 veces"],
+        ]
+        return `${encabezado("Rutinas", "Plantillas para empezar un plan. Usar una crea una copia para el cliente.", `${fase(3)} <button type="button" class="btn btn-oro">Nueva rutina</button>`)}
+    <div class="campo" style="margin-bottom:16px"><label for="buscar-rutina">Buscar rutina</label><input id="buscar-rutina" type="search" placeholder="Nombre" /></div>
+    <div class="tarjeta">
+      ${rutinas
+        .map(
+          (
+            r,
+          ) => `<div class="fila"><div class="crece"><p><strong>${r[0]}</strong></p><p class="tenue pequeno">${r[1]} · ${r[2]}</p></div>
+          <div class="acciones" style="margin-top:0"><a class="btn btn-borde btn-peq" href="#constructor-bloque">Abrir</a><button type="button" class="btn btn-oro btn-peq">Usar para un cliente</button></div></div>`,
+        )
+        .join("")}
+    </div>
+    <p class="tenue pequeno" style="margin-top:12px">Una rutina guarda bloque, fases, días y ejercicios. Nunca registros ni notas de un cliente. Archivar la quita de la lista sin tocar los planes que salieron de ella.</p>`
+      }
+
+      function pantallaEjercicios() {
+        const lista = [
+          ["Press banca con barra", "Pecho", "Fuerza", "Publicado"],
+          ["Press inclinado con mancuernas", "Pecho", "Fuerza", "Publicado"],
+          ["Remo en T", "Espalda", "Fuerza", "Publicado"],
+          ["Hack squat o sentadilla", "Cuádriceps", "Fuerza", "Publicado"],
+          ["Farmer carry", "Antebrazos", "Fuerza · distancia", "Publicado"],
+          ["Band pull-apart", "Hombros", "Calentamiento", "Publicado"],
+          ["Plancha RKC", "Abdomen", "Core · tiempo", "Publicado"],
+          ["Cinta inclinada", "—", "Cardio", "Publicado"],
+          ["Estiramiento de pectoral", "Pecho", "Estiramiento", "Publicado"],
+          ["Fondos entre bancos profundos", "Tríceps", "Fuerza", "Retirado"],
+        ]
+        return `${encabezado("Ejercicios", "Catálogo con la técnica de cada ejercicio", `${fase(3)} <button type="button" class="btn btn-oro">Nuevo ejercicio</button>`)}
+    <div class="pila-corta" style="margin-bottom:16px">
+      <div class="campo"><label for="buscar-ejercicio">Buscar ejercicio</label><input id="buscar-ejercicio" type="search" placeholder="Nombre" /></div>
+      <div class="chips" role="group" aria-label="Filtrar por tipo">
+        ${["Todos", "Fuerza", "Calentamiento", "Core", "Cardio", "Estiramiento", "Retirados"].map((t, i) => `<button type="button" class="chip" aria-pressed="${i === 0}">${t}</button>`).join("")}
+      </div>
+    </div>
+    <div class="tarjeta tabla-scroll">
+      <table>
+        <thead><tr><th scope="col">Ejercicio</th><th scope="col">Grupo principal</th><th scope="col">Tipo</th><th scope="col">Estado</th></tr></thead>
+        <tbody>${lista
+          .map(
+            (e) =>
+              `<tr><th scope="row"><a href="#ejercicio">${e[0]}</a></th><td>${e[1]}</td><td>${e[2]}</td><td>${pill(e[3] === "Publicado" ? "verde" : "", e[3])}</td></tr>`,
+          )
+          .join("")}</tbody>
+      </table>
+    </div>`
+      }
+
+      function pantallaEjercicio() {
+        return `${encabezado("Press banca con barra", "Pecho · tríceps y hombro · fuerza · se mide por repeticiones", `${fase(4)} <button type="button" class="btn btn-borde">Retirar</button><button type="button" class="btn btn-oro">Editar</button>`)}
+    <div class="dos-columnas">
+      <div class="pila">
+        <section class="tarjeta" aria-labelledby="t-como"><h3 class="seccion" id="t-como">Cómo realizarlo</h3>
+          <p>Pies firmes, glúteos apoyados y escápulas retraídas. Baja a la zona media-baja del pecho con los antebrazos casi verticales y empuja manteniendo la trayectoria.</p></section>
+        <section class="tarjeta" aria-labelledby="t-evita"><h3 class="seccion" id="t-evita">Evita</h3>
+          <p>Rebotar, despegar los glúteos, perder la tensión escapular o abrir los codos sin control.</p></section>
+        <section class="tarjeta" aria-labelledby="t-para"><h3 class="seccion" id="t-para">Para si</h3>
+          <p>Pinchazo o dolor en el hombro, o pierdes la posición de las escápulas.</p></section>
+      </div>
+      <div class="pila">
+        <section class="tarjeta" aria-labelledby="t-medios"><h3 class="seccion" id="t-medios">Figura y vídeo</h3>
+          <p class="tenue">Hueco reservado. La figura animada espera a resolver su licencia y el vídeo lo grabará el entrenador.</p></section>
+        <section class="tarjeta" aria-labelledby="t-alt"><h3 class="seccion" id="t-alt">Alternativas habituales</h3>
+          <div class="chips"><span class="chip" style="cursor:default">Press en multipower</span><span class="chip" style="cursor:default">Press con mancuernas</span></div></section>
+        <p class="tenue pequeno">Aparece en 3 planes en curso. Retirarlo no cambia lo ya prescrito ni lo enviado.</p>
+      </div>
+    </div>`
+      }
+
+      function pantallaGuia() {
+        return `${encabezado("Guía y reglas", "Lo que antes se repetía en cada documento. Cada plan puede sustituir un texto para su cliente.", `${fase(4)} <button type="button" class="btn btn-oro">Editar</button>`)}
+    <div class="dos-columnas">
+      <div class="pila">
+        <section class="tarjeta tabla-scroll" aria-labelledby="t-modificar">
+          <h3 class="seccion" id="t-modificar">Cuándo modificar la sesión</h3>
+          <table>
+            <caption>Se muestra al cliente al terminar el check-in. Los umbrales se editan aquí.</caption>
+            <thead><tr><th scope="col">Situación</th><th scope="col">Nivel</th><th scope="col">Decisión</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Energía normal, agujetas leves (3 o menos), sin dolor</th><td>${pill("verde", "Verde")}</td><td>Realiza la sesión prevista y registra las cargas.</td></tr>
+              <tr><th scope="row">Energía de 2 o menos, o K-1 de 7 o más ayer</th><td>${pill("ambar", "Ámbar")}</td><td>Mantén 3 RIR y elimina primero la cinta.</td></tr>
+              <tr><th scope="row">Agujetas de 7 o más, o descenso claro del rendimiento</th><td>${pill("ambar", "Ámbar")}</td><td>Reduce un 25–30 % las series accesorias y no llegues al fallo.</td></tr>
+              <tr><th scope="row">Dolor articular o técnica alterada desde el calentamiento</th><td>${pill("rojo", "Rojo")}</td><td>No fuerces el ejercicio. Cambia la variante y avisa.</td></tr>
+              <tr><th scope="row">Mareo, dolor torácico o dificultad respiratoria anormal</th><td>${pill("rojo", "Rojo")}</td><td>Detén la sesión y pide valoración sanitaria si no remite.</td></tr>
+            </tbody>
+          </table>
+        </section>
+        <section class="tarjeta tabla-scroll" aria-labelledby="t-semaforo">
+          <h3 class="seccion" id="t-semaforo">Semáforo de molestias</h3>
+          <table>
+            <thead><tr><th scope="col">Estado</th><th scope="col">Qué ocurre</th><th scope="col">Qué hacer</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">${pill("verde", "Verde")}</th><td>Esfuerzo muscular normal, sin dolor articular y técnica estable.</td><td>Sigue según el plan.</td></tr>
+              <tr><th scope="row">${pill("ambar", "Ámbar")}</th><td>Molestia que va a más, rigidez o compensación técnica.</td><td>Para la serie, baja carga o recorrido y valora una variante.</td></tr>
+              <tr><th scope="row">${pill("rojo", "Rojo")}</th><td>Dolor agudo o irradiado, mareo, falta de aire o pérdida de fuerza repentina.</td><td>Termina el ejercicio y avisa. Pide valoración sanitaria si procede.</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </div>
+      <div class="pila">
+        <section class="tarjeta tabla-scroll" aria-labelledby="t-rir">
+          <h3 class="seccion" id="t-rir">RIR · repeticiones en reserva</h3>
+          <table><tbody>
+            <tr><th scope="row">5 o más</th><td>Demasiado cómoda. Regístrala; podrá subir la próxima vez.</td></tr>
+            <tr><th scope="row">3</th><td>Lo adecuado en los principales al empezar el bloque.</td></tr>
+            <tr><th scope="row">2</th><td>Lo previsto en buena parte de los accesorios.</td></tr>
+            <tr><th scope="row">1</th><td>Más exigente de lo programado. No subas la carga.</td></tr>
+            <tr><th scope="row">0</th><td>Serie al fallo. Evítala y baja la carga en la siguiente serie.</td></tr>
+          </tbody></table>
+        </section>
+        <section class="tarjeta" aria-labelledby="t-prioridades">
+          <h3 class="seccion" id="t-prioridades">Si falta tiempo</h3>
+          <ol class="pila-corta">
+            <li>Calentamiento específico y ejercicios principales</li>
+            <li>Accesorios programados</li>
+            <li>Circuito de core</li>
+            <li>Cinta inclinada</li>
+          </ol>
+        </section>
+        <section class="tarjeta" aria-labelledby="t-mas-guia">
+          <h3 class="seccion" id="t-mas-guia">También en la guía</h3>
+          <p class="tenue">Escala RPE · señales para detener un ejercicio · respiración · normas técnicas · material · indicaciones por tipo de ejercicio · qué comunicar · registro mínimo después de entrenar · plantillas de recomendaciones nutricionales.</p>
+        </section>
+      </div>
+    </div>`
+      }
+
+      const TEXTO_PENDIENTE = {
+        agenda: [
+          "Agenda",
+          6,
+          "Agenda del día y de la semana; reservar por un cliente, mover, cancelar y devolver la sesión; plantilla de horario semanal y excepciones. Tareas H09 y H13 de horarios.",
+        ],
+        cobros: [
+          "Cobros",
+          6,
+          "Solicitudes de «Lo quiero» para activar, cobros pendientes por cliente, marcar como cobrado y total del mes. Tarea H15 de horarios.",
+        ],
+        boxeo: [
+          "Boxeo",
+          6,
+          "Clases de los lunes y viernes; pasar lista. Cada asistencia cuenta en la cuota o descuenta del bono. Tarea H17 de horarios.",
+        ],
+        ajustes: [
+          "Ajustes",
+          6,
+          "Antelación mínima, horizonte, plazo de cancelación, servicios, duraciones y precios.",
+        ],
+        leads: ["Leads", 7, "Envíos del formulario de la web y su seguimiento. Necesita su spec."],
+        fichajes: ["Fichajes", 7, "Registro de jornada del empleado. Necesita su spec."],
+        nutricionistas: [
+          "Nutricionistas",
+          2,
+          "El reparto de clientes a la nutricionista que ya existe, con el estilo nuevo.",
+        ],
+        perfil: ["Perfil", 2, "Perfil propio y cerrar sesión, como hoy, con el estilo nuevo."],
+      }
+
+      function pantallaPendiente(clave) {
+        const [titulo, n, texto] = TEXTO_PENDIENTE[clave] || TEXTO_PENDIENTE.agenda
+        return `${encabezado(titulo, "", fase(n))}<div class="aviso-proto" style="max-width:720px">${texto}</div>`
+      }
+
+      function pantallaMas() {
+        return `${encabezado("Más", "Lo que no cabe en las pestañas del teléfono")}
+    <div class="rejilla-mas">
+      <a class="tarjeta enlace" href="#guia"><strong>Guía y reglas</strong><span class="tenue pequeno">RIR, semáforo, cuándo modificar</span></a>
+      ${Object.entries(TEXTO_PENDIENTE)
+        .map(
+          ([clave, [t, n]]) =>
+            `<a class="tarjeta enlace" href="#pendiente-${clave}"><strong>${t}</strong><span class="tenue pequeno">Fase ${n}</span></a>`,
+        )
+        .join("")}
+    </div>`
+      }
+
+      function pantallaCliente() {
+        const escala = (
+          etiqueta,
+          id,
+          marcado,
+          izq,
+          der,
+        ) => `<div class="pregunta" role="radiogroup" aria-labelledby="${id}">
+      <span id="${id}">${etiqueta}</span>
+      <div class="escala">${[1, 2, 3, 4, 5].map((n) => `<button type="button" role="radio" aria-checked="${n === marcado}">${n}</button>`).join("")}</div>
+      <div class="extremos"><span>${izq}</span><span>${der}</span></div></div>`
+        return `${encabezado("Lo que rellena el cliente", "Estas pantallas alimentan el panel. Ya existen en Claude Design y se amplían con lo que pide la guía semanal.", fase(5))}
+    <div class="telefonos">
+      <section class="telefono-maqueta" aria-labelledby="c-checkin">
+        <h3 id="c-checkin">¿Cómo llegas?</h3>
+        <div class="rejilla-campos">
+          <div class="campo"><label for="c-horas">Horas de sueño</label><input id="c-horas" value="6 h 30" /></div>
+          <div class="campo"><label for="c-k1">K-1 en 24 h</label><input id="c-k1" value="Sí · 7 de 10" /></div>
+        </div>
+        ${escala("Calidad del sueño", "c-cal", 3, "Muy mala", "Muy buena")}
+        ${escala("Energía general", "c-ene", 3, "Agotado", "A tope")}
+        ${escala("Motivación para entrenar", "c-mot", 4, "Ninguna", "Mucha")}
+        <div class="pregunta"><span>Agujetas</span>
+          <div class="chips"><button type="button" class="chip" aria-pressed="false">Ninguna</button><button type="button" class="chip" aria-pressed="true">Cuádriceps · 5</button><button type="button" class="chip" aria-pressed="false">+ Zona</button></div></div>
+        <div class="pregunta" role="radiogroup" aria-labelledby="c-dolor"><span id="c-dolor">Dolor articular, rigidez o espalda</span>
+          <div class="chips"><button type="button" class="chip" role="radio" aria-checked="true">No</button><button type="button" class="chip" role="radio" aria-checked="false">Sí</button></div></div>
+        <div class="pregunta" role="radiogroup" aria-labelledby="c-recu"><span id="c-recu">Después de la última sesión</span>
+          <div class="chips"><button type="button" class="chip" role="radio" aria-checked="true">Recuperé normal</button><button type="button" class="chip" role="radio" aria-checked="false">Peor de lo normal</button></div></div>
+        <div class="recomendacion" role="status"><strong>Ámbar · K-1 intenso ayer.</strong> Mantén 3 RIR y elimina primero la cinta.</div>
+        <button type="button" class="btn btn-oro" style="min-height:52px">Empezar</button>
+      </section>
+
+      <section class="telefono-maqueta" aria-labelledby="c-sesion">
+        <div><p class="tenue pequeno">Empuje · 9 de 20 series · 34:12</p><h3 id="c-sesion">Press inclinado</h3>
+        <p class="tenue pequeno">3 × 8–10 · RIR 2–3 · 2 min · sugerido 26 kg</p></div>
+        <div class="tabla-scroll"><table class="tabla-series">
+          <thead><tr><th scope="col">Serie</th><th scope="col">Kg</th><th scope="col">Reps</th><th scope="col">RIR</th><th scope="col">Hecha</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">1</th><td><input aria-label="Kg de la serie 1" value="26" /></td><td><input aria-label="Repeticiones de la serie 1" value="10" /></td><td><input aria-label="RIR de la serie 1" value="3" /></td><td class="hecha">Sí</td></tr>
+            <tr><th scope="row">2</th><td><input aria-label="Kg de la serie 2" value="26" /></td><td><input aria-label="Repeticiones de la serie 2" value="9" /></td><td><input aria-label="RIR de la serie 2" value="2" /></td><td class="hecha">Sí</td></tr>
+            <tr><th scope="row">3</th><td><input aria-label="Kg de la serie 3" placeholder="26" /></td><td><input aria-label="Repeticiones de la serie 3" placeholder="8–10" /></td><td><input aria-label="RIR de la serie 3" placeholder="2–3" /></td><td class="tenue">No</td></tr>
+          </tbody>
+        </table></div>
+        <p class="tenue pequeno">Lo tenue es el objetivo, no un valor registrado. Marcar exige peso, repeticiones y RIR.</p>
+        <div class="acciones"><button type="button" class="btn btn-borde btn-peq">Añadir nota</button><button type="button" class="btn btn-borde btn-peq">Añadir molestia</button></div>
+      </section>
+
+      <section class="telefono-maqueta" aria-labelledby="c-molestia">
+        <div><h3 id="c-molestia">Molestia</h3><p class="tenue pequeno">Press inclinado · serie 2</p></div>
+        <div class="pregunta" role="radiogroup" aria-labelledby="c-zona"><span id="c-zona">Zona</span>
+          <div class="chips">${["Hombro", "Codo", "Muñeca", "Lumbar", "Rodilla", "Otra"].map((z, i) => `<button type="button" class="chip" role="radio" aria-checked="${i === 0}">${z}</button>`).join("")}</div></div>
+        <div class="pregunta" role="radiogroup" aria-labelledby="c-lado"><span id="c-lado">Lado</span>
+          <div class="chips">${["Izquierdo", "Derecho", "Ambos", "No aplica"].map((z, i) => `<button type="button" class="chip" role="radio" aria-checked="${i === 1}">${z}</button>`).join("")}</div></div>
+        <div class="deslizador"><label for="c-int"><strong>Intensidad:</strong> 4 de 10</label><input id="c-int" type="range" min="0" max="10" value="4" /></div>
+        <div class="pregunta" role="group" aria-labelledby="c-nota"><span id="c-nota">Qué notas</span>
+          <div class="chips">${["Rigidez", "Va a más", "Pinchazo o irradia", "Pérdida de fuerza"].map((z, i) => `<button type="button" class="chip" role="checkbox" aria-checked="${i === 1}">${z}</button>`).join("")}</div></div>
+        <div class="recomendacion" role="status"><strong>Ámbar.</strong> Para la serie, baja carga o recorrido y valora la alternativa: press inclinado en máquina.</div>
+        <button type="button" class="btn btn-oro" style="min-height:52px">Avisar a mi entrenador</button>
+      </section>
+
+      <section class="telefono-maqueta" aria-labelledby="c-cierre">
+        <div><h3 id="c-cierre">¿Cómo ha ido?</h3><p class="tenue pequeno">Empuje · 1 h 38 min · 20 de 20 series</p></div>
+        <div class="deslizador"><label for="c-rpe"><strong>Esfuerzo de la sesión (RPE):</strong> 7 de 10</label><input id="c-rpe" type="range" min="0" max="10" value="7" /></div>
+        ${escala("Energía al terminar", "c-fin", 4, "Vacío", "Con energía")}
+        <div class="pregunta" role="group" aria-labelledby="c-tec"><span id="c-tec">¿Algún ejercicio inestable o incómodo?</span>
+          <div class="chips"><button type="button" class="chip" role="checkbox" aria-checked="true">Press inclinado</button><button type="button" class="chip" role="checkbox" aria-checked="false">Otro</button></div></div>
+        <div class="rejilla-campos">
+          <div class="campo"><label for="c-cinta">Cinta hecha</label><input id="c-cinta" value="15 min · 6 % · 5,0" /></div>
+          <div class="campo"><label for="c-k1hoy">K-1 hoy</label><input id="c-k1hoy" value="No" /></div>
+        </div>
+        <div class="campo"><label for="c-notas">Notas</label><textarea id="c-notas">El hombro derecho empezó a molestar en la segunda serie del inclinado.</textarea></div>
+        <button type="button" class="btn btn-oro" style="min-height:52px">Enviar entrenamiento</button>
+      </section>
+    </div>`
+      }
+
+      const PANTALLAS = {
+        hoy: pantallaHoy,
+        clientes: pantallaClientes,
+        ficha: pantallaFicha,
+        constructor: pantallaConstructor,
+        asignar: pantallaAsignar,
+        rutinas: pantallaRutinas,
+        ejercicios: pantallaEjercicios,
+        ejercicio: pantallaEjercicio,
+        guia: pantallaGuia,
+        mas: pantallaMas,
+        pendiente: pantallaPendiente,
+        cliente: pantallaCliente,
+      }
+
+      // ---------- Navegación ----------
+      function seccionDe(pantalla, sub) {
+        if (pantalla === "ficha" || pantalla === "constructor" || pantalla === "asignar")
+          return "clientes"
+        if (pantalla === "ejercicio") return "ejercicios"
+        if (pantalla === "pendiente") return sub
+        if (pantalla === "cliente") return null
+        return pantalla
+      }
+
+      function pintarNavegacion(seccion) {
+        document.getElementById("nav-lateral").innerHTML = SECCIONES.map((s) =>
+          s.separa
+            ? '<div class="separa" role="separator"></div>'
+            : `<a href="#${PENDIENTES.includes(s.clave) ? "pendiente-" + s.clave : s.clave}"${s.clave === seccion ? ' aria-current="page"' : ""}>${icono(s.clave)}<span>${s.texto}</span>${s.fase ? `<span class="fase-mini">${s.fase}</span>` : ""}</a>`,
+        ).join("")
+        const enMas = seccion === "mas" || seccion === "guia" || PENDIENTES.includes(seccion)
+        document.getElementById("nav-pestanas").innerHTML = PESTANAS.map((clave) => {
+          const activa = clave === "mas" ? enMas : clave === seccion
+          const texto = {
+            hoy: "Hoy",
+            clientes: "Clientes",
+            rutinas: "Rutinas",
+            ejercicios: "Ejercicios",
+            mas: "Más",
+          }[clave]
+          return `<a href="#${clave}"${activa ? ' aria-current="page"' : ""}>${icono(clave)}<span>${texto}</span></a>`
+        }).join("")
+      }
+
+      function leerRuta() {
+        const h = decodeURIComponent(location.hash.slice(1)) || "hoy"
+        const i = h.indexOf("-")
+        return i < 0 ? [h, null] : [h.slice(0, i), h.slice(i + 1)]
+      }
+
+      function pintar(desdeNavegacion) {
+        const [pantalla, sub] = leerRuta()
+        const clave = PANTALLAS[pantalla] ? pantalla : "hoy"
+        const contenido = document.getElementById("contenido")
+        contenido.innerHTML = PANTALLAS[clave](sub)
+        pintarNavegacion(seccionDe(clave, sub))
+        if (desdeNavegacion) contenido.focus({ preventScroll: true })
+      }
+
+      window.addEventListener("hashchange", () => {
+        pintar(true)
+        document.getElementById("marco").scrollIntoView({ block: "start" })
+      })
+
+      document.addEventListener("click", (evento) => {
+        const dia = evento.target.closest("[data-dia]")
+        if (dia) {
+          estado.dia = dia.dataset.dia
+          estado.ejercicio = 0
+          pintar(false)
+          document.querySelector(`[data-dia="${estado.dia}"]`)?.focus()
+          return
+        }
+        const ejercicio = evento.target.closest("[data-ejercicio]")
+        if (ejercicio) {
+          estado.ejercicio = Number(ejercicio.dataset.ejercicio)
+          pintar(false)
+          document.querySelector(`[data-ejercicio="${estado.ejercicio}"]`)?.focus()
+          return
+        }
+        // Chips y escalas de ejemplo: marcan su selección para que la maqueta se sienta viva.
+        const opcion = evento.target.closest('[role="radio"]')
+        if (opcion) {
+          opcion.parentElement
+            .querySelectorAll('[role="radio"]')
+            .forEach((b) => b.setAttribute("aria-checked", String(b === opcion)))
+          return
+        }
+        const casilla = evento.target.closest('[role="checkbox"]')
+        if (casilla) {
+          casilla.setAttribute(
+            "aria-checked",
+            String(casilla.getAttribute("aria-checked") !== "true"),
+          )
+          return
+        }
+        const chip = evento.target.closest(".chips[role=group] .chip[aria-pressed]")
+        if (chip) {
+          chip.parentElement
+            .querySelectorAll("[aria-pressed]")
+            .forEach((b) => b.setAttribute("aria-pressed", String(b === chip)))
+        }
+      })
+
+      // ---------- Ancho de la maqueta ----------
+      const marco = document.getElementById("marco")
+      const botonTelefono = document.getElementById("ver-telefono")
+      const botonEscritorio = document.getElementById("ver-escritorio")
+      function fijarAncho(telefono) {
+        marco.classList.toggle("telefono", telefono)
+        botonTelefono.setAttribute("aria-pressed", String(telefono))
+        botonEscritorio.setAttribute("aria-pressed", String(!telefono))
+        try {
+          localStorage.setItem("proto-ancho", telefono ? "telefono" : "escritorio")
+        } catch (_) {
+          /* Sin almacenamiento, la maqueta sigue funcionando con el ancho por defecto. */
+        }
+      }
+      botonTelefono.addEventListener("click", () => fijarAncho(true))
+      botonEscritorio.addEventListener("click", () => fijarAncho(false))
+      try {
+        if (localStorage.getItem("proto-ancho") === "telefono") fijarAncho(true)
+      } catch (_) {
+        /* Igual que arriba. */
+      }
+
+      pintar(false)
+    </script>
+  </body>
+</html>

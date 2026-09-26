@@ -137,3 +137,39 @@ Catorce pantallas contando el login, no las ocho del boceto.
   móvil al instante y se sube solo cuando hay red, sin que el cliente confirme
   nada. La pantalla marca lo que está sin subir y avisa cuando todo está arriba.
   Es una tarea propia, con su coste, y sin ella la app no sirve donde se usa.
+
+### 2026-09-26 · Panel del entrenador: digitalizar el servicio completo
+
+David pasó los tres documentos que el entrenador entrega hoy a cada cliente: la
+rutina con su pauta nutricional, la guía semanal de registro y la guía de
+ejercicios. Tienen datos de salud reales y **no entran en el repositorio**; su
+estructura está descrita en [docs/diseno/panel-entrenador.md](../diseno/panel-entrenador.md).
+
+- **Todo el servicio pasa a la app.** Palabras de David: "es un proceso de
+  digitalización donde el entrenador todas las cosas que hace las pasará a hacer
+  en la app". Eso incluye rutina, fases del bloque, guía y reglas, técnica por
+  ejercicio, pauta nutricional del entrenador y exportar a PDF.
+- **Toda la app del entrenador se diseña ahora**, con un prototipo navegable
+  antes de programar: [docs/diseno/prototipo-entrenador.html](../diseno/prototipo-entrenador.html).
+- **Una sola app Expo, adaptable.** Barra lateral en web o tablet ancha,
+  pestañas en el teléfono. No hay un panel web aparte.
+- **Se adopta el sistema visual de Claude Design** en toda la app: oro
+  `#FFC34C` con degradado, neutros cálidos y Anton con Archivo.
+- **Entrenos va antes que horarios.** La API de entrenos ya existe y solo le
+  faltan las pantallas. Horarios (H05–H17) se ejecuta después, dentro de la
+  navegación nueva.
+- **Revoca «nada de RPE ni descanso» (17-09).** La prescripción lleva rangos de
+  repeticiones, RIR y descanso, secciones, circuitos, cardio y deporte, y el
+  cliente registra RIR por serie. Es lo que el entrenador ya pide en papel.
+- **Revoca «sin plantillas reutilizables» (17-09).** Las rutinas guardadas ya
+  existen en la API y se mantienen.
+- **Check-in completo** antes de cada entrenamiento, como la comprobación rápida
+  de la guía semanal. La app muestra la recomendación de «cuándo modificar la
+  sesión», sin cambiar la sesión sola.
+- **Molestias en directo.** El cliente avisa durante la sesión y el entrenador lo
+  ve al momento. Es la única excepción a que el entrenador no vea nada antes del
+  envío; los valores del borrador siguen privados.
+- **Progresión sugerida.** Fases del bloque, doble progresión y señales de
+  ajuste calculadas por la app. El entrenador confirma; nada se aplica solo.
+- **Fuera por ahora:** mensajes y comentarios entre entrenador y cliente.
+- El trabajo sale de la rama `dev`, que reúne las ramas paralelas.

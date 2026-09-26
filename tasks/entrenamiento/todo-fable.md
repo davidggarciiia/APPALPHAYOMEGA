@@ -1,5 +1,8 @@
 # Borrador de tareas de Fable — catálogo y pantallas del entrenador
 
+> **Sustituido el 2026-09-26** por [tasks/panel-entrenador](../panel-entrenador/todo.md).
+> El catálogo (F01) ya existe en `dev`; el resto se reparte allí.
+
 > Preparado el 2026-09-18 con Agent Skills, `planning-and-task-breakdown`.
 > **Estado: borrador anticipado, no validado ni habilitado para ejecución.**
 > Se revisará en la fase TASKS, después de aprobar el [plan de Fable](plan-fable.md)
