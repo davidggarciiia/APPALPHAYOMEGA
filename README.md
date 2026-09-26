@@ -55,6 +55,9 @@ La app se abre con Expo Go en un móvil o con `w` para verla en el navegador. En
 desarrollo la dirección de la API se deduce sola del servidor de Metro, así que
 no hay que escribir ninguna IP a mano.
 
+Para enseñarla con clientes y datos de ejemplo en una base de demo:
+[docs/DEMO.md](docs/DEMO.md) (`npm run demo:seed --workspace apps/api`).
+
 ## Pruebas
 
 ```bash
