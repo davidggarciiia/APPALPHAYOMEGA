@@ -19,12 +19,14 @@ import {
   type SolicitudProducto,
 } from "@alpha-omega/shared"
 
-import { fechaSql } from "../agenda/fechas.js"
 import { conflicto } from "../entrenamiento/documentos.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { CobrosService } from "./cobros.service.js"
 import { SaldoService } from "./saldo.service.js"
+
+/** Una fecha de calendario como `@db.Date`. `planes` no importa `agenda` (SPEC-planes). */
+const fechaSql = (fecha: string): Date => new Date(`${fecha}T00:00:00.000Z`)
 
 type Tx = Prisma.TransactionClient
 
@@ -199,7 +201,7 @@ export class PlanesService {
       const cobro = await this.cobros.crear(tx, {
         clienteId: solicitud.clienteId,
         concepto: solicitud.producto.nombre,
-        importeCentimos: datos.importeCentimos,
+        importeCentimos: datos.importeCentimos ?? solicitud.precioCentimos,
         origenTipo: "producto",
         origenId: `solicitud:${id}`,
         cobrado: datos.cobrado,
@@ -227,8 +229,19 @@ export class PlanesService {
     const repetir = async (tx: Tx): Promise<ActivacionProducto | null> => {
       const previo = await this.cobros.deOrigen(tx, "producto", origenId)
       if (!previo) return null
-      if (previo.cliente.id !== clienteId)
-        throw conflicto("operacion_incompatible", "Esa operación ya se usó con otro cliente")
+      // Misma operación con otro contenido es otra petición: no se devuelve en silencio
+      // la activación anterior. El cobro guarda cliente, producto e importe.
+      const producto = await tx.producto.findUnique({
+        where: { id: datos.productoId },
+        select: { nombre: true, precioCentimos: true },
+      })
+      const importe = datos.importeCentimos ?? producto?.precioCentimos
+      if (
+        previo.cliente.id !== clienteId ||
+        previo.concepto !== producto?.nombre ||
+        previo.importeCentimos !== importe
+      )
+        throw conflicto("operacion_incompatible", "Esa operación ya se usó con otro contenido")
       return {
         solicitudId: null,
         saldo: await this.saldo.resumen(clienteId, undefined, tx),
@@ -248,7 +261,7 @@ export class PlanesService {
         const cobro = await this.cobros.crear(tx, {
           clienteId,
           concepto: producto.nombre,
-          importeCentimos: datos.importeCentimos,
+          importeCentimos: datos.importeCentimos ?? producto.precioCentimos,
           origenTipo: "producto",
           origenId,
           cobrado: datos.cobrado,
@@ -271,7 +284,8 @@ export class PlanesService {
 
   /**
    * Crea lo que da un producto. Un plan no se solapa con otro de la misma clase
-   * que dé saldo: empieza cuando acaba el anterior.
+   * que dé saldo: si pisa uno, empieza cuando acaba ese (y así con los siguientes).
+   * Uno que empieza después de que acabe el nuevo no lo mueve.
    */
   private async conceder(
     tx: Tx,
@@ -307,9 +321,16 @@ export class PlanesService {
           OR: [{ sesionesPorMes: { gt: 0 } }, { clasesPorSemana: { gt: 0 } }],
         },
       })
-      for (const previa of previas) {
-        const fin = sumarMeses(fecha(previa.mesInicio), previa.meses - 1)
-        if (fin >= inicio) inicio = sumarMeses(fin, 1)
+      const meses = producto.meses ?? 1
+      const ocupados = previas
+        .map((p) => ({
+          desde: fecha(p.mesInicio),
+          hasta: sumarMeses(fecha(p.mesInicio), p.meses - 1),
+        }))
+        .sort((a, b) => a.desde.localeCompare(b.desde))
+      for (const ocupado of ocupados) {
+        const hasta = sumarMeses(inicio, meses - 1)
+        if (ocupado.desde <= hasta && inicio <= ocupado.hasta) inicio = sumarMeses(ocupado.hasta, 1)
       }
     }
     await tx.suscripcion.create({

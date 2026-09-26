@@ -4,6 +4,7 @@ import {
   aInstante,
   ExcepcionAgendaSchema,
   partesLocales,
+  plantillaDelDia,
   restarTramos,
   sumarDiasFecha,
   unirTramos,
@@ -21,6 +22,7 @@ import {
   type Tramo,
 } from "@alpha-omega/shared"
 
+import { invalida } from "../entrenamiento/documentos.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { ajustesPublicos, ReservasService, servicioPublico } from "./reservas.service.js"
 
@@ -37,25 +39,17 @@ function excepcionPublica(fila: FilaExcepcion): ExcepcionAgenda {
   })
 }
 
-/** Tiempo de trabajo de un día: plantilla ∪ aperturas − cierres. */
+/** Tiempo de trabajo de un día: plantilla ∪ aperturas − cierres, como los huecos. */
 function tiempoDelDia(
   fecha: string,
   franjas: FranjaSemanal[],
   aperturas: Tramo[],
   cierres: Tramo[],
 ): Tramo[] {
-  const diaSemana = ((new Date(`${fecha}T00:00:00Z`).getUTCDay() + 6) % 7) + 1
-  const plantilla = franjas
-    .filter((f) => f.diaSemana === diaSemana)
-    .flatMap((f) => {
-      const inicio = aInstante(fecha, f.inicioMin, ZONA_AGENDA)
-      const fin =
-        f.finMin >= 1440
-          ? aInstante(sumarDiasFecha(fecha, 1), 0, ZONA_AGENDA)
-          : aInstante(fecha, f.finMin, ZONA_AGENDA)
-      return inicio && fin ? [{ inicio: inicio.getTime(), fin: fin.getTime() }] : []
-    })
-  return restarTramos(unirTramos([...plantilla, ...aperturas]), cierres)
+  return restarTramos(
+    unirTramos([...plantillaDelDia(fecha, franjas, ZONA_AGENDA), ...aperturas]),
+    cierres,
+  )
 }
 
 /**
@@ -147,7 +141,21 @@ export class HorarioService {
           await tx.tarifaGrupo.deleteMany({ where: { servicioId: id } })
           await tx.tarifaGrupo.createMany({ data: tarifas.map((t) => ({ ...t, servicioId: id })) })
         }
-        return tx.servicio.findUniqueOrThrow({ where: { id }, include: { tarifas: true } })
+        const servicio = await tx.servicio.findUniqueOrThrow({
+          where: { id },
+          include: { tarifas: true },
+        })
+        // Un servicio que se paga allí necesita precio para cada número de
+        // personas que admite; si no, alguna reserva saldría gratis.
+        if (!servicio.claseDeSaldo && servicio.precioCentimos === null) {
+          const conPrecio = new Set(servicio.tarifas.map((t) => t.personas))
+          const faltan: number[] = []
+          for (let n = servicio.minPersonas; n <= servicio.maxPersonas; n++)
+            if (!conPrecio.has(n)) faltan.push(n)
+          if (faltan.length > 0)
+            throw invalida(`Falta el precio por persona para ${faltan.join(", ")} personas`)
+        }
+        return servicio
       })
       return servicioPublico(fila)
     } catch (error) {
@@ -156,6 +164,8 @@ export class HorarioService {
         (error.code === "P2025" || error.code === "P2003")
       )
         throw new NotFoundException("Servicio no disponible")
+      if (error instanceof Prisma.PrismaClientKnownRequestError)
+        throw invalida("Esos precios no se pueden guardar. Revisa las tarifas.")
       throw error
     }
   }

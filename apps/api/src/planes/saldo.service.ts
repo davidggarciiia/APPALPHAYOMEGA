@@ -14,9 +14,11 @@ import {
   type ResumenSaldo,
 } from "@alpha-omega/shared"
 
-import { fechaSql } from "../agenda/fechas.js"
 import { conflicto } from "../entrenamiento/documentos.js"
 import { PrismaService } from "../prisma/prisma.service.js"
+
+/** Una fecha de calendario como `@db.Date`. `planes` no importa `agenda` (SPEC-planes). */
+const fechaSql = (fecha: string): Date => new Date(`${fecha}T00:00:00.000Z`)
 
 type Tx = Prisma.TransactionClient
 
@@ -125,14 +127,7 @@ export class SaldoService {
     if (!elegido) throw conflicto("sin_saldo", "No quedan sesiones para esa fecha")
 
     await tx.movimientoSaldo.create({ data: { ...comun, bonoId: elegido.id } })
-    if (elegido.primerUsoEn === null)
-      await tx.bono.update({
-        where: { id: elegido.id },
-        data: {
-          primerUsoEn: fechaSql(datos.fechaSesion),
-          caducaEn: fechaSql(sumarDiasFecha(datos.fechaSesion, elegido.validezDias)),
-        },
-      })
+    await this.recalcularPrimerUso(tx, elegido)
     return { fuente: elegido.nombre }
   }
 
@@ -176,16 +171,9 @@ export class SaldoService {
 
     if (consumo.bono && vigente(consumo.bono, hoy)) {
       await tx.movimientoSaldo.create({ data: { ...comun, bonoId: consumo.bono.id } })
-      // Si era la única sesión gastada, el bono vuelve a estar sin empezar.
-      const neto = await tx.movimientoSaldo.aggregate({
-        where: { bonoId: consumo.bono.id },
-        _sum: { cantidad: true },
-      })
-      if ((neto._sum.cantidad ?? 0) >= 0)
-        await tx.bono.update({
-          where: { id: consumo.bono.id },
-          data: { primerUsoEn: null, caducaEn: null },
-        })
+      // Si era la única sesión gastada, el bono vuelve a estar sin empezar; si no,
+      // su primer uso pasa a ser la sesión más temprana que sigue gastada.
+      await this.recalcularPrimerUso(tx, consumo.bono)
       return { fuente: consumo.bono.nombre }
     }
 
@@ -204,6 +192,35 @@ export class SaldoService {
     })
     await tx.movimientoSaldo.create({ data: { ...comun, bonoId: compensacion.id } })
     return { fuente: compensacion.nombre }
+  }
+
+  /**
+   * El primer uso de un bono es la sesión más temprana que sigue gastada de él, y
+   * caduca a los `validezDias` de ese día. Sin sesiones gastadas, sin empezar.
+   * Así una sesión futura cancelada o una anterior reservada después no dejan la
+   * caducidad anclada a otra fecha.
+   */
+  private async recalcularPrimerUso(tx: Tx, bono: Pick<Bono, "id" | "validezDias">): Promise<void> {
+    const movimientos = await tx.movimientoSaldo.findMany({
+      where: { bonoId: bono.id },
+      select: { motivo: true, origenTipo: true, origenId: true, fechaSesion: true },
+    })
+    const clave = (m: { origenTipo: string; origenId: string }): string =>
+      `${m.origenTipo}|${m.origenId}`
+    const devueltos = new Set(movimientos.filter((m) => m.motivo === "devolucion").map(clave))
+    const primera = movimientos
+      .filter((m) => m.motivo === "consumo" && !devueltos.has(clave(m)))
+      .map((m) => fecha(m.fechaSesion))
+      .sort()[0]
+    await tx.bono.update({
+      where: { id: bono.id },
+      data: primera
+        ? {
+            primerUsoEn: fechaSql(primera),
+            caducaEn: fechaSql(sumarDiasFecha(primera, bono.validezDias)),
+          }
+        : { primerUsoEn: null, caducaEn: null },
+    })
   }
 
   /** Nombre de la fuente de un consumo y si se devolvió, por origen. */
@@ -283,6 +300,11 @@ export class SaldoService {
   }
 
   async detalle(clienteId: string): Promise<DetalleSaldo> {
+    const cliente = await this.prisma.usuario.findFirst({
+      where: { id: clienteId, rol: "cliente" },
+      select: { id: true },
+    })
+    if (!cliente) throw new NotFoundException("Cliente no disponible")
     const movimientos = await this.prisma.movimientoSaldo.findMany({
       where: { clienteId },
       orderBy: [{ creadoEn: "desc" }, { id: "asc" }],

@@ -183,20 +183,13 @@ export function calcularHuecos(entrada: EntradaHuecos): DiaConHuecos[] {
   const paso = entrada.intervaloMin * MS_MINUTO
   for (let i = 0; i < entrada.dias; i++) {
     const fecha = sumarDiasFecha(entrada.desde, i)
-    const diaSemana = diaSemanaFecha(fecha)
     const comienzoDia = aInstante(fecha, 0, entrada.zona)?.getTime()
     const finDia = aInstante(sumarDiasFecha(fecha, 1), 0, entrada.zona)?.getTime()
     if (comienzoDia === undefined || finDia === undefined) {
       resultado.push({ fecha, huecos: [] })
       continue
     }
-    const plantilla: Tramo[] = []
-    for (const franja of entrada.franjas) {
-      if (franja.diaSemana !== diaSemana) continue
-      const inicio = instanteValido(fecha, franja.inicioMin, entrada.zona, 1)
-      const fin = instanteValido(fecha, franja.finMin, entrada.zona, -1)
-      if (inicio !== null && fin !== null) plantilla.push({ inicio, fin })
-    }
+    const plantilla = plantillaDelDia(fecha, entrada.franjas, entrada.zona)
     const aperturas = entrada.aperturas
       .map((t) => ({ inicio: Math.max(t.inicio, comienzoDia), fin: Math.min(t.fin, finDia) }))
       .filter((t) => t.fin > t.inicio)
@@ -212,6 +205,23 @@ export function calcularHuecos(entrada: EntradaHuecos): DiaConHuecos[] {
     resultado.push({ fecha, huecos })
   }
   return resultado
+}
+
+/**
+ * Las franjas de la plantilla que tocan a una fecha, como instantes (ms). La usan
+ * los huecos y la comprobación de reservas afectadas, para que las dos traten
+ * igual el cambio de hora.
+ */
+export function plantillaDelDia(fecha: string, franjas: FranjaHorario[], zona: string): Tramo[] {
+  const diaSemana = diaSemanaFecha(fecha)
+  const tramos: Tramo[] = []
+  for (const franja of franjas) {
+    if (franja.diaSemana !== diaSemana) continue
+    const inicio = instanteValido(fecha, franja.inicioMin, zona, 1)
+    const fin = instanteValido(fecha, franja.finMin, zona, -1)
+    if (inicio !== null && fin !== null && fin > inicio) tramos.push({ inicio, fin })
+  }
+  return tramos
 }
 
 /**

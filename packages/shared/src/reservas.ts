@@ -19,7 +19,7 @@ export type ClaseSaldo = z.infer<typeof ClaseSaldoSchema>
 
 export const TarifaGrupoSchema = z.strictObject({
   personas: z.number().int().min(2).max(6),
-  precioPorPersonaCentimos: z.number().int().nonnegative(),
+  precioPorPersonaCentimos: z.number().int().min(0).max(1_000_000),
 })
 export type TarifaGrupo = z.infer<typeof TarifaGrupoSchema>
 
@@ -48,7 +48,14 @@ export const CambiosServicioSchema = z
     descripcion: z.string().trim().max(200).nullable().optional(),
     duracionMin: z.number().int().min(15).max(240).optional(),
     precioCentimos: z.number().int().min(0).max(1_000_000).nullable().optional(),
-    tarifas: z.array(TarifaGrupoSchema).max(5).optional(),
+    tarifas: z
+      .array(TarifaGrupoSchema)
+      .max(5)
+      .refine(
+        (tarifas) => new Set(tarifas.map((t) => t.personas)).size === tarifas.length,
+        "Una tarifa por número de personas",
+      )
+      .optional(),
     reservable: z.boolean().optional(),
     activo: z.boolean().optional(),
   })
