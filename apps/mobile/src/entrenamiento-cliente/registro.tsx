@@ -1,10 +1,9 @@
 import { useRouter } from "expo-router"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,19 +11,29 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import type { EjercicioPrescrito } from "@alpha-omega/shared"
 
-import { Aviso, Cabecera } from "../componentes/cabecera"
-import { BotonPrincipal, BotonSecundario } from "../componentes/formulario"
+import {
+  BarraDeProgreso,
+  BotonAtras,
+  BotonOro,
+  BotonSobrio,
+  BrilloDeFondo,
+  EnlaceOro,
+  Tarjeta,
+  texto,
+} from "../componentes/diseno"
 import { ResultadoSesion } from "../componentes/resultado-sesion"
+import { TarjetaDeFigura } from "../figuras/tarjeta-de-figura"
 import { conMayuscula, fechaLarga, momento } from "../lib/fechas"
 import { useSesion } from "../sesion"
-import { tema } from "../tema"
+import { fuentes, tema } from "../tema"
 
 import type { EntradaSerie } from "./copia-local"
 import { CabeceraDeSeries, FilaSerie } from "./fila-serie"
 import type { Escritura, Instantanea, Red, SesionEnCurso } from "./sesion-en-curso"
 import { useSesionEnCurso } from "./use-sesion-en-curso"
-import { ENTRADA_VACIA, recuento } from "./valores"
+import { ENTRADA_VACIA, formatearNumero, recuento, serieRegistrada } from "./valores"
 
 function textoDeGuardado(escritura: Escritura, red: Red): { texto: string; error: boolean } {
   if (escritura === "error") {
@@ -42,8 +51,52 @@ function textoDeGuardado(escritura: Escritura, red: Red): { texto: string; error
   return { texto: "Guardado", error: false }
 }
 
+/** «3 × 10 · 40 kg» o «2 × 45 s», a partir de lo prescrito. */
+function resumenDePrescripcion(ejercicio: EjercicioPrescrito): string {
+  const primera = ejercicio.series[0]
+  if (primera === undefined) {
+    return ""
+  }
+  const iguales = ejercicio.series.every(
+    (serie) =>
+      serie.tipoMedicion === primera.tipoMedicion &&
+      serie.pesoKg === primera.pesoKg &&
+      (serie.tipoMedicion === "repeticiones" ? serie.repeticiones : serie.segundos) ===
+        (primera.tipoMedicion === "repeticiones" ? primera.repeticiones : primera.segundos),
+  )
+  const valor =
+    primera.tipoMedicion === "repeticiones"
+      ? `${String(primera.repeticiones)}`
+      : `${String(primera.segundos)} s`
+  const carga = primera.pesoKg === null ? "sin carga" : `${formatearNumero(primera.pesoKg)} kg`
+  return iguales
+    ? `${String(ejercicio.series.length)} × ${valor} · ${carga}`
+    : `${String(ejercicio.series.length)} series`
+}
+
+function Esqueleto({
+  children,
+  volver,
+}: {
+  children: React.ReactNode
+  volver: () => void
+}): React.JSX.Element {
+  return (
+    <View style={estilos.pantalla}>
+      <BrilloDeFondo />
+      <SafeAreaView style={estilos.flexible}>
+        <View style={estilos.barraSuperior}>
+          <BotonAtras onPress={volver} />
+        </View>
+        {children}
+      </SafeAreaView>
+    </View>
+  )
+}
+
 /**
- * El entreno activo: registrar serie a serie y enviar al terminar.
+ * El entreno activo: registrar serie a serie y enviar al terminar. Sigue el
+ * diseño de Sesion.dc.html.
  *
  * Cada cambio se guarda en el móvil al momento y se sincroniza en privado; el
  * entrenador no ve nada hasta que se pulsa «Enviar entrenamiento».
@@ -53,37 +106,34 @@ export function RegistroDeSesion({ sesionId }: { sesionId: string }): React.JSX.
   const router = useRouter()
   const cuenta = sesion.fase === "dentro" || sesion.fase === "local" ? sesion.usuario.id : null
   const { estado, instantanea, reintentar } = useSesionEnCurso(cuenta, sesionId)
+  const volver = (): void => router.back()
 
   if (estado.fase === "cargando" || (estado.fase === "lista" && instantanea === null)) {
     return (
-      <SafeAreaView style={estilos.pantalla}>
-        <Cabecera titulo="ENTRENO" onVolver={() => router.back()} />
+      <Esqueleto volver={volver}>
         <View style={estilos.centrado}>
           <ActivityIndicator color={tema.oro} accessibilityLabel="Abriendo la sesión" />
         </View>
-      </SafeAreaView>
+      </Esqueleto>
     )
   }
 
   if (estado.fase === "error") {
     return (
-      <SafeAreaView style={estilos.pantalla}>
-        <Cabecera titulo="ENTRENO" onVolver={() => router.back()} />
+      <Esqueleto volver={volver}>
         <View style={estilos.centrado}>
-          <Text style={estilos.mensaje}>{estado.falta.texto}</Text>
-          {estado.falta.reintentable && <BotonSecundario texto="REINTENTAR" onPress={reintentar} />}
+          <Text style={[texto.cuerpo, estilos.centradoTexto]}>{estado.falta.texto}</Text>
+          {estado.falta.reintentable && <BotonSobrio texto="Reintentar" onPress={reintentar} />}
         </View>
-      </SafeAreaView>
+      </Esqueleto>
     )
   }
 
-  return (
-    <Contenido
-      sesion={estado.sesion}
-      instantanea={instantanea as Instantanea}
-      volver={() => router.back()}
-    />
-  )
+  if (instantanea === null) {
+    return <Esqueleto volver={volver}>{null}</Esqueleto>
+  }
+
+  return <Contenido sesion={estado.sesion} instantanea={instantanea} volver={volver} />
 }
 
 function Contenido({
@@ -97,26 +147,28 @@ function Contenido({
 }): React.JSX.Element {
   const [confirmando, setConfirmando] = useState(false)
   const [instrucciones, setInstrucciones] = useState<string | null>(null)
+  const [conNotas, setConNotas] = useState(false)
+  const desplazamiento = useRef<ScrollView>(null)
   const { copia } = instantanea
   const { prescripcion, agenda } = copia.sesion
   const fichas = new Map((copia.ejercicios ?? []).map((e) => [e.id, e]))
 
   if (copia.resultado !== null) {
     return (
-      <SafeAreaView style={estilos.pantalla}>
-        <Cabecera titulo={prescripcion.nombre.toUpperCase()} onVolver={volver} />
+      <Esqueleto volver={volver}>
         <ScrollView contentContainerStyle={estilos.contenido}>
-          <Aviso tono="exito">
-            <Text style={estilos.enviado}>ENTRENAMIENTO ENVIADO</Text>
-            <Text style={estilos.textoAviso}>
-              {`Programado el ${fechaLarga(agenda.fechaActual)} · enviado el ${momento(
+          <View style={estilos.encabezado}>
+            <Text style={texto.titulo}>Enviado</Text>
+            <Text style={texto.tenueGrande}>
+              {`${prescripcion.nombre} · ${fechaLarga(agenda.fechaActual)} · enviado el ${momento(
                 copia.resultado.enviadoEn,
-              )}. Tu entrenador ya lo puede ver.`}
+              )}`}
             </Text>
-          </Aviso>
+            <Text style={[texto.tenue, estilos.oroSuave]}>Tu entrenador ya lo puede ver.</Text>
+          </View>
           <ResultadoSesion resultado={copia.resultado} />
         </ScrollView>
-      </SafeAreaView>
+      </Esqueleto>
     )
   }
 
@@ -124,6 +176,11 @@ function Contenido({
   const editable =
     copia.envio === null && !instantanea.enviando && !copia.anulada && copia.conflicto === null
   const guardado = textoDeGuardado(instantanea.escritura, instantanea.red)
+  const series = prescripcion.ejercicios.flatMap((e) => e.series)
+  const siguiente = series.find((serie) => {
+    const entrada = copia.entradas[serie.id]
+    return entrada === undefined || !serieRegistrada(serie, entrada).hecha
+  })
 
   const cambiarSerie = (serieId: string, entrada: EntradaSerie): void => {
     void sesion.editar((entradas, notas) => ({
@@ -137,185 +194,210 @@ function Contenido({
       await sesion.enviar()
       setConfirmando(false)
     } catch {
-      // El motivo queda en `errorDeEnvio` y se enseña abajo.
+      // El motivo queda en `errorDeEnvio` y se enseña en el resumen.
     }
   }
 
+  const terminar = (): void => {
+    setConfirmando(true)
+    setTimeout(() => desplazamiento.current?.scrollToEnd({ animated: true }), 50)
+  }
+
   return (
-    <SafeAreaView style={estilos.pantalla}>
-      <KeyboardAvoidingView
-        style={estilos.flexible}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <Cabecera
-          titulo={prescripcion.nombre.toUpperCase()}
-          onVolver={volver}
-          derecha={
+    <View style={estilos.pantalla}>
+      <BrilloDeFondo />
+      <SafeAreaView style={estilos.flexible}>
+        <KeyboardAvoidingView
+          style={estilos.flexible}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View style={estilos.barraSuperior}>
+            <BotonAtras onPress={volver} />
             <Text
-              style={[estilos.guardado, guardado.error && estilos.guardadoError]}
+              style={estilos.contador}
+              accessibilityLabel={`${String(hechas)} de ${String(total)} series hechas`}
+            >
+              {`${String(hechas)}/${String(total)}`}
+            </Text>
+            {editable ? (
+              <BotonOro texto="Terminar" onPress={terminar} compacto />
+            ) : (
+              <View style={estilos.hueco} />
+            )}
+          </View>
+          <View style={estilos.lineaDeEstado}>
+            <Text style={texto.tenue}>{prescripcion.nombre}</Text>
+            <Text style={texto.tenue}>{`${String(hechas)} de ${String(total)} series`}</Text>
+          </View>
+          <BarraDeProgreso fraccion={total === 0 ? 0 : hechas / total} alto={4} />
+          <View style={estilos.lineaDeEstado}>
+            <Text style={texto.tenue}>{conMayuscula(fechaLarga(agenda.fechaActual))}</Text>
+            <Text
+              style={[texto.tenue, guardado.error && estilos.error]}
               accessibilityLiveRegion="polite"
             >
               {guardado.texto}
             </Text>
-          }
-        />
-        <ScrollView
-          contentContainerStyle={estilos.contenido}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
-          <Text style={estilos.fecha}>{conMayuscula(fechaLarga(agenda.fechaActual))}</Text>
+          </View>
 
-          {copia.anulada && (
-            <Aviso tono="error">
-              <Text style={estilos.textoAviso}>
-                Tu entrenador ha anulado esta sesión. Lo que registraste sigue en este móvil, pero
-                ya no se puede enviar.
-              </Text>
-              <BotonSecundario
-                texto="DESCARTAR ESTA SESIÓN"
-                onPress={() => void sesion.descartar().then(volver)}
-              />
-            </Aviso>
-          )}
-
-          {copia.conflicto !== null && (
-            <Aviso tono="error">
-              <Text style={estilos.textoAviso}>{copia.conflicto.mensaje}</Text>
-              <Text style={estilos.detalleAviso}>
-                Tu versión no se pierde: si eliges la del servidor, la de este móvil queda guardada
-                como respaldo.
-              </Text>
-              <BotonPrincipal
-                texto="USAR LA VERSIÓN DEL SERVIDOR"
-                onPress={() => void sesion.resolverConflicto("servidor")}
-              />
-              {copia.conflicto.codigo !== "prescripcion_cambiada" && (
-                <BotonSecundario
-                  texto="MANTENER LA DE ESTE MÓVIL"
-                  onPress={() => void sesion.resolverConflicto("mia")}
+          <ScrollView
+            ref={desplazamiento}
+            contentContainerStyle={estilos.contenido}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
+            {copia.anulada && (
+              <Tarjeta style={estilos.tarjetaError}>
+                <Text style={texto.cuerpo}>
+                  Tu entrenador ha anulado esta sesión. Lo que registraste sigue en este móvil, pero
+                  ya no se puede enviar.
+                </Text>
+                <BotonSobrio
+                  texto="Descartar esta sesión"
+                  onPress={() => void sesion.descartar().then(volver)}
                 />
-              )}
-            </Aviso>
-          )}
+              </Tarjeta>
+            )}
 
-          {copia.respaldo !== null && copia.conflicto === null && (
-            <Text style={estilos.detalleAviso}>
-              Hay una versión anterior de este entreno guardada como respaldo en el móvil.
-            </Text>
-          )}
-
-          {prescripcion.ejercicios.map((ejercicio) => {
-            const ficha = fichas.get(ejercicio.ejercicioId)
-            const porTiempo = ejercicio.series.every((s) => s.tipoMedicion === "tiempo")
-            return (
-              <View key={ejercicio.id} style={estilos.tarjeta}>
-                <View style={estilos.filaTitulo}>
-                  <Text style={estilos.ejercicio}>{ejercicio.nombre}</Text>
-                  {ficha !== undefined && (
-                    <Pressable
-                      onPress={() =>
-                        setInstrucciones((v) => (v === ejercicio.id ? null : ejercicio.id))
-                      }
-                      accessibilityRole="button"
-                      hitSlop={8}
-                    >
-                      <Text style={estilos.enlace}>
-                        {instrucciones === ejercicio.id ? "OCULTAR" : "CÓMO SE HACE"}
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
-                {instrucciones === ejercicio.id && ficha !== undefined && (
-                  <Text style={estilos.instrucciones}>{ficha.instrucciones}</Text>
-                )}
-                {ejercicio.indicaciones !== null && (
-                  <Text style={estilos.indicaciones}>{ejercicio.indicaciones}</Text>
-                )}
-                <CabeceraDeSeries porTiempo={porTiempo} />
-                {ejercicio.series.map((serie, indice) => (
-                  <FilaSerie
-                    key={serie.id}
-                    numero={indice + 1}
-                    serie={serie}
-                    entrada={copia.entradas[serie.id] ?? ENTRADA_VACIA}
-                    editable={editable}
-                    alCambiar={(entrada) => cambiarSerie(serie.id, entrada)}
+            {copia.conflicto !== null && (
+              <Tarjeta style={estilos.tarjetaError}>
+                <Text style={texto.fuerte}>{copia.conflicto.mensaje}</Text>
+                <Text style={texto.tenue}>
+                  Tu versión no se pierde: si eliges la del servidor, la de este móvil queda
+                  guardada como respaldo.
+                </Text>
+                <BotonOro
+                  texto="Usar la versión del servidor"
+                  onPress={() => void sesion.resolverConflicto("servidor")}
+                />
+                {copia.conflicto.codigo !== "prescripcion_cambiada" && (
+                  <BotonSobrio
+                    texto="Mantener la de este móvil"
+                    onPress={() => void sesion.resolverConflicto("mia")}
                   />
-                ))}
-              </View>
-            )
-          })}
+                )}
+              </Tarjeta>
+            )}
 
-          <Text style={estilos.etiqueta}>NOTAS (OPCIONAL)</Text>
-          <TextInput
-            style={estilos.notas}
-            value={copia.notas}
-            onChangeText={(notas) => void sesion.editar((entradas) => ({ entradas, notas }))}
-            placeholder="¿Algo que quieras contarle a tu entrenador?"
-            placeholderTextColor={tema.textoTenue}
-            multiline
-            maxLength={2000}
-            editable={editable}
-            accessibilityLabel="Notas para tu entrenador, opcional"
-          />
+            {prescripcion.ejercicios.map((ejercicio) => {
+              const ficha = fichas.get(ejercicio.ejercicioId)
+              const verTecnica =
+                ficha === undefined
+                  ? undefined
+                  : () => setInstrucciones((v) => (v === ejercicio.id ? null : ejercicio.id))
+              const porTiempo = ejercicio.series.every((s) => s.tipoMedicion === "tiempo")
+              return (
+                <View key={ejercicio.id} style={estilos.ejercicio}>
+                  <TarjetaDeFigura nombre={ejercicio.nombre} onTecnica={verTecnica} />
+                  <View style={estilos.cabeceraEjercicio}>
+                    <View style={estilos.flexible}>
+                      <Text style={texto.seccion} accessibilityRole="header">
+                        {ejercicio.nombre}
+                      </Text>
+                      <Text style={texto.tenue}>{resumenDePrescripcion(ejercicio)}</Text>
+                    </View>
+                  </View>
+                  {ejercicio.indicaciones !== null && (
+                    <Text style={[texto.tenue, estilos.oroSuave]}>{ejercicio.indicaciones}</Text>
+                  )}
+                  {instrucciones === ejercicio.id && ficha !== undefined && (
+                    <Tarjeta>
+                      <Text style={texto.cuerpo}>{ficha.instrucciones}</Text>
+                    </Tarjeta>
+                  )}
+                  {verTecnica !== undefined && instrucciones !== ejercicio.id && (
+                    <View style={estilos.sinMargen}>
+                      <EnlaceOro texto="Cómo se hace" onPress={verTecnica} />
+                    </View>
+                  )}
+                  <View style={estilos.series}>
+                    <CabeceraDeSeries porTiempo={porTiempo} />
+                    {ejercicio.series.map((serie, indice) => (
+                      <FilaSerie
+                        key={serie.id}
+                        numero={indice + 1}
+                        serie={serie}
+                        entrada={copia.entradas[serie.id] ?? ENTRADA_VACIA}
+                        editable={editable}
+                        actual={editable && siguiente?.id === serie.id}
+                        alCambiar={(entrada) => cambiarSerie(serie.id, entrada)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )
+            })}
 
-          {!copia.anulada && !confirmando && copia.envio === null && (
-            <BotonPrincipal
-              texto="ENVIAR ENTRENAMIENTO"
-              onPress={() => setConfirmando(true)}
-              ocupado={instantanea.enviando}
-            />
-          )}
-
-          {(confirmando || copia.envio !== null) && (
-            <Aviso tono={hechas === 0 ? "error" : "info"}>
-              <Text style={estilos.resumen}>
-                {`Has hecho ${String(hechas)} de ${String(total)} series.`}
-              </Text>
-              {hechas === 0 ? (
-                <Text style={estilos.textoAviso}>
-                  Marca al menos una serie como hecha para poder enviar.
-                </Text>
-              ) : hechas < total ? (
-                <Text style={estilos.textoAviso}>
-                  {`Te ${total - hechas === 1 ? "falta 1 serie" : `faltan ${String(total - hechas)} series`}. Puedes volver y completarlas o enviar lo que has hecho: las demás constarán como no realizadas.`}
-                </Text>
-              ) : (
-                <Text style={estilos.textoAviso}>
-                  Todo hecho. Tu entrenador lo verá al momento.
-                </Text>
-              )}
-              {instantanea.errorDeEnvio !== null && (
-                <Text style={estilos.error} accessibilityRole="alert">
-                  {instantanea.errorDeEnvio}
-                </Text>
-              )}
-              {hechas > 0 && (
-                <BotonPrincipal
-                  texto={
-                    copia.envio !== null
-                      ? "REINTENTAR EL ENVÍO"
-                      : hechas < total
-                        ? "ENVIAR LO QUE HE HECHO"
-                        : "ENVIAR"
-                  }
-                  onPress={() => void enviar()}
-                  ocupado={instantanea.enviando}
+            {conNotas || copia.notas !== "" ? (
+              <View style={estilos.notasBloque}>
+                <Text style={texto.fuerte}>Notas para tu entrenador</Text>
+                <TextInput
+                  style={estilos.notas}
+                  value={copia.notas}
+                  onChangeText={(notas) => void sesion.editar((entradas) => ({ entradas, notas }))}
+                  placeholder="Opcional. ¿Algo que quieras contarle?"
+                  placeholderTextColor={tema.marcador}
+                  multiline
+                  maxLength={2000}
+                  editable={editable}
+                  accessibilityLabel="Notas para tu entrenador, opcional"
                 />
-              )}
-              <BotonSecundario
-                texto="VOLVER AL ENTRENO"
-                onPress={() => {
-                  setConfirmando(false)
-                  void sesion.seguirEditando()
-                }}
-              />
-            </Aviso>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+              </View>
+            ) : (
+              editable && (
+                <View style={estilos.centradoEnlace}>
+                  <EnlaceOro texto="Agregar nota" onPress={() => setConNotas(true)} />
+                </View>
+              )
+            )}
+
+            {(confirmando || copia.envio !== null) && (
+              <Tarjeta destacada>
+                <Text
+                  style={texto.seccion}
+                >{`Has hecho ${String(hechas)} de ${String(total)} series`}</Text>
+                {hechas === 0 ? (
+                  <Text style={texto.cuerpo}>
+                    Marca al menos una serie como hecha para poder enviar.
+                  </Text>
+                ) : hechas < total ? (
+                  <Text style={texto.cuerpo}>
+                    {`Te ${total - hechas === 1 ? "falta 1 serie" : `faltan ${String(total - hechas)} series`}. Puedes volver y completarlas o enviar lo que has hecho: las demás constarán como no realizadas.`}
+                  </Text>
+                ) : (
+                  <Text style={texto.cuerpo}>Todo hecho. Tu entrenador lo verá al momento.</Text>
+                )}
+                {instantanea.errorDeEnvio !== null && (
+                  <Text style={[texto.cuerpo, estilos.error]} accessibilityRole="alert">
+                    {instantanea.errorDeEnvio}
+                  </Text>
+                )}
+                {hechas > 0 && (
+                  <BotonOro
+                    texto={
+                      copia.envio !== null
+                        ? "Reintentar el envío"
+                        : hechas < total
+                          ? "Enviar lo que he hecho"
+                          : "Enviar entrenamiento"
+                    }
+                    onPress={() => void enviar()}
+                    ocupado={instantanea.enviando}
+                  />
+                )}
+                <BotonSobrio
+                  texto="Seguir entrenando"
+                  onPress={() => {
+                    setConfirmando(false)
+                    void sesion.seguirEditando()
+                  }}
+                />
+              </Tarjeta>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   )
 }
 
@@ -323,50 +405,49 @@ const estilos = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: tema.fondo },
   flexible: { flex: 1 },
   centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
-  mensaje: { color: tema.texto, fontSize: 15, textAlign: "center" },
-  contenido: { padding: 20, gap: 14, paddingBottom: 48 },
-  fecha: { color: tema.oroSuave, fontSize: 13, letterSpacing: 1 },
-  guardado: {
-    color: tema.textoTenue,
-    fontSize: 11,
-    marginBottom: 2,
-    maxWidth: 170,
-    textAlign: "right",
+  centradoTexto: { textAlign: "center" },
+  barraSuperior: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
-  guardadoError: { color: tema.error },
-  tarjeta: {
-    backgroundColor: tema.superficie,
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    gap: 8,
+  contador: {
+    color: tema.oro,
+    fontFamily: fuentes.titulo,
+    fontSize: 30,
+    lineHeight: 34,
+    fontVariant: ["tabular-nums"],
   },
-  filaTitulo: {
+  hueco: { width: 44 },
+  lineaDeEstado: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    gap: 12,
   },
-  ejercicio: { color: tema.texto, fontSize: 17, fontWeight: "600", flexShrink: 1 },
-  enlace: { color: tema.oro, fontSize: 10, fontWeight: "700", letterSpacing: 1.5 },
-  instrucciones: { color: tema.texto, fontSize: 13, lineHeight: 19 },
-  indicaciones: { color: tema.oroSuave, fontSize: 13, fontStyle: "italic" },
-  etiqueta: { color: tema.oroSuave, fontSize: 11, letterSpacing: 2, marginTop: 6 },
+  contenido: { padding: 20, paddingBottom: 48, gap: 32 },
+  encabezado: { gap: 8 },
+  ejercicio: { gap: 16 },
+  cabeceraEjercicio: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  series: { gap: 8 },
+  sinMargen: { marginTop: -12 },
+  oroSuave: { color: tema.oroSuave },
+  error: { color: tema.error },
+  tarjetaError: { borderWidth: 1, borderColor: tema.error },
+  notasBloque: { gap: 10 },
   notas: {
     backgroundColor: tema.superficie,
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 16,
     color: tema.texto,
+    fontFamily: fuentes.normal,
     fontSize: 15,
-    minHeight: 80,
-    padding: 12,
+    minHeight: 96,
+    padding: 14,
     textAlignVertical: "top",
   },
-  resumen: { color: tema.texto, fontSize: 16, fontWeight: "700" },
-  textoAviso: { color: tema.texto, fontSize: 13, lineHeight: 19 },
-  detalleAviso: { color: tema.textoTenue, fontSize: 12, lineHeight: 17 },
-  enviado: { color: tema.oro, fontSize: 14, fontWeight: "700", letterSpacing: 2 },
-  error: { color: tema.error, fontSize: 13 },
+  centradoEnlace: { alignItems: "center" },
 })

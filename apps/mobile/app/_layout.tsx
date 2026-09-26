@@ -3,6 +3,15 @@ import { StatusBar } from "expo-status-bar"
 import { useCallback, useEffect, useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
+import { Anton_400Regular } from "@expo-google-fonts/anton"
+import {
+  Archivo_400Regular,
+  Archivo_500Medium,
+  Archivo_600SemiBold,
+  Archivo_700Bold,
+} from "@expo-google-fonts/archivo"
+import { useFonts } from "expo-font"
+
 import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
 import { Pulsable } from "../src/componentes/pulsable"
 import { useMovimientoReducido } from "../src/lib/movimiento"
@@ -24,6 +33,14 @@ const RUTAS_LOCALES = ["entrenos"]
  */
 function Enrutador(): React.JSX.Element {
   const { estado, sinConexion, reintentar } = useSesion()
+  const [fuentesCargadas, errorDeFuentes] = useFonts({
+    Anton_400Regular,
+    Archivo_400Regular,
+    Archivo_500Medium,
+    Archivo_600SemiBold,
+    Archivo_700Bold,
+  })
+  const fuentesListas = fuentesCargadas || errorDeFuentes !== null
   const segmentos = useSegments()
   const router = useRouter()
   const movimientoReducido = useMovimientoReducido()
@@ -96,11 +113,17 @@ function Enrutador(): React.JSX.Element {
   // La pantalla de carga va encima y no en lugar del contenido: cuando la
   // comprobacion acaba, lo siguiente se monta debajo y ella se funde por encima.
   // Si lo sustituyera, el cambio seria un corte seco.
+  //
+  // Las fuentes del diseño se cargan mientras tanto. Si fallaran, la app sigue
+  // con las del sistema: un tipo de letra no puede dejar a nadie fuera.
   return (
     <View style={estilos.raiz}>
-      {contenido}
+      {fuentesListas && contenido}
       {!cargaRetirada && (
-        <PantallaDeCarga lista={estado.fase !== "comprobando"} alDesaparecer={retirarCarga} />
+        <PantallaDeCarga
+          lista={estado.fase !== "comprobando" && fuentesListas}
+          alDesaparecer={retirarCarga}
+        />
       )}
     </View>
   )
