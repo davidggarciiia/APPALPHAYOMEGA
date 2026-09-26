@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { ErrorDePeticion, ErrorDePermiso, ErrorDeRed } from "../lib/http"
 import { degradadoOro, tema } from "../tema"
@@ -18,6 +18,7 @@ import {
   type GeneradorDeIds,
 } from "./editor-modelo"
 import { EditorTipo } from "./editor-tipo"
+import { Pulsable } from "../componentes/pulsable"
 
 export type OrigenDelEditor = "borrador" | "vigente" | "nueva"
 
@@ -163,7 +164,7 @@ export function EditorDieta({
             {dieta.tipos.map((tipo) => {
               const elegido = dieta.semana[n] === tipo.id
               return (
-                <Pressable
+                <Pulsable
                   key={tipo.id}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: elegido }}
@@ -179,7 +180,7 @@ export function EditorDieta({
                   <Text style={[s.textoOpcion, elegido && s.textoActivo]}>
                     {tipo.nombre || "Sin nombre"}
                   </Text>
-                </Pressable>
+                </Pulsable>
               )
             })}
           </View>

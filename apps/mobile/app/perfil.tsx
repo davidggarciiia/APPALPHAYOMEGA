@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { CambiosDePerfilSchema, type CambiosDePerfil, type PerfilPropio } from "@alpha-omega/shared"
 import {
   AvisoDeError,
@@ -15,6 +15,7 @@ import { TarjetaConsentimiento } from "../src/consentimiento"
 import { ErrorDeRed, guardarPerfil, leerPerfil } from "../src/lib/api"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
+import { Pulsable } from "../src/componentes/pulsable"
 
 const campos = [
   { nombre: "nombre", etiqueta: "Nombre", teclado: "default", placeholder: "Tu nombre" },
@@ -210,20 +211,20 @@ export default function Perfil(): React.JSX.Element {
           </Text>
         )}
         {perfil.rol === "cliente" && (
-          <Pressable
+          <Pulsable
             accessibilityRole="button"
             onPress={() => router.push("/entrenamiento")}
             style={[s.tarjeta, s.enlace]}
           >
             <Text style={s.titulo}>Mis entrenamientos</Text>
             <Text style={s.flecha}>›</Text>
-          </Pressable>
+          </Pulsable>
         )}
         {perfil.rol === "cliente" && <TarjetaConsentimiento />}
         <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
-        <Pressable accessibilityRole="button" onPress={() => router.replace("/")} style={s.volver}>
+        <Pulsable accessibilityRole="button" onPress={() => router.replace("/")} style={s.volver}>
           <Text style={s.ayuda}>Volver al inicio</Text>
-        </Pressable>
+        </Pulsable>
       </View>
     </PantallaDeFormulario>
   )

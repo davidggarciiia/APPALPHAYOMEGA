@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   Comida,
   ComidaRegistrada,
@@ -18,6 +18,7 @@ import {
   suplementoTomado,
   tipoDelDia,
 } from "./hoy-modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 const COLOR_MACRO = { hidratos: tema.acento, proteina: tema.textoSecundario, grasas: tema.naranja }
 
@@ -105,7 +106,7 @@ export function HoyNutricion({
               const esAhora = comida.id === ahora
               const subtitulo = subtituloDeComida(comida, porComida.get(comida.id))
               return (
-                <Pressable
+                <Pulsable
                   key={comida.id}
                   style={[s.fila, n > 0 && s.separada]}
                   accessibilityRole="button"
@@ -129,7 +130,7 @@ export function HoyNutricion({
                     </View>
                     <Icono nombre="adelante" color={tema.textoTenue} tamano={18} />
                   </View>
-                </Pressable>
+                </Pulsable>
               )
             })}
           </View>
@@ -184,7 +185,7 @@ export function HoyNutricion({
             {suplementos.map((suplemento, n) => {
               const tomado = suplementoTomado(suplemento, dia)
               return (
-                <Pressable
+                <Pulsable
                   key={suplemento.nombre}
                   style={[s.fila, n > 0 && s.separada]}
                   accessibilityRole="checkbox"
@@ -196,7 +197,7 @@ export function HoyNutricion({
                   <Circulo hecho={tomado} />
                   <Text style={[s.nombre, s.textos]}>{suplemento.nombre} tomada</Text>
                   {suplemento.dosis && <Text style={s.tenue}>{suplemento.dosis}</Text>}
-                </Pressable>
+                </Pulsable>
               )
             })}
           </View>

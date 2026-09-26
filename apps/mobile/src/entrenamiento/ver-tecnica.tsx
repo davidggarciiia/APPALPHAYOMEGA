@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react"
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native"
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { Ejercicio } from "@alpha-omega/shared"
 
@@ -18,6 +10,7 @@ import { Icono } from "../componentes/iconos"
 import { fondoDeMarca, tema } from "../tema"
 import type { AlmacenLocal } from "./almacen-local"
 import { guardarFicha, leerFicha } from "./ficha-local"
+import { Pulsable } from "../componentes/pulsable"
 
 type Carga =
   { fase: "cargando" } | { fase: "lista"; ejercicio: Ejercicio; copia: boolean } | { fase: "error" }
@@ -82,14 +75,14 @@ export function VerTecnica({
     <Modal visible animationType="slide" onRequestClose={cerrar}>
       <SafeAreaView style={estilos.pantalla}>
         <ScrollView contentContainerStyle={estilos.contenido}>
-          <Pressable
+          <Pulsable
             style={estilos.atras}
             accessibilityRole="button"
             accessibilityLabel="Volver al entrenamiento"
             onPress={cerrar}
           >
             <Icono nombre="atras" color={tema.texto} />
-          </Pressable>
+          </Pulsable>
           {carga.fase === "cargando" && (
             <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando la técnica" />
           )}

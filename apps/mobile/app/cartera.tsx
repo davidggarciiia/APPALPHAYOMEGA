@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -18,6 +17,7 @@ import { listarUsuarios } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
 import { useSesion } from "../src/sesion"
 import { degradadoOro, tema } from "../src/tema"
+import { Pulsable } from "../src/componentes/pulsable"
 
 /**
  * Cuantos clientes se piden de una vez.
@@ -146,7 +146,7 @@ export default function Cartera(): React.JSX.Element {
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>TU CARTERA</Text>
         <View style={estilos.accionesCabecera}>
-          <Pressable
+          <Pulsable
             onPress={() => {
               router.push("/cliente/nuevo")
             }}
@@ -155,7 +155,7 @@ export default function Cartera(): React.JSX.Element {
             hitSlop={12}
           >
             <Text style={estilos.nuevo}>+ NUEVO</Text>
-          </Pressable>
+          </Pulsable>
         </View>
       </View>
 
@@ -179,7 +179,7 @@ export default function Cartera(): React.JSX.Element {
           const puesto = opcion.estado === filtro
 
           return (
-            <Pressable
+            <Pulsable
               key={opcion.etiqueta}
               style={[estilos.filtro, puesto && estilos.filtroPuesto]}
               onPress={() => {
@@ -191,7 +191,7 @@ export default function Cartera(): React.JSX.Element {
               <Text style={[estilos.textoFiltro, puesto && estilos.textoFiltroPuesto]}>
                 {opcion.etiqueta}
               </Text>
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>
@@ -210,15 +210,15 @@ export default function Cartera(): React.JSX.Element {
             {fallo.texto}
           </Text>
           {fallo.reintentable && (
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+            <Pulsable
+              style={estilos.boton}
               onPress={() => {
                 setIntento((n) => n + 1)
               }}
               accessibilityRole="button"
             >
               <Text style={estilos.textoBoton}>REINTENTAR</Text>
-            </Pressable>
+            </Pulsable>
           )}
         </View>
       ) : (
@@ -276,12 +276,8 @@ function Fila({
   const deBaja = cliente.estado === "desactivado"
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        estilos.fila,
-        deBaja && estilos.filaApagada,
-        pressed && estilos.filaPulsada,
-      ]}
+    <Pulsable
+      style={[estilos.fila, deBaja && estilos.filaApagada]}
       onPress={onAbrir}
       // Un lector de pantalla lee la fila entera de una vez en lugar de tres
       // trozos sueltos, que es como se pierde el estado.
@@ -303,7 +299,7 @@ function Fila({
       </View>
 
       <InsigniaDeEstado estado={cliente.estado} />
-    </Pressable>
+    </Pulsable>
   )
 }
 

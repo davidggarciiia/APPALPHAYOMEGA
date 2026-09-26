@@ -1,10 +1,11 @@
 import { useState } from "react"
-import { Pressable, Text, View } from "react-native"
+import { Text, View } from "react-native"
 import type { SesionProgramada, CambioDeFecha } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { fechaLegible, lunesDeSemana, sumarDias } from "./fechas"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { tema } from "../tema"
+import { Pulsable } from "../componentes/pulsable"
 
 export function FechaSesion({
   agenda,
@@ -80,7 +81,7 @@ export function FechaSesion({
           />
         )}
         {(total === null || historial.length < total) && (
-          <Pressable
+          <Pulsable
             accessibilityRole="button"
             disabled={ocupado}
             accessibilityState={{ disabled: ocupado, busy: ocupado }}
@@ -96,7 +97,7 @@ export function FechaSesion({
             >
               {total === null ? "Ver cambios de día" : "Más cambios"}
             </Text>
-          </Pressable>
+          </Pulsable>
         )}
       </View>
       {eligiendo && (

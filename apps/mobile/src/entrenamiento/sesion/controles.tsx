@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react"
 import {
   Modal,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -11,6 +10,7 @@ import {
 
 import { Icono } from "../../componentes/iconos"
 import { degradadoOro, tema } from "../../tema"
+import { Pulsable } from "../../componentes/pulsable"
 
 /** Pregunta del formulario, en negrita como en el diseño. */
 export function Pregunta({
@@ -53,7 +53,7 @@ export function Opciones<T extends string | number>({
         {opciones.map((opcion) => {
           const elegida = opcion.valor === valor
           return (
-            <Pressable
+            <Pulsable
               key={String(opcion.valor)}
               accessibilityRole="radio"
               accessibilityLabel={opcion.accesible ?? opcion.texto}
@@ -63,7 +63,7 @@ export function Opciones<T extends string | number>({
               style={[s.opcion, elegida && [s.opcionElegida, degradadoOro]]}
             >
               <Text style={[s.textoOpcion, elegida && s.textoElegido]}>{opcion.texto}</Text>
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>
@@ -100,7 +100,7 @@ export function Chips<T extends string>({
       {opciones.map((opcion) => {
         const elegida = elegidas.includes(opcion.valor)
         return (
-          <Pressable
+          <Pulsable
             key={opcion.valor}
             accessibilityRole={varias ? "checkbox" : "radio"}
             accessibilityLabel={opcion.texto}
@@ -117,7 +117,7 @@ export function Chips<T extends string>({
             style={[s.chip, elegida && [s.opcionElegida, degradadoOro]]}
           >
             <Text style={[s.textoChip, elegida && s.textoElegido]}>{opcion.texto}</Text>
-          </Pressable>
+          </Pulsable>
         )
       })}
     </View>
@@ -186,7 +186,7 @@ export function Enlace({
   etiqueta?: string
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={etiqueta ?? texto}
@@ -194,7 +194,7 @@ export function Enlace({
       hitSlop={6}
     >
       <Text style={s.textoEnlace}>{texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -207,14 +207,14 @@ export function BotonAtras({
   etiqueta: string
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       style={s.atras}
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
       onPress={onPress}
     >
       <Icono nombre="atras" color={tema.texto} />
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -229,8 +229,8 @@ export function BotonDorado({
   ocupado?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
-      style={({ pressed }) => [s.dorado, (pressed || ocupado) && s.pulsado]}
+    <Pulsable
+      style={[s.dorado, ocupado && s.pulsado]}
       accessibilityRole="button"
       accessibilityLabel={texto}
       accessibilityState={{ busy: ocupado, disabled: ocupado }}
@@ -238,7 +238,7 @@ export function BotonDorado({
       onPress={onPress}
     >
       <Text style={s.textoDorado}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -283,7 +283,7 @@ export function Dialogo({
           </Text>
           <Text style={s.textoDialogo}>{texto}</Text>
           {children}
-          <Pressable
+          <Pulsable
             style={[peligro ? s.peligro : s.dorado, ocupado && s.pulsado]}
             accessibilityRole="button"
             accessibilityLabel={confirmar}
@@ -292,8 +292,8 @@ export function Dialogo({
             onPress={alConfirmar}
           >
             <Text style={[s.textoDorado, peligro && s.textoPeligro]}>{confirmar}</Text>
-          </Pressable>
-          <Pressable
+          </Pulsable>
+          <Pulsable
             style={[s.secundario, ocupado && s.pulsado]}
             accessibilityRole="button"
             accessibilityLabel={cancelar}
@@ -302,7 +302,7 @@ export function Dialogo({
             onPress={alCancelar}
           >
             <Text style={s.textoSecundario}>{cancelar}</Text>
-          </Pressable>
+          </Pulsable>
         </View>
       </View>
     </Modal>

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import type { Ejercicio, MedioDisponible } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonSecundario, Campo } from "../componentes/formulario"
@@ -8,6 +8,7 @@ import { tema } from "../tema"
 
 import type { ApiDeCatalogo } from "./api"
 import { FiguraDeEjercicio, type AccesoAFiguras } from "./figura-ejercicio"
+import { Pulsable } from "../componentes/pulsable"
 
 type Lista =
   | { fase: "cerrada" }
@@ -157,7 +158,7 @@ export function SelectorDeFigura({
                 {visibles.map((medio) => {
                   const elegida = medio.id === figura?.medioId
                   return (
-                    <Pressable
+                    <Pulsable
                       key={medio.id}
                       onPress={() => void asignar(medio.id)}
                       disabled={guardando !== null}
@@ -175,7 +176,7 @@ export function SelectorDeFigura({
                           <Text style={estilos.distintivo}>Solo con conexión</Text>
                         )
                       )}
-                    </Pressable>
+                    </Pulsable>
                   )
                 })}
                 {visibles.length === 0 && (

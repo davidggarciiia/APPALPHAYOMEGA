@@ -1,10 +1,11 @@
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native"
+import { StyleSheet, Switch, Text, TextInput, View } from "react-native"
 
 import { Icono } from "../../componentes/iconos"
 import { Enlace } from "../../entrenamiento/sesion/controles"
 import { tema } from "../../tema"
 import type { TipoMedicion } from "../editor-modelo"
 import type { EjercicioDelConstructor } from "./modelo"
+import { Pulsable } from "../../componentes/pulsable"
 
 type Cambio = (id: string, cambio: Partial<EjercicioDelConstructor>) => void
 
@@ -161,14 +162,14 @@ export function TablaPrincipal({
                 <Text style={s.textoCalibrar}>Sin carga</Text>
               </View>
             ) : e.calibrar ? (
-              <Pressable
+              <Pulsable
                 accessibilityRole="button"
                 accessibilityLabel={`Carga inicial de ${e.nombre}: calibrar. Tocar para fijar una carga`}
                 onPress={() => cambiar(e.id, { calibrar: false })}
                 style={[s.celda, s.calibrar, { width: 96 }]}
               >
                 <Text style={s.textoCalibrar}>Calibrar</Text>
-              </Pressable>
+              </Pulsable>
             ) : (
               <Celda
                 etiqueta={`Carga inicial de ${e.nombre} en kg`}
@@ -197,7 +198,7 @@ export function TablaPrincipal({
         )
         return (
           <View key={e.id} style={[s.renglon, activo && s.renglonActivo]}>
-            <Pressable
+            <Pulsable
               accessibilityRole="button"
               accessibilityState={{ selected: activo }}
               accessibilityLabel={`${e.nombre}: editar detalles`}
@@ -211,14 +212,14 @@ export function TablaPrincipal({
                 <Text style={s.tenue}>En {UNIDADES_DE_FILA[e.tipo].nombre.toLowerCase()}</Text>
               )}
               {e.compuesto && <Text style={s.tenue}>Compuesto</Text>}
-            </Pressable>
+            </Pulsable>
             {ancha ? (
               <View style={s.celdas}>{celdas}</View>
             ) : (
               <View style={s.celdasEstrechas}>{celdas}</View>
             )}
             <View style={s.acciones}>
-              <Pressable
+              <Pulsable
                 accessibilityRole="button"
                 accessibilityLabel={`Subir ${e.nombre}`}
                 disabled={n === 0}
@@ -232,8 +233,8 @@ export function TablaPrincipal({
                     tamano={16}
                   />
                 </View>
-              </Pressable>
-              <Pressable
+              </Pulsable>
+              <Pulsable
                 accessibilityRole="button"
                 accessibilityLabel={`Bajar ${e.nombre}`}
                 disabled={n === ejercicios.length - 1}
@@ -247,7 +248,7 @@ export function TablaPrincipal({
                     tamano={16}
                   />
                 </View>
-              </Pressable>
+              </Pulsable>
               <Enlace texto="Quitar" etiqueta={`Quitar ${e.nombre}`} onPress={() => quitar(e.id)} />
             </View>
           </View>

@@ -1,8 +1,7 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import { StyleSheet, Text, TextInput, View } from "react-native"
 import {
   ETIQUETA_DE_SINTOMA,
-  ETIQUETA_DE_ZONA,
   type Molestia,
   type ResultadoEntrenamiento,
 } from "@alpha-omega/shared"
@@ -13,15 +12,24 @@ import { Dialogo, Enlace } from "../../entrenamiento/sesion/controles"
 import { faltaDe } from "../../lib/errores"
 import { degradadoOro, tema } from "../../tema"
 import { senalesDeVolumen } from "../ficha-modelo"
+import { Pulsable } from "../../componentes/pulsable"
 
 const NIVEL = { verde: "verde", ambar: "ámbar", rojo: "roja" } as const
 const COLOR = { verde: tema.exito, ambar: tema.aviso, rojo: tema.error } as const
+/** Con su artículo: «la muñeca», «la zona lumbar». */
+const ZONA_CON_ARTICULO: Record<Molestia["zona"], string> = {
+  hombro: "el hombro",
+  codo: "el codo",
+  muneca: "la muñeca",
+  lumbar: "la zona lumbar",
+  otra: "otra zona",
+}
 
 /** «Molestia ámbar en el hombro» y su detalle, como en el diseño. */
 export function textoDeMolestia(m: Molestia): { titulo: string; detalle: string } {
   const sintomas = m.sintomas.map((s) => ETIQUETA_DE_SINTOMA[s].toLowerCase())
   return {
-    titulo: `Molestia ${NIVEL[m.nivel]} en ${m.zona === "otra" ? "otra zona" : `el ${ETIQUETA_DE_ZONA[m.zona].toLowerCase()}`}`,
+    titulo: `Molestia ${NIVEL[m.nivel]} en ${ZONA_CON_ARTICULO[m.zona]}`,
     detalle: [
       `${m.intensidad} de 10${sintomas.length > 0 ? ` y ${sintomas.join(", ")}` : ""}`,
       m.ejercicio ? `${m.ejercicio.toLowerCase()}${m.serie ? `, serie ${m.serie}` : ""}` : null,
@@ -121,14 +129,14 @@ export function RequiereAtencion({
               </View>
               <View style={s.acciones}>
                 <Enlace texto="Ver sesión" onPress={verSesiones} />
-                <Pressable
+                <Pulsable
                   accessibilityRole="button"
                   accessibilityLabel={`Responder: ${titulo}`}
                   onPress={() => responder(m)}
                   style={[s.boton, degradadoOro]}
                 >
                   <Text style={s.textoBoton}>Responder</Text>
-                </Pressable>
+                </Pulsable>
               </View>
             </View>
           )

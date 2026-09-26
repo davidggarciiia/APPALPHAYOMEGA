@@ -3,7 +3,6 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -17,6 +16,7 @@ import { Icono } from "../componentes/iconos"
 import { direccionDeLaApi } from "../lib/direccion-api"
 import { useSesion } from "../sesion"
 import { tema } from "../tema"
+import { Pulsable } from "../componentes/pulsable"
 
 /**
  * Lo que necesita la figura para pedir su archivo: la API, el token vigente y
@@ -297,7 +297,7 @@ function Reproductor({
           </View>
         )}
       </View>
-      <Pressable
+      <Pulsable
         onPress={alternar}
         accessibilityRole="button"
         accessibilityLabel={pausadaPorPersona ? "Reanudar la animación" : "Pausar la animación"}
@@ -305,7 +305,7 @@ function Reproductor({
         hitSlop={6}
       >
         <Icono nombre={pausadaPorPersona ? "reproducir" : "pausa"} color={tema.texto} tamano={20} />
-      </Pressable>
+      </Pulsable>
     </View>
   )
 }

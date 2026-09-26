@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import { StyleSheet, Text, TextInput, View } from "react-native"
 import type { ValoresEjecutados, ValoresEjecutadosDistancia } from "@alpha-omega/shared"
 import type { EdicionRegistro, EjercicioConDistancia, SerieConDistancia } from "./registro-modelo"
 import { valoresLegibles } from "./resultado"
@@ -7,6 +7,7 @@ import { Icono } from "../componentes/iconos"
 import { degradadoExito, tema } from "../tema"
 import { Opciones } from "./sesion/controles"
 import { kg, resumenPrescrito } from "./sesion/modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 type SerieReal = EdicionRegistro["series"][number]
 type Unidad = SerieConDistancia["tipoMedicion"]
@@ -126,7 +127,7 @@ export function TablaSeries({
           {ejercicio.indicaciones && <Text style={s.resumen}>{ejercicio.indicaciones}</Text>}
         </View>
         {verTecnica && (
-          <Pressable
+          <Pulsable
             accessibilityRole="button"
             accessibilityLabel={`Ver técnica — ${ejercicio.nombre}`}
             onPress={verTecnica}
@@ -134,7 +135,7 @@ export function TablaSeries({
             hitSlop={4}
           >
             <Text style={s.textoTecnica}>Ver técnica</Text>
-          </Pressable>
+          </Pulsable>
         )}
       </View>
       {anterior && (
@@ -216,7 +217,7 @@ export function TablaSeries({
                 style={[s.valor, s.campo, real.hecha && s.campoHecho]}
               />
               {mostrarRirPorSerie && (
-                <Pressable
+                <Pulsable
                   accessibilityRole={corregible ? "button" : undefined}
                   accessibilityLabel={`RIR, serie ${n + 1}: ${rir === null ? "sin anotar" : rir === 5 ? "5 o más" : rir}${fueraDeObjetivo ? ", menos del objetivo" : ""}`}
                   accessibilityHint={
@@ -235,9 +236,9 @@ export function TablaSeries({
                   >
                     {rir === null ? (rirObjetivo ?? "—") : rir === 5 ? "5+" : rir}
                   </Text>
-                </Pressable>
+                </Pulsable>
               )}
-              <Pressable
+              <Pulsable
                 accessibilityRole="checkbox"
                 accessibilityLabel={`Hecha — ${ejercicio.nombre}, serie ${n + 1}`}
                 accessibilityState={{ checked: real.hecha, disabled: bloqueado }}
@@ -261,10 +262,10 @@ export function TablaSeries({
                 style={[s.casilla, real.hecha && [s.marcada, degradadoExito]]}
               >
                 {real.hecha && <Icono nombre="hecho" color={tema.sobreExito} tamano={18} />}
-              </Pressable>
+              </Pulsable>
             </View>
             {!real.hecha && (
-              <Pressable
+              <Pulsable
                 accessibilityRole="button"
                 accessibilityLabel={`${real.omitida ? "Recuperar" : "Omitir"} serie ${n + 1} — ${ejercicio.nombre}`}
                 disabled={bloqueado}
@@ -276,7 +277,7 @@ export function TablaSeries({
                 <Text style={s.textoOmitir}>
                   {real.omitida ? "Recuperar serie" : "Omitir serie"}
                 </Text>
-              </Pressable>
+              </Pulsable>
             )}
             {real.omitida && <Text style={s.resumen}>Serie omitida</Text>}
             {fueraDeObjetivo && rir !== null && rirObjetivo !== undefined && (
@@ -294,14 +295,14 @@ export function TablaSeries({
                   cambiar={anotar}
                 />
                 {rir !== null && (
-                  <Pressable
+                  <Pulsable
                     accessibilityRole="button"
                     accessibilityLabel={`Sin anotar el RIR de la serie ${n + 1}`}
                     onPress={() => anotar(null)}
                     style={s.omitir}
                   >
                     <Text style={s.textoOmitir}>Sin anotar</Text>
-                  </Pressable>
+                  </Pulsable>
                 )}
               </View>
             )}

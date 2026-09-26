@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { AppState, Pressable, StyleSheet, Text, View } from "react-native"
+import { AppState, StyleSheet, Text, View } from "react-native"
 import type {
   Comida,
   ComidaRegistrada,
@@ -22,6 +22,7 @@ import { degradadoOro, tema } from "../tema"
 import type { ApiNutricion } from "./api"
 import { guardarCopia, leerCopia } from "./copia-local"
 import { DiaDieta } from "./dia-dieta"
+import { Pulsable } from "../componentes/pulsable"
 
 const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] as const
 const INICIALES = ["L", "M", "X", "J", "V", "S", "D"] as const
@@ -66,7 +67,7 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
     <View style={s.contenido}>
       <View style={s.pestanas} accessibilityRole="tablist">
         {(["hoy", "semana"] as const).map((valor) => (
-          <Pressable
+          <Pulsable
             key={valor}
             accessibilityRole="tab"
             accessibilityState={{ selected: pestana === valor }}
@@ -76,7 +77,7 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
             <Text style={[s.textoPestana, pestana === valor && s.textoActivo]}>
               {valor === "hoy" ? "Hoy" : "Semana"}
             </Text>
-          </Pressable>
+          </Pulsable>
         ))}
       </View>
       {pestana === "semana" && (
@@ -84,7 +85,7 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
           {INICIALES.map((inicial, n) => {
             const delDia = documento.tiposDeDia.find((t) => t.id === documento.semana[n])
             return (
-              <Pressable
+              <Pulsable
                 key={inicial}
                 accessibilityRole="button"
                 accessibilityState={{ selected: dia === n }}
@@ -96,7 +97,7 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
                 <Text numberOfLines={1} style={s.tipoDia}>
                   {delDia?.nombre ?? "—"}
                 </Text>
-              </Pressable>
+              </Pulsable>
             )
           })}
         </View>

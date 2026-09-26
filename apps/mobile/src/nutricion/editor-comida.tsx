@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import { StyleSheet, Text, TextInput, View } from "react-native"
 import { MAX_ALTERNATIVAS_POR_COMIDA } from "@alpha-omega/shared"
 import { Campo } from "../componentes/formulario"
 import { degradadoOro, tema } from "../tema"
@@ -16,6 +16,7 @@ import {
   type GeneradorDeIds,
   type MacrosEditables,
 } from "./editor-modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 /** Acción secundaria compacta para editores largos: 44 px de alto y texto visible. */
 export function Accion({
@@ -30,16 +31,16 @@ export function Accion({
   deshabilitado?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
       accessibilityState={{ disabled: deshabilitado }}
       disabled={deshabilitado}
       onPress={onPress}
-      style={({ pressed }) => [s.accion, (pressed || deshabilitado) && s.apagada]}
+      style={[s.accion, deshabilitado && s.apagada]}
     >
       <Text style={s.textoAccion}>{texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -221,7 +222,7 @@ export function EditorComida({
   const puedeCrecer = total < MAX_ALTERNATIVAS_POR_COMIDA
   return (
     <View style={s.comida}>
-      <Pressable
+      <Pulsable
         accessibilityRole="button"
         accessibilityState={{ expanded: abierta }}
         accessibilityLabel={`${nombre}, ${abierta ? "plegar" : "desplegar"}`}
@@ -235,7 +236,7 @@ export function EditorComida({
             : `${valor.columnas.length} grupos de intercambio`}
           {valor.hora ? ` · ${valor.hora}` : ""} {abierta ? "▴" : "▾"}
         </Text>
-      </Pressable>
+      </Pulsable>
       {abierta && (
         <View style={s.cuerpo}>
           <View style={s.fila}>
@@ -274,7 +275,7 @@ export function EditorComida({
             accessibilityLabel={`Forma de ${nombre}`}
           >
             {(["alternativas", "intercambio"] as const).map((forma) => (
-              <Pressable
+              <Pulsable
                 key={forma}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: valor.forma === forma }}
@@ -284,7 +285,7 @@ export function EditorComida({
                 <Text style={[s.textoForma, valor.forma === forma && s.textoFormaActiva]}>
                   {forma === "alternativas" ? "Platos completos" : "Intercambio"}
                 </Text>
-              </Pressable>
+              </Pulsable>
             ))}
           </View>
           {formaPendiente && formaPendiente !== valor.forma && (

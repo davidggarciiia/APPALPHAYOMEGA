@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import { StyleSheet, Text, TextInput, View } from "react-native"
 
 import { Icono } from "../../componentes/iconos"
 import { degradadoExito, degradadoOro, tema } from "../../tema"
@@ -7,6 +7,7 @@ import type { EdicionRegistro, EjercicioConDistancia } from "../registro-modelo"
 import { cantidadObjetivo } from "../tabla-series"
 import { BotonAtras, Enlace } from "./controles"
 import { reloj, resumenPrescrito } from "./modelo"
+import { Pulsable } from "../../componentes/pulsable"
 
 /** Cabecera de «Sesión en curso»: salir, cronómetro, terminar y progreso de series. */
 export function CabeceraSesion({
@@ -41,14 +42,14 @@ export function CabeceraSesion({
         </Text>
         <View style={[s.lado, s.derecha]}>
           {terminar && (
-            <Pressable
-              style={({ pressed }) => [s.terminar, pressed && s.pulsado]}
+            <Pulsable
+              style={s.terminar}
               accessibilityRole="button"
               accessibilityLabel="Terminar"
               onPress={terminar}
             >
               <Text style={s.textoTerminar}>Terminar</Text>
-            </Pressable>
+            </Pulsable>
           )}
         </View>
       </View>
@@ -148,7 +149,7 @@ export function ListaMarcable({
   const [abierta, setAbierta] = useState(!completo)
   return (
     <View style={s.tarjeta}>
-      <Pressable
+      <Pulsable
         style={s.filaLista}
         accessibilityRole="button"
         accessibilityState={{ expanded: abierta }}
@@ -162,7 +163,7 @@ export function ListaMarcable({
         <Text style={s.tenue}>
           {hechos}/{ejercicios.length}
         </Text>
-      </Pressable>
+      </Pulsable>
       {abierta &&
         ejercicios.map((ejercicio, n) => {
           const listo = hecho(ejercicio)
@@ -179,7 +180,7 @@ export function ListaMarcable({
             )
           return (
             <View key={ejercicio.id} style={[s.bloqueLista, n === 0 && s.primero]}>
-              <Pressable
+              <Pulsable
                 style={s.elemento}
                 accessibilityRole="checkbox"
                 accessibilityState={{
@@ -197,7 +198,7 @@ export function ListaMarcable({
                   <Text style={s.nombreElemento}>{ejercicio.nombre}</Text>
                   <Text style={s.tenue}>{ejercicio.dosis ?? resumenPrescrito(ejercicio)}</Text>
                 </View>
-              </Pressable>
+              </Pulsable>
               {mostrarPeso &&
                 ejercicio.series.map((prescrita, indice) => (
                   <View key={prescrita.id} style={s.filaPeso}>

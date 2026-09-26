@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { NovedadEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { tema } from "../tema"
+import { Pulsable } from "../componentes/pulsable"
 
 function descripcion(novedad: NovedadEntrenamiento): string {
   const sesion = novedad.sesionNombre
@@ -92,7 +93,7 @@ export function NovedadesEntrenamiento({
       </Text>
       {error !== "" && <Text style={s.error}>{error}</Text>}
       {novedades.map((novedad) => (
-        <Pressable
+        <Pulsable
           key={novedad.id}
           accessibilityRole="button"
           accessibilityLabel={`${descripcion(novedad)}${novedad.leidaEn ? "" : ", sin leer"}`}
@@ -120,10 +121,10 @@ export function NovedadesEntrenamiento({
         >
           <Text style={s.texto}>{descripcion(novedad)}</Text>
           {!novedad.leidaEn && <Text style={s.indicador}>Nueva</Text>}
-        </Pressable>
+        </Pulsable>
       ))}
       {novedades.length < total && (
-        <Pressable
+        <Pulsable
           accessibilityRole="button"
           accessibilityLabel="Ver más novedades"
           accessibilityState={{ disabled: cargando, busy: cargando }}
@@ -132,7 +133,7 @@ export function NovedadesEntrenamiento({
           style={s.mas}
         >
           <Text style={s.textoMas}>{cargando ? "Cargando…" : "Ver más novedades"}</Text>
-        </Pressable>
+        </Pulsable>
       )}
     </View>
   )
