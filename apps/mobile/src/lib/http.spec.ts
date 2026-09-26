@@ -185,6 +185,40 @@ describe("Contratos de peticiones nuevas", () => {
     await expect(resultado).rejects.toMatchObject({ codigo: 409 })
   })
 
+  it("entrega las reservas afectadas de un 409 de la agenda", async () => {
+    const reserva = {
+      id: "70000000-0000-4000-8000-000000000001",
+      servicio: {
+        id: "60000000-0000-4000-8000-000000000001",
+        codigo: "ep",
+        nombre: "EP individual",
+        duracionMin: 60,
+      },
+      cliente: { id: "30000000-0000-4000-8000-000000000001", nombre: "Lara", apellidos: null },
+      inicio: "2026-10-08T10:00:00+02:00",
+      fin: "2026-10-08T11:00:00+02:00",
+      personas: 1,
+      estado: "confirmada",
+      fuenteSaldo: "Plan de octubre",
+      cobroCentimos: null,
+      cancelarSinPerderHasta: "2026-10-07T10:00:00+02:00",
+      cancelacion: null,
+      devueltaAMano: false,
+      revision: 0,
+      creadaEn: "2026-10-01T09:00:00+02:00",
+    }
+    const conflicto = {
+      statusCode: 409,
+      codigo: "reservas_afectadas",
+      message: "Hay reservas en ese horario",
+      conflictos: [reserva],
+    }
+    fetchSimulado.mockResolvedValue(new Response(JSON.stringify(conflicto), { status: 409 }))
+    const resultado = http.pedir("/agenda/horario-semanal", { method: "PUT" })
+    await expect(resultado).rejects.toBeInstanceOf(http.ErrorDeConflictoAgenda)
+    await expect(resultado).rejects.toMatchObject({ codigo: 409, conflicto })
+  })
+
   it("valida la respuesta antes de entregarla al consumidor", async () => {
     const schema = z.strictObject({ nombre: z.string() })
     fetchSimulado.mockResolvedValueOnce(new Response(JSON.stringify({ nombre: "Sentadilla" })))
