@@ -6,13 +6,15 @@
 
 El [informe de revisión integral](revision-integral-2026-09-24.md) consolida fallos, integración y comprobaciones pendientes. No da por terminadas las tareas físicas ni reabre funciones aplazadas en la coordinación con Claude.
 
-- [ ] **RI01:** cierre de entrenamiento que muestre/congele exactamente la intención de envío.
-- [ ] **RI02:** proteger la edición de medidas y pruebas mientras se guardan.
+- [x] **RI01:** cierre de entrenamiento que muestre/congele exactamente la intención de envío. `23edd8e`.
+- [x] **RI02:** proteger la edición de medidas y pruebas mientras se guardan. `a1b3461`.
 - [ ] **RI03:** registrar ejecución parcial, omisiones y RIR de calentamiento/vuelta a la calma.
-- [ ] **RI04:** distinguir comida sin registro habilitado de falta de conexión.
-- [ ] **RI05:** evitar cálculos y fechas que mezclen medidas de tomas diferentes.
-- [ ] **RI06:** conservar acceso a medidas/pruebas recientes e históricas al superar 500.
-- [ ] **RI07:** retirar explícitamente archivos temporales de fotos en Android/iOS.
+- [x] **RI04:** distinguir comida sin registro habilitado de falta de conexión. `d99fbbd`.
+- [x] **RI05:** evitar cálculos y fechas que mezclen medidas de tomas diferentes. `0ce0bb6`.
+- [x] **RI06:** conservar acceso a medidas/pruebas recientes e históricas al superar 500. `f59c2df` (API) y `91b856e` (app).
+- [x] **RI07:** retirar explícitamente archivos temporales de fotos en Android/iOS. RI07a entró, por error, en el commit de FIG02 (`1125837`: `preparar-foto.ts` y `expo-file-system`); RI07b en `1b6b4f8`. El ensayo en un móvil físico sigue pendiente.
+
+**Evidencia 26-09-2026 (Claude):** los commits anteriores son del 24-09; sin la evidencia por tarea de esa sesión, se registra la verificación conjunta. Árbol con RI01, RI02 y RI04–RI07 antes de integrar D01: 188 pruebas API y 550 móviles. Tras integrar D01 (`533ecde`, merge de `b7ed583`): typecheck, lint, 192 API, 613 móviles, build de la API, `diff --check` y 24 HTTP (`entrenamiento-distancia`, `entrenamiento-registro` y `consentimiento-pendientes`) en `alpha_omega_e2e_codex`, 26 migraciones. Los controles A y B siguen abiertos por el recorrido autenticado y la medida con 5.000 registros.
 
 Cada RI tiene escenario en el informe y desglose ejecutable a continuación. **Claude es el responsable de esta nueva pasada, por petición de David.** No se han corregido estas RI como parte del parche ya verificado de fotos/consentimiento.
 
