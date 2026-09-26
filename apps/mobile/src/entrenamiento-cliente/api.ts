@@ -15,7 +15,7 @@ import {
   type SesionProgramada,
 } from "@alpha-omega/shared"
 
-import { pedirAutenticado } from "../lib/credenciales"
+import { pedirConSesion } from "../lib/transporte"
 
 /*
  * Llamadas del cliente a su entrenamiento. Todo lo que llega se valida con el
@@ -29,23 +29,23 @@ export async function listarSemana(
 ): Promise<ListadoSesiones> {
   const consulta = new URLSearchParams({ semana, semanas: String(semanas) })
   return ListadoSesionesSchema.parse(
-    await pedirAutenticado(`/entrenamiento/clientes/${clienteId}/sesiones?${consulta.toString()}`),
+    await pedirConSesion(`/entrenamiento/clientes/${clienteId}/sesiones?${consulta.toString()}`),
   )
 }
 
 export async function leerSesion(id: string): Promise<SesionCliente> {
-  return SesionClienteSchema.parse(await pedirAutenticado(`/entrenamiento/sesiones/${id}`))
+  return SesionClienteSchema.parse(await pedirConSesion(`/entrenamiento/sesiones/${id}`))
 }
 
 export async function leerEjerciciosDeSesion(id: string): Promise<ListadoEjercicios> {
   return ListadoEjerciciosSchema.parse(
-    await pedirAutenticado(`/entrenamiento/sesiones/${id}/ejercicios`),
+    await pedirConSesion(`/entrenamiento/sesiones/${id}/ejercicios`),
   )
 }
 
 export async function guardarBorrador(id: string, cuerpo: GuardarBorrador): Promise<Borrador> {
   return BorradorSchema.parse(
-    await pedirAutenticado(`/entrenamiento/sesiones/${id}/borrador`, {
+    await pedirConSesion(`/entrenamiento/sesiones/${id}/borrador`, {
       method: "PUT",
       body: JSON.stringify(cuerpo),
     }),
@@ -57,7 +57,7 @@ export async function enviarEntrenamiento(
   cuerpo: EnviarEntrenamiento,
 ): Promise<ResultadoEntrenamiento> {
   return ResultadoEntrenamientoSchema.parse(
-    await pedirAutenticado(`/entrenamiento/sesiones/${id}/enviar`, {
+    await pedirConSesion(`/entrenamiento/sesiones/${id}/enviar`, {
       method: "POST",
       body: JSON.stringify(cuerpo),
     }),
@@ -66,7 +66,7 @@ export async function enviarEntrenamiento(
 
 export async function leerResultado(id: string): Promise<ResultadoEntrenamiento> {
   return ResultadoEntrenamientoSchema.parse(
-    await pedirAutenticado(`/entrenamiento/sesiones/${id}/resultado`),
+    await pedirConSesion(`/entrenamiento/sesiones/${id}/resultado`),
   )
 }
 
@@ -76,7 +76,7 @@ export async function cambiarFecha(
   revision: number,
 ): Promise<SesionProgramada> {
   return SesionProgramadaSchema.parse(
-    await pedirAutenticado(`/agenda/sesiones/${id}/fecha`, {
+    await pedirConSesion(`/agenda/sesiones/${id}/fecha`, {
       method: "PATCH",
       body: JSON.stringify({ fecha, revision }),
     }),

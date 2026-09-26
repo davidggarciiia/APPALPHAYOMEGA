@@ -5,6 +5,10 @@
 > el id de módulo (`SPEC-identity.md`, `SPEC-agenda.md`...). Los ids no se renombran.
 >
 > Intención confirmada: [docs/intent/app-alpha-omega.md](docs/intent/app-alpha-omega.md)
+>
+> **Cambio del 2026-09-25**, en el plan aprobado por David: se añade el módulo
+> `planes` y horarios pasa por delante de entrenamiento. Intención:
+> [horarios y reservas](docs/intent/horarios-y-reservas.md).
 
 ## Módulos
 
@@ -12,7 +16,8 @@
 | ---------------------- | ------------------------------------------------------------------------------- | ------------------------------------------- |
 | `identity`             | Cuentas, sesión, los cuatro roles y qué ve cada uno                             | —                                           |
 | `catalogo-ejercicios`  | Ejercicios, grupos musculares, mapa Symmetry, figuras animadas, hueco de vídeo  | `identity`                                  |
-| `agenda`               | Sesión programada: cliente, fecha, hora, tipo. Clases de boxeo                  | `identity`                                  |
+| `planes`               | Planes, bonos y sesiones sueltas, saldo de cada cliente, solicitudes y cobros   | `identity`                                  |
+| `agenda`               | Horario del entrenador, reservas con hora, clases de boxeo y fechas de rutina   | `identity`, `planes`                        |
 | `entrenamiento`        | Rutina prescrita, registro real de series/peso/reps/notas, panel del entrenador | `identity`, `catalogo-ejercicios`, `agenda` |
 | `seguimiento-corporal` | Peso, bioimpedancia, plicómetro, medidas, fotos de evolución                    | `identity`                                  |
 | `nutricion`            | Dietas por cliente, alimentos, macros, notas. Cliente en solo lectura           | `identity`                                  |
@@ -23,16 +28,17 @@
 
 ```
 identity
-   ├──→ catalogo-ejercicios ──┐
-   ├──→ agenda ───────────────┼──→ entrenamiento
+   ├──→ planes ──→ agenda ────┐
+   ├──→ catalogo-ejercicios ──┼──→ entrenamiento
    ├──→ nutricion             │
    ├──→ seguimiento-corporal  │
    ├──→ leads                 │
    └──→ fichajes              │
 ```
 
-Secuencia: `identity` → `catalogo-ejercicios` + `agenda` → `entrenamiento` →
-`nutricion` + `seguimiento-corporal` → `leads` → `fichajes`
+Secuencia: `identity` → `planes` + `agenda` (horarios y reservas) →
+`catalogo-ejercicios` → `entrenamiento` → `nutricion` + `seguimiento-corporal` →
+`leads` → `fichajes`
 
 ## Decisiones de frontera
 
@@ -44,37 +50,51 @@ Secuencia: `identity` → `catalogo-ejercicios` + `agenda` → `entrenamiento` �
   que escribe el cliente. Separarlo crearía dos modelos del mismo dato.
 - **`fichajes` no depende de nada salvo el login.** Se puede cortar entero sin
   tocar el resto. Por eso es el último.
+- **El saldo y el dinero viven en `planes`, no en `agenda`.** Tienen reglas propias
+  (libro de movimientos, caducidades, cobros), hay packs que no tocan la agenda y
+  `nutricion` podrá leer el plan sin depender de ella. `planes` nunca importa
+  `agenda`.
 
 ## Pantallas por módulo
 
-| Pantalla                           | Módulo                                        |
-| ---------------------------------- | --------------------------------------------- |
-| Login / recuperación de contraseña | `identity`                                    |
-| Perfil propio                      | `identity`                                    |
-| Listado de clientes (entrenador)   | `identity`                                    |
-| Alta y edición de cliente          | `identity`                                    |
-| Inicio cliente                     | `agenda` + `seguimiento-corporal` (compuesta) |
-| Entrenos — semana                  | `entrenamiento`                               |
-| Entrenos — mes                     | `agenda` + `entrenamiento`                    |
-| Detalle de ejercicio               | `catalogo-ejercicios` + `entrenamiento`       |
-| Librería Symmetry                  | `catalogo-ejercicios`                         |
-| Panel admin de entrenos            | `entrenamiento`                               |
-| Nutrición cliente (solo lectura)   | `nutricion`                                   |
-| Nutrición del nutricionista        | `nutricion`                                   |
-| Seguimiento corporal               | `seguimiento-corporal`                        |
-| Horarios (admin)                   | `agenda`                                      |
-| Leads                              | `leads`                                       |
-| Fichajes                           | `fichajes`                                    |
+| Pantalla                           | Módulo                                              |
+| ---------------------------------- | --------------------------------------------------- |
+| Login / recuperación de contraseña | `identity`                                          |
+| Perfil propio                      | `identity`                                          |
+| Listado de clientes (entrenador)   | `identity`                                          |
+| Alta y edición de cliente          | `identity`                                          |
+| Inicio cliente (reservar)          | `agenda` + `planes`; después `seguimiento-corporal` |
+| Entrenos — semana                  | `entrenamiento`                                     |
+| Entrenos — mes                     | `agenda` + `entrenamiento`                          |
+| Detalle de ejercicio               | `catalogo-ejercicios` + `entrenamiento`             |
+| Librería Symmetry                  | `catalogo-ejercicios`                               |
+| Panel admin de entrenos            | `entrenamiento`                                     |
+| Nutrición cliente (solo lectura)   | `nutricion`                                         |
+| Nutrición del nutricionista        | `nutricion`                                         |
+| Seguimiento corporal               | `seguimiento-corporal`                              |
+| Horarios (admin)                   | `agenda`                                            |
+| Agenda del entrenador              | `agenda`                                            |
+| Pasar lista de boxeo               | `agenda` + `planes`                                 |
+| Planes y bonos (cliente)           | `planes`                                            |
+| Solicitudes y cobros (admin)       | `planes`                                            |
+| Ajustes de agenda y precios        | `agenda` + `planes`                                 |
+| Leads                              | `leads`                                             |
+| Fichajes                           | `fichajes`                                          |
 
-Dieciséis pantallas, no las ocho del boceto. Las cuatro primeras no estaban
-dibujadas por nadie y no son opcionales.
+Veintiuna pantallas, no las ocho del boceto. Las cuatro primeras no estaban
+dibujadas por nadie y no son opcionales. Las cinco que siguen a «Horarios» llegan
+con la ampliación del 2026-09-25.
 
 ## Estado
 
-| Módulo     | Spec     | Plan     | Implementación                               |
-| ---------- | -------- | -------- | -------------------------------------------- |
-| `identity` | aprobada | aprobado | 17 de 21 tareas. Fases 0, 1, 2 y 4 completas |
-| resto      | —        | —        | —                                            |
+| Módulo                | Spec                                         | Plan                                 | Implementación                               |
+| --------------------- | -------------------------------------------- | ------------------------------------ | -------------------------------------------- |
+| `identity`            | aprobada                                     | aprobado                             | 17 de 21 tareas. Fases 0, 1, 2 y 4 completas |
+| `planes`              | redactada, en revisión                       | aprobado el 2026-09-25               | Sin empezar. Es lo siguiente                 |
+| `agenda`              | aprobada; ampliación de horarios en revisión | aprobado el 2026-09-25               | Sin empezar. Es lo siguiente                 |
+| `catalogo-ejercicios` | borrador                                     | parcial, en el plan de entrenamiento | Sin empezar                                  |
+| `entrenamiento`       | aprobada                                     | aprobado; en pausa tras horarios     | Contratos Zod en `packages/shared`           |
+| resto                 | —                                            | —                                    | —                                            |
 
 ### Detalle de `identity`
 

@@ -7,7 +7,7 @@ import {
   type SesionCliente,
 } from "@alpha-omega/shared"
 
-import { ErrorDeRed, ErrorDelServidor } from "../lib/http"
+import { ErrorDeRed, ErrorDelServidor } from "../lib/transporte"
 
 import type { CopiaLocal } from "./copia-local"
 import { SesionEnCurso, type Dependencias } from "./sesion-en-curso"

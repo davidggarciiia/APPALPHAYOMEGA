@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { lunesDe, type SesionProgramada } from "@alpha-omega/shared"
 
-import { ErrorDelServidor } from "../lib/http"
+import { ErrorDelServidor } from "../lib/transporte"
 import { faltaDe } from "../lib/errores"
 import { diasDeLaSemana, fechaCorta, fechaLarga } from "../lib/fechas"
 import { tema } from "../tema"

@@ -23,14 +23,14 @@ import { CambiarDia } from "../componentes/cambiar-dia"
 import { BotonSecundario } from "../componentes/formulario"
 import { faltaDe, type Falta } from "../lib/errores"
 import { conMayuscula, fechaCorta, fechaLarga, rangoDeSemana } from "../lib/fechas"
-import { ErrorDeRed } from "../lib/http"
+import { ErrorDeRed } from "../lib/transporte"
 import { useSesion } from "../sesion"
 import { tema } from "../tema"
 
 import { listarCopias } from "./almacen-borradores"
 import { cambiarFecha, listarSemana } from "./api"
 import type { CopiaLocal } from "./copia-local"
-import { abrirSesionEnCurso } from "./use-sesion-en-curso"
+import { abrirSesionEnCurso } from "./sesiones-abiertas"
 
 type Fila = ResumenSesion & { enCurso: boolean }
 

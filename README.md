@@ -8,20 +8,21 @@ Se publicará en App Store y Google Play.
 
 ## Estado
 
-El proyecto está en construcción. De los ocho módulos previstos hay uno casi
-terminado, `identity`, que es el que decide quién entra y qué puede tocar cada
-uno. El resto todavía no está empezado.
+El proyecto está en construcción. De los nueve módulos previstos hay uno
+avanzado, `identity`, que es el que decide quién entra y qué puede tocar cada
+uno. Lo siguiente es horarios y reservas (`planes` y `agenda`).
 
-| Módulo                 | Estado                    |
-| ---------------------- | ------------------------- |
-| `identity`             | 17 de 21 tareas           |
-| `catalogo-ejercicios`  | Especificado, sin empezar |
-| `agenda`               | Sin empezar               |
-| `entrenamiento`        | Sin empezar               |
-| `nutricion`            | Sin empezar               |
-| `seguimiento-corporal` | Sin empezar               |
-| `leads`                | Sin empezar               |
-| `fichajes`             | Sin empezar               |
+| Módulo                 | Estado                                     |
+| ---------------------- | ------------------------------------------ |
+| `identity`             | 17 de 21 tareas                            |
+| `planes`               | Especificado, en revisión. Es lo siguiente |
+| `agenda`               | Especificado, en revisión. Es lo siguiente |
+| `catalogo-ejercicios`  | Borrador de spec, sin empezar              |
+| `entrenamiento`        | Especificado, contratos escritos; en pausa |
+| `nutricion`            | Sin empezar                                |
+| `seguimiento-corporal` | Sin empezar                                |
+| `leads`                | Sin empezar                                |
+| `fichajes`             | Sin empezar                                |
 
 Pantallas que funcionan hoy: entrar, activar la cuenta desde el correo,
 recuperar la contraseña, perfil propio, la cartera del entrenador con búsqueda y
@@ -80,10 +81,13 @@ compilador rompe en los dos lados a la vez.
 
 El proyecto se escribió antes de programarse, y esos documentos siguen vivos.
 
-- [CAPABILITY-MAP.md](CAPABILITY-MAP.md) — los ocho módulos, las dieciséis
+- [CAPABILITY-MAP.md](CAPABILITY-MAP.md) — los nueve módulos, las veintiuna
   pantallas y el orden de construcción
 - [SPEC.md](SPEC.md) — stack, estilo, estrategia de pruebas y fronteras
 - [SPEC-identity.md](SPEC-identity.md) — cuentas, sesión y permisos
+- [SPEC-planes.md](SPEC-planes.md) — saldo, planes, bonos y cobros
+- [SPEC-agenda.md](SPEC-agenda.md) — horario, reservas, boxeo y fechas de rutina
+- [SPEC-entrenamiento.md](SPEC-entrenamiento.md) — rutinas y registro de series
 - [SPEC-catalogo-ejercicios.md](SPEC-catalogo-ejercicios.md) — el catálogo, en
   borrador
 - [tasks/](tasks/) — el plan y el estado de cada tarea

@@ -5,6 +5,10 @@
 > [Plan general](plan.md) · [Plan independiente de Fable](plan-fable.md).
 > Los identificadores C pertenecen a Codex; los F están en [todo-fable.md](todo-fable.md).
 > Esta lista no sustituye `tasks/todo.md` de identidad.
+>
+> **En pausa desde el 2026-09-25:** horarios va antes ([tasks/horarios](../horarios/todo.md)).
+> C01 pasa a ser H03, y C03 y C06 pasan a H04. Cuando esta lista se reanude, esas
+> tareas se dan por hechas si H03 y H04 lo están.
 
 ## Regla de ejecución
 

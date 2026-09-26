@@ -108,6 +108,25 @@ tirado y un riesgo innecesario.
 Sigue sin decidir el proveedor. Cuando toque, la restricción que manda es que los
 datos estén en la Unión Europea, por el [ADR 0005](adr/0005-almacenamiento-de-fotos.md).
 
+### 5b. Cobros en efectivo y tiendas de aplicaciones
+
+**Estado: previsto en el diseño, por confirmar antes de publicar.** Llega con
+horarios y reservas ([SPEC-planes.md](../SPEC-planes.md)). La app no cobra nada:
+muestra precios, el cliente pide un producto con «Lo quiero» y el entrenador lo
+activa cuando cobra en efectivo.
+
+- Las normas de App Store no exigen la compra integrada de Apple para servicios
+  físicos que se consumen fuera de la app, como una sesión presencial (3.1.3(e)), ni
+  para servicios en tiempo real entre dos personas (3.1.3(d)). Google Play tiene
+  una excepción equivalente. Hay que releer las normas vigentes el día de enviar
+  la app a revisión.
+- Los packs online no se ofrecen al cliente dentro de la app. Son seguimiento a
+  distancia y un revisor podría leerlos como contenido digital, que sí exige compra
+  integrada. El entrenador los activa igual desde su lado.
+- La app registra importes y fechas de cobro, pero no emite facturas. Conviene que
+  el gestor confirme que eso no la convierte en un sistema de facturación sujeto a
+  VERI\*FACTU.
+
 ## Bloqueantes blandos
 
 No impiden publicar, pero conviene resolverlos antes o poco después.
@@ -137,28 +156,32 @@ hay que moverlo a la base de datos o a Redis. Ver
 las sesiones vivas y quema los enlaces de activación pendientes, las tres cosas
 en la misma transacción. Reactivar ya no resucita nada.
 
-Queda la mitad de la tarea 20: cambiar la contraseña también tiene que revocar
-las sesiones abiertas, o quien te la robó sigue dentro después de que la cambies.
+**Hecho para el cambio de contraseña el 2026-09-17 (tarea 20).** Restablecer la
+contraseña revoca todas las sesiones abiertas y la gracia de sus tokens ya
+rotados, en la misma transacción (`recuperacion.service.ts`, test «cierra todas
+las sesiones abiertas» en `recuperacion.e2e-spec.ts`). Este punto estuvo marcado
+como pendiente hasta el 2026-09-26 aunque ya estaba resuelto.
 
 ### 9c. El token de acceso no se renueva solo mientras la app está abierta
 
-El token de acceso dura quince minutos y solo se renueva al arrancar la
-aplicación. Una pantalla abierta más rato deja de funcionar y hoy la única salida
-es volver a entrar.
-
-Las pantallas lo dicen con honestidad desde la tarea 17 en vez de ofrecer un
-"reintentar" que no arreglaría nada, pero el arreglo de verdad vive en
-`sesion.tsx` y afecta a todas las pantallas. Tarea propia antes de tener clientes
-de verdad usando la app a diario.
+**Resuelto el 2026-09-26 (H04 de horarios).** Cuando el servidor rechaza un token
+de acceso caducado, `lib/transporte.ts` renueva la sesión y repite la petición una
+vez. Todas las peticiones que caducan a la vez comparten una sola renovación, el
+token de refresco nuevo se guarda antes de usarse, y un 403 o un fallo de red no
+cierran nada. Probado con tests del transporte y de `sesion.tsx`; **falta
+comprobarlo en un teléfono** dejando la app abierta más de quince minutos.
 
 ### 9d. El nutricionista sigue viendo a un cliente dado de baja
 
-`AlcanceClienteService.tieneAsignado` mira si existe la fila de asignación, no el
-estado del cliente. La fila no se borra a propósito, porque perderla borraría el
-rastro de quién tuvo acceso a qué. Filtrar por estado es trabajo de la tarea 18.
+**Resuelto el 2026-09-18 (commit `055c401`).** `AlcanceClienteService.tieneAsignado`
+y el listado del nutricionista excluyen a los clientes dados de baja; la fila de
+asignación se conserva para no perder el rastro de quién tuvo acceso a qué. Tests
+en `asignaciones.e2e-spec.ts`: la baja corta el acceso y la reactivación lo
+devuelve.
 
-Es la fuga de datos de salud más plausible del módulo: un nutricionista
-subcontratado conservando acceso a alguien que ya no es cliente.
+Queda una trampa para quien use el servicio después: `clientesDe` todavía no
+filtra por estado. Hoy no lo llama nadie, pero `nutricion` y
+`seguimiento-corporal` lo usarán; hay que filtrarlo antes.
 
 ### 9e. No hay registro de auditoría de las acciones del entrenador
 
@@ -168,17 +191,14 @@ habrá que poder demostrar qué se hizo y cuándo, y eso pide una tabla.
 
 ### 9b. La app móvil no tiene ni un solo test
 
-`SPEC.md` fija en su estrategia de pruebas que las pantallas se comprueban con
-React Native Testing Library. No existe ninguna, y `apps/mobile` ni siquiera
-define un comando de test.
+**Entorno resuelto el 2026-09-26 (H03 de horarios).** `npm run test --workspace
+apps/mobile` ejecuta Jest con el preset de Expo y Testing Library, y la CI lo
+corre en cada push. Hay tests del formulario, del transporte y de la sesión.
 
-Se nota. La revisión adversarial encontró once fallos confirmados en la app, y
-tres eran críticos: dejaban la aplicación colgada para siempre o cerraban la
-sesión de un cliente sin motivo. Ninguno habría sobrevivido a un test decente.
-
-Los arreglos están hechos y razonados, pero **verificados leyendo el código, no
-ejecutándolo**. Montar el entorno de pruebas de la app es trabajo pendiente y
-debería ir antes de la fase 4, no después.
+Sigue pendiente lo que motivó este punto: los once arreglos de la revisión
+adversarial en la app están **verificados leyendo el código, no ejecutándolo**,
+y las pantallas existentes no tienen tests propios. Se irán cubriendo al tocar
+cada pantalla.
 
 ### 10. Avisos de `npm audit`
 

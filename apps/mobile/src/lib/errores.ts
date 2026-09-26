@@ -1,4 +1,4 @@
-import { ErrorDePermiso, ErrorDeRed, ErrorDelServidor, ErrorDeSesion } from "./http"
+import { ErrorDePermiso, ErrorDeRed, ErrorDelServidor, ErrorDeSesion } from "./transporte"
 
 /**
  * Lo que la pantalla enseña cuando algo falla.
@@ -41,8 +41,10 @@ export function faltaDe(error: unknown, respaldo: string): Falta {
   }
 
   if (error instanceof ErrorDeSesion) {
-    // Solo llega aquí si la renovación automática también falló: la sesión de
-    // refresco caducó o se revocó. Un "reintentar" no la arreglaría jamás.
+    // El transporte ya renueva solo el token de acceso caducado. Si aun así
+    // llega un 401 aquí, es que el servidor tampoco aceptó la renovación: la
+    // sesión se revocó o la cuenta se dio de baja. Un "reintentar" no la
+    // arreglaría jamás.
     return {
       texto: "Tu sesión ha caducado. Vuelve a entrar.",
       reintentable: false,

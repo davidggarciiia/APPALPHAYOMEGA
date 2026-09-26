@@ -8,7 +8,7 @@ import {
   type SesionCliente,
 } from "@alpha-omega/shared"
 
-import { ErrorDeRed, ErrorDelServidor, ErrorDeSesion } from "../lib/http"
+import { ErrorDeRed, ErrorDelServidor, ErrorDeSesion } from "../lib/transporte"
 
 import { tienePendientes, type CopiaLocal, type Entradas } from "./copia-local"
 import { aRegistro, entradasDesdeRegistro } from "./valores"
@@ -138,7 +138,8 @@ export class SesionEnCurso {
         await deps.almacen.guardarCopia(cuenta, anulada)
         return new SesionEnCurso(cuenta, anulada, deps)
       }
-      if (local === null || !esTransitorio(error)) {
+      // Sin red, o en modo local sin sesión conectada: vale lo del móvil.
+      if (local === null || !(esTransitorio(error) || error instanceof ErrorDeSesion)) {
         throw error
       }
     }

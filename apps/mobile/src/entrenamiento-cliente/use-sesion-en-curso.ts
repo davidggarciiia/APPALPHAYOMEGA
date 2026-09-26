@@ -1,48 +1,11 @@
-import { randomUUID } from "expo-crypto"
 import { useFocusEffect } from "expo-router"
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
 
 import { faltaDe, type Falta } from "../lib/errores"
+import { useSesion } from "../sesion"
 
-import * as almacen from "./almacen-borradores"
-import * as api from "./api"
-import { SesionEnCurso, type Dependencias, type Instantanea } from "./sesion-en-curso"
-
-const dependencias: Dependencias = {
-  api,
-  almacen,
-  nuevoId: () => randomUUID(),
-  ahora: () => new Date(),
-  programar: (tarea, milisegundos) => {
-    const reloj = setTimeout(tarea, milisegundos)
-    return () => clearTimeout(reloj)
-  },
-}
-
-/**
- * Una sola instancia por cuenta y sesión: la pantalla de la semana y la del
- * entreno comparten la misma cola de guardado.
- */
-const abiertas = new Map<string, Promise<SesionEnCurso>>()
-
-export function abrirSesionEnCurso(cuenta: string, sesionId: string): Promise<SesionEnCurso> {
-  const clave = `${cuenta}:${sesionId}`
-  let abierta = abiertas.get(clave)
-  if (abierta === undefined) {
-    abierta = SesionEnCurso.abrir(cuenta, sesionId, dependencias)
-    abiertas.set(clave, abierta)
-    abierta.catch(() => abiertas.delete(clave))
-  }
-  return abierta
-}
-
-/** Al salir de la cuenta: nada abierto sigue guardando ni sincronizando. */
-export function cerrarSesionesEnCurso(): void {
-  for (const abierta of abiertas.values()) {
-    void abierta.then((sesion) => sesion.cerrar()).catch(() => undefined)
-  }
-  abiertas.clear()
-}
+import type { Instantanea, SesionEnCurso } from "./sesion-en-curso"
+import { abrirSesionEnCurso } from "./sesiones-abiertas"
 
 export type EstadoDePantalla =
   { fase: "cargando" } | { fase: "error"; falta: Falta } | { fase: "lista"; sesion: SesionEnCurso }
@@ -89,6 +52,15 @@ export function useSesionEnCurso(
   )
   const leer = useCallback(() => (sesion === null ? NADA : sesion.leer()), [sesion])
   const instantanea = useSyncExternalStore(suscribir, leer, leer)
+
+  // Al recuperar la conexión (del modo local a dentro) se manda lo pendiente.
+  const { estado: sesionApp } = useSesion()
+  const enLinea = sesionApp.fase === "dentro"
+  useEffect(() => {
+    if (enLinea && sesion !== null) {
+      void sesion.sincronizar()
+    }
+  }, [enLinea, sesion])
 
   // Volver a la pantalla es buen momento para mandar lo pendiente.
   useFocusEffect(

@@ -22,9 +22,11 @@ import {
   type UsuarioCreado,
 } from "@alpha-omega/shared"
 
-import { pedir } from "./http"
+import { pedir, pedirAutenticado } from "./transporte"
 
-export { ErrorDePermiso, ErrorDeRed, ErrorDelServidor, ErrorDeSesion } from "./http"
+// Los errores viven con el transporte. Se reexportan aqui porque las pantallas
+// ya los importan de este fichero y no tienen por que saber de donde salen.
+export { ErrorDeRed, ErrorDeSesion, ErrorDelServidor, ErrorDePermiso } from "./transporte"
 
 /**
  * Toda respuesta se valida antes de usarse. Lo que llega por la red es dato de
@@ -57,9 +59,7 @@ export async function activarCuenta(token: string, contrasena: string): Promise<
 }
 
 export async function leerPerfil(tokenAcceso: string): Promise<PerfilPropio> {
-  return PerfilPropioSchema.parse(
-    await pedir("/perfil", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+  return PerfilPropioSchema.parse(await pedirAutenticado("/perfil", tokenAcceso))
 }
 
 export async function guardarPerfil(
@@ -67,9 +67,8 @@ export async function guardarPerfil(
   cambios: CambiosDePerfil,
 ): Promise<PerfilPropio> {
   return PerfilPropioSchema.parse(
-    await pedir("/perfil", {
+    await pedirAutenticado("/perfil", tokenAcceso, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify(cambios),
     }),
   )
@@ -94,9 +93,7 @@ export async function listarUsuarios(
   consulta.set("desde", String(filtros.desde))
 
   return ListadoUsuariosSchema.parse(
-    await pedir(`/usuarios?${consulta.toString()}`, {
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
+    await pedirAutenticado(`/usuarios?${consulta.toString()}`, tokenAcceso),
   )
 }
 
@@ -106,9 +103,8 @@ export async function crearUsuario(
   datos: CrearUsuario,
 ): Promise<UsuarioCreado> {
   return UsuarioCreadoSchema.parse(
-    await pedir("/usuarios", {
+    await pedirAutenticado("/usuarios", tokenAcceso, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify(datos),
     }),
   )
@@ -116,9 +112,7 @@ export async function crearUsuario(
 
 /** La ficha completa de una persona de la cartera. */
 export async function leerUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
-  return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}`, { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+  return FichaDeUsuarioSchema.parse(await pedirAutenticado(`/usuarios/${id}`, tokenAcceso))
 }
 
 /** Corrige los datos de contacto. El rol, el estado y el correo no viajan aqui. */
@@ -128,9 +122,8 @@ export async function guardarUsuario(
   cambios: CambiosDeUsuario,
 ): Promise<FichaDeUsuario> {
   return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}`, {
+    await pedirAutenticado(`/usuarios/${id}`, tokenAcceso, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify(cambios),
     }),
   )
@@ -143,9 +136,8 @@ export async function corregirCorreo(
   email: string,
 ): Promise<FichaDeUsuario> {
   return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/correo`, {
+    await pedirAutenticado(`/usuarios/${id}/correo`, tokenAcceso, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify({ email }),
     }),
   )
@@ -157,9 +149,8 @@ export async function reenviarActivacion(
   id: string,
 ): Promise<ResultadoDeEnvio> {
   return ResultadoDeEnvioSchema.parse(
-    await pedir(`/usuarios/${id}/reenviar-activacion`, {
+    await pedirAutenticado(`/usuarios/${id}/reenviar-activacion`, tokenAcceso, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
   )
 }
@@ -167,9 +158,8 @@ export async function reenviarActivacion(
 /** Da de baja. No borra: el historico se conserva entero. */
 export async function desactivarUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
   return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/desactivar`, {
+    await pedirAutenticado(`/usuarios/${id}/desactivar`, tokenAcceso, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
   )
 }
@@ -177,9 +167,8 @@ export async function desactivarUsuario(tokenAcceso: string, id: string): Promis
 /** Deshace una baja. Quien nunca activo vuelve a pendiente, no a activo. */
 export async function reactivarUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
   return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/reactivar`, {
+    await pedirAutenticado(`/usuarios/${id}/reactivar`, tokenAcceso, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
   )
 }
@@ -190,9 +179,7 @@ export async function leerAsignaciones(
   nutricionistaId: string,
 ): Promise<AsignacionesDeNutricionista> {
   return AsignacionesDeNutricionistaSchema.parse(
-    await pedir(`/nutricionistas/${nutricionistaId}/clientes`, {
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
+    await pedirAutenticado(`/nutricionistas/${nutricionistaId}/clientes`, tokenAcceso),
   )
 }
 
@@ -202,9 +189,8 @@ export async function asignarCliente(
   nutricionistaId: string,
   clienteId: string,
 ): Promise<void> {
-  await pedir(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, {
+  await pedirAutenticado(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, tokenAcceso, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${tokenAcceso}` },
   })
 }
 
@@ -214,17 +200,14 @@ export async function retirarCliente(
   nutricionistaId: string,
   clienteId: string,
 ): Promise<void> {
-  await pedir(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, {
+  await pedirAutenticado(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, tokenAcceso, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${tokenAcceso}` },
   })
 }
 
 /** La lista del propio nutricionista. Sale del token, no de la ruta. */
 export async function listarMisClientes(tokenAcceso: string): Promise<ListadoUsuarios> {
-  return ListadoUsuariosSchema.parse(
-    await pedir("/mis-clientes", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+  return ListadoUsuariosSchema.parse(await pedirAutenticado("/mis-clientes", tokenAcceso))
 }
 
 /**

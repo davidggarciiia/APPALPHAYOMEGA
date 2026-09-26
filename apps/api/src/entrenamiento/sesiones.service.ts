@@ -17,6 +17,8 @@ import {
   type SesionEntrenador,
 } from "@alpha-omega/shared"
 
+import type { Prisma } from "@prisma/client"
+
 import { CAMPOS_AGENDA, aSesionProgramada } from "../agenda/agenda.service.js"
 import { aFechaBD, deFechaBD } from "../agenda/fechas-bd.js"
 import { aEjercicio } from "../catalogo-ejercicios/catalogo-ejercicios.service.js"
@@ -48,6 +50,19 @@ const CAMPOS_PRIVADOS = {
   borradorActualizadoEn: true,
 } as const
 
+/**
+ * Orden de las sesiones de un día. La fecha original desempata dos sesiones
+ * que acaban en el mismo día: la que ya estaba va antes que la que se movió
+ * allí. Sin ella, dos sesiones creadas en la misma inserción empataban y el
+ * orden dependía de sus identificadores aleatorios.
+ */
+const ORDEN_DE_SESIONES = [
+  { fechaActual: "asc" },
+  { fechaOriginal: "asc" },
+  { creadoEn: "asc" },
+  { id: "asc" },
+] as const satisfies Prisma.SesionProgramadaOrderByWithRelationInput[]
+
 export function noExiste(): NotFoundException {
   return new NotFoundException("Esta sesión no existe")
 }
@@ -76,7 +91,7 @@ export class SesionesService {
         },
       },
       select: { ...CAMPOS_AGENDA, entrenamiento: { select: { nombre: true, enviadoEn: true } } },
-      orderBy: [{ fechaActual: "asc" }, { creadoEn: "asc" }, { id: "asc" }],
+      orderBy: ORDEN_DE_SESIONES,
     })
     const sesiones = filas.flatMap((fila) =>
       fila.entrenamiento === null
@@ -114,7 +129,7 @@ export class SesionesService {
           select: { nombre: true, enviadoEn: true, seriesHechas: true, seriesPrescritas: true },
         },
       },
-      orderBy: [{ fechaActual: "asc" }, { creadoEn: "asc" }, { id: "asc" }],
+      orderBy: ORDEN_DE_SESIONES,
     })
     return {
       semana: consulta.semana,
