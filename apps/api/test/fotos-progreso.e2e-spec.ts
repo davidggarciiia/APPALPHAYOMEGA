@@ -241,7 +241,7 @@ describe("Fotos de progreso: el cliente sube las suyas cuando quiere", () => {
       .expect(204)
     await confirmar(medio.id).expect(200)
     const visita = await entorno.prisma.valoracion.create({
-      data: { clienteId: cliente(), autorId: entorno.ids.entrenador!, tipo: "revision" },
+      data: { clienteId: cliente(), autorId: entorno.ids.entrenador!, tipo: "inicial" },
     })
     await entorno.prisma.medioFoto.update({
       where: { id: medio.id },
