@@ -1,5 +1,8 @@
 # Tareas de Fable — catálogo y pantallas del entrenador
 
+> **Sustituido el 2026-09-26** por [tasks/panel-entrenador](../panel-entrenador/todo.md).
+> El catálogo (F01) ya existe en `dev`; el resto se reparte allí.
+
 > Preparado el 2026-09-18 con Agent Skills, `planning-and-task-breakdown`.
 > **Estado: F01–F08 integrados; Codex terminó el trabajo pendiente por encargo de David.**
 > Véanse el [plan de Fable](plan-fable.md) y la [coordinación con Codex](plan.md).

@@ -19,3 +19,14 @@ Alpha & Omega · Pantallas con el plan.html
 # escribimos a mano con un formato que Prettier no debe tocar.
 **/prisma/migrations/
 **/.prisma/
+
+# Skills de terceros, copiadas tal cual de su repositorio. Si Prettier las
+# reescribe, actualizarlas desde el original deja de ser copiar y pegar.
+.claude/skills/animate-expo/
+
+# Pantallas exportadas tal cual de Claude Design. Si Prettier las reformatea,
+# los números de línea que cita la auditoría dejan de coincidir.
+docs/diseno/pantallas/
+
+# Trazados del logo, generados por apps/mobile/assets/logo/vectorizar.py.
+apps/mobile/src/componentes/logo/trazos.ts

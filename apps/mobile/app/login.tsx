@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { Pressable, StyleSheet, Text } from "react-native"
+import { StyleSheet, Text } from "react-native"
 import { CredencialesSchema, type Credenciales } from "@alpha-omega/shared"
 
 import {
@@ -11,6 +11,7 @@ import {
   Campo,
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
+import { Pulsable } from "../src/componentes/pulsable"
 import { ErrorDeRed, ErrorDeSesion } from "../src/lib/api"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
@@ -93,15 +94,16 @@ export default function Login(): React.JSX.Element {
 
       <BotonPrincipal texto="ENTRAR" onPress={() => void enviar()} ocupado={isSubmitting} />
 
-      <Pressable
+      <Pulsable
         style={estilos.olvidada}
+        hitSlop={4}
         onPress={() => {
           router.push("/recuperar")
         }}
         accessibilityRole="button"
       >
         <Text style={estilos.textoOlvidada}>HE OLVIDADO MI CONTRASEÑA</Text>
-      </Pressable>
+      </Pulsable>
     </PantallaDeFormulario>
   )
 }

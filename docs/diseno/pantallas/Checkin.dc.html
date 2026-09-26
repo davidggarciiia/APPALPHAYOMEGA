@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<title>Check-in antes de entrenar</title>
+<script src="6ff199d9-8151-4255-a9bb-f4df8f9bb1e4"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>/* vietnamese */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("826982e1-cfe9-479a-97f0-2816c1ef9093") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("5a0198ba-94c0-4c4a-8628-bbda9c045410") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("bd2e2f4f-bf3c-419e-beaa-1702b502f022") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("b5b6255a-8dc4-4513-8513-1bbea0d2c61f") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("b0abe2cb-fe52-4037-99f4-bb429bce5ea7") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("0d9f7321-6894-41b5-b50f-0e827c4a04d7") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("b5b6255a-8dc4-4513-8513-1bbea0d2c61f") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("b0abe2cb-fe52-4037-99f4-bb429bce5ea7") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("0d9f7321-6894-41b5-b50f-0e827c4a04d7") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("b5b6255a-8dc4-4513-8513-1bbea0d2c61f") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("b0abe2cb-fe52-4037-99f4-bb429bce5ea7") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("0d9f7321-6894-41b5-b50f-0e827c4a04d7") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>
+body{margin:0;background:#0E0D0B;font-family:'Archivo',sans-serif}
+input,textarea,button{font-family:inherit}
+input::placeholder,textarea::placeholder{color:#948D80;opacity:1}
+input,textarea{caret-color:#FFC34C}
+::selection{background:rgba(255,195,76,.35);color:#F2EDE1}
+button{cursor:pointer}
+:focus-visible{outline:2px solid #FFC34C;outline-offset:2px}
+a{color:#FFC34C}a:hover{color:#FFD978}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: radial-gradient(520px 560px at 85% 0%, #3A2A0C 0%, #0E0D0B 62%) #0E0D0B; color: #F2EDE1; font-family: 'Archivo', sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+<div style="display: flex; align-items: center; padding: 16px 20px 0">
+<a href="Main.dc.html" aria-label="Volver" style="width: 44px; height: 44px; border-radius: 12px; background: #1F1D19; display: flex; align-items: center; justify-content: center; color: #F2EDE1"><svg width="18" height="18" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+</div>
+
+<div style="padding: 20px 20px 32px; display: flex; flex-direction: column; gap: 32px; flex-grow: 1; height: 527px">
+<h1 style="margin: 0; font-family: 'Anton', sans-serif; font-weight: 400; font-size: 34px; line-height: 1.1; text-transform: uppercase">¿Cómo llegas?</h1>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 16px; font-weight: 700">¿Cómo te sientes?</span>
+<div role="group" aria-label="Cómo te sientes, de 1 a 5" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px">
+<button style="height: 48px; border-radius: 12px; border: none; background: #1A1916; color: #F2EDE1; font-size: 16px; font-weight: 600">1</button>
+<button style="height: 48px; border-radius: 12px; border: none; background: #1A1916; color: #F2EDE1; font-size: 16px; font-weight: 600">2</button>
+<button aria-pressed="true" style="height: 48px; border-radius: 12px; border: none; background: linear-gradient(135deg, #FFF09A 0%, #FFCF52 38%, #FFB53C 72%, #E99A1F 100%); color: #16140F; font-size: 16px; font-weight: 700">3</button>
+<button style="height: 48px; border-radius: 12px; border: none; background: #1A1916; color: #F2EDE1; font-size: 16px; font-weight: 600">4</button>
+<button style="height: 48px; border-radius: 12px; border: none; background: #1A1916; color: #F2EDE1; font-size: 16px; font-weight: 600">5</button>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 13px; color: #A39C8F"><span>Agotado</span><span>A tope</span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<span style="font-size: 16px; font-weight: 700">¿Algo te molesta?</span>
+<div role="group" aria-label="Algo te molesta" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+<button aria-pressed="true" style="height: 48px; border-radius: 12px; border: none; background: linear-gradient(135deg, #FFF09A 0%, #FFCF52 38%, #FFB53C 72%, #E99A1F 100%); color: #16140F; font-size: 15px; font-weight: 700">Nada</button>
+<button style="height: 48px; border-radius: 12px; border: none; background: #1A1916; color: #F2EDE1; font-size: 15px; font-weight: 600">Agujetas</button>
+<button style="height: 48px; border-radius: 12px; border: none; background: #1A1916; color: #F2EDE1; font-size: 15px; font-weight: 600">Dolor</button>
+</div>
+</div>
+
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 16px">
+
+<a href="Sesion.dc.html" style="height: 52px; border-radius: 14px; background: linear-gradient(135deg, #FFF09A 0%, #FFCF52 38%, #FFB53C 72%, #E99A1F 100%); color: #16140F; font-weight: 700; font-size: 16px; display: flex; align-items: center; justify-content: center; text-decoration: none">Empezar</a>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844}}">
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+
+
+</body></html>

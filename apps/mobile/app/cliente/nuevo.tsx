@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { Pressable, StyleSheet, Text } from "react-native"
+import { StyleSheet, Text } from "react-native"
 import { CrearUsuarioSchema, type CrearUsuario, type Rol } from "@alpha-omega/shared"
 
 import {
@@ -11,6 +11,7 @@ import {
   Campo,
   PantallaDeFormulario,
 } from "../../src/componentes/formulario"
+import { Pulsable } from "../../src/componentes/pulsable"
 import { ErrorDelServidor, crearUsuario } from "../../src/lib/api"
 import { faltaDe } from "../../src/lib/errores"
 import { useSesion } from "../../src/sesion"
@@ -152,15 +153,16 @@ export default function NuevoCliente(): React.JSX.Element {
 
       <BotonPrincipal texto="DAR DE ALTA" onPress={() => void enviar()} ocupado={isSubmitting} />
 
-      <Pressable
+      <Pulsable
         style={estilos.volver}
+        hitSlop={4}
         onPress={() => {
           router.back()
         }}
         accessibilityRole="button"
       >
         <Text style={estilos.textoVolver}>CANCELAR</Text>
-      </Pressable>
+      </Pulsable>
     </PantallaDeFormulario>
   )
 }

@@ -1,9 +1,10 @@
-import type { INestApplication } from "@nestjs/common"
+import { type INestApplication, UnauthorizedException } from "@nestjs/common"
 import { Test } from "@nestjs/testing"
 import request from "supertest"
 
 import { AppModule } from "../src/app.module.js"
 import { cifrarContrasena } from "../src/identity/contrasenas.js"
+import { TokensRefrescoService } from "../src/identity/tokens-refresco.service.js"
 import { PrismaService } from "../src/prisma/prisma.service.js"
 
 const SUFIJO = "@e2e-carrera.test"
@@ -101,6 +102,28 @@ describe("Rotacion del token de refresco", () => {
     // no quedan dos sesiones paralelas.
     expect(respuestas.every((r) => r.status === 200 || r.status === 401)).toBe(true)
     expect(await vivos()).toBe(1)
+  })
+
+  it("un canje que llego antes de la rotacion no corta la sesion aunque se atienda tarde", async () => {
+    const sesion = await entrar()
+
+    // La peticion llega ahora, antes de que nadie haya rotado el token...
+    const llegada = new Date()
+
+    // ...pero con carga se atiende tarde. Mientras espera, otra peticion
+    // simultanea rota el token y una tercera consume la gracia. Es el orden que
+    // hacia fallar a ratos el test de los cuatro canjes; aqui se fuerza siempre.
+    await refrescar(sesion.tokenRefresco).expect(200)
+    const reintento = await refrescar(sesion.tokenRefresco).expect(200)
+
+    await expect(
+      app.get(TokensRefrescoService).canjear(sesion.tokenRefresco, llegada),
+    ).rejects.toThrow(UnauthorizedException)
+
+    // Perder una carrera no es un robo. La sesion sigue con un solo token vivo y
+    // quien lo tiene sigue dentro.
+    expect(await vivos()).toBe(1)
+    await refrescar(reintento.body.tokenRefresco).expect(200)
   })
 
   it("un canje repetido justo despues se atiende como reintento", async () => {

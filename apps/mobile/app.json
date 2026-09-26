@@ -10,6 +10,14 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0E0D0B",
+          "image": "./assets/splash/vacio.png",
+          "imageWidth": 48
+        }
+      ],
       "expo-video",
       [
         "expo-image-picker",

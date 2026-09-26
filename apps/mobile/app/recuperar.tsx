@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { Pressable, StyleSheet, Text } from "react-native"
+import { StyleSheet, Text } from "react-native"
 import { SolicitudRecuperacionSchema, type SolicitudRecuperacion } from "@alpha-omega/shared"
 
 import {
@@ -11,6 +11,7 @@ import {
   Campo,
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
+import { Pulsable } from "../src/componentes/pulsable"
 import { pedirEnlaceDeRecuperacion } from "../src/lib/api"
 import { faltaDe } from "../src/lib/errores"
 import { tema } from "../src/tema"
@@ -61,15 +62,16 @@ export default function Recuperar(): React.JSX.Element {
           Si no te llega, revisa la carpeta de spam o pídeselo a tu entrenador.
         </Text>
 
-        <Pressable
+        <Pulsable
           style={estilos.volver}
+          hitSlop={4}
           onPress={() => {
             router.replace("/login")
           }}
           accessibilityRole="button"
         >
           <Text style={estilos.textoVolver}>VOLVER A ENTRAR</Text>
-        </Pressable>
+        </Pulsable>
       </PantallaDeFormulario>
     )
   }
@@ -110,15 +112,16 @@ export default function Recuperar(): React.JSX.Element {
         ocupado={isSubmitting}
       />
 
-      <Pressable
+      <Pulsable
         style={estilos.volver}
+        hitSlop={4}
         onPress={() => {
           router.back()
         }}
         accessibilityRole="button"
       >
         <Text style={estilos.textoVolver}>VOLVER</Text>
-      </Pressable>
+      </Pulsable>
     </PantallaDeFormulario>
   )
 }
