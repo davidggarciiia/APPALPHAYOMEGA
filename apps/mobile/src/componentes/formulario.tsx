@@ -2,7 +2,6 @@ import type { ReactNode } from "react"
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { tema } from "../tema"
+import { Pulsable } from "./pulsable"
 
 /**
  * Envoltorio de pantalla con formulario.
@@ -82,8 +82,8 @@ export function BotonPrincipal({
   ocupado?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
-      style={({ pressed }) => [estilos.boton, (pressed || ocupado) && estilos.botonPulsado]}
+    <Pulsable
+      style={[estilos.boton, ocupado && estilos.botonOcupado]}
       onPress={onPress}
       disabled={ocupado}
       accessibilityRole="button"
@@ -93,7 +93,7 @@ export function BotonPrincipal({
       accessibilityState={{ disabled: ocupado, busy: ocupado }}
     >
       <Text style={estilos.textoBoton}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -114,8 +114,8 @@ export function BotonSecundario({
   ocupado?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
-      style={({ pressed }) => [estilos.secundario, (pressed || ocupado) && estilos.botonPulsado]}
+    <Pulsable
+      style={[estilos.secundario, ocupado && estilos.botonOcupado]}
       onPress={onPress}
       disabled={ocupado}
       accessibilityRole="button"
@@ -123,7 +123,7 @@ export function BotonSecundario({
       accessibilityState={{ disabled: ocupado, busy: ocupado }}
     >
       <Text style={estilos.textoSecundario}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -138,8 +138,8 @@ export function BotonDestructivo({
   ocupado?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
-      style={({ pressed }) => [estilos.destructivo, (pressed || ocupado) && estilos.botonPulsado]}
+    <Pulsable
+      style={[estilos.destructivo, ocupado && estilos.botonOcupado]}
       onPress={onPress}
       disabled={ocupado}
       accessibilityRole="button"
@@ -147,7 +147,7 @@ export function BotonDestructivo({
       accessibilityState={{ disabled: ocupado, busy: ocupado }}
     >
       <Text style={estilos.textoDestructivo}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -217,7 +217,7 @@ const estilos = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
   },
-  botonPulsado: { opacity: 0.75 },
+  botonOcupado: { opacity: 0.75 },
   textoBoton: { color: tema.fondo, fontSize: 14, fontWeight: "700", letterSpacing: 2 },
   secundario: {
     borderColor: tema.borde,

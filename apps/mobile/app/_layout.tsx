@@ -1,8 +1,11 @@
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useEffect } from "react"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 
+import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
+import { Pulsable } from "../src/componentes/pulsable"
+import { useMovimientoReducido } from "../src/lib/movimiento"
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
@@ -23,6 +26,7 @@ function Enrutador(): React.JSX.Element {
   const { estado, sinConexion, reintentar } = useSesion()
   const segmentos = useSegments()
   const router = useRouter()
+  const movimientoReducido = useMovimientoReducido()
 
   useEffect(() => {
     if (estado.fase === "comprobando") {
@@ -42,44 +46,46 @@ function Enrutador(): React.JSX.Element {
     }
   }, [estado, segmentos, router])
 
-  if (estado.fase === "comprobando") {
-    return (
-      <View style={estilos.centrado}>
-        <ActivityIndicator
-          color={tema.oro}
-          size="large"
-          accessibilityLabel="Comprobando tu sesión"
-        />
-      </View>
-    )
-  }
+  let contenido: React.JSX.Element | null = null
 
-  // Se conserva el token guardado: el problema es la red, no la credencial. Por
-  // eso se ofrece reintentar en vez de mandar directamente al login.
   if (estado.fase === "fuera" && sinConexion) {
-    return (
+    // Se conserva el token guardado: el problema es la red, no la credencial. Por
+    // eso se ofrece reintentar en vez de mandar directamente al login.
+    contenido = (
       <View style={estilos.centrado}>
         <Text style={estilos.marca}>ALPHA &amp; OMEGA</Text>
         <Text style={estilos.aviso}>No hemos podido conectar con el servidor.</Text>
         <Text style={estilos.detalle}>Tu sesión sigue guardada. Comprueba tu conexión.</Text>
-        <Pressable
-          style={({ pressed }) => [estilos.boton, pressed && estilos.botonPulsado]}
-          onPress={reintentar}
-          accessibilityRole="button"
-        >
+        <Pulsable style={estilos.boton} onPress={reintentar} accessibilityRole="button">
           <Text style={estilos.textoBoton}>REINTENTAR</Text>
-        </Pressable>
+        </Pulsable>
       </View>
+    )
+  } else if (estado.fase !== "comprobando") {
+    contenido = (
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: tema.fondo },
+          // La transicion entre pantallas es la nativa y no se toca: corre en el
+          // lado de la plataforma, conserva el gesto de volver y es la misma que en
+          // el resto de apps del movil. Con movimiento reducido pasa a fundido, y el
+          // gesto de volver en iOS funde tambien en vez de deslizar la pantalla.
+          animation: movimientoReducido ? "fade" : "default",
+          animationMatchesGesture: true,
+        }}
+      />
     )
   }
 
+  // La pantalla de carga va encima y no en lugar del contenido: cuando la
+  // comprobacion acaba, lo siguiente se monta debajo y ella se funde por encima.
+  // Si lo sustituyera, el cambio seria un corte seco.
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: tema.fondo },
-      }}
-    />
+    <View style={estilos.raiz}>
+      {contenido}
+      {estado.fase === "comprobando" && <PantallaDeCarga />}
+    </View>
   )
 }
 
@@ -93,6 +99,7 @@ export default function DisposicionRaiz(): React.JSX.Element {
 }
 
 const estilos = StyleSheet.create({
+  raiz: { flex: 1, backgroundColor: tema.fondo },
   centrado: {
     flex: 1,
     alignItems: "center",
@@ -111,6 +118,5 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 14,
   },
-  botonPulsado: { opacity: 0.6 },
   textoBoton: { color: tema.oro, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
 })

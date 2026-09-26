@@ -1,11 +1,12 @@
 import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { ResumenUsuario } from "@alpha-omega/shared"
 
 import { BotonSecundario } from "../src/componentes/formulario"
 import { InsigniaDeEstado } from "../src/componentes/insignia-estado"
+import { HOLGURA_DE_ENLACE, Pulsable } from "../src/componentes/pulsable"
 import { listarMisClientes } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
 import { useSesion } from "../src/sesion"
@@ -98,15 +99,15 @@ export default function MisClientes(): React.JSX.Element {
     <SafeAreaView style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>MIS CLIENTES</Text>
-        <Pressable
+        <Pulsable
           onPress={() => {
             router.back()
           }}
           accessibilityRole="button"
-          hitSlop={12}
+          hitSlop={HOLGURA_DE_ENLACE}
         >
           <Text style={estilos.volver}>VOLVER</Text>
-        </Pressable>
+        </Pulsable>
       </View>
 
       <FlatList

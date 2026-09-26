@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import type { EstadoUsuario, ResumenUsuario } from "@alpha-omega/shared"
 
 import { ETIQUETA_DE_ESTADO, InsigniaDeEstado } from "../src/componentes/insignia-estado"
+import { HOLGURA_DE_ENLACE, Pulsable } from "../src/componentes/pulsable"
 import { listarUsuarios } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
 import { useSesion } from "../src/sesion"
@@ -37,6 +37,12 @@ const FILTROS: ReadonlyArray<{ etiqueta: string; estado: EstadoUsuario | null }>
   { etiqueta: "ACTIVOS", estado: "activo" },
   { etiqueta: "BAJAS", estado: "desactivado" },
 ]
+
+/**
+ * Un filtro mide unos 27 puntos de alto y el dedo necesita 44. Solo se amplia en
+ * vertical: a los lados estan los otros filtros, a 8 puntos.
+ */
+const HOLGURA_DE_FILTRO = { top: 9, bottom: 9 } as const
 
 type Fase = "cargando" | "listo" | "error"
 
@@ -146,25 +152,25 @@ export default function Cartera(): React.JSX.Element {
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>TU CARTERA</Text>
         <View style={estilos.accionesCabecera}>
-          <Pressable
+          <Pulsable
             onPress={() => {
               router.push("/cliente/nuevo")
             }}
             accessibilityRole="button"
             accessibilityLabel="Dar de alta a un cliente nuevo"
-            hitSlop={12}
+            hitSlop={HOLGURA_DE_ENLACE}
           >
             <Text style={estilos.nuevo}>+ NUEVO</Text>
-          </Pressable>
-          <Pressable
+          </Pulsable>
+          <Pulsable
             onPress={() => {
               router.back()
             }}
             accessibilityRole="button"
-            hitSlop={12}
+            hitSlop={HOLGURA_DE_ENLACE}
           >
             <Text style={estilos.volver}>VOLVER</Text>
-          </Pressable>
+          </Pulsable>
         </View>
       </View>
 
@@ -188,9 +194,10 @@ export default function Cartera(): React.JSX.Element {
           const puesto = opcion.estado === filtro
 
           return (
-            <Pressable
+            <Pulsable
               key={opcion.etiqueta}
               style={[estilos.filtro, puesto && estilos.filtroPuesto]}
+              hitSlop={HOLGURA_DE_FILTRO}
               onPress={() => {
                 setFiltro(opcion.estado)
               }}
@@ -200,7 +207,7 @@ export default function Cartera(): React.JSX.Element {
               <Text style={[estilos.textoFiltro, puesto && estilos.textoFiltroPuesto]}>
                 {opcion.etiqueta}
               </Text>
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>
@@ -219,15 +226,15 @@ export default function Cartera(): React.JSX.Element {
             {fallo.texto}
           </Text>
           {fallo.reintentable && (
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+            <Pulsable
+              style={estilos.boton}
               onPress={() => {
                 setIntento((n) => n + 1)
               }}
               accessibilityRole="button"
             >
               <Text style={estilos.textoBoton}>REINTENTAR</Text>
-            </Pressable>
+            </Pulsable>
           )}
         </View>
       ) : (
@@ -285,12 +292,8 @@ function Fila({
   const deBaja = cliente.estado === "desactivado"
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        estilos.fila,
-        deBaja && estilos.filaApagada,
-        pressed && estilos.filaPulsada,
-      ]}
+    <Pulsable
+      style={[estilos.fila, deBaja && estilos.filaApagada]}
       onPress={onAbrir}
       // Un lector de pantalla lee la fila entera de una vez en lugar de tres
       // trozos sueltos, que es como se pierde el estado.
@@ -309,7 +312,7 @@ function Fila({
       </View>
 
       <InsigniaDeEstado estado={cliente.estado} />
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -370,7 +373,6 @@ const estilos = StyleSheet.create({
     gap: 12,
   },
   filaApagada: { opacity: 0.55 },
-  filaPulsada: { borderColor: tema.oro },
   datos: { flex: 1, gap: 3 },
   nombre: { color: tema.texto, fontSize: 16 },
   correo: { color: tema.textoTenue, fontSize: 12 },
@@ -392,6 +394,5 @@ const estilos = StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 14,
   },
-  pulsado: { opacity: 0.6 },
   textoBoton: { color: tema.oro, fontSize: 13, fontWeight: "700", letterSpacing: 2 },
 })

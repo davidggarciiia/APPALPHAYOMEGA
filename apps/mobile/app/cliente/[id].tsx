@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import {
   CambiosDeUsuarioSchema,
   CorreoDeUsuarioSchema,
@@ -28,6 +28,7 @@ import {
   reactivarUsuario,
   reenviarActivacion,
 } from "../../src/lib/api"
+import { Pulsable } from "../../src/componentes/pulsable"
 import { faltaDe, type Falta } from "../../src/lib/errores"
 import { useSesion } from "../../src/sesion"
 import { tema } from "../../src/tema"
@@ -338,7 +339,7 @@ export default function FichaDeCliente(): React.JSX.Element {
               Todavía no ha activado la cuenta. Si te equivocaste al teclearlo, aún puedes
               corregirlo.
             </Text>
-            <Pressable
+            <Pulsable
               onPress={() => {
                 setCorreoNuevo(ficha.email)
               }}
@@ -346,7 +347,7 @@ export default function FichaDeCliente(): React.JSX.Element {
               hitSlop={8}
             >
               <Text style={estilos.enlace}>CORREGIR CORREO</Text>
-            </Pressable>
+            </Pulsable>
           </>
         ) : (
           <>
@@ -364,7 +365,7 @@ export default function FichaDeCliente(): React.JSX.Element {
               onPress={() => void guardarCorreo()}
               ocupado={ocupado === "correo"}
             />
-            <Pressable
+            <Pulsable
               onPress={() => {
                 setCorreoNuevo(null)
               }}
@@ -372,7 +373,7 @@ export default function FichaDeCliente(): React.JSX.Element {
               hitSlop={8}
             >
               <Text style={estilos.enlace}>CANCELAR</Text>
-            </Pressable>
+            </Pulsable>
           </>
         )
       ) : (
@@ -540,15 +541,16 @@ export default function FichaDeCliente(): React.JSX.Element {
 
       <Respuesta zona="acceso" />
 
-      <Pressable
+      <Pulsable
         style={estilos.volver}
+        hitSlop={4}
         onPress={() => {
           router.back()
         }}
         accessibilityRole="button"
       >
         <Text style={estilos.textoVolver}>VOLVER A LA CARTERA</Text>
-      </Pressable>
+      </Pulsable>
     </PantallaDeFormulario>
   )
 }

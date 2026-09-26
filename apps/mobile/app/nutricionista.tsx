@@ -1,19 +1,12 @@
 import { useFocusEffect, useRouter } from "expo-router"
 import { useCallback, useRef, useState } from "react"
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native"
+import { ActivityIndicator, FlatList, StyleSheet, Switch, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { ResumenUsuario } from "@alpha-omega/shared"
 
 import { BotonSecundario } from "../src/componentes/formulario"
 import { InsigniaDeEstado } from "../src/componentes/insignia-estado"
+import { HOLGURA_DE_ENLACE, Pulsable } from "../src/componentes/pulsable"
 import { asignarCliente, leerAsignaciones, listarUsuarios, retirarCliente } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
 import { useSesion } from "../src/sesion"
@@ -210,15 +203,15 @@ export default function Nutricionista(): React.JSX.Element {
     <SafeAreaView style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>NUTRICIONISTA</Text>
-        <Pressable
+        <Pulsable
           onPress={() => {
             router.back()
           }}
           accessibilityRole="button"
-          hitSlop={12}
+          hitSlop={HOLGURA_DE_ENLACE}
         >
           <Text style={estilos.volver}>VOLVER</Text>
-        </Pressable>
+        </Pulsable>
       </View>
 
       <View style={estilos.ficha}>

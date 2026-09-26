@@ -1,8 +1,9 @@
 import { useRouter } from "expo-router"
 import { useState } from "react"
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+import { Pulsable } from "../src/componentes/pulsable"
 import { hayPendientes } from "../src/entrenamiento-cliente/almacen-borradores"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
@@ -57,7 +58,7 @@ export default function Inicio(): React.JSX.Element {
               Sin conexión. Puedes seguir registrando las sesiones que ya tenías descargadas; se
               enviará todo cuando vuelva la red.
             </Text>
-            <Pressable
+            <Pulsable
               onPress={() => {
                 setReconectando(true)
                 void reconectar().finally(() => setReconectando(false))
@@ -66,70 +67,70 @@ export default function Inicio(): React.JSX.Element {
               hitSlop={8}
             >
               <Text style={estilos.enlace}>{reconectando ? "PROBANDO…" : "PROBAR CONEXIÓN"}</Text>
-            </Pressable>
+            </Pulsable>
           </View>
         )}
 
         {usuario.rol === "cliente" && (
-          <Pressable
-            style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+          <Pulsable
+            style={estilos.botonPrincipal}
             onPress={() => {
               router.push("/entrenos")
             }}
             accessibilityRole="button"
           >
             <Text style={estilos.textoPrincipal}>MIS ENTRENOS</Text>
-          </Pressable>
+          </Pulsable>
         )}
 
         {/* Esconder el boton es comodidad, no seguridad: quien entre a la ruta a
             mano se encuentra con el 403 del servidor, que es quien decide. */}
         {!enLocal && usuario.rol === "entrenador" && (
           <>
-            <Pressable
-              style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+            <Pulsable
+              style={estilos.botonPrincipal}
               onPress={() => {
                 router.push("/cartera")
               }}
               accessibilityRole="button"
             >
               <Text style={estilos.textoPrincipal}>MI CARTERA</Text>
-            </Pressable>
+            </Pulsable>
 
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+            <Pulsable
+              style={estilos.boton}
               onPress={() => {
                 router.push("/nutricionista")
               }}
               accessibilityRole="button"
             >
               <Text style={estilos.textoBoton}>NUTRICIONISTA</Text>
-            </Pressable>
+            </Pulsable>
           </>
         )}
 
         {!enLocal && usuario.rol === "nutricionista" && (
-          <Pressable
-            style={({ pressed }) => [estilos.botonPrincipal, pressed && estilos.pulsado]}
+          <Pulsable
+            style={estilos.botonPrincipal}
             onPress={() => {
               router.push("/mis-clientes")
             }}
             accessibilityRole="button"
           >
             <Text style={estilos.textoPrincipal}>MIS CLIENTES</Text>
-          </Pressable>
+          </Pulsable>
         )}
 
         {!enLocal && (
-          <Pressable
-            style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+          <Pulsable
+            style={estilos.boton}
             onPress={() => {
               router.push("/perfil")
             }}
             accessibilityRole="button"
           >
             <Text style={estilos.textoBoton}>MI PERFIL</Text>
-          </Pressable>
+          </Pulsable>
         )}
 
         {avisoDeSalida ? (
@@ -138,29 +139,29 @@ export default function Inicio(): React.JSX.Element {
               Tienes entrenos registrados en este móvil que todavía no se han podido enviar al
               servidor. Si sales ahora se borrarán de este móvil.
             </Text>
-            <Pressable
-              style={({ pressed }) => [estilos.botonPeligro, pressed && estilos.pulsado]}
+            <Pulsable
+              style={estilos.botonPeligro}
               onPress={() => void salir()}
               accessibilityRole="button"
             >
               <Text style={estilos.textoPeligro}>SALIR Y DESCARTARLOS</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+            </Pulsable>
+            <Pulsable
+              style={estilos.boton}
               onPress={() => setAvisoDeSalida(false)}
               accessibilityRole="button"
             >
               <Text style={estilos.textoBoton}>CANCELAR</Text>
-            </Pressable>
+            </Pulsable>
           </View>
         ) : (
-          <Pressable
-            style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+          <Pulsable
+            style={estilos.boton}
             onPress={() => void pedirSalida()}
             accessibilityRole="button"
           >
             <Text style={estilos.textoBoton}>CERRAR SESIÓN</Text>
-          </Pressable>
+          </Pulsable>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -203,7 +204,6 @@ const estilos = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
   },
-  pulsado: { opacity: 0.6 },
   textoBoton: { color: tema.textoTenue, fontSize: 13, fontWeight: "600", letterSpacing: 2 },
   avisoLocal: {
     alignSelf: "stretch",
