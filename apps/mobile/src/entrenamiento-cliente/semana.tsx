@@ -1,311 +1,215 @@
-import { useFocusEffect, useRouter } from "expo-router"
-import { useCallback, useEffect, useRef, useState } from "react"
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import {
-  hoyEn,
-  lunesDe,
-  sumarDias,
-  type ResumenSesion,
-  type SesionProgramada,
-} from "@alpha-omega/shared"
+import { useRouter } from "expo-router"
+import { useState } from "react"
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native"
+import { hoyEn, lunesDe, sumarDias } from "@alpha-omega/shared"
 
-import { Aviso, Cabecera, Pastilla } from "../componentes/cabecera"
 import { CambiarDia } from "../componentes/cambiar-dia"
-import { BotonSecundario } from "../componentes/formulario"
-import { faltaDe, type Falta } from "../lib/errores"
-import { conMayuscula, fechaCorta, fechaLarga, rangoDeSemana } from "../lib/fechas"
-import { ErrorDeRed } from "../lib/transporte"
-import { useSesion } from "../sesion"
-import { tema } from "../tema"
+import {
+  Aviso,
+  BarraDeProgreso,
+  BotonAtras,
+  BotonSobrio,
+  FilaDeLista,
+  Lista,
+  MarcaDeEstado,
+  Pantalla,
+  texto,
+  type EstadoDeMarca,
+} from "../componentes/diseno"
+import { NavegadorDeSemana, TiraDeSemana } from "../componentes/tira-de-semana"
+import { conMayuscula, fechaLarga } from "../lib/fechas"
+import { fuentes, tema } from "../tema"
 
-import { listarCopias } from "./almacen-borradores"
-import { cambiarFecha, listarSemana } from "./api"
-import type { CopiaLocal } from "./copia-local"
-import { abrirSesionEnCurso } from "./sesiones-abiertas"
+import { cambiarFecha } from "./api"
+import { useSemana, type FilaDeSemana } from "./use-semana"
 
-type Fila = ResumenSesion & { enCurso: boolean }
+export function estadoDeFila(fila: FilaDeSemana): EstadoDeMarca {
+  return fila.enviadoEn !== null ? "hecho" : fila.enCurso ? "en-curso" : "pendiente"
+}
 
-type Carga =
-  | { fase: "cargando" }
-  | { fase: "lista"; filas: Fila[]; soloLocal: boolean }
-  | { fase: "error"; falta: Falta }
+const TEXTO_DE_ESTADO: Record<EstadoDeMarca, string> = {
+  hecho: "Enviado",
+  "en-curso": "En curso",
+  pendiente: "Pendiente",
+}
 
-function desdeCopias(copias: CopiaLocal[], semana: string): Fila[] {
-  const domingo = sumarDias(semana, 6)
-  return copias
-    .filter((c) => c.sesion.agenda.fechaActual >= semana && c.sesion.agenda.fechaActual <= domingo)
-    .map((c) => ({
-      agenda: c.sesion.agenda,
-      nombre: c.sesion.prescripcion.nombre,
-      enviadoEn: c.resultado?.enviadoEn ?? c.sesion.enviadoEn,
-      enCurso: c.resultado === null && Object.keys(c.entradas).length > 0,
-    }))
-    .sort((a, b) => a.agenda.fechaActual.localeCompare(b.agenda.fechaActual))
+/** Los puntos de la tira: uno por sesión, en su día. */
+export function marcasDe(filas: FilaDeSemana[]): Map<string, EstadoDeMarca[]> {
+  const marcas = new Map<string, EstadoDeMarca[]>()
+  for (const fila of filas) {
+    const dia = marcas.get(fila.agenda.fechaActual) ?? []
+    dia.push(estadoDeFila(fila))
+    marcas.set(fila.agenda.fechaActual, dia)
+  }
+  return marcas
 }
 
 /**
- * «Mis entrenos»: la semana del cliente, de lunes a domingo.
+ * «Mis entrenos»: la semana del cliente, de lunes a domingo, con la tira de
+ * días de Main.dc.html y las filas de Nutricion.dc.html.
  *
- * Con conexión, lo que dice el servidor, y de paso se descargan las sesiones
- * abiertas para poder registrarlas en la sala sin cobertura. Sin conexión, lo
- * que ya estaba guardado en el móvil, y la pantalla lo dice.
+ * Con conexión, lo que dice el servidor; sin conexión, lo guardado en el móvil,
+ * y la pantalla lo dice.
  */
 export function SemanaDelCliente(): React.JSX.Element {
-  const { estado } = useSesion()
   const router = useRouter()
-  const usuario = estado.fase === "dentro" || estado.fase === "local" ? estado.usuario : null
-  const enLinea = estado.fase === "dentro"
+  const hoy = hoyEn()
+  const [semana, setSemana] = useState(() => lunesDe(hoy))
+  const { carga, refrescando, refrescar, actualizarAgenda } = useSemana(semana)
+  const esEstaSemana = semana === lunesDe(hoy)
 
-  const [semana, setSemana] = useState(() => lunesDe(hoyEn()))
-  const [carga, setCarga] = useState<Carga>({ fase: "cargando" })
-  const [intento, setIntento] = useState(0)
-  const [refrescando, setRefrescando] = useState(false)
-  const primerFoco = useRef(true)
-
-  useEffect(() => {
-    if (usuario === null) {
-      return
-    }
-    let vigente = true
-    const cargar = async (): Promise<void> => {
-      const copias = await listarCopias(usuario.id).catch(() => [] as CopiaLocal[])
-      const enCurso = new Set(
-        desdeCopias(copias, semana)
-          .filter((f) => f.enCurso)
-          .map((f) => f.agenda.id),
-      )
-      if (!enLinea) {
-        if (vigente)
-          setCarga({ fase: "lista", filas: desdeCopias(copias, semana), soloLocal: true })
-        return
-      }
-      try {
-        const listado = await listarSemana(usuario.id, semana)
-        if (!vigente) return
-        setCarga({
-          fase: "lista",
-          filas: listado.sesiones.map((s) => ({ ...s, enCurso: enCurso.has(s.agenda.id) })),
-          soloLocal: false,
-        })
-        // Descarga en segundo plano de lo que se puede entrenar esta semana.
-        const guardadas = new Set(copias.map((c) => c.sesionId))
-        for (const sesion of listado.sesiones) {
-          if (sesion.agenda.estado === "abierta" && !guardadas.has(sesion.agenda.id)) {
-            await abrirSesionEnCurso(usuario.id, sesion.agenda.id).catch(() => undefined)
-          }
-        }
-      } catch (error) {
-        if (!vigente) return
-        if (error instanceof ErrorDeRed) {
-          setCarga({ fase: "lista", filas: desdeCopias(copias, semana), soloLocal: true })
-        } else {
-          setCarga({ fase: "error", falta: faltaDe(error, "No hemos podido cargar tu semana.") })
-        }
-      }
-    }
-    void cargar().finally(() => {
-      if (vigente) setRefrescando(false)
-    })
-    return () => {
-      vigente = false
-    }
-  }, [usuario, enLinea, semana, intento])
-
-  useFocusEffect(
-    useCallback(() => {
-      if (primerFoco.current) {
-        primerFoco.current = false
-        return
-      }
-      setIntento((n) => n + 1)
-    }, []),
-  )
-
-  const actualizarAgenda = (agenda: SesionProgramada): void => {
-    setCarga((actual) =>
-      actual.fase !== "lista"
-        ? actual
-        : {
-            ...actual,
-            filas: actual.filas
-              .map((fila) => (fila.agenda.id === agenda.id ? { ...fila, agenda } : fila))
-              .sort((a, b) => a.agenda.fechaActual.localeCompare(b.agenda.fechaActual)),
-          },
-    )
-  }
-
-  const esEstaSemana = semana === lunesDe(hoyEn())
+  const filas = carga.fase === "lista" ? carga.filas : []
+  const enviadas = filas.filter((f) => f.enviadoEn !== null).length
+  // La siguiente por hacer va en oro, como la comida que toca en Nutrición.
+  const siguiente = filas.find((f) => f.enviadoEn === null && f.agenda.fechaActual >= hoy)
 
   return (
-    <SafeAreaView style={estilos.pantalla}>
-      <Cabecera titulo="MIS ENTRENOS" onVolver={() => router.back()} />
-
-      <View style={estilos.navegador}>
-        <Pressable
-          onPress={() => setSemana((s) => sumarDias(s, -7))}
-          accessibilityRole="button"
-          accessibilityLabel="Semana anterior"
-          hitSlop={12}
-          style={estilos.flecha}
-        >
-          <Text style={estilos.textoFlecha}>‹</Text>
-        </Pressable>
-        <View style={estilos.centroSemana}>
-          <Text style={estilos.semana}>{rangoDeSemana(semana).toUpperCase()}</Text>
-          {!esEstaSemana && (
-            <Pressable onPress={() => setSemana(lunesDe(hoyEn()))} accessibilityRole="button">
-              <Text style={estilos.hoy}>VOLVER A ESTA SEMANA</Text>
-            </Pressable>
-          )}
+    <Pantalla>
+      <ScrollView
+        contentContainerStyle={estilos.contenido}
+        refreshControl={
+          <RefreshControl
+            refreshing={refrescando}
+            onRefresh={refrescar}
+            tintColor={tema.oro}
+            colors={[tema.oro]}
+          />
+        }
+      >
+        <View style={estilos.barraSuperior}>
+          <BotonAtras onPress={() => router.back()} />
         </View>
-        <Pressable
-          onPress={() => setSemana((s) => sumarDias(s, 7))}
-          accessibilityRole="button"
-          accessibilityLabel="Semana siguiente"
-          hitSlop={12}
-          style={estilos.flecha}
-        >
-          <Text style={estilos.textoFlecha}>›</Text>
-        </Pressable>
-      </View>
+        <Text style={texto.titulo} accessibilityRole="header">
+          Mis entrenos
+        </Text>
 
-      {carga.fase === "cargando" && (
-        <View style={estilos.centrado}>
-          <ActivityIndicator color={tema.oro} accessibilityLabel="Cargando tu semana" />
-        </View>
-      )}
+        <NavegadorDeSemana
+          lunes={semana}
+          esEstaSemana={esEstaSemana}
+          alCambiar={(dias) => setSemana((s) => sumarDias(s, dias))}
+          alVolverAHoy={() => setSemana(lunesDe(hoy))}
+        />
 
-      {carga.fase === "error" && (
-        <View style={estilos.centrado}>
-          <Text style={estilos.mensaje}>{carga.falta.texto}</Text>
-          {carga.falta.reintentable && (
-            <BotonSecundario texto="REINTENTAR" onPress={() => setIntento((n) => n + 1)} />
-          )}
-        </View>
-      )}
+        {carga.fase === "cargando" && (
+          <View style={estilos.centrado}>
+            <ActivityIndicator color={tema.oro} accessibilityLabel="Cargando tu semana" />
+          </View>
+        )}
 
-      {carga.fase === "lista" && (
-        <FlatList
-          data={carga.filas}
-          keyExtractor={(fila) => fila.agenda.id}
-          contentContainerStyle={estilos.lista}
-          refreshControl={
-            <RefreshControl
-              refreshing={refrescando}
-              onRefresh={() => {
-                setRefrescando(true)
-                setIntento((n) => n + 1)
-              }}
-              tintColor={tema.oro}
-              colors={[tema.oro]}
-            />
-          }
-          ListHeaderComponent={
-            carga.soloLocal ? (
+        {carga.fase === "error" && (
+          <View style={estilos.centrado}>
+            <Text style={[texto.cuerpo, estilos.centradoTexto]}>{carga.falta.texto}</Text>
+            {carga.falta.reintentable && <BotonSobrio texto="Reintentar" onPress={refrescar} />}
+          </View>
+        )}
+
+        {carga.fase === "lista" && (
+          <>
+            <TiraDeSemana lunes={semana} hoy={hoy} marcas={marcasDe(carga.filas)} />
+
+            {carga.soloLocal && (
               <Aviso>
-                <Text style={estilos.textoAviso}>
+                <Text style={texto.cuerpo}>
                   Sin conexión. Ves las sesiones guardadas en este móvil y puedes seguir
                   registrando: se enviará todo cuando vuelva la red.
                 </Text>
               </Aviso>
-            ) : null
-          }
-          ListEmptyComponent={
-            <Text style={estilos.vacio}>
-              {carga.soloLocal
-                ? "No hay sesiones de esta semana guardadas en el móvil."
-                : "No tienes sesiones esta semana."}
-            </Text>
-          }
-          renderItem={({ item }) => (
-            <View style={estilos.tarjeta}>
-              {/* La tarjeta y «Cambiar día» son dos botones hermanos, no anidados. */}
-              <Pressable
-                onPress={() =>
-                  router.push({ pathname: "/entrenos/[id]", params: { id: item.agenda.id } })
-                }
-                style={({ pressed }) => [estilos.zonaPulsable, pressed && estilos.pulsado]}
-                accessibilityRole="button"
-                accessibilityLabel={`${item.nombre}, ${fechaLarga(item.agenda.fechaActual)}`}
-              >
-                <View style={estilos.filaSuperior}>
-                  <Text style={estilos.dia}>
-                    {fechaCorta(item.agenda.fechaActual).toUpperCase()}
-                  </Text>
-                  {item.enviadoEn !== null ? (
-                    <Pastilla texto="ENVIADO" tono="exito" />
-                  ) : item.enCurso ? (
-                    <Pastilla texto="EN CURSO" tono="oro" />
-                  ) : (
-                    <Pastilla texto="PENDIENTE" />
-                  )}
-                </View>
-                <Text style={estilos.nombre}>{item.nombre}</Text>
-                {item.agenda.fechaActual !== item.agenda.fechaOriginal && (
-                  <Text style={estilos.movida}>
-                    {`Movida desde el ${fechaLarga(item.agenda.fechaOriginal)}`}
+            )}
+
+            <View style={estilos.seccion}>
+              <View style={estilos.cabeceraSeccion}>
+                <Text style={texto.seccion}>Sesiones</Text>
+                {filas.length > 0 && (
+                  <Text style={estilos.cuenta}>
+                    {`${String(enviadas)} de ${String(filas.length)}`}
                   </Text>
                 )}
-              </Pressable>
-              {!carga.soloLocal && item.enviadoEn === null && (
-                <CambiarDia
-                  agenda={item.agenda}
-                  cambiar={(fecha, revision) => cambiarFecha(item.agenda.id, fecha, revision)}
-                  alCambiar={actualizarAgenda}
-                />
+              </View>
+              {filas.length > 0 && <BarraDeProgreso fraccion={enviadas / filas.length} />}
+
+              {filas.length === 0 ? (
+                <Text style={[texto.tenueGrande, estilos.vacio]}>
+                  {carga.soloLocal
+                    ? "No hay sesiones de esta semana guardadas en el móvil."
+                    : "No tienes sesiones esta semana."}
+                </Text>
+              ) : (
+                <Lista>
+                  {filas.map((fila, indice) => {
+                    const estado = estadoDeFila(fila)
+                    const movida = fila.agenda.fechaActual !== fila.agenda.fechaOriginal
+                    const detalle = [
+                      conMayuscula(fechaLarga(fila.agenda.fechaActual)),
+                      TEXTO_DE_ESTADO[estado],
+                    ].join(" · ")
+                    return (
+                      <FilaDeLista
+                        key={fila.agenda.id}
+                        titulo={fila.nombre}
+                        subtitulo={
+                          movida
+                            ? `${detalle}\nMovida desde el ${fechaLarga(fila.agenda.fechaOriginal)}`
+                            : detalle
+                        }
+                        izquierda={<MarcaDeEstado estado={estado} />}
+                        resaltada={fila === siguiente}
+                        ultima={indice === filas.length - 1}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/entrenos/[id]",
+                            params: { id: fila.agenda.id },
+                          })
+                        }
+                        accessibilityLabel={`${fila.nombre}, ${detalle}`}
+                      >
+                        {!carga.soloLocal && fila.enviadoEn === null && (
+                          <View style={estilos.cambiarDia}>
+                            <CambiarDia
+                              agenda={fila.agenda}
+                              cambiar={(fecha, revision) =>
+                                cambiarFecha(fila.agenda.id, fecha, revision)
+                              }
+                              alCambiar={actualizarAgenda}
+                            />
+                          </View>
+                        )}
+                      </FilaDeLista>
+                    )
+                  })}
+                </Lista>
               )}
             </View>
-          )}
-        />
-      )}
-      {carga.fase === "lista" && esEstaSemana && carga.filas.length > 0 && (
-        <Text style={estilos.pie}>{conMayuscula(`hoy es ${fechaLarga(hoyEn())}`)}</Text>
-      )}
-    </SafeAreaView>
+
+            {esEstaSemana && (
+              <Text style={[texto.tenue, estilos.pie]}>
+                {conMayuscula(`hoy es ${fechaLarga(hoy)}`)}
+              </Text>
+            )}
+          </>
+        )}
+      </ScrollView>
+    </Pantalla>
   )
 }
 
 const estilos = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: tema.fondo },
-  navegador: {
+  contenido: { padding: 20, paddingBottom: 48, gap: 24 },
+  barraSuperior: { flexDirection: "row" },
+  centrado: { alignItems: "center", justifyContent: "center", paddingVertical: 48, gap: 16 },
+  centradoTexto: { textAlign: "center" },
+  seccion: { gap: 14 },
+  cabeceraSeccion: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    alignItems: "baseline",
   },
-  flecha: { paddingHorizontal: 16, paddingVertical: 4 },
-  textoFlecha: { color: tema.oro, fontSize: 28 },
-  centroSemana: { alignItems: "center", gap: 4 },
-  semana: { color: tema.texto, fontSize: 14, fontWeight: "700", letterSpacing: 2 },
-  hoy: { color: tema.oroSuave, fontSize: 10, letterSpacing: 1.5 },
-  centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 16 },
-  mensaje: { color: tema.texto, fontSize: 15, textAlign: "center" },
-  lista: { padding: 20, gap: 12 },
-  tarjeta: {
-    backgroundColor: tema.superficie,
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
+  cuenta: {
+    color: tema.oro,
+    fontFamily: fuentes.negrita,
+    fontSize: 15,
+    fontVariant: ["tabular-nums"],
   },
-  zonaPulsable: { gap: 8 },
-  pulsado: { opacity: 0.75 },
-  filaSuperior: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  dia: { color: tema.oroSuave, fontSize: 12, fontWeight: "700", letterSpacing: 2 },
-  nombre: { color: tema.texto, fontSize: 18, fontWeight: "600" },
-  movida: { color: tema.textoTenue, fontSize: 12, fontStyle: "italic" },
-  textoAviso: { color: tema.texto, fontSize: 13, lineHeight: 19 },
-  vacio: { color: tema.textoTenue, fontSize: 14, textAlign: "center", marginTop: 40 },
-  pie: { color: tema.textoTenue, fontSize: 12, textAlign: "center", paddingBottom: 12 },
+  vacio: { textAlign: "center", paddingVertical: 24 },
+  cambiarDia: { paddingLeft: 54, paddingBottom: 6 },
+  pie: { textAlign: "center" },
 })

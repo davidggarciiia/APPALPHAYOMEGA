@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { LinearGradient } from "expo-linear-gradient"
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from "react-native-svg"
 
@@ -210,6 +211,174 @@ export function Tarjeta({
   )
 }
 
+/** Fondo, brillo y zona segura: el marco de todas las pantallas del diseño. */
+export function Pantalla({ children }: { children: ReactNode }): React.JSX.Element {
+  return (
+    <View style={estilos.pantalla}>
+      <BrilloDeFondo />
+      <SafeAreaView style={estilos.flexible}>{children}</SafeAreaView>
+    </View>
+  )
+}
+
+export function Chevron({ color = tema.textoTenue }: { color?: string }): React.JSX.Element {
+  return (
+    <View>
+      <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M9 5l7 7-7 7"
+          stroke={color}
+          strokeWidth={2.2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </View>
+  )
+}
+
+export type EstadoDeMarca = "hecho" | "en-curso" | "pendiente"
+
+/**
+ * El círculo de la izquierda de cada fila de Nutricion.dc.html: verde con la
+ * marca si está hecho, aro dorado si está a medias, aro gris si falta. El
+ * estado se dice también con texto en la fila; el color solo no basta.
+ */
+export function MarcaDeEstado({
+  estado,
+  tamano = 40,
+}: {
+  estado: EstadoDeMarca
+  tamano?: number
+}): React.JSX.Element {
+  const radio = tamano / 2
+  return (
+    <View
+      style={[
+        estilos.marca,
+        { width: tamano, height: tamano, borderRadius: radio },
+        estado === "pendiente" && estilos.marcaPendiente,
+        estado === "en-curso" && estilos.marcaEnCurso,
+      ]}
+    >
+      {estado === "hecho" && (
+        <>
+          <RellenoVerde radio={radio} />
+          <Visto tamano={Math.round(tamano * 0.45)} />
+        </>
+      )}
+      {estado === "en-curso" && <View style={estilos.puntoEnCurso} />}
+    </View>
+  )
+}
+
+/** Las iniciales en un círculo, arriba a la derecha como en el diseño. */
+export function Avatar({
+  nombre,
+  apellidos,
+  onPress,
+}: {
+  nombre: string
+  apellidos: string | null
+  onPress?: () => void
+}): React.JSX.Element {
+  const iniciales = `${nombre.charAt(0)}${(apellidos ?? "").charAt(0)}`.toUpperCase()
+  return (
+    <Pulsable
+      onPress={onPress}
+      disabled={onPress === undefined}
+      style={estilos.avatar}
+      accessibilityRole="button"
+      accessibilityLabel="Tu cuenta"
+    >
+      <Text style={estilos.textoAvatar}>{iniciales}</Text>
+    </Pulsable>
+  )
+}
+
+/** El bloque de filas con borde dorado de Nutricion.dc.html. */
+export function Lista({
+  children,
+  destacada = true,
+}: {
+  children: ReactNode
+  destacada?: boolean
+}): React.JSX.Element {
+  return <View style={[estilos.lista, destacada && estilos.tarjetaDestacada]}>{children}</View>
+}
+
+/**
+ * Una fila de `Lista`. Lo pulsable es la fila; `children` va debajo y fuera de
+ * ella, para poner otro botón sin anidar botones (p. ej. «Cambiar día»).
+ */
+export function FilaDeLista({
+  titulo,
+  subtitulo,
+  izquierda,
+  derecha,
+  onPress,
+  resaltada = false,
+  ultima = false,
+  accessibilityLabel,
+  children,
+}: {
+  titulo: string
+  subtitulo?: string
+  izquierda?: ReactNode
+  derecha?: ReactNode
+  onPress?: () => void
+  resaltada?: boolean
+  ultima?: boolean
+  accessibilityLabel?: string
+  children?: ReactNode
+}): React.JSX.Element {
+  const contenido = (
+    <>
+      {izquierda}
+      <View style={estilos.textosFila}>
+        <Text style={[estilos.tituloFila, resaltada && estilos.tituloResaltado]}>{titulo}</Text>
+        {subtitulo !== undefined && <Text style={texto.tenueMedio}>{subtitulo}</Text>}
+      </View>
+      {derecha === undefined ? onPress !== undefined && <Chevron /> : derecha}
+    </>
+  )
+  return (
+    <View style={[estilos.fila, !ultima && estilos.separador]}>
+      {onPress === undefined ? (
+        <View style={estilos.filaInterior}>{contenido}</View>
+      ) : (
+        <Pulsable
+          onPress={onPress}
+          style={estilos.filaInterior}
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel}
+        >
+          {contenido}
+        </Pulsable>
+      )}
+      {children}
+    </View>
+  )
+}
+
+/** Aviso en línea: sin conexión, conflicto, sesión anulada. */
+export function Aviso({
+  tono = "info",
+  children,
+}: {
+  tono?: "info" | "error"
+  children: ReactNode
+}): React.JSX.Element {
+  return (
+    <View
+      style={[estilos.aviso, tono === "error" && estilos.avisoError]}
+      accessibilityLiveRegion="polite"
+    >
+      {children}
+    </View>
+  )
+}
+
 /** Tipografía del diseño. */
 export const texto = StyleSheet.create({
   titulo: {
@@ -220,14 +389,53 @@ export const texto = StyleSheet.create({
     textTransform: "uppercase",
   },
   seccion: { color: tema.texto, fontFamily: fuentes.negrita, fontSize: 20, lineHeight: 25 },
+  marca: { color: tema.texto, fontFamily: fuentes.semi, fontSize: 15 },
   cuerpo: { color: tema.texto, fontFamily: fuentes.normal, fontSize: 15, lineHeight: 21 },
   fuerte: { color: tema.texto, fontFamily: fuentes.negrita, fontSize: 17 },
   tenue: { color: tema.textoTenue, fontFamily: fuentes.normal, fontSize: 13, lineHeight: 18 },
-  tenueGrande: { color: tema.textoTenue, fontFamily: fuentes.normal, fontSize: 15 },
+  tenueMedio: { color: tema.textoTenue, fontFamily: fuentes.normal, fontSize: 14, lineHeight: 19 },
+  tenueGrande: { color: tema.textoTenue, fontFamily: fuentes.normal, fontSize: 15, lineHeight: 21 },
   oro: { color: tema.oro, fontFamily: fuentes.negrita, fontSize: 15 },
 })
 
 const estilos = StyleSheet.create({
+  pantalla: { flex: 1, backgroundColor: tema.fondo },
+  flexible: { flex: 1 },
+  textosFila: { flex: 1, gap: 2 },
+  marca: { alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  marcaPendiente: { borderWidth: 2, borderColor: tema.aro },
+  marcaEnCurso: { borderWidth: 2, borderColor: tema.oro },
+  puntoEnCurso: { width: 10, height: 10, borderRadius: 5, backgroundColor: tema.oro },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#1F1D19",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textoAvatar: { color: tema.oro, fontFamily: fuentes.negrita, fontSize: 18 },
+  lista: { backgroundColor: tema.superficie, borderRadius: 20, paddingHorizontal: 16 },
+  fila: { paddingVertical: 4 },
+  filaInterior: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    minHeight: 64,
+    paddingVertical: 8,
+  },
+  separador: { borderBottomWidth: 1, borderBottomColor: tema.borde },
+  tituloFila: { color: tema.texto, fontFamily: fuentes.negrita, fontSize: 17 },
+  tituloResaltado: { color: tema.oro },
+  aviso: {
+    borderWidth: 1,
+    borderColor: tema.bordeOro,
+    backgroundColor: tema.superficie,
+    borderRadius: 16,
+    padding: 14,
+    gap: 10,
+  },
+  avisoError: { borderColor: tema.error },
   brillo: { position: "absolute", top: 0, left: 0, right: 0, height: 560 },
   atras: {
     width: 44,
@@ -261,7 +469,8 @@ const estilos = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: tema.superficie,
+    // Un tono por encima de la tarjeta: el botón se ve también dentro de una.
+    backgroundColor: tema.superficieAlta,
     alignSelf: "stretch",
   },
   sobrioPeligro: { borderWidth: 1, borderColor: tema.error },

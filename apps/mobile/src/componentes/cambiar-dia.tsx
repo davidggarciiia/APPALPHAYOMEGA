@@ -1,11 +1,16 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
+import { LinearGradient } from "expo-linear-gradient"
 import { lunesDe, type SesionProgramada } from "@alpha-omega/shared"
 
 import { ErrorDelServidor } from "../lib/transporte"
 import { faltaDe } from "../lib/errores"
-import { diasDeLaSemana, fechaCorta, fechaLarga } from "../lib/fechas"
-import { tema } from "../tema"
+import { diasDeLaSemana, fechaLarga } from "../lib/fechas"
+import { degradados, fuentes, tema } from "../tema"
+
+import { Pulsable } from "./pulsable"
+
+const LETRAS = ["L", "M", "X", "J", "V", "S", "D"] as const
 
 /**
  * Mover una sesión a otro día de SU semana (SPEC-agenda.md).
@@ -59,14 +64,14 @@ export function CambiarDia({
 
   if (!abierto) {
     return (
-      <Pressable
+      <Pulsable
         onPress={() => setAbierto(true)}
-        style={({ pressed }) => [estilos.enlace, pressed && estilos.pulsado]}
+        style={estilos.enlace}
         accessibilityRole="button"
-        hitSlop={8}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Text style={estilos.textoEnlace}>CAMBIAR DÍA</Text>
-      </Pressable>
+        <Text style={estilos.textoEnlace}>Cambiar día</Text>
+      </Pulsable>
     )
   }
 
@@ -74,60 +79,81 @@ export function CambiarDia({
     <View style={estilos.panel}>
       <Text style={estilos.pregunta}>¿A qué día de esta semana la mueves?</Text>
       <View style={estilos.dias}>
-        {diasDeLaSemana(lunesDe(agenda.fechaOriginal)).map((fecha) => {
+        {diasDeLaSemana(lunesDe(agenda.fechaOriginal)).map((fecha, indice) => {
           const actual = fecha === agenda.fechaActual
+          const original = fecha === agenda.fechaOriginal
           return (
-            <Pressable
+            <Pulsable
               key={fecha}
               onPress={() => void mover(fecha)}
               disabled={actual || ocupado !== null}
-              style={({ pressed }) => [
-                estilos.dia,
-                actual && estilos.diaActual,
-                pressed && estilos.pulsado,
-              ]}
+              style={[estilos.dia, !actual && estilos.diaLibre]}
               accessibilityRole="button"
-              accessibilityLabel={`Mover al ${fechaLarga(fecha)}`}
+              accessibilityLabel={`Mover al ${fechaLarga(fecha)}${original ? ", día original" : ""}`}
               accessibilityState={{ selected: actual, busy: ocupado === fecha }}
             >
-              <Text style={[estilos.textoDia, actual && estilos.textoDiaActual]}>
-                {ocupado === fecha ? "…" : fechaCorta(fecha).toUpperCase()}
+              {actual && (
+                <LinearGradient
+                  colors={degradados.oro}
+                  locations={degradados.paradas}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[StyleSheet.absoluteFill, { borderRadius: 12 }]}
+                />
+              )}
+              <Text style={[estilos.letra, actual && estilos.sobreOro]}>{LETRAS[indice]}</Text>
+              <Text style={[estilos.numero, actual && estilos.sobreOro]}>
+                {ocupado === fecha ? "…" : String(Number(fecha.slice(8, 10)))}
               </Text>
-            </Pressable>
+              <View style={[estilos.original, original && !actual && estilos.originalVisible]} />
+            </Pulsable>
           )
         })}
       </View>
+      {agenda.fechaActual !== agenda.fechaOriginal && (
+        <Text style={estilos.nota}>
+          {`El punto marca el día original: ${fechaLarga(agenda.fechaOriginal)}.`}
+        </Text>
+      )}
       {error !== null && (
         <Text style={estilos.error} accessibilityRole="alert">
           {error}
         </Text>
       )}
-      <Pressable onPress={() => setAbierto(false)} accessibilityRole="button" hitSlop={8}>
-        <Text style={estilos.cancelar}>CANCELAR</Text>
-      </Pressable>
+      <Pulsable
+        onPress={() => setAbierto(false)}
+        style={estilos.enlace}
+        accessibilityRole="button"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Text style={estilos.cancelar}>Cancelar</Text>
+      </Pulsable>
     </View>
   )
 }
 
 const estilos = StyleSheet.create({
-  enlace: { alignSelf: "flex-start", paddingVertical: 4 },
-  textoEnlace: { color: tema.oro, fontSize: 11, fontWeight: "700", letterSpacing: 2 },
-  pulsado: { opacity: 0.6 },
-  panel: { gap: 10, marginTop: 4 },
-  pregunta: { color: tema.texto, fontSize: 13 },
-  dias: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  enlace: { alignSelf: "flex-start", minHeight: 36, justifyContent: "center" },
+  textoEnlace: { color: tema.oro, fontFamily: fuentes.semi, fontSize: 14 },
+  panel: { gap: 12, paddingBottom: 6 },
+  pregunta: { color: tema.texto, fontFamily: fuentes.normal, fontSize: 14 },
+  dias: { flexDirection: "row", gap: 4 },
   dia: {
-    borderWidth: 1,
-    borderColor: tema.borde,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    minWidth: 58,
+    flex: 1,
+    height: 64,
+    borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    overflow: "hidden",
   },
-  diaActual: { backgroundColor: tema.oro, borderColor: tema.oro },
-  textoDia: { color: tema.texto, fontSize: 11, fontWeight: "700", letterSpacing: 1 },
-  textoDiaActual: { color: tema.fondo },
-  error: { color: tema.error, fontSize: 13 },
-  cancelar: { color: tema.textoTenue, fontSize: 11, letterSpacing: 2 },
+  diaLibre: { backgroundColor: tema.superficieAlta },
+  letra: { color: tema.textoTenue, fontFamily: fuentes.normal, fontSize: 12 },
+  numero: { color: tema.texto, fontFamily: fuentes.negrita, fontSize: 16 },
+  sobreOro: { color: tema.sobreOro },
+  original: { width: 5, height: 5, borderRadius: 2.5 },
+  originalVisible: { backgroundColor: tema.textoTenue },
+  nota: { color: tema.textoTenue, fontFamily: fuentes.normal, fontSize: 13 },
+  error: { color: tema.error, fontFamily: fuentes.normal, fontSize: 14 },
+  cancelar: { color: tema.textoTenue, fontFamily: fuentes.semi, fontSize: 14 },
 })
