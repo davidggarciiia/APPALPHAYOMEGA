@@ -95,7 +95,9 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const titulo =
     principal === "" && esCliente
       ? `Hola, ${usuario.nombre.split(" ")[0] ?? ""}`
-      : (titulos[principal] ?? (esCliente ? "Tu entrenamiento" : "Tu espacio"))
+      : principal === "" && usuario.rol === "entrenador"
+        ? "Hoy"
+        : (titulos[principal] ?? (esCliente ? "Tu entrenamiento" : "Tu espacio"))
   const iniciales = usuario.nombre
     .split(" ")
     .filter(Boolean)
