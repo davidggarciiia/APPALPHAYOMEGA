@@ -4,7 +4,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 
 import { degradadoOro, fondoDeAcceso, tema } from "../tema"
+import { Pulsable } from "./pulsable"
 
 /**
  * Envoltorio de pantalla con formulario.
@@ -103,8 +103,8 @@ export function BotonPrincipal({
   ocupado?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
-      style={({ pressed }) => [estilos.boton, (pressed || ocupado) && estilos.botonPulsado]}
+    <Pulsable
+      style={[estilos.boton, ocupado && estilos.botonPulsado]}
       onPress={onPress}
       disabled={ocupado}
       accessibilityRole="button"
@@ -114,7 +114,7 @@ export function BotonPrincipal({
       accessibilityState={{ disabled: ocupado, busy: ocupado }}
     >
       <Text style={estilos.textoBoton}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -139,11 +139,8 @@ export function BotonSecundario({
   deshabilitado?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
-      style={({ pressed }) => [
-        estilos.secundario,
-        (pressed || ocupado || deshabilitado) && estilos.botonPulsado,
-      ]}
+    <Pulsable
+      style={[estilos.secundario, (ocupado || deshabilitado) && estilos.botonPulsado]}
       onPress={onPress}
       disabled={ocupado || deshabilitado}
       accessibilityRole="button"
@@ -151,7 +148,7 @@ export function BotonSecundario({
       accessibilityState={{ disabled: ocupado || deshabilitado, busy: ocupado }}
     >
       <Text style={estilos.textoSecundario}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -166,8 +163,8 @@ export function BotonDestructivo({
   ocupado?: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
-      style={({ pressed }) => [estilos.destructivo, (pressed || ocupado) && estilos.botonPulsado]}
+    <Pulsable
+      style={[estilos.destructivo, ocupado && estilos.botonPulsado]}
       onPress={onPress}
       disabled={ocupado}
       accessibilityRole="button"
@@ -175,7 +172,7 @@ export function BotonDestructivo({
       accessibilityState={{ disabled: ocupado, busy: ocupado }}
     >
       <Text style={estilos.textoDestructivo}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 

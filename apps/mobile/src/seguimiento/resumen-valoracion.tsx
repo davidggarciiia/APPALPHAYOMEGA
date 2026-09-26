@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   BloqueValoracion,
   DefinicionCorporal,
@@ -20,6 +20,7 @@ import { Enlace } from "../entrenamiento/sesion/controles"
 import { tema } from "../tema"
 import { decimal } from "./valoracion-modelo"
 import type { ApiValoracionesCliente } from "./valoraciones-api"
+import { Pulsable } from "../componentes/pulsable"
 
 const PAGINA = 10
 const TIPO: Record<TipoValoracion, string> = { inicial: "Valoración inicial", revision: "Revisión" }
@@ -138,16 +139,20 @@ type Datos = {
   lista: ResumenValoracionPublicada[]
   total: number
   ultima: PublicacionValoracion | null
-  proxima: ProximaRevision
+  /** `null` si no se consulta porque otra parte de la pantalla ya la enseña. */
+  proxima: ProximaRevision | null
 }
 
 /** Valoraciones publicadas para el cliente: la última, la próxima revisión y el historial. */
 export function ValoracionesCliente({
   clienteId,
   api,
+  sinProxima = false,
 }: {
   clienteId: string
   api: ApiValoracionesCliente
+  /** En Progreso la próxima revisión va en el resumen: aquí ni se pide ni se repite. */
+  sinProxima?: boolean
 }): React.JSX.Element {
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
@@ -161,7 +166,10 @@ export function ValoracionesCliente({
     useCallback(() => {
       let vigente = true
       setError("")
-      Promise.all([api.listarPublicadas(clienteId, PAGINA, 0), api.proximaRevision(clienteId)])
+      Promise.all([
+        api.listarPublicadas(clienteId, PAGINA, 0),
+        sinProxima ? null : api.proximaRevision(clienteId),
+      ])
         .then(async ([listado, proxima]) => {
           const primera = listado.valoraciones[0]
           const ultima = primera
@@ -176,7 +184,7 @@ export function ValoracionesCliente({
       return () => {
         vigente = false
       }
-    }, [api, clienteId, intento]),
+    }, [api, clienteId, intento, sinProxima]),
   )
 
   const accion = async (hacer: () => Promise<void>, fallo: string): Promise<void> => {
@@ -230,20 +238,19 @@ export function ValoracionesCliente({
               verás aquí.
             </Text>
           )}
-          <Proxima proxima={datos.proxima} />
+          {datos.proxima && <Proxima proxima={datos.proxima} />}
           {datos.lista.length > 1 && (
             <View style={s.grupo}>
               <Titulo>Historial de valoraciones</Titulo>
               <Tarjeta>
                 {datos.lista.slice(1).map((v, n) => (
-                  <Pressable
+                  <Pulsable
                     key={v.id}
                     accessibilityRole="button"
                     accessibilityLabel={`Abrir ${TIPO[v.tipo].toLowerCase()} del ${fecha(v.fechaToma)}${v.numeroPublicacion > 1 ? ", corregida" : ""}`}
                     accessibilityState={{ disabled: ocupado }}
                     disabled={ocupado}
                     onPress={() => void abrir(v.id)}
-                    style={({ pressed }) => pressed && s.pulsado}
                   >
                     <Fila primera={n === 0}>
                       <View style={[s.linea, s.flex]}>
@@ -252,7 +259,7 @@ export function ValoracionesCliente({
                       </View>
                       <Text style={s.valor}>{fecha(v.fechaToma)}</Text>
                     </Fila>
-                  </Pressable>
+                  </Pulsable>
                 ))}
               </Tarjeta>
             </View>

@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import {
   crearPruebaEstandar,
   DefinicionCorporalSchema,
@@ -28,6 +28,7 @@ import { Chips } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePeticion } from "../lib/http"
 import { tema } from "../tema"
+import { Pulsable } from "../componentes/pulsable"
 
 /**
  * Plantilla de valoración de un cliente: qué campos corporales y qué pruebas
@@ -589,16 +590,16 @@ function Accion({
   deshabilitada: boolean
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
       accessibilityState={{ disabled: deshabilitada }}
       disabled={deshabilitada}
       onPress={pulsar}
-      style={({ pressed }) => [s.accion, (pressed || deshabilitada) && s.apagada]}
+      style={[s.accion, deshabilitada && s.apagada]}
     >
       <Text style={s.textoAccion}>{texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 

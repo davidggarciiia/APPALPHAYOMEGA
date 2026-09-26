@@ -10,6 +10,7 @@ import type {
   ListadoSesiones,
   PlanVigente,
   ProgresionFuerza,
+  ProximaRevision,
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
@@ -23,12 +24,14 @@ import type { ApiSeguimiento } from "./api"
 import { EditorConfiguracionSeguimiento } from "./configuracion"
 import { AnadirMedida, AnadirPrueba } from "./formularios"
 import { EvolucionValoraciones } from "./evolucion-valoraciones"
+import { FotosProgreso } from "./fotos-progreso"
 import { Grafica } from "./grafica"
 import type { ApiMedios } from "./medios-api"
 import { ValoracionesCliente } from "./resumen-valoracion"
 import { SolicitudesFotos } from "./solicitudes-fotos"
 import type { ApiEvolucionAvisos, ApiValoracionesCliente } from "./valoraciones-api"
 import { puntoDePartida, type ValorDeToma } from "./punto-de-partida"
+import { cifrasClave, cintura, decimal, diferencia, type CifraClave } from "./resumen-progreso"
 import {
   edadEn,
   mediaMovil,
@@ -60,14 +63,11 @@ type Datos = {
   semana: ListadoSesiones
 }
 
-const decimal = (valor: number): string => valor.toFixed(1).replace(".", ",")
-/** «−0,2 kg», «+1,0 cm». */
-function diferencia(valor: number, unidad: string): string {
-  const signo = valor > 0 ? "+" : valor < 0 ? "−" : "±"
-  return `${signo}${decimal(Math.abs(valor))} ${unidad}`
-}
-
-/** «Progreso»: peso, cintura, fuerza y pruebas físicas, con la semana y el punto de partida. */
+/**
+ * «Progreso», de lo general a lo concreto: arriba las cifras clave, después
+ * las fotos, las gráficas de cada indicador que el entrenador deja ver con la
+ * semana y el punto de partida, y al final las valoraciones publicadas.
+ */
 export function ProgresoCliente({
   clienteId,
   seguimiento,
@@ -75,15 +75,17 @@ export function ProgresoCliente({
   valoraciones,
   medios,
   modo = "cliente",
+  nuevoId = randomUUID,
 }: {
   clienteId: string
   seguimiento: ApiSeguimiento
   entrenamiento: ApiEntrenamiento
   /** Valoraciones publicadas del cliente; en la ficha profesional van aparte. */
   valoraciones?: ApiValoracionesCliente & Pick<ApiEvolucionAvisos, "evolucion">
-  /** Solicitudes, aportación y consulta de fotografías privadas del cliente. */
+  /** Fotos del cliente: las suyas, las de sus visitas y lo que le pide su entrenador. */
   medios?: ApiMedios
   modo?: "cliente" | "entrenador"
+  nuevoId?: () => string
 }): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>()
   const [datos, setDatos] = useState<Datos | null>(null)
@@ -91,6 +93,8 @@ export function ProgresoCliente({
   const [intento, setIntento] = useState(0)
   const [formulario, setFormulario] = useState<"medida" | "prueba" | null>(null)
   const [verEvolucion, setVerEvolucion] = useState(false)
+  // `undefined` mientras no se sabe; `null` si no se pudo leer: el resumen sigue sin ella.
+  const [proxima, setProxima] = useState<ProximaRevision | null>()
   const hoy = hoyAgenda()
   const lunes = lunesDeSemana(hoy)
 
@@ -128,6 +132,25 @@ export function ProgresoCliente({
     }, [seguimiento, entrenamiento, clienteId, hoy, lunes, intento]),
   )
 
+  // La próxima revisión va en el resumen; si no llega, el resto no espera por ella.
+  useFocusEffect(
+    useCallback(() => {
+      if (modo !== "cliente" || !valoraciones) return
+      let vigente = true
+      valoraciones.proximaRevision(clienteId).then(
+        (leida) => {
+          if (vigente) setProxima(leida)
+        },
+        () => {
+          if (vigente) setProxima(null)
+        },
+      )
+      return () => {
+        vigente = false
+      }
+    }, [valoraciones, clienteId, modo, intento]),
+  )
+
   const recargar = (): void => setIntento((n) => n + 1)
   const opciones =
     datos?.configuracion.indicadores.map((valor) => ({ valor, texto: NOMBRE[valor] })) ?? []
@@ -135,36 +158,6 @@ export function ProgresoCliente({
 
   return (
     <View style={s.contenido}>
-      {modo === "cliente" && valoraciones && (
-        <ValoracionesCliente clienteId={clienteId} api={valoraciones} />
-      )}
-      {modo === "cliente" && valoraciones && (
-        <View style={s.grupo}>
-          <BotonSecundario
-            texto={verEvolucion ? "Ocultar mi evolución" : "Ver mi evolución"}
-            onPress={() => setVerEvolucion((actual) => !actual)}
-          />
-          {verEvolucion && (
-            <EvolucionValoraciones
-              clienteId={clienteId}
-              api={valoraciones}
-              modo="cliente"
-              fotos={
-                medios
-                  ? {
-                      api: medios,
-                      puedeBorrar: (foto) =>
-                        foto.origen === "cliente" && foto.autor.id === clienteId,
-                    }
-                  : undefined
-              }
-            />
-          )}
-        </View>
-      )}
-      {modo === "cliente" && medios && (
-        <SolicitudesFotos clienteId={clienteId} api={medios} modo="cliente" nuevoId={randomUUID} />
-      )}
       {modo === "entrenador" && datos && (
         <EditorConfiguracionSeguimiento
           valor={datos.configuracion}
@@ -176,9 +169,6 @@ export function ProgresoCliente({
           recargar={recargar}
         />
       )}
-      {opciones.length > 0 && activa && (
-        <Pestanas opciones={opciones} activa={activa} cambiar={setPestana} />
-      )}
       {error !== "" && (
         <View style={s.grupo}>
           <AvisoDeError mensaje={error} />
@@ -188,11 +178,38 @@ export function ProgresoCliente({
       {datos === null ? (
         error === "" && <Text style={s.tenue}>Cargando tu progreso…</Text>
       ) : (
-        <>
+        <Resumen
+          modo={modo}
+          cifras={cifrasClave({
+            configuracion: datos.configuracion,
+            dias: datos.dias,
+            medidas: datos.medidas.medidas,
+            proxima,
+            hoy,
+          })}
+        />
+      )}
+
+      {medios && <FotosProgreso clienteId={clienteId} api={medios} modo={modo} nuevoId={nuevoId} />}
+      {modo === "cliente" && medios && (
+        <SolicitudesFotos
+          clienteId={clienteId}
+          api={medios}
+          modo="cliente"
+          nuevoId={nuevoId}
+          ocultarSinPendientes
+        />
+      )}
+
+      {datos && (
+        <View style={s.grupo}>
+          <Titulo>En detalle</Titulo>
+          {opciones.length > 0 && activa && (
+            <Pestanas opciones={opciones} activa={activa} cambiar={setPestana} />
+          )}
           {!activa && (
             <Text style={s.vacio}>Tu entrenador no ha elegido indicadores visibles todavía.</Text>
           )}
-          {modo === "cliente" && <SiguientesRegistros datos={datos} hoy={hoy} />}
           {activa === "peso" && <Peso datos={datos} hoy={hoy} />}
           {activa === "pasos" && <DatoDiario datos={datos} tipo="pasos" />}
           {activa === "sueno" && <DatoDiario datos={datos} tipo="sueno" />}
@@ -206,13 +223,29 @@ export function ProgresoCliente({
               puedeAnadir={modo === "cliente" && datos.configuracion.pruebasPrescritas.length > 0}
             />
           )}
-          {(activa === "peso" || activa === "cintura") && (
-            <>
-              <Semana datos={datos} lunes={lunes} />
-              <Inicio datos={datos} hoy={hoy} anadir={() => setFormulario("medida")} />
-            </>
-          )}
+        </View>
+      )}
+      {datos && (activa === "peso" || activa === "cintura") && (
+        <>
+          <Semana datos={datos} lunes={lunes} />
+          <Inicio datos={datos} hoy={hoy} anadir={() => setFormulario("medida")} />
         </>
+      )}
+      {datos && modo === "cliente" && <SiguientesRegistros datos={datos} hoy={hoy} />}
+
+      {modo === "cliente" && valoraciones && (
+        <ValoracionesCliente clienteId={clienteId} api={valoraciones} sinProxima />
+      )}
+      {modo === "cliente" && valoraciones && (
+        <View style={s.grupo}>
+          <BotonSecundario
+            texto={verEvolucion ? "Ocultar mi evolución" : "Ver mi evolución"}
+            onPress={() => setVerEvolucion((actual) => !actual)}
+          />
+          {verEvolucion && (
+            <EvolucionValoraciones clienteId={clienteId} api={valoraciones} modo="cliente" />
+          )}
+        </View>
       )}
       <AnadirMedida
         visible={formulario === "medida"}
@@ -231,6 +264,67 @@ export function ProgresoCliente({
           recargar()
         }}
       />
+    </View>
+  )
+}
+
+/** Las cifras clave en tarjetas de dos en dos: valor, de dónde sale y cuánto ha cambiado. */
+function Resumen({
+  cifras,
+  modo,
+}: {
+  cifras: CifraClave[]
+  modo: "cliente" | "entrenador"
+}): React.JSX.Element {
+  return (
+    <View style={s.grupo}>
+      <Titulo>{modo === "cliente" ? "Tu resumen" : "Resumen"}</Titulo>
+      {cifras.length === 0 ? (
+        <Text style={s.vacio}>
+          {modo === "cliente"
+            ? "Aún no hay datos. Apunta tu peso desde «Hoy» o añade tus medidas más abajo."
+            : "El cliente aún no ha registrado peso ni medidas."}
+        </Text>
+      ) : (
+        <View style={s.cifras}>
+          {cifras.map((c) => (
+            <View
+              key={c.clave}
+              style={s.cifra}
+              accessible
+              accessibilityLabel={[`${c.titulo}: ${c.valor}`, c.nota, c.cambio]
+                .filter(Boolean)
+                .join(". ")}
+            >
+              {/* El lector oye la tarjeta entera de una vez, con la etiqueta de arriba. */}
+              <View
+                style={s.textosCifra}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                <Text style={s.tituloCifra}>{c.titulo}</Text>
+                <Text style={s.valorCifra} numberOfLines={1} adjustsFontSizeToFit>
+                  {c.valor}
+                </Text>
+                {c.nota !== null && <Text style={s.tenue}>{c.nota}</Text>}
+                {c.cambio !== null && (
+                  <Text
+                    style={
+                      c.sentido === "favorable"
+                        ? s.baja
+                        : c.sentido === "desfavorable"
+                          ? s.error
+                          : s.cambio
+                    }
+                  >
+                    {c.cambio}
+                  </Text>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   )
 }
@@ -323,7 +417,8 @@ function Peso({ datos, hoy }: { datos: Datos; hoy: string }): React.JSX.Element 
     )
   const tendencia = mediaMovil(datos.dias, 7)
   const actual = tendencia[tendencia.length - 1]!
-  const inicio = datos.medidas.medidas.find((m) => m.pesoKg !== null)?.pesoKg ?? tendencia[0]!.valor
+  // El mismo inicio que el resumen: el primer peso medido o, si no hay, el primer registro.
+  const inicio = puntoDePartida(datos.medidas.medidas)?.peso?.valor ?? tendencia[0]!.valor
   const ultimo = conPeso[conPeso.length - 1]!
   const recientes = conPeso.filter((d) => d.fecha >= sumarDias(hoy, -27))
   const puntos = (recientes.length > 1 ? recientes : conPeso).map((d) => ({
@@ -348,6 +443,7 @@ function Peso({ datos, hoy }: { datos: Datos; hoy: string }): React.JSX.Element 
         descripcion={`Peso en ayunas por día. Media de la semana: ${pesoLegible(actual.valor)}. Último: ${pesoLegible(ultimo.pesoKg!)}.`}
         izquierda={fechaCorta(desde)}
         derecha={`${ultimo.fecha === hoy ? "Hoy" : fechaCorta(ultimo.fecha)}, ${pesoLegible(ultimo.pesoKg!)}`}
+        formato={pesoLegible}
       />
       {datos.configuracion.objetivoPeso && (
         <Text style={s.tenue}>
@@ -370,7 +466,7 @@ function Cintura({ datos }: { datos: Datos }): React.JSX.Element {
   const primera = puntos[0]!
   return (
     <Tendencia
-      grande={`${decimal(ultima.valor).replace(",0", "")} cm`}
+      grande={cintura(ultima.valor)}
       subtitulo="Última medida"
       cambio={
         puntos.length > 1
@@ -385,11 +481,15 @@ function Cintura({ datos }: { datos: Datos }): React.JSX.Element {
           descripcion={`Cintura por medida. Primera: ${decimal(primera.valor)} cm. Última: ${decimal(ultima.valor)} cm.`}
           izquierda={fechaCorta(primera.fecha)}
           derecha={`${fechaCorta(ultima.fecha)}, ${decimal(ultima.valor)} cm`}
+          formato={cintura}
         />
       )}
     </Tendencia>
   )
 }
+
+/** «85 kg»: la mejor serie estimada de un ejercicio. */
+const carga = (kg: number): string => `${decimal(kg).replace(",0", "")} kg`
 
 function Fuerza({ ejercicios }: { ejercicios: ProgresionFuerza["ejercicios"] }): React.JSX.Element {
   if (ejercicios.length === 0)
@@ -408,7 +508,7 @@ function Fuerza({ ejercicios }: { ejercicios: ProgresionFuerza["ejercicios"] }):
           <View key={ejercicio.ejercicioId} style={s.destacada}>
             <Text style={s.nombreEjercicio}>{ejercicio.nombre}</Text>
             <Text style={s.tenue}>
-              Mejor serie: {decimal(ultimo.pesoKg).replace(",0", "")} kg × {ultimo.repeticiones}
+              Mejor serie: {carga(ultimo.pesoKg)} × {ultimo.repeticiones}
               {cambio !== 0 && (
                 <Text style={cambio > 0 ? s.sube : s.baja}> · {diferencia(cambio, "kg")}</Text>
               )}
@@ -420,6 +520,7 @@ function Fuerza({ ejercicios }: { ejercicios: ProgresionFuerza["ejercicios"] }):
                 descripcion={`${ejercicio.nombre}: de ${primero.pesoKg} kg × ${primero.repeticiones} a ${ultimo.pesoKg} kg × ${ultimo.repeticiones}.`}
                 izquierda={fechaCorta(primero.fecha)}
                 derecha={fechaCorta(ultimo.fecha)}
+                formato={carga}
               />
             )}
           </View>
@@ -511,14 +612,14 @@ function Pruebas({
 
 function Semana({ datos, lunes }: { datos: Datos; lunes: string }): React.JSX.Element {
   const resumen = resumenDeSemana(datos.dias, lunes)
-  const cintura = [...datos.medidas.medidas]
+  const medida = [...datos.medidas.medidas]
     .reverse()
     .find((m) => m.cinturaCm !== null && m.fecha <= sumarDias(lunes, 6))
   const objetivo = datos.plan?.bloque?.pasosDiarios
   const hechas = datos.semana.sesiones.filter((s_) => s_.enviadoEn !== null).length
   const titulo = datos.plan ? `Semana ${semanaDelBloque(datos.plan, lunes)}` : "Esta semana"
   const filas: Array<[string, string]> = [
-    ["Cintura", cintura ? `${decimal(cintura.cinturaCm!).replace(",0", "")} cm` : "—"],
+    ["Cintura", medida ? cintura(medida.cinturaCm!) : "—"],
     [
       "Pasos",
       resumen.pasos === null
@@ -621,6 +722,19 @@ const s = StyleSheet.create({
   cabecera: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 },
   vacio: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 22 },
+  cifras: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  cifra: {
+    flexGrow: 1,
+    flexBasis: "45%",
+    minWidth: 140,
+    backgroundColor: tema.superficie,
+    borderRadius: 20,
+    padding: 16,
+  },
+  textosCifra: { gap: 4 },
+  tituloCifra: { color: tema.textoSecundario, fontFamily: tema.fuenteSemi, fontSize: 14 },
+  valorCifra: { color: tema.acento, fontFamily: tema.fuenteTitulo, fontSize: 30, lineHeight: 36 },
+  cambio: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 14 },
   destacada: { backgroundColor: tema.superficie, borderRadius: 20, padding: 18, gap: 6 },
   grande: {
     color: tema.acento,

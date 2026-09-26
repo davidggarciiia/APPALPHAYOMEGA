@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { randomUUID } from "expo-crypto"
-import { AppState, Image, Pressable, StyleSheet, Text, View } from "react-native"
+import { AppState, Image, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
 import type { Checkin, Ejercicio, EjercicioPrescrito, ValoresEjecutados } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
@@ -38,6 +38,7 @@ import { useCatalogo } from "../catalogo-ejercicios/use-catalogo"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { tema } from "../tema"
 import fotoDeEntrenamiento from "../../assets/entrenamiento.webp"
+import { Pulsable } from "../componentes/pulsable"
 
 type Serie = EdicionRegistro["series"][number]
 type Fase = "sesion" | "molestia" | "cierre"
@@ -539,7 +540,7 @@ export function RegistroCliente({
           />
         )}
       <View style={e.listaEjercicios}>
-        <Pressable
+        <Pulsable
           accessibilityRole="button"
           accessibilityState={{ expanded: listaAbierta }}
           onPress={() => setListaAbierta(!listaAbierta)}
@@ -547,10 +548,10 @@ export function RegistroCliente({
         >
           <Text style={e.tituloSeccion}>Ejercicios de la sesión</Text>
           <Text style={e.tenue}>{listaAbierta ? "Ocultar" : "Ver todos"}</Text>
-        </Pressable>
+        </Pulsable>
         {listaAbierta &&
           ejerciciosOrdenados(prescripcion).map((ejercicio, indice) => (
-            <Pressable
+            <Pulsable
               key={ejercicio.id}
               accessibilityRole="button"
               accessibilityLabel={`${indice + 1}. ${ejercicio.nombre}, ${estadoDeEjercicio(ejercicio, edicion)}`}
@@ -564,7 +565,7 @@ export function RegistroCliente({
                 {indice + 1}. {ejercicio.nombre}
               </Text>
               <Text style={e.tenue}>{estadoDeEjercicio(ejercicio, edicion)}</Text>
-            </Pressable>
+            </Pulsable>
           ))}
       </View>
       {ejercicioElegido && (

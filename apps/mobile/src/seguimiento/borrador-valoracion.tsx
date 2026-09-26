@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   BloqueValoracion,
   CambiarValoracion,
@@ -25,6 +25,7 @@ import {
   type CampoCorporal,
   type EdicionValoracion,
 } from "./valoracion-modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 type Estado = "guardado" | "cambios" | "guardando" | "publicando" | "error" | "conflicto"
 type Seccion = BloqueValoracion | "resumen"
@@ -86,7 +87,7 @@ function BloqueMedidas({
               />
               {d.instrumento && <Text style={s.tenue}>{d.instrumento}</Text>}
             </View>
-            <Pressable
+            <Pulsable
               accessibilityRole="checkbox"
               accessibilityLabel={`No realizado — ${d.nombre}`}
               accessibilityState={{ checked: valor.noRealizado, disabled: bloqueado }}
@@ -95,7 +96,7 @@ function BloqueMedidas({
               style={[s.marca, valor.noRealizado && s.marcaActiva]}
             >
               <Text style={s.textoMarca}>No realizado</Text>
-            </Pressable>
+            </Pulsable>
           </Fila>
         )
       })}
@@ -160,7 +161,7 @@ function Resumen({
           {anotadas.map((d) => {
             const elegido = edicion.destacados.includes(d.id)
             return (
-              <Pressable
+              <Pulsable
                 key={d.id}
                 accessibilityRole="checkbox"
                 accessibilityLabel={`Destacar ${d.nombre}`}
@@ -170,7 +171,7 @@ function Resumen({
                 style={[s.chip, elegido && s.chipElegido]}
               >
                 <Text style={[s.textoChip, elegido && s.textoChipElegido]}>{d.nombre}</Text>
-              </Pressable>
+              </Pulsable>
             )
           })}
         </View>
@@ -348,7 +349,7 @@ export function BorradorValoracion({
       />
       {secciones.map((seccion) => (
         <View key={seccion} style={s.grupo}>
-          <Pressable
+          <Pulsable
             accessibilityRole="button"
             accessibilityState={{ expanded: abierta === seccion }}
             accessibilityLabel={NOMBRE_DE_SECCION[seccion]}
@@ -357,7 +358,7 @@ export function BorradorValoracion({
           >
             <Titulo>{NOMBRE_DE_SECCION[seccion]}</Titulo>
             <Text style={s.tenue}>{abierta === seccion ? "Abierto" : "Abrir"}</Text>
-          </Pressable>
+          </Pulsable>
           {abierta === seccion && seccion === "medidas" && (
             <BloqueMedidas
               definiciones={corporalesDe(valoracion, "medidas")}

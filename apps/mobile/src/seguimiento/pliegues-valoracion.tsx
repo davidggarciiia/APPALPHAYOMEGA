@@ -1,10 +1,11 @@
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { DefinicionCorporal } from "@alpha-omega/shared"
 
 import { BotonSecundario, Campo } from "../componentes/formulario"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { tema } from "../tema"
 import { CAMPO_CORPORAL_VACIO, type CampoCorporal, type CampoGrasa } from "./valoracion-modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 /** Lecturas originales por punto: el contrato no admite más. */
 const MAX_LECTURAS = 5
@@ -22,7 +23,7 @@ function Accion({
   onPress: () => void
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       accessibilityRole="button"
       accessibilityLabel={etiqueta}
       accessibilityState={{ disabled: deshabilitado }}
@@ -31,7 +32,7 @@ function Accion({
       style={[s.accion, deshabilitado && s.apagado]}
     >
       <Text style={s.textoAccion}>{texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -70,7 +71,7 @@ function PuntoPliegue({
             <Text style={s.tenue}>{ficha}</Text>
             {d.protocolo && <Text style={s.tenue}>Protocolo: {d.protocolo}</Text>}
           </View>
-          <Pressable
+          <Pulsable
             accessibilityRole="checkbox"
             accessibilityLabel={`No realizado — ${quien}`}
             accessibilityState={{ checked: campo.noRealizado, disabled: bloqueado }}
@@ -79,7 +80,7 @@ function PuntoPliegue({
             style={[s.accion, campo.noRealizado && s.marcada, bloqueado && s.apagado]}
           >
             <Text style={s.textoAccion}>No realizado</Text>
-          </Pressable>
+          </Pulsable>
         </View>
 
         {lecturas.map((texto, n) => (

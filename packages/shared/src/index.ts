@@ -14,6 +14,7 @@ export * from "./consentimiento"
 export * from "./tiempo-local"
 export * from "./reservas"
 export * from "./planes"
+export * from "./panel"
 
 /**
  * Vocabulario y contratos compartidos por la app y el servidor.

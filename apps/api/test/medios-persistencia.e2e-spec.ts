@@ -98,9 +98,11 @@ describe("Persistencia de fotos privadas y solicitudes (F01b)", () => {
         solicitudId: solicitud.id,
       }),
     })
+    // Una foto que responde a una solicitud es siempre del cliente. Sin solicitud
+    // también puede serlo: son sus fotos de progreso (20260926130000).
     await expect(
       prisma.medioFoto.create({
-        data: medio({ autorId: ids.cliente!, origen: "cliente", solicitudId: null }),
+        data: medio({ autorId: ids.entrenador!, origen: "profesional", solicitudId: solicitud.id }),
       }),
     ).rejects.toThrow()
     const incorporada = await prisma.medioFoto.update({

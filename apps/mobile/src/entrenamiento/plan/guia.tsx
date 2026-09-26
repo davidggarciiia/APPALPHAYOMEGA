@@ -1,11 +1,12 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 
 import { Icono } from "../../componentes/iconos"
 import { tema } from "../../tema"
 import type { SerieConDistancia } from "../registro-modelo"
 import { objetivoDeSerie } from "../sesion/modelo"
 import { Fila, Tarjeta, Titulo } from "./piezas"
+import { Pulsable } from "../../componentes/pulsable"
 
 const RIR = [
   { valor: "5 o más", texto: "Fácil: sube la próxima vez", destacado: false },
@@ -125,7 +126,7 @@ export function Guia(): React.JSX.Element {
             const visible = abierto === tema_.titulo
             return (
               <View key={tema_.titulo} style={n > 0 && s.separado}>
-                <Pressable
+                <Pulsable
                   style={s.tema}
                   accessibilityRole="button"
                   accessibilityState={{ expanded: visible }}
@@ -135,7 +136,7 @@ export function Guia(): React.JSX.Element {
                   <View style={visible && s.girado} aria-hidden>
                     <Icono nombre="adelante" color={tema.textoTenue} tamano={18} />
                   </View>
-                </Pressable>
+                </Pulsable>
                 {visible && <Text style={s.explicacion}>{tema_.texto}</Text>}
               </View>
             )

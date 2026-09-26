@@ -181,6 +181,49 @@ it("el cliente ve solo lo pendiente, sin acciones profesionales", async () => {
   expect(screen.queryByRole("button", { name: /Pedir fotos|revisada|Incorporar/ })).toBeNull()
 })
 
+it("en Progreso, sin nada que enviar la sección no ocupa sitio; con una petición o un error, sí", async () => {
+  const TITULO = { name: "Fotos que te pide tu entrenador" }
+  const revisada = api([solicitud({ estado: "revisada" })])
+  const vista = await render(
+    <SolicitudesFotos
+      clienteId={CLIENTE}
+      api={revisada}
+      modo="cliente"
+      nuevoId={nuevoId}
+      ocultarSinPendientes
+    />,
+  )
+  await waitFor(() => expect(revisada.solicitudes).toHaveBeenCalled())
+  expect(screen.queryByRole("header", TITULO)).toBeNull()
+  expect(screen.queryByText("No tienes fotos pendientes de enviar.")).toBeNull()
+
+  const pendiente = api([solicitud()])
+  await vista.rerender(
+    <SolicitudesFotos
+      clienteId={CLIENTE}
+      api={pendiente}
+      modo="cliente"
+      nuevoId={nuevoId}
+      ocultarSinPendientes
+    />,
+  )
+  expect(await screen.findByRole("header", TITULO)).toBeTruthy()
+
+  await vista.unmount()
+  const caida = api()
+  caida.solicitudes.mockRejectedValue(new ErrorDeRed())
+  await render(
+    <SolicitudesFotos
+      clienteId={CLIENTE}
+      api={caida}
+      modo="cliente"
+      nuevoId={nuevoId}
+      ocultarSinPendientes
+    />,
+  )
+  expect(await screen.findByText(/No hemos podido conectar/)).toBeTruthy()
+})
+
 it("el cliente aporta la vista pedida y puede continuar con las vistas que falten", async () => {
   const foto = {
     uri: "file:///cache/foto-preparada.jpg",

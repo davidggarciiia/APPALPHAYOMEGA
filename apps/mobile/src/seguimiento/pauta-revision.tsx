@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   BloqueValoracion,
   GuardarProximaRevision,
@@ -13,6 +13,7 @@ import { Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePeticion } from "../lib/http"
 import { tema } from "../tema"
+import { Pulsable } from "../componentes/pulsable"
 
 const BLOQUES: Array<{ valor: BloqueValoracion; texto: string }> = [
   { valor: "medidas", texto: "Medidas" },
@@ -102,7 +103,7 @@ export function EditorPautaRevision({
       </Text>
       <View style={s.fila} accessibilityRole="radiogroup" accessibilityLabel="Cómo se programa">
         {(["fecha", "intervalo"] as const).map((m) => (
-          <Pressable
+          <Pulsable
             key={m}
             accessibilityRole="radio"
             accessibilityState={{ checked: modo === m, disabled: ocupado }}
@@ -111,7 +112,7 @@ export function EditorPautaRevision({
             style={[s.chip, modo === m && s.chipElegido]}
           >
             <Text style={s.textoChip}>{m === "fecha" ? "En una fecha" : "Cada cierto tiempo"}</Text>
-          </Pressable>
+          </Pulsable>
         ))}
       </View>
       {modo === "fecha" ? (
@@ -137,7 +138,7 @@ export function EditorPautaRevision({
         {BLOQUES.map((b) => {
           const elegido = bloques.includes(b.valor)
           return (
-            <Pressable
+            <Pulsable
               key={b.valor}
               accessibilityRole="checkbox"
               accessibilityLabel={b.texto}
@@ -149,7 +150,7 @@ export function EditorPautaRevision({
               style={[s.chip, elegido && s.chipElegido]}
             >
               <Text style={s.textoChip}>{b.texto}</Text>
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>

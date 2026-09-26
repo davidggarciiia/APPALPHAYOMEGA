@@ -1,13 +1,5 @@
 import { useEffect, useState } from "react"
-import {
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-  useWindowDimensions,
-} from "react-native"
+import { StyleSheet, Switch, Text, TextInput, View, useWindowDimensions } from "react-native"
 import {
   metabolismoBasal,
   type BorradorDieta,
@@ -21,6 +13,7 @@ import { hoyAgenda } from "../entrenamiento/fechas"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { degradadoOro, tema } from "../tema"
 import { deficit, gastoTotal, gramosDeMacros, porcentajesDe, type Pauta } from "./calculo"
+import { Pulsable } from "../componentes/pulsable"
 
 const CREATINA: Suplemento = { nombre: "Creatina monohidrato", dosis: "3–5 g al día" }
 
@@ -271,7 +264,7 @@ export function PautaNutricion({
               <Text style={[s.texto, s.flex]}>Sexo</Text>
               <View style={s.sexos} accessibilityRole="radiogroup" accessibilityLabel="Sexo">
                 {(["hombre", "mujer"] as const).map((valor) => (
-                  <Pressable
+                  <Pulsable
                     key={valor}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: sexo === valor }}
@@ -281,7 +274,7 @@ export function PautaNutricion({
                     <Text style={[s.textoSexo, sexo === valor && s.textoSexoActivo]}>
                       {valor === "hombre" ? "Hombre" : "Mujer"}
                     </Text>
-                  </Pressable>
+                  </Pulsable>
                 ))}
               </View>
             </Fila>

@@ -6,7 +6,10 @@ import { FichaDeUsuarioSchema } from "@alpha-omega/shared"
 
 import { PantallaDeFormulario } from "../../../../src/componentes/formulario"
 import { useEntrenamiento } from "../../../../src/entrenamiento/use-entrenamiento"
-import { FichaCliente } from "../../../../src/entrenamiento-entrenador/ficha/ficha-cliente"
+import {
+  FichaCliente,
+  esPestanaDeFicha,
+} from "../../../../src/entrenamiento-entrenador/ficha/ficha-cliente"
 import { useNutricion } from "../../../../src/nutricion/api"
 import { useSeguimiento } from "../../../../src/seguimiento/use-seguimiento"
 import { useMedios } from "../../../../src/seguimiento/use-medios"
@@ -14,9 +17,9 @@ import { useValoraciones } from "../../../../src/seguimiento/use-valoraciones"
 import { useSesion } from "../../../../src/sesion"
 import { tema } from "../../../../src/tema"
 
-/** La ficha del cliente del diseño, para el entrenador. */
+/** La ficha del cliente del diseño, para el entrenador. `?pestana=` abre otra pestaña. */
 export default function FichaDelCliente(): React.JSX.Element {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, pestana } = useLocalSearchParams<{ id: string; pestana?: string }>()
   const { estado, pedir } = useSesion()
   const api = useEntrenamiento()
   const seguimiento = useSeguimiento()
@@ -47,6 +50,7 @@ export default function FichaDelCliente(): React.JSX.Element {
           verSemana={() =>
             router.push({ pathname: "/entrenador/cliente/[id]/entrenos", params: { id } })
           }
+          pestanaInicial={esPestanaDeFicha(pestana) ? pestana : undefined}
           abrirNutricion={(nombre) =>
             router.push({ pathname: "/nutricion/cliente/[id]", params: { id, nombre } })
           }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { MedioFoto, SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
@@ -9,7 +9,9 @@ import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { faltaDe } from "../lib/errores"
 import { tema } from "../tema"
 import type { ApiMedios } from "./medios-api"
-import { liberarFoto, obtenerFoto, type FotoPreparada, type OrigenFoto } from "./preparar-foto"
+import { obtenerFoto, type FotoPreparada, type OrigenFoto } from "./preparar-foto"
+import { enviarFoto, soltarCopia } from "./subir-foto"
+import { Pulsable } from "../componentes/pulsable"
 
 type VistaPedible = Exclude<VistaFoto, "otra">
 const VISTAS: Array<{ valor: VistaPedible; texto: string }> = [
@@ -62,15 +64,6 @@ function motivoSinReintento(pendiente: FotoPendiente, lista: SolicitudFotos[]): 
   return null
 }
 
-/**
- * Suelta la copia local de una foto. Si el móvil no deja borrarla, queda
- * anotada para volver a intentarlo al salir de la pantalla.
- */
-function soltarCopia(uri: string, porLiberar: Set<string>): void {
-  if (liberarFoto(uri) === "fallo") porLiberar.add(uri)
-  else porLiberar.delete(uri)
-}
-
 /** Formulario del entrenador para pedir fotos concretas. */
 function PedirFotos({
   pedir,
@@ -97,7 +90,7 @@ function PedirFotos({
         {VISTAS.map((v) => {
           const elegida = vistas.includes(v.valor)
           return (
-            <Pressable
+            <Pulsable
               key={v.valor}
               accessibilityRole="checkbox"
               accessibilityLabel={v.texto}
@@ -109,7 +102,7 @@ function PedirFotos({
               style={[s.chip, elegida && s.chipElegido]}
             >
               <Text style={s.textoChip}>{v.texto}</Text>
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>
@@ -148,6 +141,7 @@ export function SolicitudesFotos({
   modo,
   nuevoId,
   valoracionAbiertaId = null,
+  ocultarSinPendientes = false,
 }: {
   clienteId: string
   api: Pick<
@@ -163,7 +157,12 @@ export function SolicitudesFotos({
   nuevoId: () => string
   /** Visita con borrador abierto a la que se pueden incorporar fotos recibidas. */
   valoracionAbiertaId?: string | null
-}): React.JSX.Element {
+  /**
+   * Para el cliente en Progreso: si no se le pide nada ni hay un envío o un
+   * error que explicar, la sección no ocupa sitio.
+   */
+  ocultarSinPendientes?: boolean
+}): React.JSX.Element | null {
   const [solicitudes, setSolicitudes] = useState<SolicitudFotos[] | null>(null)
   const [pidiendo, setPidiendo] = useState(false)
   const [error, setError] = useState("")
@@ -272,31 +271,19 @@ export function SolicitudesFotos({
     if (montado.current) setError("")
     let confirmada: MedioFoto
     try {
-      const intencion = await api.solicitarSubida({
-        operacionId: pendiente.operacionId,
-        clienteId,
-        destino: { tipo: "solicitud", solicitudId: pendiente.solicitudId },
-        vista: pendiente.vista,
-        etiqueta: null,
-        fechaToma: pendiente.fechaToma,
-        tipoMime: pendiente.foto.tipoMime,
-        bytes: pendiente.foto.bytes,
-      })
-      if (intencion.subida) {
-        const archivo = await (await fetch(pendiente.foto.uri)).blob()
-        try {
-          const subida = await fetch(intencion.subida.url, {
-            method: intencion.subida.metodo,
-            headers: intencion.subida.cabeceras,
-            body: archivo,
-          })
-          if (!subida.ok) throw new Error("No se pudo subir el archivo")
-        } finally {
-          ;(archivo as Blob & { close?: () => void }).close?.()
-        }
-      }
-      guardarFotoPendiente({ ...pendiente, fase: "confirmando" })
-      confirmada = await api.confirmar(intencion.medio.id)
+      confirmada = await enviarFoto(
+        api,
+        {
+          operacionId: pendiente.operacionId,
+          clienteId,
+          destino: { tipo: "solicitud", solicitudId: pendiente.solicitudId },
+          vista: pendiente.vista,
+          etiqueta: null,
+          fechaToma: pendiente.fechaToma,
+        },
+        pendiente.foto,
+        () => guardarFotoPendiente({ ...pendiente, fase: "confirmando" }),
+      )
     } catch {
       if (montado.current) {
         guardarFotoPendiente({ ...pendiente, fase: "fallo" })
@@ -409,6 +396,9 @@ export function SolicitudesFotos({
     modo === "cliente"
       ? (solicitudes ?? []).filter((x) => x.estado !== "revisada")
       : (solicitudes ?? [])
+  // Tampoco mientras carga: aparecer y desaparecer sin nada que hacer sería un salto.
+  if (ocultarSinPendientes && error === "" && fotoPendiente === null && visibles.length === 0)
+    return null
 
   return (
     <View style={s.grupo}>
@@ -527,7 +517,7 @@ export function SolicitudesFotos({
                     {medio.valoracionId ? " · en una visita" : ""}
                   </Text>
                   {valoracionAbiertaId && medio.estado === "disponible" && !medio.valoracionId && (
-                    <Pressable
+                    <Pulsable
                       accessibilityRole="button"
                       accessibilityLabel={`Incorporar ${NOMBRE_DE_VISTA[medio.vista]} a la visita en curso`}
                       disabled={ocupado}
@@ -543,7 +533,7 @@ export function SolicitudesFotos({
                       style={s.accion}
                     >
                       <Text style={s.enlace}>Incorporar</Text>
-                    </Pressable>
+                    </Pulsable>
                   )}
                 </Fila>
               ))}

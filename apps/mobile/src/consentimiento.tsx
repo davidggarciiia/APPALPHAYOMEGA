@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
 import {
   AceptarConsentimientoSchema,
   EstadoConsentimientoSchema,
@@ -13,6 +13,7 @@ import { Icono } from "./componentes/iconos"
 import { faltaDe } from "./lib/errores"
 import type { PeticionAutenticada } from "./lib/peticion-autenticada"
 import { degradadoOro, tema } from "./tema"
+import { Pulsable } from "./componentes/pulsable"
 
 export type ApiConsentimiento = {
   estado: () => Promise<EstadoConsentimiento>
@@ -85,7 +86,7 @@ export function PantallaConsentimiento({
           {parrafo}
         </Text>
       ))}
-      <Pressable
+      <Pulsable
         accessibilityRole="checkbox"
         accessibilityLabel={TEXTO_CONSENTIMIENTO.aceptar}
         accessibilityState={{ checked: marcado, disabled: ocupado }}
@@ -97,7 +98,7 @@ export function PantallaConsentimiento({
           {marcado && <Icono nombre="hecho" color={tema.sobreAcento} tamano={18} />}
         </View>
         <Text style={[s.texto, s.flexible]}>{TEXTO_CONSENTIMIENTO.aceptar}</Text>
-      </Pressable>
+      </Pulsable>
       {error !== "" && <AvisoDeError mensaje={error} />}
       <BotonPrincipal
         texto={ocupado ? "Guardando…" : "Continuar"}

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react"
-import { Image, Pressable, StyleSheet, Text, View } from "react-native"
+import { Image, StyleSheet, Text, View } from "react-native"
 import type { Ejercicio, ResumenSesion, SesionCliente } from "@alpha-omega/shared"
 
 import { FiguraDeEjercicio, type AccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
 import { degradadoOro, tema } from "../tema"
 import { fechaLegible } from "./fechas"
 import entrenamiento from "../../assets/entrenamiento.webp"
+import { Pulsable } from "../componentes/pulsable"
 
 /** Lo que hace falta para enseñar el primer ejercicio de hoy con su animación. */
 export type DetalleDeHoy = {
@@ -116,8 +117,8 @@ export function TarjetaHoy({
           )}
         </View>
         {sesion && (
-          <Pressable
-            style={({ pressed }) => [s.accion, pressed && s.pulsado]}
+          <Pulsable
+            style={s.accion}
             accessibilityRole="button"
             accessibilityLabel={`${sesion.enviadoEn ? "Ver resumen" : empezada ? "Continuar" : "Empezar"} ${sesion.nombre}`}
             onPress={() => abrir(sesion.agenda.id)}
@@ -129,7 +130,7 @@ export function TarjetaHoy({
                   ? "Continuar entreno"
                   : "Empezar entreno"}
             </Text>
-          </Pressable>
+          </Pulsable>
         )}
       </View>
     </View>

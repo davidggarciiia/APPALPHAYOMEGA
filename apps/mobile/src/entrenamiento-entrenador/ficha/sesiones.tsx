@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native"
+import { StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native"
 import type { ComentarioSesion, ListadoResultados, Molestia } from "@alpha-omega/shared"
 
 import { AvisoDeError } from "../../componentes/formulario"
@@ -10,6 +10,7 @@ import { BotonDorado } from "../../entrenamiento/sesion/controles"
 import { faltaDe } from "../../lib/errores"
 import { tema } from "../../tema"
 import { filasDeSesion, resumenDeResultado, type FilaDeSesion } from "../ficha-modelo"
+import { Pulsable } from "../../componentes/pulsable"
 
 type Resultado = ListadoResultados["resultados"][number]
 
@@ -107,7 +108,7 @@ export function SesionesDelCliente({
             <Text style={s.tenue}>{resumenDeResultado(actual.resultado)}</Text>
             {actual.resultado.notas && <Text style={s.nota}>«{actual.resultado.notas}»</Text>}
           </View>
-          <Pressable
+          <Pulsable
             accessibilityRole="button"
             accessibilityLabel="Sesión anterior"
             disabled={indice >= resultados.length - 1}
@@ -115,8 +116,8 @@ export function SesionesDelCliente({
             style={[s.flecha, indice >= resultados.length - 1 && s.apagada]}
           >
             <Icono nombre="atras" color={tema.texto} tamano={18} />
-          </Pressable>
-          <Pressable
+          </Pulsable>
+          <Pulsable
             accessibilityRole="button"
             accessibilityLabel="Sesión siguiente"
             disabled={indice === 0}
@@ -124,7 +125,7 @@ export function SesionesDelCliente({
             style={[s.flecha, indice === 0 && s.apagada]}
           >
             <Icono nombre="adelante" color={tema.texto} tamano={18} />
-          </Pressable>
+          </Pulsable>
         </View>
 
         {ancho ? (

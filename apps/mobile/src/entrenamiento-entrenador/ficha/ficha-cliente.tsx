@@ -34,7 +34,9 @@ import { DialogoResponder, RequiereAtencion } from "./atencion"
 import { CheckinsYMolestias } from "./checkins"
 import { SesionesDelCliente } from "./sesiones"
 
-type Pestana = "resumen" | "sesiones" | "progreso" | "checkins" | "nutricion" | "salud"
+export type PestanaDeFicha =
+  "resumen" | "sesiones" | "progreso" | "checkins" | "nutricion" | "salud"
+type Pestana = PestanaDeFicha
 const PESTANAS = [
   { valor: "resumen", texto: "Resumen" },
   { valor: "sesiones", texto: "Sesiones" },
@@ -43,6 +45,11 @@ const PESTANAS = [
   { valor: "nutricion", texto: "Nutrición" },
   { valor: "salud", texto: "Salud" },
 ] as const
+
+/** La pestaña llega en la URL (`?pestana=progreso`): se acepta solo si existe. */
+export function esPestanaDeFicha(valor: unknown): valor is PestanaDeFicha {
+  return PESTANAS.some((opcion) => opcion.valor === valor)
+}
 
 type Datos = {
   ficha: FichaDeUsuario
@@ -81,6 +88,7 @@ export function FichaCliente({
   editarPlan,
   verSemana,
   abrirNutricion,
+  pestanaInicial = "resumen",
 }: {
   clienteId: string
   cuentaId: string
@@ -94,8 +102,10 @@ export function FichaCliente({
   editarPlan: () => void
   verSemana: () => void
   abrirNutricion: (nombre: string) => void
+  /** Desde el panel «Hoy»: unas fotos abren Progreso; un comentario, Sesiones. */
+  pestanaInicial?: Pestana
 }): React.JSX.Element {
-  const [pestana, setPestana] = useState<Pestana>("resumen")
+  const [pestana, setPestana] = useState<Pestana>(pestanaInicial)
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
@@ -269,10 +279,13 @@ export function FichaCliente({
             medios={medios}
             nuevoId={nuevoId}
           />
+          {/* Las mismas fotos que ve el cliente, con el mismo comparador. */}
           <ProgresoCliente
             clienteId={clienteId}
             seguimiento={seguimiento}
             entrenamiento={api}
+            medios={medios}
+            nuevoId={nuevoId}
             modo="entrenador"
           />
         </View>

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react"
 import {
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -50,6 +49,7 @@ import {
 } from "./modelo"
 import { EditorDeBloque, ListaDeSeccion } from "./partes"
 import { PanelEjercicio, pautaDeFila, TablaPrincipal } from "./tabla"
+import { Pulsable } from "../../componentes/pulsable"
 
 /** La misma clave que el editor anterior: una asignación pendiente se recupera en ambos. */
 const PendienteSchema = z.strictObject({
@@ -409,23 +409,23 @@ export function ConstructorPlan({
           </Text>
         </View>
         <View style={s.botones}>
-          <Pressable
+          <Pulsable
             accessibilityRole="button"
             onPress={() => setComoCliente(true)}
             style={s.secundario}
           >
             <Text style={s.textoSecundario}>Ver como cliente</Text>
-          </Pressable>
+          </Pulsable>
           {Platform.OS === "web" && (
-            <Pressable
+            <Pulsable
               accessibilityRole="button"
               onPress={() => exportarPdf(nombre || "Plan", nombreCliente, dias)}
               style={s.secundario}
             >
               <Text style={s.textoSecundario}>Exportar PDF</Text>
-            </Pressable>
+            </Pulsable>
           )}
-          <Pressable
+          <Pulsable
             accessibilityRole="button"
             onPress={preparar}
             style={[s.principal, degradadoOro]}
@@ -433,7 +433,7 @@ export function ConstructorPlan({
             <Text style={s.textoPrincipal}>
               {pendiente ? "Reintentar publicación" : "Publicar"}
             </Text>
-          </Pressable>
+          </Pulsable>
         </View>
       </View>
       {aviso !== "" && <Text style={s.aviso}>{aviso}</Text>}
@@ -517,7 +517,7 @@ export function ConstructorPlan({
             const ocupadoPorOtro = dias.some((d) => d.diaSemana === n && d.id !== dia.id)
             const elegidoDia = dia.diaSemana === n
             return (
-              <Pressable
+              <Pulsable
                 key={inicial}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: elegidoDia, disabled: ocupadoPorOtro }}
@@ -531,7 +531,7 @@ export function ConstructorPlan({
                 ]}
               >
                 <Text style={[s.textoDia, elegidoDia && s.textoDiaElegido]}>{inicial}</Text>
-              </Pressable>
+              </Pulsable>
             )
           })}
         </View>

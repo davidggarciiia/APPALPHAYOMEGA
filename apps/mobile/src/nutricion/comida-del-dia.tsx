@@ -1,11 +1,12 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { Comida, ComidaRegistrada, EleccionDeComida } from "@alpha-omega/shared"
 
 import { AvisoDeError } from "../componentes/formulario"
 import { BotonAtras, BotonDorado, Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { degradadoOro, tema } from "../tema"
+import { Pulsable } from "../componentes/pulsable"
 
 type Alternativas = Extract<Comida, { forma: "alternativas" }>
 type Intercambio = Extract<Comida, { forma: "intercambio" }>
@@ -31,7 +32,7 @@ function Segmentos({
   return (
     <View style={s.segmentos} accessibilityRole="tablist" accessibilityLabel={etiqueta}>
       {opciones.map((texto, n) => (
-        <Pressable
+        <Pulsable
           key={`${texto}-${n}`}
           accessibilityRole="tab"
           accessibilityState={{ selected: n === activa }}
@@ -39,7 +40,7 @@ function Segmentos({
           style={[s.segmento, n === activa && degradadoOro]}
         >
           <Text style={[s.textoSegmento, n === activa && s.textoSegmentoActivo]}>{texto}</Text>
-        </Pressable>
+        </Pulsable>
       ))}
     </View>
   )
@@ -106,7 +107,7 @@ function ElegirAlternativa({
         {alternativas.map((alternativa) => {
           const activa = alternativa.id === elegida
           return (
-            <Pressable
+            <Pulsable
               key={alternativa.id}
               accessibilityRole="radio"
               accessibilityState={{ checked: activa }}
@@ -130,7 +131,7 @@ function ElegirAlternativa({
                 </View>
               ))}
               {alternativa.nota && <Text style={s.nota}>{alternativa.nota}</Text>}
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>
@@ -225,7 +226,7 @@ function ArmarPlato({
           {actual.alimentos.map((alimento) => {
             const activo = plato[actual.nombre] === alimento.nombre
             return (
-              <Pressable
+              <Pulsable
                 key={alimento.nombre}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: activo }}
@@ -242,7 +243,7 @@ function ArmarPlato({
                     {alimento.cantidad}
                   </Text>
                 )}
-              </Pressable>
+              </Pulsable>
             )
           })}
         </View>

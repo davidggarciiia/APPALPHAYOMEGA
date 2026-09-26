@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { CambiarDia, DiaDeSeguimiento } from "@alpha-omega/shared"
 
 import { AvisoDeError, Campo } from "../componentes/formulario"
@@ -11,6 +11,7 @@ import { faltaDe } from "../lib/errores"
 import { degradadoExito, tema } from "../tema"
 import type { ApiSeguimiento } from "./api"
 import { leerDecimal, leerSueno, miles, pesoLegible, suenoLegible } from "./modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 type Dato = "pesoKg" | "pasos" | "suenoMin"
 
@@ -116,7 +117,7 @@ export function HoyDiario({
   }
 
   const fila = (dato: Dato, nombre: string, valor: string | null): React.JSX.Element => (
-    <Pressable
+    <Pulsable
       key={dato}
       style={[s.fila, dato !== "pesoKg" && s.separada]}
       accessibilityRole="button"
@@ -125,7 +126,7 @@ export function HoyDiario({
     >
       <Text style={s.nombre}>{nombre}</Text>
       <Text style={valor === null ? s.apuntar : s.valor}>{valor ?? "Apuntar"}</Text>
-    </Pressable>
+    </Pulsable>
   )
   const creatina = dia?.creatina === true
   const edicion = editando ? EDICION[editando] : null
@@ -145,7 +146,7 @@ export function HoyDiario({
             : null,
         )}
         {fila("suenoMin", "Sueño", dia?.suenoMin != null ? suenoLegible(dia.suenoMin) : null)}
-        <Pressable
+        <Pulsable
           style={[s.fila, s.separada]}
           accessibilityRole="checkbox"
           accessibilityLabel="Creatina tomada"
@@ -156,7 +157,7 @@ export function HoyDiario({
           <View style={[s.circulo, creatina && [s.circuloHecho, degradadoExito]]}>
             {creatina && <Icono nombre="hecho" color={tema.sobreExito} tamano={16} />}
           </View>
-        </Pressable>
+        </Pulsable>
       </View>
       {error !== "" && editando === null && <AvisoDeError mensaje={error} />}
       <Dialogo

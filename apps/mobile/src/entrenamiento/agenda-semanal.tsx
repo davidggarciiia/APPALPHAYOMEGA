@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { DeporteDelPlan, ListadoSesiones } from "@alpha-omega/shared"
 import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
 import { BotonSecundario } from "../componentes/formulario"
@@ -8,6 +8,7 @@ import { degradadoExito, degradadoSesion, tema } from "../tema"
 import { TarjetaHoy, type DetalleDeHoy } from "./hoy-toca"
 import { FechaSesion } from "./fecha-sesion"
 import type { ApiEntrenamiento } from "./api"
+import { Pulsable } from "../componentes/pulsable"
 
 const DIAS = ["L", "M", "X", "J", "V", "S", "D"]
 
@@ -106,22 +107,22 @@ export function AgendaSemanal({
                   {fechaLegible(semana)} — {fechaLegible(sumarDias(semana, 6))}
                 </Text>
               </View>
-              <Pressable
+              <Pulsable
                 style={s.flecha}
                 accessibilityRole="button"
                 accessibilityLabel="Semana anterior"
                 onPress={() => cambiarSemana(-7)}
               >
                 <Icono nombre="atras" color={tema.texto} tamano={20} />
-              </Pressable>
-              <Pressable
+              </Pulsable>
+              <Pulsable
                 style={s.flecha}
                 accessibilityRole="button"
                 accessibilityLabel="Semana siguiente"
                 onPress={() => cambiarSemana(7)}
               >
                 <Icono nombre="adelante" color={tema.texto} tamano={20} />
-              </Pressable>
+              </Pulsable>
             </View>
             <View style={s.dias}>
               {DIAS.map((nombre, n) => {
@@ -129,7 +130,7 @@ export function AgendaSemanal({
                 const delDia = sesiones.filter((sesion) => sesion.agenda.fechaActual === fecha)
                 const seleccionado = dia === fecha
                 return (
-                  <Pressable
+                  <Pulsable
                     key={fecha}
                     style={[s.dia, (fecha === hoy || seleccionado) && s.diaMarcado]}
                     accessibilityRole="button"
@@ -158,7 +159,7 @@ export function AgendaSemanal({
                         />
                       ))}
                     </View>
-                  </Pressable>
+                  </Pulsable>
                 )
               })}
             </View>
@@ -204,11 +205,11 @@ export function AgendaSemanal({
                         key={sesion.agenda.id}
                         style={n < grupo.sesiones.length - 1 && s.separado}
                       >
-                        <Pressable
+                        <Pulsable
                           accessibilityRole="button"
                           accessibilityLabel={`${enviada ? "Ver resumen de" : enCurso ? "Continuar" : "Empezar"} ${sesion.nombre}, ${fechaLegible(sesion.agenda.fechaActual)}, ${enviada ? "enviado" : enCurso ? "en curso" : "pendiente"}`}
                           onPress={() => abrir(sesion.agenda.id)}
-                          style={({ pressed }) => [s.renglon, pressed && s.pulsado]}
+                          style={s.renglon}
                         >
                           <View style={s.informacion}>
                             <Text style={s.nombre}>{sesion.nombre}</Text>
@@ -229,7 +230,7 @@ export function AgendaSemanal({
                           ) : (
                             <Icono nombre="adelante" color={tema.textoTenue} tamano={20} />
                           )}
-                        </Pressable>
+                        </Pulsable>
                         {api && actualizado && !enviada && sesion.agenda.estado === "abierta" && (
                           <BotonSecundario
                             texto={`Cambiar día de ${sesion.nombre}`}
@@ -301,7 +302,7 @@ function TiraDeLaSemana({
             ...otros.map((d) => d.nombre),
           ]
           return (
-            <Pressable
+            <Pulsable
               key={fecha}
               style={[s.dia, fecha === hoy && s.diaMarcado]}
               accessibilityRole={destino ? "button" : undefined}
@@ -323,7 +324,7 @@ function TiraDeLaSemana({
                   <View key={d.nombre} style={[s.marca, s.marcaHueca]} />
                 ))}
               </View>
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>

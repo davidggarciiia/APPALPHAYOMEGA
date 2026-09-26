@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useEffect, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import {
   CrearEjercicioSchema,
   GRUPOS_MUSCULARES,
@@ -30,6 +30,7 @@ import {
   tecnicaEnTexto,
   type TecnicaEnTexto,
 } from "./tecnica-texto"
+import { Pulsable } from "../componentes/pulsable"
 
 type Carga = { fase: "cargando" } | { fase: "lista" } | { fase: "error"; fallo: Falta }
 
@@ -390,7 +391,7 @@ function Opcion({
   onPress: () => void
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       style={[
         estilos.opcion,
         marcada && estilos.opcionMarcada,
@@ -404,7 +405,7 @@ function Opcion({
       hitSlop={4}
     >
       <Text style={[estilos.textoOpcion, marcada && estilos.textoOpcionMarcada]}>{etiqueta}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 

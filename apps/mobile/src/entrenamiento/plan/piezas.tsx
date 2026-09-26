@@ -1,7 +1,8 @@
 import type { ReactNode } from "react"
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
 
 import { tema } from "../../tema"
+import { Pulsable } from "../../componentes/pulsable"
 
 /** «Rutina · Bloque · Guía», con la pestaña activa subrayada en dorado. */
 export function Pestanas<T extends string>({
@@ -24,7 +25,7 @@ export function Pestanas<T extends string>({
       {opciones.map((opcion) => {
         const elegida = opcion.valor === activa
         return (
-          <Pressable
+          <Pulsable
             key={opcion.valor}
             accessibilityRole="tab"
             accessibilityState={{ selected: elegida }}
@@ -32,7 +33,7 @@ export function Pestanas<T extends string>({
             style={[s.pestana, elegida && s.pestanaActiva]}
           >
             <Text style={[s.textoPestana, elegida && s.textoActivo]}>{opcion.texto}</Text>
-          </Pressable>
+          </Pulsable>
         )
       })}
     </ScrollView>

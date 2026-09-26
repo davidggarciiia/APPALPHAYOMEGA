@@ -1,21 +1,22 @@
-import { useEffect, useMemo, useState } from "react"
-import {
-  ActivityIndicator,
-  Image,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  type ImageURISource,
-} from "react-native"
-import type { EnlaceTemporal, EstadoMedio, MedioFoto, VistaFoto } from "@alpha-omega/shared"
+import { useMemo, useState } from "react"
+import { ScrollView, StyleSheet, Text, View } from "react-native"
+import type { EstadoMedio, MedioFoto, VistaFoto } from "@alpha-omega/shared"
 
-import { fechaCorta } from "../entrenamiento/plan/modelo"
+import { hoyAgenda } from "../entrenamiento/fechas"
 import { Chips, Dialogo } from "../entrenamiento/sesion/controles"
 import { degradadoOro, tema } from "../tema"
+import { DeslizadorFotos } from "./deslizador-fotos"
+import {
+  NOMBRE_DE_VISTA,
+  VISTAS_ESTANDAR,
+  fechaConAno as fecha,
+  haceDias,
+  separacion,
+  type VistaEstandar,
+} from "./fotos-modelo"
+import { Accion, ImagenPrivada } from "./imagen-privada"
 import type { ApiMedios } from "./medios-api"
+import { Pulsable } from "../componentes/pulsable"
 
 type Api = Pick<ApiMedios, "acceso" | "borrar">
 type Hueco = "primera" | "segunda"
@@ -24,15 +25,21 @@ const HUECOS: Hueco[] = ["primera", "segunda"]
 type Eleccion = { id: string; etiqueta: string }
 /** `fallo` se queda hasta que el servidor confirma la retirada. */
 type Retiro = { enCurso: boolean; fallo: boolean }
+/** Lado a lado, o las dos en el mismo marco con un divisor que se arrastra. */
+type Modo = "lado" | "deslizar"
+const MODOS: Array<{ valor: Modo; texto: string }> = [
+  { valor: "lado", texto: "Lado a lado" },
+  { valor: "deslizar", texto: "Deslizar" },
+]
 
-type VistaEstandar = Exclude<VistaFoto, "otra">
-const VISTAS: Record<VistaEstandar, string> = {
-  frente: "Frente",
-  espalda: "Espalda",
-  perfilIzquierdo: "Perfil izquierdo",
-  perfilDerecho: "Perfil derecho",
-}
-const VISTAS_ESTANDAR = Object.keys(VISTAS) as VistaEstandar[]
+/**
+ * Una foto elegida desde fuera (la galería): el comparador pasa a su vista y la
+ * pone en el segundo hueco, o en el primero si es la más antigua. `vez` cambia
+ * en cada petición, también si se vuelve a pedir la misma foto.
+ */
+export type EnfoqueFoto = { medioId: string; vez: number }
+
+const VISTAS = NOMBRE_DE_VISTA
 const ORDEN_VISTAS: VistaFoto[] = [...VISTAS_ESTANDAR, "otra"]
 const NOTA_ALMACEN = "El borrado del almacén aún no ha terminado."
 /** Dos columnas de al menos 140 px y la separación; si no caben, una debajo de otra. */
@@ -45,12 +52,8 @@ const AVANCE: Record<EstadoMedio, number> = {
   eliminado: 3,
 }
 
-/** «24 sep 2026»: entre fotos pasan meses, así que el año cuenta. */
-const fecha = (dia: string): string => `${fechaCorta(dia)} ${dia.slice(0, 4)}`
 const retirada = (foto: MedioFoto): boolean =>
   foto.estado === "eliminado" || foto.estado === "eliminando"
-/** Con el reloj del móvil, que puede ir adelantado: solo sirve para renovar antes. */
-const caducado = (lectura: EnlaceTemporal): boolean => Date.parse(lectura.caducaEn) <= Date.now()
 
 /** Sin tildes, mayúsculas ni espacios de más: «perfil  Izquierdo» es «Perfil izquierdo». */
 const comparable = (texto: string): string =>
@@ -167,19 +170,28 @@ function textoPerdidas(etiquetas: string[], hayOtraFecha: boolean): string {
 }
 
 /**
- * Comparación de fotos de evolución: dos fechas de la misma vista. Nunca rellena
- * un hueco con otra vista ni con otra fecha; lo que falta se dice con texto.
- * Los enlaces de lectura solo viven en memoria mientras se muestra la foto.
+ * Comparación de fotos de evolución: dos fechas de la misma vista, lado a lado
+ * o superpuestas con un divisor que se arrastra. Nunca rellena un hueco con
+ * otra vista ni con otra fecha; lo que falta se dice con texto. Los enlaces de
+ * lectura solo viven en memoria mientras se muestra la foto.
  * `api` debe ser estable entre renderizados (como el de `useMedios`).
  */
 export function ComparadorFotos({
   fotos,
   api,
   puedeBorrar,
+  hoy = hoyAgenda(),
+  enfoque,
+  alRetirar,
 }: {
   fotos: MedioFoto[]
   api: Api
   puedeBorrar: (foto: MedioFoto) => boolean
+  /** Para contar los días transcurridos («Hace 84 días»). */
+  hoy?: string
+  enfoque?: EnfoqueFoto
+  /** La retirada que confirma el servidor, para que quien da la lista la actualice. */
+  alRetirar?: (medio: MedioFoto) => void
 }): React.JSX.Element {
   const [confirmadas, setConfirmadas] = useState<Record<string, MedioFoto>>({})
   const [retiros, setRetiros] = useState<Record<string, Retiro>>({})
@@ -189,6 +201,8 @@ export function ComparadorFotos({
   /** Elecciones que dejaron de llegar en la lista, para avisar en su vista. */
   const [perdidas, setPerdidas] = useState<{ clave: string; etiquetas: string[] } | null>(null)
   const [ancho, setAncho] = useState(0)
+  const [modo, setModo] = useState<Modo>("lado")
+  const [enfocada, setEnfocada] = useState<number | null>(null)
 
   const grupos = useMemo(
     () =>
@@ -203,6 +217,21 @@ export function ComparadorFotos({
 
   if (grupos.length === 0) {
     return <Text style={s.explicacion}>Aún no hay fotos para comparar.</Text>
+  }
+
+  if (enfoque && enfoque.vez !== enfocada) {
+    // Ajuste durante el render, como el de las fotos desaparecidas: la foto
+    // pedida pasa a su vista y a un hueco elegido a mano.
+    setEnfocada(enfoque.vez)
+    const destino = grupos.find((g) => g.fotos.some((f) => f.id === enfoque.medioId))
+    const pedida = destino?.fotos.find((f) => f.id === enfoque.medioId)
+    if (destino && pedida) {
+      const hueco: Hueco = destino.fotos[0] === pedida ? "primera" : "segunda"
+      const nueva: Eleccion = { id: pedida.id, etiqueta: etiquetaDe(destino, pedida) }
+      setVista(destino.clave)
+      setElegidas((antes) => ({ ...antes, [destino.clave]: { [hueco]: nueva } }))
+      setPerdidas(null)
+    }
   }
 
   const claveVista = vista ?? grupos[0]!.clave
@@ -267,6 +296,7 @@ export function ComparadorFotos({
           delete resto[foto.id]
           return resto
         })
+        alRetirar?.(medio)
       },
       () => setRetiros((antes) => ({ ...antes, [foto.id]: { enCurso: false, fallo: true } })),
     )
@@ -281,6 +311,7 @@ export function ComparadorFotos({
       foto={foto}
       otra={otra}
       lado={lado}
+      hoy={hoy}
       elegir={(medioId) => elegir(hueco, medioId)}
       api={api}
       borrable={puedeBorrar(foto)}
@@ -289,6 +320,17 @@ export function ComparadorFotos({
       reintentarBorrado={() => retirar(foto)}
     />
   )
+
+  const dosFechas = grupo && primera && segunda ? { grupo, primera, segunda } : null
+  // Se superponen solo dos fotos que se pueden ver; lo retirado se ve lado a lado.
+  const visible = (f: MedioFoto): boolean =>
+    f.estado === "disponible" && retiros[f.id]?.fallo !== true
+  const deslizando = modo === "deslizar" && dosFechas !== null
+  const rotuloDeslizable = (g: Grupo, f: MedioFoto) => ({
+    medioId: f.id,
+    etiqueta: etiquetaDe(g, f),
+    rotulo: `${g.rotulos.get(f.id)!.titulo} · ${haceDias(f.fechaToma, hoy)}`,
+  })
 
   return (
     <View style={s.comparador}>
@@ -325,21 +367,78 @@ export function ComparadorFotos({
         </Text>
       )}
 
-      {primera && segunda && primera.fechaToma === segunda.fechaToma && (
-        <Text style={s.explicacion} accessibilityLiveRegion="polite">
-          {textoMismoDia(primera, segunda)}
-        </Text>
+      {dosFechas && (
+        <Chips
+          etiqueta="Cómo comparar"
+          opciones={MODOS}
+          elegidas={[modo]}
+          cambiar={([elegido]) => elegido && setModo(elegido)}
+        />
       )}
 
-      {grupo && primera && (
-        <View
-          testID="fotos-comparadas"
-          onLayout={(e) => setAncho(e.nativeEvent.layout.width)}
-          style={[s.par, lado ? s.ladoALado : s.apiladas]}
-        >
-          {panel("primera", grupo, primera, segunda)}
-          {segunda && panel("segunda", grupo, segunda, primera)}
+      {dosFechas && dosFechas.primera.fechaToma === dosFechas.segunda.fechaToma ? (
+        <Text style={s.explicacion} accessibilityLiveRegion="polite">
+          {textoMismoDia(dosFechas.primera, dosFechas.segunda)}
+        </Text>
+      ) : (
+        dosFechas && (
+          <Text style={s.separacion}>
+            {separacion(dosFechas.primera.fechaToma, dosFechas.segunda.fechaToma)}
+          </Text>
+        )
+      )}
+
+      {deslizando && dosFechas ? (
+        <View style={s.comparador}>
+          {HUECOS.map((hueco) => {
+            const foto = hueco === "primera" ? dosFechas.primera : dosFechas.segunda
+            const otra = hueco === "primera" ? dosFechas.segunda : dosFechas.primera
+            return (
+              <SelectorFecha
+                key={hueco}
+                hueco={hueco}
+                grupo={dosFechas.grupo}
+                foto={foto}
+                otra={otra}
+                elegir={(medioId) => elegir(hueco, medioId)}
+              />
+            )
+          })}
+          {visible(dosFechas.primera) && visible(dosFechas.segunda) ? (
+            (() => {
+              // Antes es siempre la de fecha anterior, se haya elegido en el hueco que sea.
+              const [antes, despues] =
+                dosFechas.primera.fechaToma <= dosFechas.segunda.fechaToma
+                  ? [dosFechas.primera, dosFechas.segunda]
+                  : [dosFechas.segunda, dosFechas.primera]
+              return (
+                <DeslizadorFotos
+                  key={`${antes.id}-${despues.id}`}
+                  antes={rotuloDeslizable(dosFechas.grupo, antes)}
+                  despues={rotuloDeslizable(dosFechas.grupo, despues)}
+                  acceso={api.acceso}
+                />
+              )
+            })()
+          ) : (
+            <Text style={s.explicacion} accessibilityLiveRegion="polite">
+              Para deslizar hacen falta dos fotos que se puedan ver. Elige otra fecha o compáralas
+              lado a lado.
+            </Text>
+          )}
         </View>
+      ) : (
+        grupo &&
+        primera && (
+          <View
+            testID="fotos-comparadas"
+            onLayout={(e) => setAncho(e.nativeEvent.layout.width)}
+            style={[s.par, lado ? s.ladoALado : s.apiladas]}
+          >
+            {panel("primera", grupo, primera, segunda)}
+            {segunda && panel("segunda", grupo, segunda, primera)}
+          </View>
+        )
       )}
 
       <Dialogo
@@ -360,12 +459,60 @@ export function ComparadorFotos({
   )
 }
 
+/** Fechas de la vista para un hueco; la que ocupa el otro hueco no se puede elegir. */
+function SelectorFecha({
+  hueco,
+  grupo,
+  foto,
+  otra,
+  elegir,
+}: {
+  hueco: Hueco
+  grupo: Grupo
+  foto: MedioFoto
+  otra: MedioFoto
+  elegir: (medioId: string) => void
+}): React.JSX.Element {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      accessibilityRole="radiogroup"
+      accessibilityLabel={`Fecha de la ${hueco} foto`}
+      contentContainerStyle={s.fechas}
+    >
+      {grupo.fotos.map((f) => {
+        const opcion = grupo.rotulos.get(f.id)!
+        const marcada = f.id === foto.id
+        // La fecha que ya ocupa la otra foto no se compara consigo misma.
+        const ocupada = f.id === otra.id
+        return (
+          <Pulsable
+            key={f.id}
+            accessibilityRole="radio"
+            accessibilityLabel={
+              retirada(f) ? `${opcion.accesible}, foto retirada` : opcion.accesible
+            }
+            accessibilityState={{ checked: marcada, disabled: ocupada }}
+            disabled={ocupada}
+            onPress={() => elegir(f.id)}
+            style={[s.fecha, marcada && [s.fechaElegida, degradadoOro], ocupada && s.fechaOcupada]}
+          >
+            <Text style={[s.textoFecha, marcada && s.textoFechaElegida]}>{opcion.texto}</Text>
+          </Pulsable>
+        )
+      })}
+    </ScrollView>
+  )
+}
+
 function PanelFoto({
   hueco,
   grupo,
   foto,
   otra,
   lado,
+  hoy,
   elegir,
   api,
   borrable,
@@ -378,6 +525,7 @@ function PanelFoto({
   foto: MedioFoto
   otra: MedioFoto | undefined
   lado: boolean
+  hoy: string
   elegir: (medioId: string) => void
   api: Api
   borrable: boolean
@@ -393,45 +541,14 @@ function PanelFoto({
   return (
     <View style={[s.panel, lado ? s.panelLado : s.panelApilado]}>
       {otra && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          accessibilityRole="radiogroup"
-          accessibilityLabel={`Fecha de la ${hueco} foto`}
-          contentContainerStyle={s.fechas}
-        >
-          {grupo.fotos.map((f) => {
-            const opcion = grupo.rotulos.get(f.id)!
-            const marcada = f.id === foto.id
-            // La fecha que ya ocupa la otra foto no se compara consigo misma.
-            const ocupada = f.id === otra.id
-            return (
-              <Pressable
-                key={f.id}
-                accessibilityRole="radio"
-                accessibilityLabel={
-                  retirada(f) ? `${opcion.accesible}, foto retirada` : opcion.accesible
-                }
-                accessibilityState={{ checked: marcada, disabled: ocupada }}
-                disabled={ocupada}
-                onPress={() => elegir(f.id)}
-                style={[
-                  s.fecha,
-                  marcada && [s.fechaElegida, degradadoOro],
-                  ocupada && s.fechaOcupada,
-                ]}
-              >
-                <Text style={[s.textoFecha, marcada && s.textoFechaElegida]}>{opcion.texto}</Text>
-              </Pressable>
-            )
-          })}
-        </ScrollView>
+        <SelectorFecha hueco={hueco} grupo={grupo} foto={foto} otra={otra} elegir={elegir} />
       )}
 
       {/* El lector lee la vista y la fecha en la propia imagen o en su hueco. */}
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <Text style={s.rotulo}>{`${grupo.nombre}, ${grupo.rotulos.get(foto.id)!.titulo}`}</Text>
       </View>
+      <Text style={s.hace}>{haceDias(foto.fechaToma, hoy)}</Text>
       <Text style={s.autor}>Subida por {foto.autor.nombre}</Text>
 
       {retirada(foto) ? (
@@ -489,198 +606,6 @@ function PanelFoto({
   )
 }
 
-type Carga =
-  | { fase: "pidiendo" }
-  | { fase: "lista"; fuente: ImageURISource; renovada: boolean }
-  | { fase: "fallo" }
-
-/**
- * Sin caché corporal persistente. En Android, Fresco guarda en disco toda
- * imagen de red aunque se pida `reload`, con la URL firmada (distinta en cada
- * acceso) como clave: cada vista dejaría otra copia que sobrevive a cerrar
- * sesión. Allí la foto se descarga a memoria y se pinta como `data:`, que
- * Fresco no escribe en disco. En iOS `reload` salta la caché del cargador y el
- * servidor responde `no-store`; la web tampoco guarda lo que el servidor veta.
- */
-const enMemoria = (): boolean => Platform.OS === "android"
-
-/** La foto como `data:`, sin escribirla en ningún sitio; `null` si no llega. */
-async function descargarEnMemoria(
-  lectura: EnlaceTemporal,
-  senal: AbortSignal,
-): Promise<string | null> {
-  let blob: Blob
-  try {
-    const respuesta = await fetch(lectura.url, {
-      // `no-store` también en la petición: la caché HTTP de la app no la guarda
-      // aunque un almacén olvide su cabecera.
-      headers: { ...lectura.cabeceras, "Cache-Control": "no-store" },
-      signal: senal,
-    })
-    if (!respuesta.ok) return null
-    blob = await respuesta.blob()
-  } catch {
-    return null
-  }
-  try {
-    return senal.aborted ? null : await comoDatos(blob)
-  } catch {
-    return null
-  } finally {
-    // En React Native el blob ocupa memoria nativa hasta que se cierra.
-    ;(blob as Blob & { close?: () => void }).close?.()
-  }
-}
-
-function comoDatos(blob: Blob): Promise<string> {
-  return new Promise((resolver, rechazar) => {
-    const lector = new FileReader()
-    lector.onload = () => {
-      if (typeof lector.result === "string") resolver(lector.result)
-      else rechazar(new Error("La foto no se ha podido leer"))
-    }
-    lector.onerror = () => rechazar(lector.error ?? new Error("La foto no se ha podido leer"))
-    lector.readAsDataURL(blob)
-  })
-}
-
-/**
- * Pide el enlace al mostrarse. Si la imagen no carga o el enlace parece
- * caducado, pide uno nuevo una sola vez; si vuelve a fallar, error con
- * «Reintentar». `caducaEn` es solo una pista (el reloj del móvil puede ir
- * adelantado): la renovación se intenta cargar siempre y decide la carga.
- * Ni el enlace ni la foto se guardan en ningún almacenamiento.
- */
-function ImagenPrivada({
-  medioId,
-  etiqueta,
-  acceso,
-}: {
-  medioId: string
-  etiqueta: string
-  acceso: Api["acceso"]
-}): React.JSX.Element {
-  // Cada objeto nuevo es una petición; `renovacion` indica si ya es la renovación.
-  const [peticion, setPeticion] = useState({ renovacion: false })
-  const [carga, setCarga] = useState<Carga>({ fase: "pidiendo" })
-
-  useEffect(() => {
-    const controlador = new AbortController()
-    const senal = controlador.signal
-    const cargar = async (renovacion: boolean): Promise<void> => {
-      let lectura: EnlaceTemporal
-      try {
-        lectura = (await acceso(medioId)).lectura
-      } catch {
-        if (!senal.aborted) setCarga({ fase: "fallo" })
-        return
-      }
-      if (senal.aborted) return
-      if (!renovacion && caducado(lectura)) return cargar(true)
-      if (!enMemoria()) {
-        const fuente = { uri: lectura.url, headers: lectura.cabeceras, cache: "reload" } as const
-        setCarga({ fase: "lista", fuente, renovada: renovacion })
-        return
-      }
-      const datos = await descargarEnMemoria(lectura, senal)
-      if (senal.aborted) return
-      if (datos !== null) setCarga({ fase: "lista", fuente: { uri: datos }, renovada: renovacion })
-      else if (!renovacion) return cargar(true)
-      else setCarga({ fase: "fallo" })
-    }
-    void cargar(peticion.renovacion)
-    return () => controlador.abort()
-  }, [acceso, medioId, peticion])
-
-  const volverAPedir = (renovacion: boolean): void => {
-    setCarga({ fase: "pidiendo" })
-    setPeticion({ renovacion })
-  }
-
-  if (carga.fase === "lista") {
-    return (
-      <Image
-        source={carga.fuente}
-        style={s.marco}
-        resizeMode="contain"
-        accessible
-        accessibilityRole="image"
-        accessibilityLabel={etiqueta}
-        onLoad={() =>
-          // Si carga, el enlace servía: si más tarde caduca y la imagen vuelve a
-          // pedirse (al girar o cambiar de tamaño), se puede renovar otra vez.
-          setCarga((antes) =>
-            antes.fase === "lista" && antes.renovada ? { ...antes, renovada: false } : antes,
-          )
-        }
-        onError={() => {
-          if (!carga.renovada) volverAPedir(true)
-          else setCarga({ fase: "fallo" })
-        }}
-      />
-    )
-  }
-  if (carga.fase === "fallo") {
-    return (
-      <View style={[s.marco, s.hueco]}>
-        <Text
-          style={s.error}
-          accessibilityRole="alert"
-          accessibilityLabel={`No se ha podido cargar la foto de ${etiqueta}.`}
-        >
-          No se ha podido cargar la foto.
-        </Text>
-        <Accion
-          texto="Reintentar"
-          etiqueta={`Reintentar la foto de ${etiqueta}`}
-          onPress={() => volverAPedir(false)}
-        />
-      </View>
-    )
-  }
-  return (
-    <View
-      style={[s.marco, s.hueco]}
-      accessible
-      accessibilityLabel={`${etiqueta}: cargando foto`}
-      accessibilityState={{ busy: true }}
-    >
-      <ActivityIndicator color={tema.acento} />
-    </View>
-  )
-}
-
-function Accion({
-  texto,
-  etiqueta,
-  onPress,
-  ocupado = false,
-  peligro = false,
-}: {
-  texto: string
-  etiqueta: string
-  onPress: () => void
-  ocupado?: boolean
-  peligro?: boolean
-}): React.JSX.Element {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={ocupado}
-      accessibilityRole="button"
-      accessibilityLabel={etiqueta}
-      accessibilityState={{ disabled: ocupado, busy: ocupado }}
-      style={({ pressed }) => [
-        s.accion,
-        peligro && s.accionPeligro,
-        (pressed || ocupado) && s.pulsada,
-      ]}
-    >
-      <Text style={[s.textoAccion, peligro && s.textoPeligro]}>{texto}</Text>
-    </Pressable>
-  )
-}
-
 const s = StyleSheet.create({
   comparador: { gap: 14 },
   explicacion: {
@@ -689,6 +614,7 @@ const s = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
   },
+  separacion: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 15 },
   aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 15, lineHeight: 21 },
   par: { gap: 12 },
   ladoALado: { flexDirection: "row", alignItems: "flex-start" },
@@ -710,6 +636,7 @@ const s = StyleSheet.create({
   textoFecha: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 14 },
   textoFechaElegida: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton },
   rotulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 16 },
+  hace: { color: tema.acento, fontFamily: tema.fuenteSemi, fontSize: 14 },
   autor: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   marco: {
     width: "100%",
@@ -727,17 +654,4 @@ const s = StyleSheet.create({
   },
   nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13, textAlign: "center" },
   error: { color: tema.error, fontFamily: tema.fuenteSemi, fontSize: 14, textAlign: "center" },
-  accion: {
-    minHeight: 44,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tema.bordeFuerte,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  accionPeligro: { borderColor: tema.error },
-  pulsada: { opacity: 0.7 },
-  textoAccion: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 15 },
-  textoPeligro: { color: tema.error },
 })

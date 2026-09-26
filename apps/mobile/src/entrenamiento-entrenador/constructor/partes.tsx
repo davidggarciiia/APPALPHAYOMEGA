@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import { StyleSheet, Text, TextInput, View } from "react-native"
 import type { Bloque, DeporteDelPlan, FaseDeBloque } from "@alpha-omega/shared"
 
 import { INICIALES_DE_DIA } from "../../entrenamiento/plan/modelo"
@@ -7,6 +7,7 @@ import { Enlace } from "../../entrenamiento/sesion/controles"
 import { degradadoOro, tema } from "../../tema"
 import type { EjercicioDelConstructor } from "./modelo"
 import { Celda, UNIDADES_DE_FILA } from "./tabla"
+import { Pulsable } from "../../componentes/pulsable"
 
 /** Calentamiento, circuito o final: una lista con la dosis de cada ejercicio. */
 export function ListaDeSeccion({
@@ -27,14 +28,14 @@ export function ListaDeSeccion({
       {ejercicios.map((e, n) => (
         <View key={e.id} style={[s.fila, e.id === elegido && s.activa]}>
           <Text style={s.numero}>{n + 1}</Text>
-          <Pressable
+          <Pulsable
             style={s.flex}
             accessibilityRole="button"
             accessibilityLabel={`${e.nombre}: editar detalles`}
             onPress={() => elegir(e.id)}
           >
             <Text style={s.nombre}>{e.nombre}</Text>
-          </Pressable>
+          </Pulsable>
           <Celda
             etiqueta={`Cómo se hace ${e.nombre}`}
             valor={e.dosis}
@@ -207,7 +208,7 @@ export function EditorDeBloque({
               const dia = i + 1
               const activo = d.dias.includes(dia)
               return (
-                <Pressable
+                <Pulsable
                   key={inicial}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: activo }}
@@ -219,7 +220,7 @@ export function EditorDeBloque({
                   style={[s.dia, activo && [s.diaActivo, degradadoOro]]}
                 >
                   <Text style={[s.textoDia, activo && s.textoDiaActivo]}>{inicial}</Text>
-                </Pressable>
+                </Pulsable>
               )
             })}
           </View>

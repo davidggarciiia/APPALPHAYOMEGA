@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { EjercicioPrescrito, Prescripcion, ResumenSesion } from "@alpha-omega/shared"
 
 import { degradadoOro, tema } from "../../tema"
@@ -12,6 +12,7 @@ import {
   minutosDeFinal,
 } from "./modelo"
 import { Fila, Tarjeta, Titulo } from "./piezas"
+import { Pulsable } from "../../componentes/pulsable"
 
 export type DiaDelPlan = { resumen: ResumenSesion; prescripcion: Prescripcion | null }
 
@@ -56,7 +57,7 @@ export function RutinaDeLaSemana({
           const activo = d === dia
           const n = diaDeLaSemana(d.resumen.agenda.fechaActual)
           return (
-            <Pressable
+            <Pulsable
               key={d.resumen.agenda.id}
               accessibilityRole="tab"
               accessibilityState={{ selected: activo }}
@@ -68,7 +69,7 @@ export function RutinaDeLaSemana({
                 {INICIALES_DE_DIA[n - 1]}
               </Text>
               {d.resumen.enviadoEn !== null && <View style={[s.hecho, activo && s.hechoActivo]} />}
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>
@@ -150,7 +151,7 @@ export function RutinaDeLaSemana({
                 {grupo.ejercicios.map((ejercicio, n) => {
                   const detalle = detalleDeEjercicio(ejercicio)
                   return (
-                    <Pressable
+                    <Pulsable
                       key={ejercicio.id}
                       accessibilityRole="button"
                       accessibilityLabel={`${ejercicio.nombre}, ${dosisDeEjercicio(ejercicio)}${detalle ? `, ${detalle}` : ""}. Ver técnica`}
@@ -164,7 +165,7 @@ export function RutinaDeLaSemana({
                           {detalle && <Text style={s.detalle}>{detalle}</Text>}
                         </View>
                       </Fila>
-                    </Pressable>
+                    </Pulsable>
                   )
                 })}
               </Tarjeta>
@@ -172,15 +173,11 @@ export function RutinaDeLaSemana({
           )
         })
       )}
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => abrir(resumen.agenda.id)}
-        style={({ pressed }) => [s.abrir, pressed && s.pulsado]}
-      >
+      <Pulsable accessibilityRole="button" onPress={() => abrir(resumen.agenda.id)} style={s.abrir}>
         <Text style={s.textoAbrir}>
           {resumen.enviadoEn !== null ? "Ver lo que hiciste" : "Abrir sesión"}
         </Text>
-      </Pressable>
+      </Pulsable>
     </View>
   )
 }

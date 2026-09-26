@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react"
 import { randomUUID } from "expo-crypto"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type {
   CambiarDia,
   ConfiguracionSeguimiento,
@@ -20,6 +20,7 @@ import type { ApiSeguimiento } from "../seguimiento/api"
 import { leerDecimal, leerSueno, miles, pesoLegible, suenoLegible } from "../seguimiento/modelo"
 import type { ApiNutricion } from "./api"
 import { cambioDeSuplemento, suplementoTomado } from "./hoy-modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 type Dato = "pesoKg" | "pasos" | "suenoMin" | "cinturaCm"
 type Pedido = "peso" | "pasos" | "sueno" | "cintura"
@@ -239,7 +240,7 @@ export function HoyInicio({
     primera: boolean,
     cargado = diaCargado,
   ): React.JSX.Element => (
-    <Pressable
+    <Pulsable
       key={dato}
       style={[s.fila, !primera && s.separada]}
       accessibilityRole="button"
@@ -250,7 +251,7 @@ export function HoyInicio({
     >
       <Text style={s.nombre}>{nombre}</Text>
       <Text style={valor === null ? s.apuntar : s.valor}>{valor ?? "Apuntar"}</Text>
-    </Pressable>
+    </Pulsable>
   )
   const edicion = editando ? EDICION[editando] : null
   const indicadoresHoy = configuracion ? pedidosDeHoy(configuracion, diaSemana) : []
@@ -296,7 +297,7 @@ export function HoyInicio({
         {suplementos.map((suplemento) => {
           const tomado = suplementoTomado(suplemento, dia)
           return (
-            <Pressable
+            <Pulsable
               key={suplemento.nombre}
               style={[s.fila, s.separada]}
               accessibilityRole="checkbox"
@@ -312,7 +313,7 @@ export function HoyInicio({
               <View style={[s.circulo, tomado && [s.circuloHecho, degradadoExito]]}>
                 {tomado && <Icono nombre="hecho" color={tema.sobreExito} tamano={16} />}
               </View>
-            </Pressable>
+            </Pulsable>
           )
         })}
       </View>

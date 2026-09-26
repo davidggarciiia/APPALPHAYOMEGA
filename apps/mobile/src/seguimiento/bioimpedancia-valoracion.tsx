@@ -1,10 +1,11 @@
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import type { DefinicionCorporal, UnidadCorporal } from "@alpha-omega/shared"
 
 import { Campo } from "../componentes/formulario"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { tema } from "../tema"
 import { CAMPO_CORPORAL_VACIO, type CampoCorporal } from "./valoracion-modelo"
+import { Pulsable } from "../componentes/pulsable"
 
 type CambiarCampo = (id: string, cambio: Partial<CampoCorporal>) => void
 
@@ -72,7 +73,7 @@ function CampoBascula({
         )}
         {d.protocolo && <Text style={s.tenue}>{d.protocolo}</Text>}
       </View>
-      <Pressable
+      <Pulsable
         accessibilityRole="checkbox"
         accessibilityLabel={`No realizado — ${contexto}`}
         accessibilityState={{ checked: campo.noRealizado, disabled: bloqueado }}
@@ -81,7 +82,7 @@ function CampoBascula({
         style={[s.marca, campo.noRealizado && s.marcaActiva, bloqueado && s.apagada]}
       >
         <Text style={s.textoMarca}>No realizado</Text>
-      </Pressable>
+      </Pulsable>
     </Fila>
   )
 }

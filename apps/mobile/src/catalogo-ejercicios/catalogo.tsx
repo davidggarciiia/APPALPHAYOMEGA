@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,6 +16,7 @@ import { faltaDe, type Falta } from "../lib/errores"
 import { degradadoOro, tema } from "../tema"
 
 import type { ApiDeCatalogo } from "./api"
+import { Pulsable } from "../componentes/pulsable"
 
 /**
  * El máximo que admite el contrato. Si algún día no basta, la pantalla lo dice
@@ -134,7 +134,7 @@ export function Catalogo({
         <Text style={estilos.titulo}>CATÁLOGO</Text>
         <View style={estilos.accionesCabecera}>
           {/* Los retirados no se mezclan con los vigentes: se piden aparte. */}
-          <Pressable
+          <Pulsable
             onPress={() => {
               setVerRetirados((ver) => !ver)
             }}
@@ -146,15 +146,15 @@ export function Catalogo({
             <Text style={[estilos.retirados, verRetirados && estilos.retiradosPuesto]}>
               RETIRADOS
             </Text>
-          </Pressable>
-          <Pressable
+          </Pulsable>
+          <Pulsable
             onPress={onNuevo}
             accessibilityRole="button"
             accessibilityLabel="Crear un ejercicio nuevo"
             hitSlop={12}
           >
             <Text style={estilos.nuevo}>+ NUEVO</Text>
-          </Pressable>
+          </Pulsable>
         </View>
       </View>
 
@@ -217,8 +217,8 @@ export function Catalogo({
             {fallo.texto}
           </Text>
           {fallo.reintentable && (
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
+            <Pulsable
+              style={estilos.boton}
               onPress={() => {
                 setFase("cargando")
                 setIntento((n) => n + 1)
@@ -227,7 +227,7 @@ export function Catalogo({
               accessibilityLabel="REINTENTAR"
             >
               <Text style={estilos.textoBoton}>REINTENTAR</Text>
-            </Pressable>
+            </Pulsable>
           )}
         </View>
       ) : (
@@ -289,7 +289,7 @@ function Filtro({
   onPress: () => void
 }): React.JSX.Element {
   return (
-    <Pressable
+    <Pulsable
       style={[estilos.filtro, puesto && estilos.filtroPuesto]}
       onPress={onPress}
       accessibilityRole="button"
@@ -298,7 +298,7 @@ function Filtro({
       hitSlop={6}
     >
       <Text style={[estilos.textoFiltro, puesto && estilos.textoFiltroPuesto]}>{texto}</Text>
-    </Pressable>
+    </Pulsable>
   )
 }
 
@@ -314,12 +314,8 @@ function Fila({
   const retirado = ejercicio.estado === "retirado"
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        estilos.fila,
-        retirado && estilos.filaApagada,
-        pressed && estilos.filaPulsada,
-      ]}
+    <Pulsable
+      style={[estilos.fila, retirado && estilos.filaApagada]}
       onPress={onAbrir}
       // Un lector de pantalla lee la fila de una vez y no en trozos sueltos.
       accessible
@@ -334,7 +330,7 @@ function Fila({
         {[principal, ...secundarios].join(" · ")}
       </Text>
       {retirado && <Text style={estilos.marcaRetirado}>RETIRADO</Text>}
-    </Pressable>
+    </Pulsable>
   )
 }
 
