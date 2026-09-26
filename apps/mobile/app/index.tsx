@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { useFocusEffect, useRouter, type Href } from "expo-router"
 import type { Bloque } from "@alpha-omega/shared"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
 import { Icono } from "../src/componentes/iconos"
 import { SemanaEntrenamiento } from "../src/entrenamiento/semana"
@@ -19,6 +19,7 @@ import { useValoraciones } from "../src/seguimiento/use-valoraciones"
 import { AvisosSeguimiento } from "../src/seguimiento/valoraciones-novedades"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
+import { Pulsable } from "../src/componentes/pulsable"
 
 export default function Inicio(): React.JSX.Element {
   const { estado, salir } = useSesion()
@@ -61,7 +62,7 @@ export default function Inicio(): React.JSX.Element {
     ruta: Href,
     principal = false,
   ): React.JSX.Element => (
-    <Pressable
+    <Pulsable
       style={[s.tarjeta, principal && s.principal]}
       accessibilityRole="button"
       accessibilityLabel={titulo}
@@ -72,7 +73,7 @@ export default function Inicio(): React.JSX.Element {
         <Icono nombre="adelante" color={principal ? tema.acento : tema.textoTenue} />
       </View>
       <Text style={s.detalle}>{detalle}</Text>
-    </Pressable>
+    </Pulsable>
   )
   return (
     <PantallaDeFormulario sinTarjeta>
