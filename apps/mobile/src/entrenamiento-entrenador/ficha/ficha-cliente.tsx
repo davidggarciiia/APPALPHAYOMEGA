@@ -269,10 +269,13 @@ export function FichaCliente({
             medios={medios}
             nuevoId={nuevoId}
           />
+          {/* Las mismas fotos que ve el cliente, con el mismo comparador. */}
           <ProgresoCliente
             clienteId={clienteId}
             seguimiento={seguimiento}
             entrenamiento={api}
+            medios={medios}
+            nuevoId={nuevoId}
             modo="entrenador"
           />
         </View>

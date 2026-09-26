@@ -21,6 +21,7 @@ import { fechaCorta } from "../entrenamiento/plan/modelo"
 import { ErrorDePeticion, ErrorDeRed } from "../lib/http"
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
 import { crearApiSeguimiento, type ApiSeguimiento } from "./api"
+import type { ApiMedios } from "./medios-api"
 import { HoyDiario } from "./hoy-diario"
 import { ProgresoCliente } from "./progreso"
 import type { ApiEvolucionAvisos, ApiValoracionesCliente } from "./valoraciones-api"
@@ -657,6 +658,151 @@ describe("ProgresoCliente", () => {
     // La cifra grande de la gráfica y la fila «Cintura» del resumen de la semana.
     expect(screen.getAllByText("92,5 cm")).toHaveLength(2)
     expect(screen.getByText(/Última medida.*−1,5 cm respecto al inicio/s)).toBeTruthy()
+  })
+})
+
+describe("Progreso de un vistazo", () => {
+  const entrenamiento = {
+    plan: jest.fn(async () => ({ plan: null })),
+    semana: jest.fn(async () => ({ sesiones: [], total: 0 })),
+  } as unknown as ApiEntrenamiento
+  const medida = (fecha: string, datos: Partial<Medida>): Medida => ({
+    id: `40000000-0000-4000-8000-${fecha.replaceAll("-", "").padStart(12, "0")}`,
+    fecha,
+    pesoKg: null,
+    cinturaCm: null,
+    grasaPct: null,
+    alturaCm: null,
+    creadoEn: `${fecha}T08:00:00.000Z`,
+    ...datos,
+  })
+  const medios = (): ApiMedios =>
+    ({
+      fotosDeCliente: jest.fn(async () => ({ fotos: [] })),
+      solicitudes: jest.fn(async () => ({ solicitudes: [] })),
+    }) as unknown as ApiMedios
+  const titulos = (): unknown[] => screen.getAllByRole("header").map((h) => h.props.children)
+
+  it("arriba las cifras clave con su cambio y la próxima revisión; después fotos y detalle", async () => {
+    const hoy = hoyAgenda()
+    const inicio = sumarDias(hoy, -30)
+    const reciente = sumarDias(hoy, -3)
+    const seguimiento = api(
+      [112.1, 112.1, 111.6].map((pesoKg, n) => ({
+        fecha: sumarDias(hoy, n - 2),
+        pesoKg,
+        pasos: null,
+        suenoMin: null,
+        creatina: null,
+        suplementos: [],
+      })),
+    )
+    seguimiento.medidas = jest.fn(async () => ({
+      medidas: [
+        medida(inicio, { pesoKg: 114.2, grasaPct: 29.2, cinturaCm: 109 }),
+        medida(reciente, { grasaPct: 28.4, cinturaCm: 107 }),
+      ],
+      fechaNacimiento: null,
+    }))
+    const proximaRevision = jest.fn(async () => ({
+      revision: 1,
+      pauta: { fecha: sumarDias(hoy, 12), intervaloSemanas: null, bloques: ["medidas" as const] },
+      cumplidaPorId: null,
+      actualizadaEn: null,
+    }))
+    const valoraciones = {
+      listarPublicadas: jest.fn(async () => ({ valoraciones: [], total: 0 })),
+      leerPublicada: jest.fn(async () => {
+        throw new Error("no usado")
+      }),
+      proximaRevision,
+      evolucion: jest.fn(async () => ({ series: [] })),
+    } as unknown as ApiValoracionesCliente & Pick<ApiEvolucionAvisos, "evolucion">
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+        valoraciones={valoraciones}
+        medios={medios()}
+      />,
+    )
+
+    // Cada tarjeta se lee entera: valor, de dónde sale y el cambio con su fecha.
+    expect(
+      await screen.findByLabelText(
+        `Peso: 111,9 kg. Media de 7 días. −2,3 kg desde el ${fechaCorta(inicio)}`,
+      ),
+    ).toBeTruthy()
+    expect(
+      screen.getByLabelText(
+        `Grasa corporal: 28,4 %. Medida del ${fechaCorta(reciente)}. −0,8 % desde el ${fechaCorta(inicio)}`,
+      ),
+    ).toBeTruthy()
+    expect(
+      screen.getByLabelText(
+        `Cintura: 107 cm. Medida del ${fechaCorta(reciente)}. −2,0 cm desde el ${fechaCorta(inicio)}`,
+      ),
+    ).toBeTruthy()
+    expect(
+      await screen.findByLabelText(
+        `Próxima revisión: ${fechaCorta(sumarDias(hoy, 12))}. Dentro de 12 días`,
+      ),
+    ).toBeTruthy()
+    // Va en el resumen y no se repite ni se vuelve a pedir en las valoraciones.
+    await screen.findByText(/Aún no tienes valoraciones publicadas/)
+    expect(screen.queryByRole("header", { name: "Próxima revisión" })).toBeNull()
+    expect(proximaRevision).toHaveBeenCalledTimes(1)
+
+    expect(
+      await screen.findByText("Aún no hay fotos. Añade la primera para ver tu evolución."),
+    ).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Añadir foto" })).toBeTruthy()
+    // Sin nada pedido por el entrenador, esa sección no ocupa sitio.
+    expect(screen.queryByRole("header", { name: "Fotos que te pide tu entrenador" })).toBeNull()
+    const orden = titulos()
+    expect(orden.indexOf("Tu resumen")).toBeGreaterThanOrEqual(0)
+    expect(orden.indexOf("Tu resumen")).toBeLessThan(orden.indexOf("Fotos"))
+    expect(orden.indexOf("Fotos")).toBeLessThan(orden.indexOf("En detalle"))
+  })
+
+  it("sin datos, el resumen dice qué hacer", async () => {
+    await render(
+      <ProgresoCliente clienteId={CLIENTE} seguimiento={api()} entrenamiento={entrenamiento} />,
+    )
+    expect(
+      await screen.findByText(
+        "Aún no hay datos. Apunta tu peso desde «Hoy» o añade tus medidas más abajo.",
+      ),
+    ).toBeTruthy()
+  })
+
+  it("el entrenador ve el mismo resumen y las fotos del cliente, sin añadirlas", async () => {
+    const hoy = hoyAgenda()
+    const seguimiento = api()
+    seguimiento.medidas = jest.fn(async () => ({
+      medidas: [medida(sumarDias(hoy, -3), { cinturaCm: 92 })],
+      fechaNacimiento: null,
+    }))
+    const deMedios = medios()
+    await render(
+      <ProgresoCliente
+        clienteId={CLIENTE}
+        seguimiento={seguimiento}
+        entrenamiento={entrenamiento}
+        medios={deMedios}
+        modo="entrenador"
+      />,
+    )
+    expect(
+      await screen.findByLabelText(`Cintura: 92 cm. Medida del ${fechaCorta(sumarDias(hoy, -3))}`),
+    ).toBeTruthy()
+    expect(screen.getByRole("header", { name: "Resumen" })).toBeTruthy()
+    expect(await screen.findByText("Aún no hay fotos de este cliente.")).toBeTruthy()
+    expect(deMedios.fotosDeCliente).toHaveBeenCalledWith(CLIENTE)
+    expect(screen.queryByRole("button", { name: "Añadir foto" })).toBeNull()
+    // Lo que pide a su cliente lo gestiona en sus valoraciones, no aquí.
+    expect(deMedios.solicitudes).not.toHaveBeenCalled()
   })
 })
 
