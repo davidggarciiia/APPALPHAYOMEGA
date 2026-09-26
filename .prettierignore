@@ -18,3 +18,6 @@ apps/mobile/expo-env.d.ts
 # Skills de terceros, copiadas tal cual de su repositorio. Si Prettier las
 # reescribe, actualizarlas desde el original deja de ser copiar y pegar.
 .claude/skills/animate-expo/
+
+# Trazados del logo, generados por apps/mobile/assets/logo/vectorizar.py.
+apps/mobile/src/componentes/logo/trazos.ts

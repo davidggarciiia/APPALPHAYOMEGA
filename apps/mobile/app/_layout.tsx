@@ -1,6 +1,6 @@
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
-import { useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
 
 import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
@@ -24,6 +24,10 @@ function Enrutador(): React.JSX.Element {
   const segmentos = useSegments()
   const router = useRouter()
   const movimientoReducido = useMovimientoReducido()
+  const [cargaRetirada, setCargaRetirada] = useState(false)
+  const retirarCarga = useCallback(() => {
+    setCargaRetirada(true)
+  }, [])
 
   useEffect(() => {
     // Sin conexion se queda en la pantalla de reintentar, que no monta el
@@ -52,7 +56,15 @@ function Enrutador(): React.JSX.Element {
         <Text style={estilos.marca}>ALPHA &amp; OMEGA</Text>
         <Text style={estilos.aviso}>No hemos podido conectar con el servidor.</Text>
         <Text style={estilos.detalle}>Tu sesión sigue guardada. Comprueba tu conexión.</Text>
-        <Pulsable style={estilos.boton} onPress={reintentar} accessibilityRole="button">
+        <Pulsable
+          style={estilos.boton}
+          onPress={() => {
+            // Reintentar vuelve a comprobar la sesion, y el logo vuelve a salir.
+            setCargaRetirada(false)
+            reintentar()
+          }}
+          accessibilityRole="button"
+        >
           <Text style={estilos.textoBoton}>REINTENTAR</Text>
         </Pulsable>
       </View>
@@ -80,7 +92,9 @@ function Enrutador(): React.JSX.Element {
   return (
     <View style={estilos.raiz}>
       {contenido}
-      {estado.fase === "comprobando" && <PantallaDeCarga />}
+      {!cargaRetirada && (
+        <PantallaDeCarga lista={estado.fase !== "comprobando"} alDesaparecer={retirarCarga} />
+      )}
     </View>
   )
 }
