@@ -3,7 +3,8 @@
 > Plan: [plan.md](plan.md), aprobado por David el 2026-09-25. Specs:
 > [ampliación de agenda](../../SPEC-agenda.md#ampliación-horarios-y-reservas) y
 > [planes](../../SPEC-planes.md).
-> Estado: H00 entregada para revisión. Ninguna tarea de código empezada.
+> Estado: fase 0 implementada y probada el 2026-09-26. Falta la comprobación en
+> un móvil de H04 y la revisión de David del checkpoint 0.
 
 ## Regla de ejecución
 
@@ -32,53 +33,71 @@ comprobado en un móvil. El tercero no se da por hecho sin haberlo visto.
 
 ## Fase 0 · Base
 
-### H01 — Los e2e dejan de fallar a ratos
+### H01 — Los e2e dejan de fallar a ratos — hecha 2026-09-26
 
-- [ ] Un canje de refresco que pierde una carrera contra otro canje simultáneo no
+- [x] Un canje de refresco que pierde una carrera contra otro canje simultáneo no
       se trata como robo ni revoca la familia (`tokens-refresco.service.ts`,
       `canjear` lee la fila antes de tomar el candado).
-- [ ] Test que reproduce la carrera de forma determinista antes del arreglo.
-- [ ] «Ni el entrenador puede crear otra cuenta de entrenador» cuenta solo sus
+- [x] Test que reproduce la carrera de forma determinista antes del arreglo.
+- [x] «Ni el entrenador puede crear otra cuenta de entrenador» cuenta solo sus
       propias filas (`gestion-clientes.e2e-spec.ts`), no todos los entrenadores de
       la base.
-- [ ] Se mantienen las garantías actuales: nunca dos tokens vivos por familia,
+- [x] Se mantienen las garantías actuales: nunca dos tokens vivos por familia,
       cierre de sesión sin ventana y reuso tardío que corta la familia.
 
 **Dependencias:** ninguna. **Alcance:** S.
 **Verificar:** 10 ejecuciones seguidas de `npm run test:e2e` sin `--runInBand`,
 todas en verde.
 
-### H02 — Integración continua
+> Resultado: 20 de 20 ejecuciones en verde (205 tests); antes fallaban 2 de 6.
+> El test nuevo falla siempre con el código anterior (0 tokens vivos en vez de 1).
+> La regla: una petición que llegó antes de que el token se revocara perdió una
+> carrera y recibe un rechazo; si llegó después, siguen la gracia de un solo uso y
+> el corte de la familia.
 
-- [ ] `.github/workflows/ci.yml` en cada push y PR: `npm ci`, lint, typecheck,
+### H02 — Integración continua — hecha 2026-09-26
+
+- [x] `.github/workflows/ci.yml` en cada push y PR: `npm ci`, lint, typecheck,
       unitarios y e2e contra un servicio `postgres:17-alpine` con
       `prisma migrate deploy`.
-- [ ] Sin secretos reales: el workflow genera sus valores de prueba.
+- [x] Sin secretos reales: el workflow genera sus valores de prueba.
 
 **Dependencias:** H01. **Alcance:** S.
 **Verificar:** los checks salen en verde en el PR de la rama.
 
-### H03 — Tests en la app móvil (antes C01)
+> Resultado: no hay PR abierto; los dos trabajos salen en verde en cada push de
+> la rama desde la primera ejecución. Simulado antes en local sin `.env`.
 
-- [ ] Instalar solo `jest-expo`, `@testing-library/react-native`,
+### H03 — Tests en la app móvil (antes C01) — hecha 2026-09-26
+
+- [x] Instalar solo `jest-expo`, `@testing-library/react-native`,
       `@react-native/jest-preset` y `test-renderer`, con las versiones de
       `tasks/entrenamiento/plan.md`.
-- [ ] Script `test` en `apps/mobile`, sin modo watch y sin tests dentro de `app/`.
-- [ ] Un test real de `src/componentes/formulario.tsx`. El workflow de H02 lo
+- [x] Script `test` en `apps/mobile`, sin modo watch y sin tests dentro de `app/`.
+- [x] Un test real de `src/componentes/formulario.tsx`. El workflow de H02 lo
       ejecuta.
 
 **Dependencias:** H02. **Alcance:** M.
 **Verificar:** `npm run test --workspace apps/mobile`.
 
-### H04 — Renovar el token durante el uso (antes C03 y C06)
+> Desviación: `test-renderer` va en 1.2.0 y no en 1.3.0. La 1.3.0 exige React 19.3
+> y npm subía el React de la raíz, dejando dos copias. Se añadió también
+> `@types/jest` 29 en la app, porque TypeScript 6 ya no carga los tipos globales.
+> El lockfile solo añade paquetes. Comprobado rompiendo el componente: los tests
+> se ponen en rojo.
 
-- [ ] Transporte común extraído de `src/lib/api.ts`, conservando el
+### H04 — Renovar el token durante el uso (antes C03 y C06) — implementada y probada 2026-09-26
+
+- [x] Transporte común extraído de `src/lib/api.ts`, conservando el
       comportamiento actual.
-- [ ] Ante un 401: una sola renovación en vuelo aunque fallen varias peticiones
+- [x] Ante un 401: una sola renovación en vuelo aunque fallen varias peticiones
       a la vez, el token nuevo guardado antes de usarse y un único reintento.
-- [ ] Se reintenta solo en lecturas o en escrituras con id de operación.
-- [ ] Un 403 o un fallo de red nunca cierran la sesión.
-- [ ] Cierra el punto 9c de `docs/PENDIENTE-PARA-PRODUCCION.md`.
+- [x] ~~Se reintenta solo en lecturas o en escrituras con id de operación.~~ Se
+      reintenta toda petición tras un 401: en una ruta con sesión lo da el guard
+      antes de ejecutar nada, así que repetirla es seguro.
+- [x] Un 403 o un fallo de red nunca cierran la sesión.
+- [x] Cierra el punto 9c de `docs/PENDIENTE-PARA-PRODUCCION.md`.
+- [ ] Comprobado en un móvil: la app sigue funcionando tras 15 minutos abierta.
 
 **Dependencias:** H03. **Alcance:** M.
 **Verificar:** test «dos peticiones con el token caducado hacen un solo refresh y
@@ -86,7 +105,8 @@ reintentan una vez»; en móvil, la app sigue funcionando tras 15 minutos abiert
 
 ### Checkpoint 0
 
-- [ ] e2e estables, CI en verde, tests móviles ejecutándose y token renovado.
+- [x] e2e estables, CI en verde, tests móviles ejecutándose y token renovado
+      (automático; la prueba en móvil de H04 sigue pendiente).
 - [ ] David revisa la evidencia antes de la fase 1.
 
 ## Fase 1 · Cimientos
@@ -270,6 +290,10 @@ y el recorrido de [plan.md](plan.md#verificación) en un móvil.
 
 ## Registro de entregas
 
-| Tarea | Commit | Evidencia                                                                    |
-| ----- | ------ | ---------------------------------------------------------------------------- |
-| H00   | —      | Documentos en la rama `claude/upbeat-ptolemy-yks552`, pendientes de revisión |
+| Tarea | Commit    | Evidencia                                                                    |
+| ----- | --------- | ---------------------------------------------------------------------------- |
+| H00   | `26c4ab8` | Documentos en la rama `claude/upbeat-ptolemy-yks552`, pendientes de revisión |
+| H01   | `7ea82dc` | 20 de 20 pasadas e2e en paralelo; test determinista de la carrera            |
+| H02   | `0c9c0ee` | CI en verde en GitHub Actions, los dos trabajos                              |
+| H03   | `72c791f` | 4 tests de formulario, ejecutados también por la CI                          |
+| H04   | `1651bca` | 14 tests de transporte y sesión, cada regla comprobada rompiéndola           |
