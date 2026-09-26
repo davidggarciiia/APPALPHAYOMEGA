@@ -71,7 +71,7 @@ inventado. Las líneas `archivo:línea` apuntan a esos archivos.
 5. **Controles invisibles por contraste no textual.** El borde `#3A362F` sobre la tarjeta
    `#1A1916` da **1,46:1**, y WCAG 1.4.11 pide 3:1. El círculo vacío es lo único que dice que ahí
    hay un control.
-   - `Nutricion.dc.html:162, 166, 170, 179`: casillas de Comida, Snack, Cena y Creatina.
+   - `Nutricion.dc.html:175, 179, 183, 192`: casillas de Comida, Snack, Cena y Creatina.
    - `NutricionSinNutricionista.dc.html:162`: Creatina.
    - `Sesion.dc.html:240`: «Confirmar serie 4», que es una caja vacía (1,62:1).
    - `NutricionistaFicha.dc.html:223`: fondo del interruptor apagado. El tirador sí se ve.
@@ -118,7 +118,7 @@ inventado. Las líneas `archivo:línea` apuntan a esos archivos.
     - `Sesion.dc.html:210`: RIR «2» en ámbar, sin texto que explique que está por debajo del objetivo.
     - `EntrenadorFicha.dc.html:211`: RIR «2» en ámbar.
     - `EntrenadorFicha.dc.html:212`: «22 × 10» en ámbar (bajó por la molestia).
-    - `Nutricion.dc.html:163`: la comida que toca, «Comida», solo va en amarillo.
+    - `Nutricion.dc.html:176`: la comida que toca, «Comida», solo va en amarillo.
     - `EntrenadorConstructor.dc.html:171-174`: la fase actual solo por el color del borde. Usa `aria-current="step"`.
     - `PlanBloque.dc.html:175`: la semana actual.
     - `PlanBloque.dc.html:184`: el día actual.
@@ -137,7 +137,7 @@ inventado. Las líneas `archivo:línea` apuntan a esos archivos.
       - `Main.dc.html:207`
       - `Plan.dc.html:223`
       - `Guia.dc.html:190`
-      - `Nutricion.dc.html:200`
+      - `Nutricion.dc.html:213`
       - `NutricionSinNutricionista.dc.html:171`
       - `Progreso.dc.html:202`
       - `PlanBloque.dc.html:213`
@@ -148,7 +148,7 @@ inventado. Las líneas `archivo:línea` apuntan a esos archivos.
     se oye como «Comida sin marcar, no pulsado». El nombre debe ser fijo («Comida») y el estado ir solo
     en `aria-pressed`, o mejor, en un `checkbox`. Además, el texto al lado del círculo de 32 px no forma
     parte del área táctil.
-    - `Nutricion.dc.html:154, 158, 162, 166, 170, 179`
+    - `Nutricion.dc.html:167, 171, 175, 179, 183, 192`
     - `NutricionSinNutricionista.dc.html:162-163`
     - `Sesion.dc.html:203, 211`: «Serie 1 hecha», sin `aria-pressed`.
     - `Sesion.dc.html:220`
@@ -180,7 +180,7 @@ inventado. Las líneas `archivo:línea` apuntan a esos archivos.
 19. **23 enlaces muertos con `href="#"`.**
     - `Sesion.dc.html:178`: «Calentamiento».
     - `Guia.dc.html:177-183`
-    - `Nutricion.dc.html:155, 167, 171`
+    - `Nutricion.dc.html:168, 180, 184`
     - `EntrenadorFicha.dc.html:144, 147-149`
     - `EntrenadorConstructor.dc.html:144, 147-149, 225`
     - `NutricionistaFicha.dc.html:144, 146, 147`
@@ -228,7 +228,7 @@ inventado. Las líneas `archivo:línea` apuntan a esos archivos.
 27. **Táctil.**
     - Falta `touch-action: manipulation` y `-webkit-tap-highlight-color`.
     - Áreas táctiles por debajo de 44 px (pasan el mínimo WCAG de 24 px, pero no la guía de iOS/Android):
-      - 32 px: casillas de `Nutricion.dc.html:154-179` e interruptores de `NutricionistaFicha.dc.html:221-223`.
+      - 32 px: casillas de `Nutricion.dc.html:167-192` e interruptores de `NutricionistaFicha.dc.html:221-223`.
       - 40 px: RIR de `Sesion.dc.html:225-230` y chips de `Molestia.dc.html:164-168, 180-182`.
 
 28. **El logo no tiene `width`/`height`**, lo que provoca un salto de maquetación.
