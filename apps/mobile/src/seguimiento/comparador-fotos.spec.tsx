@@ -459,6 +459,131 @@ describe("comparar dos fechas de la misma vista", () => {
   })
 })
 
+describe("antes y después, como en MyFitnessPal", () => {
+  const HOY = "2026-09-26"
+
+  it("dice cuántos días han pasado desde cada foto y cuántos hay entre las dos", async () => {
+    const api = apiFalsa()
+    await render(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteSeptiembre]}
+        api={api}
+        puedeBorrar={nadie}
+        hoy={HOY}
+      />,
+    )
+    await screen.findByLabelText("Frente, 24 sep 2026")
+    expect(screen.getByText("Hace 259 días")).toBeTruthy()
+    expect(screen.getByText("Hace 2 días")).toBeTruthy()
+    expect(screen.getByText("257 días entre las dos fotos")).toBeTruthy()
+  })
+
+  it("al deslizar superpone la foto anterior y la posterior, aunque se elijan al revés", async () => {
+    const api = apiFalsa()
+    await render(
+      <ComparadorFotos
+        fotos={[frenteEnero, frenteMayo, frenteSeptiembre]}
+        api={api}
+        puedeBorrar={nadie}
+        hoy={HOY}
+      />,
+    )
+    await screen.findByLabelText("Frente, 24 sep 2026")
+    expect(screen.queryByRole("adjustable")).toBeNull()
+
+    await fireEvent.press(screen.getByRole("radio", { name: "Deslizar" }))
+    expect(screen.queryByTestId("fotos-comparadas")).toBeNull()
+    expect(screen.getByRole("adjustable").props.accessibilityLabel).toBe(
+      "Divisor entre antes, Frente, 10 ene 2026, y después, Frente, 24 sep 2026",
+    )
+    expect(screen.getByText("Antes: 10 ene 2026 · Hace 259 días")).toBeTruthy()
+
+    // La primera pasa a ser la más reciente: antes sigue siendo la de fecha anterior.
+    await fireEvent.press(
+      within(screen.getByLabelText("Fecha de la segunda foto")).getByRole("radio", {
+        name: "10 may 2026",
+      }),
+    )
+    await fireEvent.press(
+      within(screen.getByLabelText("Fecha de la primera foto")).getByRole("radio", {
+        name: "24 sep 2026",
+      }),
+    )
+    expect(screen.getByRole("adjustable").props.accessibilityLabel).toBe(
+      "Divisor entre antes, Frente, 10 may 2026, y después, Frente, 24 sep 2026",
+    )
+
+    // Volver a lado a lado recupera las dos fotos con su fecha.
+    await fireEvent.press(screen.getByRole("radio", { name: "Lado a lado" }))
+    expect(screen.getByTestId("fotos-comparadas")).toBeTruthy()
+    expect(await screen.findByLabelText("Frente, 10 may 2026")).toBeTruthy()
+  })
+
+  it("una foto retirada no se superpone: se explica y se puede ver lado a lado", async () => {
+    const api = apiFalsa()
+    const retirada = foto(20, { fechaToma: "2026-01-10", estado: "eliminado" })
+    await render(
+      <ComparadorFotos fotos={[retirada, frenteSeptiembre]} api={api} puedeBorrar={nadie} />,
+    )
+    await fireEvent.press(screen.getByRole("radio", { name: "Deslizar" }))
+    expect(screen.queryByRole("adjustable")).toBeNull()
+    expect(screen.getByText(/Para deslizar hacen falta dos fotos que se puedan ver/)).toBeTruthy()
+  })
+
+  it("con una sola foto de la vista no ofrece modos de comparación", async () => {
+    const api = apiFalsa()
+    await render(<ComparadorFotos fotos={[espaldaSeptiembre]} api={api} puedeBorrar={nadie} />)
+    await screen.findByLabelText("Espalda, 24 sep 2026")
+    expect(screen.queryByRole("radio", { name: "Deslizar" })).toBeNull()
+  })
+
+  it("una foto pedida desde fuera abre su vista y ocupa el hueco que le toca", async () => {
+    const api = apiFalsa()
+    const fotos = [frenteEnero, frenteMayo, frenteSeptiembre, espaldaSeptiembre]
+    const vista = await render(
+      <ComparadorFotos
+        fotos={fotos}
+        api={api}
+        puedeBorrar={nadie}
+        enfoque={{ medioId: frenteMayo.id, vez: 1 }}
+      />,
+    )
+    // Mayo como segunda; la primera sigue siendo la más antigua.
+    expect(await screen.findByLabelText("Frente, 10 may 2026")).toBeTruthy()
+    expect(screen.getByLabelText("Frente, 10 ene 2026")).toBeTruthy()
+    expect(screen.queryByLabelText("Frente, 24 sep 2026")).toBeNull()
+
+    await vista.rerender(
+      <ComparadorFotos
+        fotos={fotos}
+        api={api}
+        puedeBorrar={nadie}
+        enfoque={{ medioId: espaldaSeptiembre.id, vez: 2 }}
+      />,
+    )
+    expect(await screen.findByLabelText("Espalda, 24 sep 2026")).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "Espalda" }).props.accessibilityState).toMatchObject({
+      checked: true,
+    })
+
+    // La más antigua de su vista va al primer hueco.
+    await vista.rerender(
+      <ComparadorFotos
+        fotos={fotos}
+        api={api}
+        puedeBorrar={nadie}
+        enfoque={{ medioId: frenteEnero.id, vez: 3 }}
+      />,
+    )
+    expect(
+      within(await screen.findByLabelText("Fecha de la primera foto")).getByRole("radio", {
+        name: "10 ene 2026",
+      }).props.accessibilityState,
+    ).toMatchObject({ checked: true })
+    expect(screen.getByLabelText("Frente, 24 sep 2026")).toBeTruthy()
+  })
+})
+
 describe("enlaces temporales", () => {
   it("si la imagen falla pide un enlace nuevo una sola vez y después ofrece reintentar", async () => {
     const api = apiFalsa()
