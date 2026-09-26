@@ -1,5 +1,13 @@
 import type { ReactNode } from "react"
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native"
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type StyleProp,
+  type TextInputProps,
+  type ViewStyle,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { LinearGradient } from "expo-linear-gradient"
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from "react-native-svg"
@@ -211,6 +219,13 @@ export function Tarjeta({
   )
 }
 
+/**
+ * Ancho máximo del contenido. En el móvil no se nota; en una tableta o en el
+ * navegador del ordenador (donde suele trabajar el entrenador) evita líneas de
+ * lado a lado de la pantalla.
+ */
+export const contenidoCentrado = { width: "100%", maxWidth: 760, alignSelf: "center" } as const
+
 /** Fondo, brillo y zona segura: el marco de todas las pantallas del diseño. */
 export function Pantalla({ children }: { children: ReactNode }): React.JSX.Element {
   return (
@@ -379,6 +394,90 @@ export function Aviso({
   )
 }
 
+/**
+ * Campo de texto del diseño: etiqueta encima, siempre visible (nunca solo el
+ * placeholder), y el error debajo, anunciado.
+ */
+export function CampoDeTexto({
+  etiqueta,
+  error,
+  multilinea = false,
+  style,
+  ...props
+}: TextInputProps & {
+  etiqueta: string
+  error?: string | null
+  multilinea?: boolean
+}): React.JSX.Element {
+  const conError = error !== undefined && error !== null
+  return (
+    <View style={estilos.campoBloque}>
+      <Text style={estilos.etiquetaCampo}>{etiqueta}</Text>
+      <TextInput
+        style={[
+          estilos.campo,
+          multilinea && estilos.campoMultilinea,
+          conError && estilos.campoConError,
+          style,
+        ]}
+        placeholderTextColor={tema.marcador}
+        accessibilityLabel={etiqueta}
+        aria-invalid={conError}
+        multiline={multilinea}
+        textAlignVertical={multilinea ? "top" : "center"}
+        {...props}
+      />
+      {conError && (
+        <Text style={estilos.errorCampo} accessibilityRole="alert">
+          {error}
+        </Text>
+      )}
+    </View>
+  )
+}
+
+/**
+ * Pastilla que se elige (un grupo muscular, un día, un filtro). Con
+ * `accessibilityRole` de radio o checkbox según se elija una o varias.
+ */
+export function Pastilla({
+  texto: etiqueta,
+  elegida,
+  onPress,
+  varias = false,
+  accessibilityLabel,
+}: {
+  texto: string
+  elegida: boolean
+  onPress: () => void
+  varias?: boolean
+  accessibilityLabel?: string
+}): React.JSX.Element {
+  return (
+    <Pulsable
+      onPress={onPress}
+      style={[estilos.pastilla, elegida && estilos.pastillaElegida]}
+      accessibilityRole={varias ? "checkbox" : "radio"}
+      accessibilityState={{ checked: elegida }}
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={{ top: 4, bottom: 4 }}
+    >
+      {elegida && (
+        <LinearGradient
+          colors={degradados.oro}
+          locations={degradados.paradas}
+          start={DIAGONAL.inicio}
+          end={DIAGONAL.fin}
+          style={[StyleSheet.absoluteFill, { borderRadius: 999 }]}
+        />
+      )}
+      <Text style={[estilos.textoPastilla, elegida && estilos.textoPastillaElegida]}>
+        {etiqueta}
+      </Text>
+    </Pulsable>
+  )
+}
+
 /** Tipografía del diseño. */
 export const texto = StyleSheet.create({
   titulo: {
@@ -436,6 +535,32 @@ const estilos = StyleSheet.create({
     gap: 10,
   },
   avisoError: { borderColor: tema.error },
+  campoBloque: { gap: 8 },
+  etiquetaCampo: { color: tema.textoTenue, fontFamily: fuentes.media, fontSize: 14 },
+  campo: {
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: tema.superficie,
+    color: tema.texto,
+    fontFamily: fuentes.normal,
+    fontSize: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  campoMultilinea: { minHeight: 110 },
+  campoConError: { borderWidth: 1.5, borderColor: tema.error },
+  errorCampo: { color: tema.error, fontFamily: fuentes.normal, fontSize: 14 },
+  pastilla: {
+    minHeight: 40,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+    backgroundColor: tema.superficie,
+    overflow: "hidden",
+  },
+  pastillaElegida: { backgroundColor: "transparent" },
+  textoPastilla: { color: tema.texto, fontFamily: fuentes.semi, fontSize: 14 },
+  textoPastillaElegida: { color: tema.sobreOro },
   brillo: { position: "absolute", top: 0, left: 0, right: 0, height: 560 },
   atras: {
     width: 44,
