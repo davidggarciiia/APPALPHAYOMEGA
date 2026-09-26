@@ -44,9 +44,9 @@ model Usuario {
 
   /// Datos de contacto del perfil. Todos opcionales: un perfil recien creado por
   /// el entrenador solo tiene nombre y correo, y su titular los completa despues.
-  telefono         String?
-  fechaNacimiento  DateTime?
-  fotoUrl          String?
+  telefono        String?
+  fechaNacimiento DateTime?
+  fotoUrl         String?
 
   rol    Rol
   estado EstadoUsuario @default(pendiente)
@@ -63,6 +63,12 @@ model Usuario {
 
   /// Nutricionistas que ven a este usuario como cliente.
   nutricionistasAsignados AsignacionNutricionista[] @relation("ComoCliente")
+
+  /// Entrenamiento: las sesiones y planes de este usuario como cliente.
+  sesionesProgramadas SesionProgramada[]
+  planesEntrenamiento PlanEntrenamiento[]
+  /// Cambios de fecha que hizo este usuario, sea cliente o entrenador.
+  cambiosDeFecha      CambioDeFecha[]
 
   @@map("usuarios")
 }
@@ -106,7 +112,6 @@ model TokenRefresco {
   @@map("tokens_refresco")
 }
 
-
 /// Que clientes puede ver cada nutricionista.
 ///
 /// El nutricionista es un profesional EXTERNO subcontratado. Sin una fila aqui
@@ -129,7 +134,6 @@ model AsignacionNutricionista {
   @@index([clienteId])
   @@map("asignaciones_nutricionista")
 }
-
 
 /// Enlace de un solo uso con el que un perfil pendiente fija su contrasena.
 ///
@@ -162,15 +166,14 @@ model TokenRecuperacion {
   usuarioId String
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
-  hash String
+  hash     String
   expiraEn DateTime
-  usadoEn DateTime?
-  creadoEn DateTime @default(now())
+  usadoEn  DateTime?
+  creadoEn DateTime  @default(now())
 
   @@index([usuarioId])
   @@map("tokens_recuperacion")
 }
-
 
 /// Por que dejo de valer un token de refresco.
 enum MotivoRevocacion {
@@ -190,4 +193,208 @@ enum MotivoRevocacion {
   /// simultaneas la usen todas y acaben bifurcando la sesion en varias cadenas,
   /// que es exactamente lo que la rotacion existe para impedir.
   reintento
+}
+
+// ---------------------------------------------------------------------------
+// catalogo-ejercicios (SPEC-catalogo-ejercicios.md). Ninguna tabla de este
+// bloque referencia a un usuario: el catalogo no es dato de nadie.
+// ---------------------------------------------------------------------------
+
+/// Vocabulario cerrado, en paralelo con GRUPOS_MUSCULARES de packages/shared.
+enum GrupoMuscular {
+  pecho
+  espalda
+  hombros
+  biceps
+  triceps
+  antebrazos
+  abdomen
+  gluteos
+  cuadriceps
+  isquiotibiales
+  gemelos
+}
+
+/// Un ejercicio se retira, nunca se borra: el historico de entrenos apunta aqui.
+enum EstadoEjercicio {
+  publicado
+  retirado
+}
+
+model Ejercicio {
+  id String @id @default(uuid())
+
+  nombre            String
+  /// Sin tildes, espacios sobrantes ni mayusculas. Es lo que hace unico al nombre.
+  nombreNormalizado String @unique
+
+  grupoPrincipal    GrupoMuscular
+  gruposSecundarios GrupoSecundarioDeEjercicio[]
+  instrucciones     String
+
+  estado     EstadoEjercicio @default(publicado)
+  retiradoEn DateTime?
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  referencias ReferenciaEjercicio[]
+
+  @@index([estado, grupoPrincipal])
+  @@map("ejercicios")
+}
+
+model GrupoSecundarioDeEjercicio {
+  ejercicioId String
+  ejercicio   Ejercicio     @relation(fields: [ejercicioId], references: [id], onDelete: Cascade)
+  grupo       GrupoMuscular
+
+  @@id([ejercicioId, grupo])
+  @@index([grupo])
+  @@map("grupos_secundarios_de_ejercicio")
+}
+
+// ---------------------------------------------------------------------------
+// agenda (SPEC-agenda.md). Fechas de calendario en columnas `date`: un dia, no
+// un instante. Los instantes de auditoria van en UTC.
+// ---------------------------------------------------------------------------
+
+enum EstadoSesionProgramada {
+  abierta
+  cerrada
+}
+
+model SesionProgramada {
+  id String @id @default(uuid())
+
+  clienteId String
+  cliente   Usuario @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  /// De la original sale la semana a la que pertenece, y no cambia al moverla.
+  fechaOriginal DateTime @db.Date
+  fechaActual   DateTime @db.Date
+
+  estado   EstadoSesionProgramada @default(abierta)
+  /// Sube con cada cambio de fecha y con el cierre. Dos movimientos con la misma
+  /// revision no pueden pisarse en silencio.
+  revision Int                    @default(0)
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  cambios       CambioDeFecha[]
+  entrenamiento SesionEntrenamiento?
+
+  @@index([clienteId, fechaActual])
+  @@index([fechaActual])
+  @@map("sesiones_programadas")
+}
+
+model CambioDeFecha {
+  id String @id @default(uuid())
+
+  sesionId String
+  sesion   SesionProgramada @relation(fields: [sesionId], references: [id], onDelete: Cascade)
+
+  fechaAnterior DateTime @db.Date
+  fechaNueva    DateTime @db.Date
+
+  autorId String
+  autor   Usuario @relation(fields: [autorId], references: [id], onDelete: Cascade)
+
+  cambiadoEn DateTime @default(now())
+
+  @@index([sesionId])
+  @@map("cambios_de_fecha")
+}
+
+// ---------------------------------------------------------------------------
+// entrenamiento (SPEC-entrenamiento.md). Prescripcion, borrador y resultado son
+// documentos JSON validados con Zod en cada escritura y lectura.
+// ---------------------------------------------------------------------------
+
+model PlanEntrenamiento {
+  id String @id @default(uuid())
+
+  clienteId String
+  cliente   Usuario @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  /// Reintentar la misma asignacion no duplica el bloque de sesiones.
+  operacionId String @unique
+  /// Huella del cuerpo de la peticion: la misma operacion con otro contenido es 409.
+  huella      String
+
+  nombre        String
+  semanaInicial DateTime @db.Date
+  semanas       Int
+  /// Copia del patron tal como se asigno. No es un vinculo a ninguna rutina.
+  patron        Json
+
+  creadoEn DateTime @default(now())
+
+  sesiones SesionEntrenamiento[]
+
+  @@index([clienteId])
+  @@map("planes_entrenamiento")
+}
+
+model SesionEntrenamiento {
+  /// El mismo id que la sesion de agenda: un solo identificador para el movil.
+  id     String           @id
+  agenda SesionProgramada @relation(fields: [id], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   PlanEntrenamiento @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  prescripcion         Json
+  revisionPrescripcion Int  @default(0)
+
+  /// Privado del cliente. Ninguna respuesta al entrenador lo incluye.
+  borrador          Json?
+  revisionBorrador  Int       @default(0)
+  operacionBorrador String?
+  huellaBorrador    String?
+  /// Primer borrador sincronizado. Desde ese momento la prescripcion no se ajusta.
+  iniciadaEn        DateTime?
+
+  resultado      Json?
+  enviadoEn      DateTime?
+  operacionEnvio String?   @unique
+  huellaEnvio    String?
+
+  referencias ReferenciaEjercicio[]
+
+  @@index([planId])
+  @@map("sesiones_entrenamiento")
+}
+
+/// Relacion sesion-ejercicio. Restrict: un ejercicio que alguien entreno no se
+/// puede borrar de la base, ni por error.
+model ReferenciaEjercicio {
+  sesionId String
+  sesion   SesionEntrenamiento @relation(fields: [sesionId], references: [id], onDelete: Cascade)
+
+  /// Id del ejercicio dentro de la prescripcion.
+  clave String
+
+  ejercicioId String
+  ejercicio   Ejercicio @relation(fields: [ejercicioId], references: [id], onDelete: Restrict)
+
+  @@id([sesionId, clave])
+  @@index([ejercicioId])
+  @@map("referencias_ejercicio")
+}
+
+/// Estructura reutilizable. Nunca contiene registros ni notas de clientes.
+model RutinaGuardada {
+  id String @id @default(uuid())
+
+  nombre   String
+  patron   Json
+  revision Int    @default(0)
+
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  @@map("rutinas_guardadas")
 }

@@ -349,3 +349,119 @@ describe("Respuestas públicas y privadas", () => {
     ).toBe(false)
   })
 })
+
+describe("Días de calendario de la agenda", () => {
+  it("la semana va de lunes a domingo, también en fin de año y años bisiestos", () => {
+    expect(contratos.lunesDe("2026-09-14")).toBe("2026-09-14")
+    expect(contratos.lunesDe("2026-09-20")).toBe("2026-09-14")
+    expect(contratos.lunesDe("2026-09-21")).toBe("2026-09-21")
+    expect(contratos.lunesDe("2027-01-01")).toBe("2026-12-28")
+    expect(contratos.lunesDe("2024-03-01")).toBe("2024-02-26")
+    expect(contratos.sumarDias("2024-02-28", 1)).toBe("2024-02-29")
+    expect(contratos.sumarDias("2026-12-31", 1)).toBe("2027-01-01")
+    expect(contratos.diaSemanaDe("2026-09-20")).toBe(7)
+    expect(contratos.mismaSemana("2026-09-14", "2026-09-20")).toBe(true)
+    expect(contratos.mismaSemana("2026-09-20", "2026-09-21")).toBe(false)
+    expect(contratos.diasEntre("2026-09-14", "2026-09-21")).toBe(7)
+  })
+
+  it("los cambios de hora no mueven la fecha", () => {
+    // Madrid pasa al horario de verano el 29 de marzo de 2026 y vuelve el 25 de octubre.
+    expect(contratos.sumarDias("2026-03-28", 1)).toBe("2026-03-29")
+    expect(contratos.sumarDias("2026-03-29", 1)).toBe("2026-03-30")
+    expect(contratos.sumarDias("2026-10-25", 1)).toBe("2026-10-26")
+    expect(contratos.lunesDe("2026-03-29")).toBe("2026-03-23")
+  })
+
+  it("hoy se calcula en Madrid y no en la zona del dispositivo", () => {
+    // 23:30 UTC del domingo ya es lunes en Madrid.
+    const instante = new Date("2026-09-20T23:30:00Z")
+    expect(contratos.hoyEn("Europe/Madrid", instante)).toBe("2026-09-21")
+    expect(contratos.hoyEn("UTC", instante)).toBe("2026-09-20")
+  })
+})
+
+describe("Contratos nuevos de consulta y planificación", () => {
+  const patron = contratos.PatronRutinaSchema.parse({
+    sesiones: [
+      {
+        id: otroId,
+        nombre: "Pierna",
+        diaSemana: 4,
+        ejercicios: [{ id, ejercicioId: id, indicaciones: null, series: [serie] }],
+      },
+      {
+        id,
+        nombre: "Torso",
+        diaSemana: 1,
+        ejercicios: [{ id, ejercicioId: id, indicaciones: null, series: [serie] }],
+      },
+    ],
+  })
+
+  it("expande el patrón en fechas concretas y ordenadas", () => {
+    expect(contratos.fechasDelPlan("2026-12-28", 2, patron)).toEqual([
+      { sesionPatronId: id, nombre: "Torso", semana: "2026-12-28", fecha: "2026-12-28" },
+      { sesionPatronId: otroId, nombre: "Pierna", semana: "2026-12-28", fecha: "2026-12-31" },
+      { sesionPatronId: id, nombre: "Torso", semana: "2027-01-04", fecha: "2027-01-04" },
+      { sesionPatronId: otroId, nombre: "Pierna", semana: "2027-01-04", fecha: "2027-01-07" },
+    ])
+  })
+
+  it("consulta semanas por su lunes con un número de semanas acotado", () => {
+    expect(contratos.ConsultarSesionesSchema.parse({ semana: "2026-09-14" }).semanas).toBe(1)
+    expect(
+      contratos.ConsultarSesionesSchema.parse({ semana: "2026-09-14", semanas: "4" }).semanas,
+    ).toBe(4)
+    for (const invalida of [
+      { semana: "2026-09-15" },
+      { semana: "2026-09-14", semanas: "0" },
+      { semana: "2026-09-14", semanas: "53" },
+      { semana: "2026-09-14", clienteId: id },
+    ]) {
+      expect(contratos.ConsultarSesionesSchema.safeParse(invalida).success).toBe(false)
+    }
+  })
+
+  it("el panel solo resume ejecución enviada y nunca lleva borradores ni notas", () => {
+    const fila = {
+      agenda: {
+        id,
+        clienteId: id,
+        fechaOriginal: "2026-09-14",
+        fechaActual: "2026-09-14",
+        estado: "abierta",
+        revision: 0,
+      },
+      nombre: "Torso",
+      enviadoEn: null,
+      cliente: { id, nombre: "Ana", apellidos: null },
+      ejecucion: null,
+    }
+    expect(contratos.FilaPanelSchema.safeParse(fila).success).toBe(true)
+    expect(contratos.FilaPanelSchema.safeParse({ ...fila, borrador: null }).success).toBe(false)
+    expect(contratos.FilaPanelSchema.safeParse({ ...fila, notas: "x" }).success).toBe(false)
+    expect(
+      contratos.FilaPanelSchema.safeParse({
+        ...fila,
+        ejecucion: { seriesHechas: 2, seriesPrescritas: 0 },
+      }).success,
+    ).toBe(false)
+  })
+
+  it("normaliza nombres de ejercicio para compararlos", () => {
+    expect(contratos.normalizarNombreEjercicio("  Sentadilla   Búlgara ")).toBe(
+      "sentadilla bulgara",
+    )
+    expect(contratos.EjerciciosPorIdSchema.parse({ ids: `${id},${otroId}` }).ids).toEqual([
+      id,
+      otroId,
+    ])
+    expect(contratos.EjerciciosPorIdSchema.safeParse({ ids: "no-es-un-id" }).success).toBe(false)
+    expect(contratos.EjerciciosPorIdSchema.safeParse({ ids: "" }).success).toBe(false)
+  })
+
+  it("cuenta las series prescritas de una sesión", () => {
+    expect(contratos.seriesDe(contratos.PrescripcionSchema.parse(prescripcion))).toBe(1)
+  })
+})

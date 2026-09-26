@@ -69,3 +69,22 @@ export const ListadoEjerciciosSchema = z.strictObject({
   total: z.number().int().nonnegative(),
 })
 export type ListadoEjercicios = z.infer<typeof ListadoEjerciciosSchema>
+
+/**
+ * La forma con la que se comparan nombres: sin espacios sobrantes, sin
+ * mayúsculas y sin tildes. «Sentadilla  Búlgara» y «sentadilla bulgara» son el
+ * mismo ejercicio, y el catálogo no puede tener los dos (requisito 7).
+ */
+export function normalizarNombreEjercicio(nombre: string): string {
+  return nombre.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().replace(/\s+/g, " ").toLowerCase()
+}
+
+/** Ejercicios concretos por id, para poner nombre a los de una rutina guardada. */
+export const EjerciciosPorIdSchema = z.strictObject({
+  ids: z
+    .string()
+    .max(4000)
+    .transform((texto) => texto.split(",").filter((id) => id !== ""))
+    .pipe(z.array(z.uuid()).min(1).max(100)),
+})
+export type EjerciciosPorId = z.infer<typeof EjerciciosPorIdSchema>

@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { RevisionSchema, SemanaSchema, SesionProgramadaSchema } from "./agenda"
+import { RevisionSchema, SemanaSchema, SesionProgramadaSchema, sumarDias } from "./agenda"
 
 const NombreSchema = z.string().trim().min(1).max(120)
 const NotasSchema = z.string().trim().max(2000).nullable()
@@ -273,3 +273,115 @@ export const ResultadoEntrenamientoSchema = z
     )
   }, "El resultado debe representar cada serie prescrita, con ejecución válida u omisión explícita")
 export type ResultadoEntrenamiento = z.infer<typeof ResultadoEntrenamientoSchema>
+
+/** Identificador de un recurso que viaja en la ruta. */
+export const IdSchema = z.uuid()
+
+/** Semana (su lunes) y cuántas semanas seguidas se quieren ver. */
+export const ConsultarSesionesSchema = z.strictObject({
+  semana: SemanaSchema,
+  semanas: z.coerce.number().int().min(1).max(52).default(1),
+})
+export type ConsultarSesiones = z.infer<typeof ConsultarSesionesSchema>
+
+/** El panel del entrenador: una semana, de todos o de un cliente. */
+export const ConsultarPanelSchema = z.strictObject({
+  semana: SemanaSchema,
+  clienteId: z.uuid().optional(),
+})
+export type ConsultarPanel = z.infer<typeof ConsultarPanelSchema>
+
+/**
+ * Cuánto se hizo de lo previsto. Se deriva solo del resultado enviado: mientras
+ * la sesión no se envía vale `null`, igual haya borrador o no.
+ */
+export const ResumenEjecucionSchema = z.strictObject({
+  seriesHechas: z.number().int().nonnegative(),
+  seriesPrescritas: z.number().int().positive(),
+})
+export type ResumenEjecucion = z.infer<typeof ResumenEjecucionSchema>
+
+export const ClienteDelPanelSchema = z.strictObject({
+  id: z.uuid(),
+  nombre: z.string(),
+  apellidos: z.string().nullable(),
+})
+export type ClienteDelPanel = z.infer<typeof ClienteDelPanelSchema>
+
+export const FilaPanelSchema = z.strictObject({
+  agenda: SesionProgramadaSchema,
+  nombre: NombreSchema,
+  enviadoEn: z.iso.datetime().nullable(),
+  cliente: ClienteDelPanelSchema,
+  ejecucion: ResumenEjecucionSchema.nullable(),
+})
+export type FilaPanel = z.infer<typeof FilaPanelSchema>
+
+export const PanelSemanalSchema = z.strictObject({
+  semana: SemanaSchema,
+  sesiones: z.array(FilaPanelSchema),
+})
+export type PanelSemanal = z.infer<typeof PanelSemanalSchema>
+
+export const ResumenPlanSchema = z.strictObject({
+  id: z.uuid(),
+  nombre: NombreSchema,
+  semanaInicial: SemanaSchema,
+  semanas: z.number().int().min(1).max(52),
+  creadoEn: z.iso.datetime(),
+  sesionesTotales: z.number().int().nonnegative(),
+  /** Ni empezadas ni enviadas: las únicas que se pueden anular o ajustar. */
+  sesionesSinIniciar: z.number().int().nonnegative(),
+  sesionesEnviadas: z.number().int().nonnegative(),
+})
+export type ResumenPlan = z.infer<typeof ResumenPlanSchema>
+export const ListadoPlanesSchema = z.strictObject({ planes: z.array(ResumenPlanSchema) })
+export type ListadoPlanes = z.infer<typeof ListadoPlanesSchema>
+
+export const ResultadoAnulacionSchema = z.strictObject({
+  anuladas: z.number().int().nonnegative(),
+  conservadas: z.number().int().nonnegative(),
+})
+export type ResultadoAnulacion = z.infer<typeof ResultadoAnulacionSchema>
+
+export type FechaDelPlan = {
+  /** Id de la sesión dentro del patrón semanal. */
+  sesionPatronId: string
+  nombre: string
+  semana: string
+  fecha: string
+}
+
+/**
+ * Las fechas concretas que genera un patrón semanal repetido.
+ *
+ * Vive aquí porque la usan los dos lados: el servidor al asignar y la app para
+ * enseñar al entrenador qué días se van a crear antes de pulsar «Asignar».
+ */
+export function fechasDelPlan(
+  semanaInicial: string,
+  semanas: number,
+  patron: PatronRutina,
+): FechaDelPlan[] {
+  const fechas: FechaDelPlan[] = []
+  for (let indice = 0; indice < semanas; indice++) {
+    const semana = sumarDias(semanaInicial, indice * 7)
+    for (const sesion of patron.sesiones) {
+      fechas.push({
+        sesionPatronId: sesion.id,
+        nombre: sesion.nombre,
+        semana,
+        fecha: sumarDias(semana, sesion.diaSemana - 1),
+      })
+    }
+  }
+  return fechas
+    .map((fecha, orden) => ({ fecha, orden }))
+    .sort((a, b) => a.fecha.fecha.localeCompare(b.fecha.fecha) || a.orden - b.orden)
+    .map(({ fecha }) => fecha)
+}
+
+/** Cuántas series prescribe una sesión. */
+export function seriesDe(prescripcion: Pick<Prescripcion, "ejercicios">): number {
+  return prescripcion.ejercicios.reduce((total, ejercicio) => total + ejercicio.series.length, 0)
+}
