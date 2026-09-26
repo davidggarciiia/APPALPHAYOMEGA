@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Portada de destacado</title>
+    <link rel="stylesheet" href="../comun/marca.css" />
+    <style>
+      /*
+       * Portadas de las historias destacadas de Instagram, una por icono:
+       * ?icono=entrenos|nutricion|resultados|opiniones|reservas|marca
+       *
+       * Instagram recorta un circulo del centro de la historia, asi que todo va
+       * dentro de un radio de 400 px alrededor del centro. El nombre del
+       * destacado lo pone Instagram debajo; aqui no hace falta texto.
+       */
+      .lienzo {
+        --alto: 1920px;
+        --resplandor-y: 50%;
+        --resplandor-tamano: 820px 820px;
+      }
+      .aros,
+      .icono {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+      }
+      .aros {
+        width: 760px;
+        height: 760px;
+        margin: -380px 0 0 -380px;
+      }
+      .icono {
+        width: 380px;
+        height: 380px;
+        margin: -190px 0 0 -190px;
+      }
+      .marca .icono {
+        width: 520px;
+        height: 520px;
+        margin: -260px 0 0 -260px;
+      }
+      svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        overflow: visible;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lienzo">
+      <div class="resplandor"></div>
+      <div class="aros"></div>
+      <div class="icono"></div>
+      <div class="grano"></div>
+    </div>
+    <script src="../comun/trazos.js"></script>
+    <script src="../comun/marca.js"></script>
+    <script>
+      /** Iconos de trazo en una cuadricula de 100. */
+      const ICONOS = {
+        entrenos: `<rect x="21" y="33" width="9" height="34" rx="3"/><rect x="70" y="33" width="9" height="34" rx="3"/><rect x="11" y="40" width="8" height="20" rx="3"/><rect x="81" y="40" width="8" height="20" rx="3"/><path d="M30 50h40"/>`,
+        nutricion: `<path d="M16 52h68a34 34 0 0 1-68 0z"/><path d="M52 42c0-13 9-22 23-24 0 13-9 22-23 24z"/><path d="M50 42c-2-8-8-13-15-15"/>`,
+        resultados: `<path d="M14 82h72"/><path d="M20 68l19-19 13 13 28-28"/><path d="M62 34h18v18"/>`,
+        opiniones: `<path d="M50 14l10.6 21.5 23.7 3.4-17.1 16.7 4 23.6L50 68.1 28.8 79.2l4-23.6-17.1-16.7 23.7-3.4z"/>`,
+        reservas: `<rect x="16" y="22" width="68" height="62" rx="9"/><path d="M16 40h68M34 13v16M66 13v16"/><path d="M38 61l8 8 16-16"/>`,
+      }
+
+      const icono = AO.parametros.get("icono") || "entrenos"
+      document.documentElement.classList.add(icono)
+
+      // Los tres aros del logo enmarcan el icono.
+      document
+        .querySelector(".aros")
+        .appendChild(AO.logo({ partes: { emblema: false, letras: false }, estatico: true }))
+
+      const hueco = document.querySelector(".icono")
+      if (icono === "marca") {
+        hueco.appendChild(AO.logo({ partes: { aros: false }, estatico: true }))
+      } else {
+        hueco.innerHTML = `<svg viewBox="0 0 100 100" aria-hidden="true">
+          <defs>
+            <linearGradient id="oro" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="100">
+              <stop offset="0" stop-color="#f6e4a0"/><stop offset="0.3" stop-color="#cfa136"/>
+              <stop offset="0.5" stop-color="#f1d57e"/><stop offset="0.75" stop-color="#b98b26"/>
+              <stop offset="1" stop-color="#d4ae52"/>
+            </linearGradient>
+          </defs>
+          <g fill="none" stroke="url(#oro)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">${ICONOS[icono]}</g>
+        </svg>`
+      }
+      AO.preparar({ duracion: 0 })
+    </script>
+  </body>
+</html>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lienzo para renderizar</title>
+    <!-- Solo por las letras: marca.css las declara desde comun/tipos. -->
+    <link rel="stylesheet" href="comun/marca.css" />
+    <style>
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Pinta una pieza de piezas.json hecha con las plantillas del editor
+      (?pieza=id). render.cjs la pone en cada instante con window.IR_A(ms), en
+      lugar de mover animaciones CSS como en las piezas HTML.
+    -->
+    <div class="lienzo"><canvas id="lienzo"></canvas></div>
+
+    <script src="comun/trazos.js"></script>
+    <script src="editor/motor.js"></script>
+    <script src="editor/piezas.js"></script>
+    <script src="editor/plantillas.js"></script>
+    <script src="editor/historias.js"></script>
+    <script>
+      /** Zona segura de cada formato: lo que no tapan los botones de Instagram. */
+      const FORMATOS = {
+        // Reels: abajo van el texto, el audio y los botones.
+        "9x16": { H: 1920, zona: { arriba: 250, abajo: 1440, lado: 100 } },
+        // Historias: arriba la barra de progreso y el nombre; abajo, responder.
+        historia: { H: 1920, zona: { arriba: 250, abajo: 1640, lado: 90 } },
+        "4x5": { H: 1350, zona: { arriba: 110, abajo: 1240, lado: 90 } },
+      }
+
+      window.LISTO = (async () => {
+        const id = new URLSearchParams(location.search).get("pieza")
+        const piezas = await (await fetch("piezas.json")).json()
+        const pieza = piezas.find((p) => p.id === id)
+        const plantilla = window.PLANTILLAS.find((p) => p.id === pieza.plantilla)
+        const tipos = [
+          "400 60px Anton",
+          "500 60px Archivo",
+          "600 60px Archivo",
+          "700 60px Archivo",
+          "600 60px Cinzel",
+        ]
+        await Promise.all(tipos.map((f) => document.fonts.load(f, "AÁÑ¿“ñ")))
+
+        const f = FORMATOS[pieza.formato]
+        const R = {
+          W: 1080,
+          H: f.H,
+          zona: f.zona,
+          vertical: f.H > 1500,
+          datos: pieza.datos || {},
+          medios: {},
+          global: { firma: "Alpha & Omega Training", mostrarFirma: pieza.firma !== false },
+        }
+        R.duracion = plantilla.duracion(R)
+
+        const lienzo = document.querySelector("#lienzo")
+        lienzo.width = R.W
+        lienzo.height = R.H
+        document.querySelector(".lienzo").style.setProperty("--alto", `${R.H}px`)
+        const ctx = lienzo.getContext("2d")
+        window.DURACION = R.duracion + (pieza.extra || 0)
+        window.IR_A = (ms) => {
+          ctx.setTransform(1, 0, 0, 1, 0, 0)
+          ctx.globalAlpha = 1
+          ctx.fillStyle = "#000"
+          ctx.fillRect(0, 0, R.W, R.H)
+          plantilla.dibujar(ctx, Math.min(ms, R.duracion), R)
+          window.MOTOR.vineta(ctx, R)
+          window.MOTOR.grano(ctx, R)
+        }
+        window.IR_A(0)
+      })()
+    </script>
+  </body>
+</html>

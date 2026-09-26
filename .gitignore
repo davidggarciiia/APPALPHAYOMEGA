@@ -20,3 +20,7 @@ coverage/
 .DS_Store
 Thumbs.db
 *.log
+
+# Pack de redes: se genera con `node marca/redes/render.cjs`. Son videos
+# pesados y se reparten fuera del repositorio.
+marca/redes/exportados/

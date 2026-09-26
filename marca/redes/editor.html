@@ -1,0 +1,645 @@
+<title>Plantillas Alpha &amp; Omega</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700&family=Cinzel:wght@600&display=swap"
+/>
+<style>
+  /*
+   * Editor de plantillas de Alpha & Omega Training. Una sola apariencia, la de
+   * la marca: negro y oro, como la app. Los colores salen de
+   * apps/mobile/src/tema.ts.
+   */
+  :root {
+    color-scheme: dark;
+    --fondo: #0a0a0a;
+    --superficie: #131311;
+    --superficie-2: #1a1915;
+    --borde: #2a2413;
+    --linea: #26241e;
+    --oro: #c9a227;
+    --oro-suave: #e0c158;
+    --texto: #f5f5f0;
+    --tenue: #9d9a90;
+    --aviso: #e8907f;
+    --metal: linear-gradient(
+      135deg,
+      #f6e4a0 0%,
+      #cfa136 30%,
+      #f1d57e 52%,
+      #b98b26 76%,
+      #e6c463 100%
+    );
+    --titular: "Anton", "Archivo", Impact, sans-serif;
+    --firma: "Cinzel", Georgia, serif;
+    --cuerpo: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  body {
+    background: var(--fondo);
+    color: var(--texto);
+    font: 15px/1.5 var(--cuerpo);
+  }
+
+  .pagina {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 18px 56px;
+  }
+  @media (min-width: 700px) {
+    .pagina {
+      padding-inline: 28px;
+    }
+  }
+
+  /* ---------- Cabecera ---------- */
+  .cabecera {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-block: 4px 18px;
+    border-bottom: 1px solid var(--linea);
+  }
+  .cabecera canvas {
+    width: 52px;
+    height: 52px;
+    flex: none;
+  }
+  .cabecera .firma {
+    margin: 0;
+    font-family: var(--firma);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--oro-suave);
+  }
+  .cabecera h1 {
+    margin: 2px 0 0;
+    font-family: var(--titular);
+    font-weight: 400;
+    font-size: clamp(26px, 5vw, 34px);
+    line-height: 1.05;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    background: var(--metal);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-wrap: balance;
+  }
+
+  /* ---------- Mesa: vista previa y controles ---------- */
+  .mesa {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    margin-top: 22px;
+  }
+  @media (min-width: 920px) {
+    .mesa {
+      grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
+      gap: 40px;
+    }
+    .panel {
+      order: -1;
+    }
+    .vista {
+      position: sticky;
+      top: calc(env(safe-area-inset-top, 0px) + 16px);
+      align-self: start;
+    }
+  }
+
+  .vista {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .marco {
+    position: relative;
+    width: min(100%, calc(58vh * 9 / 16));
+    aspect-ratio: 9 / 16;
+    max-width: 100%;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #000;
+    box-shadow:
+      0 0 0 1px var(--borde),
+      0 30px 80px -40px rgba(201, 162, 39, 0.45);
+  }
+  .marco[data-formato="4x5"] {
+    aspect-ratio: 4 / 5;
+    width: min(100%, calc(58vh * 4 / 5));
+  }
+  @media (min-width: 920px) {
+    .marco {
+      width: min(100%, calc(76vh * 9 / 16));
+    }
+    .marco[data-formato="4x5"] {
+      width: min(100%, calc(76vh * 4 / 5));
+    }
+  }
+  .marco canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .reproductor {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: min(100%, 460px);
+  }
+  .reproductor .tiempo {
+    font-variant-numeric: tabular-nums;
+    color: var(--tenue);
+    font-size: 13px;
+    min-width: 76px;
+    text-align: right;
+  }
+  .redondo {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--borde);
+    background: var(--superficie-2);
+    color: var(--oro-suave);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+  .redondo svg {
+    width: 18px;
+    height: 18px;
+  }
+  input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--oro);
+  }
+
+  .interruptor {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--tenue);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .interruptor input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--oro);
+  }
+
+  .acciones {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    width: min(100%, 460px);
+  }
+  .boton {
+    flex: 1 1 180px;
+    min-height: 50px;
+    padding: 0 22px;
+    border-radius: 999px;
+    border: 1px solid var(--borde);
+    background: var(--superficie-2);
+    color: var(--texto);
+    font: 700 15px/1 var(--cuerpo);
+    letter-spacing: 0.02em;
+    cursor: pointer;
+  }
+  .boton.principal {
+    border: 0;
+    background: var(--metal);
+    color: #16140f;
+  }
+  .boton:disabled {
+    opacity: 0.55;
+    cursor: progress;
+  }
+  .progreso {
+    width: min(100%, 460px);
+    height: 4px;
+    border-radius: 2px;
+    background: var(--linea);
+    overflow: hidden;
+  }
+  .progreso .barra {
+    height: 100%;
+    background: var(--metal);
+    transform-origin: 0 50%;
+    transform: scaleX(0);
+  }
+  .estado {
+    min-height: 1.5em;
+    margin: 0;
+    text-align: center;
+    color: var(--oro-suave);
+    font-size: 14px;
+    max-width: 460px;
+  }
+  .estado.error {
+    color: var(--aviso);
+  }
+
+  /* ---------- Panel ---------- */
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+  .grupo {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .grupo legend {
+    padding: 0;
+    margin-bottom: 12px;
+    font-family: var(--firma);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--oro-suave);
+  }
+
+  .plantillas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .tarjeta {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--linea);
+    background: var(--superficie);
+    cursor: pointer;
+    transition:
+      border-color 160ms ease,
+      background-color 160ms ease;
+  }
+  .tarjeta:hover {
+    border-color: var(--borde);
+    background: var(--superficie-2);
+  }
+  .tarjeta input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .tarjeta-nombre {
+    font-family: var(--titular);
+    font-size: 19px;
+    line-height: 1.1;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .tarjeta-resumen {
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--tenue);
+  }
+  .tarjeta:has(input:checked) {
+    border-color: var(--oro);
+    background: #1c1a12;
+  }
+  .tarjeta:has(input:checked) .tarjeta-nombre {
+    color: var(--oro-suave);
+  }
+  .tarjeta:has(input:focus-visible) {
+    outline: 2px solid var(--oro-suave);
+    outline-offset: 2px;
+  }
+
+  .formatos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+  }
+  .formato {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--linea);
+    background: var(--superficie);
+    cursor: pointer;
+  }
+  .formato input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .formato .forma {
+    flex: none;
+    border: 2px solid var(--tenue);
+    border-radius: 4px;
+  }
+  .formato strong {
+    display: block;
+    font-size: 14px;
+  }
+  .formato small {
+    display: block;
+    color: var(--tenue);
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  .formato:has(input:checked) {
+    border-color: var(--oro);
+    background: #1c1a12;
+  }
+  .formato:has(input:checked) .forma {
+    border-color: var(--oro-suave);
+  }
+  .formato:has(input:focus-visible) {
+    outline: 2px solid var(--oro-suave);
+    outline-offset: 2px;
+  }
+
+  #campos {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .campo {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .campo-etiqueta {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--texto);
+  }
+  .opcional {
+    font-weight: 500;
+    color: var(--tenue);
+  }
+  .campo input[type="text"],
+  .campo textarea,
+  .campo select,
+  .ajuste input[type="text"] {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--linea);
+    background: var(--superficie);
+    color: var(--texto);
+    font: 16px/1.4 var(--cuerpo);
+  }
+  .campo textarea {
+    resize: vertical;
+  }
+  .campo input:focus-visible,
+  .campo textarea:focus-visible,
+  .campo select:focus-visible,
+  .ajuste input:focus-visible,
+  .elegir:has(input:focus-visible),
+  .redondo:focus-visible,
+  .boton:focus-visible,
+  .quitar:focus-visible {
+    outline: 2px solid var(--oro-suave);
+    outline-offset: 2px;
+  }
+
+  .medio {
+    display: flex;
+    gap: 8px;
+  }
+  .elegir {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 50px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1px dashed rgba(201, 162, 39, 0.55);
+    background: var(--superficie);
+    color: var(--oro-suave);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .elegir input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .elegir-texto {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .quitar {
+    min-height: 50px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1px solid var(--linea);
+    background: var(--superficie-2);
+    color: var(--texto);
+    font: 600 14px var(--cuerpo);
+    cursor: pointer;
+  }
+  .encuadre {
+    display: grid;
+    gap: 6px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--superficie);
+  }
+  .encuadre label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--tenue);
+  }
+  .encuadre label input {
+    flex: 1;
+  }
+
+  .ajuste {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ajuste .fila {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--tenue);
+  }
+  .ajuste .fila output {
+    min-width: 48px;
+    text-align: right;
+    color: var(--texto);
+    font-variant-numeric: tabular-nums;
+  }
+  .pista {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--tenue);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tarjeta {
+      transition: none;
+    }
+  }
+</style>
+
+<div class="pagina">
+  <header class="cabecera">
+    <canvas id="marca" width="104" height="104" aria-hidden="true"></canvas>
+    <div>
+      <p class="firma">Alpha &amp; Omega Training</p>
+      <h1>Plantillas para redes</h1>
+    </div>
+  </header>
+
+  <main class="mesa">
+    <section class="vista" aria-label="Vista previa">
+      <div class="marco" id="marco" data-formato="9x16">
+        <canvas
+          id="lienzo"
+          width="540"
+          height="960"
+          role="img"
+          aria-label="Vista previa de la plantilla"
+        ></canvas>
+        <canvas id="zonas" width="540" height="960" aria-hidden="true"></canvas>
+      </div>
+
+      <div class="reproductor">
+        <button type="button" class="redondo" id="reproducir" aria-label="Pausar">
+          <svg class="icono-pausa" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="4" width="4" height="16" rx="1" />
+            <rect x="14" y="4" width="4" height="16" rx="1" />
+          </svg>
+          <svg class="icono-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden>
+            <path
+              d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"
+            />
+          </svg>
+        </button>
+        <input
+          type="range"
+          id="linea-tiempo"
+          min="0"
+          max="1000"
+          value="0"
+          aria-label="Momento de la animación"
+        />
+        <span class="tiempo" id="tiempo">0:00 / 0:07</span>
+      </div>
+
+      <label class="interruptor" for="ver-zonas">
+        <input type="checkbox" id="ver-zonas" />
+        Marcar lo que tapan los botones de la red
+      </label>
+
+      <div class="acciones">
+        <button type="button" class="boton principal" id="bajar-video">Descargar vídeo</button>
+        <button type="button" class="boton" id="bajar-imagen">Descargar imagen</button>
+      </div>
+      <div class="progreso" id="progreso" hidden><div class="barra" id="barra"></div></div>
+      <p class="estado" id="estado" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel" aria-label="Contenido de la plantilla">
+      <fieldset class="grupo">
+        <legend>Plantilla</legend>
+        <div class="plantillas" id="plantillas"></div>
+      </fieldset>
+
+      <fieldset class="grupo">
+        <legend>Formato</legend>
+        <div class="formatos">
+          <label class="formato">
+            <input type="radio" name="formato" value="historia" id="formato-historia" />
+            <span class="forma" style="width: 18px; height: 32px"></span>
+            <span><strong>Historia 9:16</strong><small>Historias de Instagram</small></span>
+          </label>
+          <label class="formato">
+            <input type="radio" name="formato" value="9x16" id="formato-9x16" />
+            <span class="forma" style="width: 18px; height: 32px"></span>
+            <span><strong>Reel 9:16</strong><small>Deja sitio a los botones</small></span>
+          </label>
+          <label class="formato">
+            <input type="radio" name="formato" value="4x5" id="formato-4x5" />
+            <span class="forma" style="width: 24px; height: 30px"></span>
+            <span><strong>Publicación 4:5</strong><small>Feed de Instagram</small></span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="grupo">
+        <legend>Contenido</legend>
+        <div id="campos"></div>
+      </fieldset>
+
+      <fieldset class="grupo">
+        <legend>Firma y duración</legend>
+        <div class="ajuste">
+          <div class="campo">
+            <label class="campo-etiqueta" for="firma">Nombre o usuario que firma abajo</label>
+            <input type="text" id="firma" autocomplete="off" />
+          </div>
+          <label class="interruptor" for="mostrar-firma">
+            <input type="checkbox" id="mostrar-firma" />
+            Poner la firma con el logo
+          </label>
+          <div class="fila">
+            <label for="extra">Tiempo extra al final</label>
+            <input type="range" id="extra" min="0" max="10" step="1" value="0" />
+            <output id="extra-valor" for="extra">Nada</output>
+          </div>
+          <p class="pista">
+            Las fotos y vídeos no salen de tu móvil u ordenador: el vídeo se crea aquí mismo. Los
+            textos se recuerdan en este navegador para la próxima vez.
+          </p>
+        </div>
+      </fieldset>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
+<script src="comun/trazos.js"></script>
+<script src="editor/motor.js"></script>
+<script src="editor/piezas.js"></script>
+<script src="editor/plantillas.js"></script>
+<script src="editor/historias.js"></script>
+<script src="editor/app.js"></script>

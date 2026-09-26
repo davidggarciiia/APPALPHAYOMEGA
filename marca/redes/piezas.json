@@ -1,0 +1,669 @@
+[
+  {
+    "id": "guia-1",
+    "pagina": "lienzo.html?pieza=guia-1",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "consejo",
+    "formato": "historia",
+    "datos": {
+      "etiqueta": "Cómo usarlo · 1 de 3",
+      "titulo": "Historias",
+      "puntos": "Sube el vídeo o la imagen como historia.\nToca Aa para escribir encima.\nPara poner una foto, toca el icono de stickers y elige la foto de tu galería.\nDonde hay flechas, pon el sticker de preguntas, encuesta o cuenta atrás."
+    },
+    "imagen": "00 Como usarlo/1-historias.png"
+  },
+  {
+    "id": "guia-2",
+    "pagina": "lienzo.html?pieza=guia-2",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "consejo",
+    "formato": "historia",
+    "datos": {
+      "etiqueta": "Cómo usarlo · 2 de 3",
+      "titulo": "Reels",
+      "puntos": "Elige tu vídeo como siempre.\nAñade la intro del logo al principio y el cierre al final, como clips.\nDe portada, elige la imagen del tema en la carpeta Portadas."
+    },
+    "imagen": "00 Como usarlo/2-reels.png"
+  },
+  {
+    "id": "guia-3",
+    "pagina": "lienzo.html?pieza=guia-3",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "consejo",
+    "formato": "historia",
+    "datos": {
+      "etiqueta": "Cómo usarlo · 3 de 3",
+      "titulo": "Publicaciones y perfil",
+      "puntos": "Las publicaciones se suben tal cual, como foto o como vídeo.\nPara un cambio físico, pon primero la portada y después tus fotos en el mismo carrusel.\nLa foto de perfil y los destacados se ponen una sola vez."
+    },
+    "imagen": "00 Como usarlo/3-publicaciones-y-perfil.png"
+  },
+  {
+    "id": "historia-plazas-abiertas",
+    "pagina": "lienzo.html?pieza=historia-plazas-abiertas",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "anuncio",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Entrenamiento personal",
+      "texto": "Sant Martí · Barcelona",
+      "boton": "Escríbeme por privado",
+      "titular": "Plazas abiertas"
+    },
+    "video": "01 Historias/01-plazas-abiertas.mp4",
+    "imagen": "01 Historias/01-plazas-abiertas.png"
+  },
+  {
+    "id": "historia-quedan-5-plazas",
+    "pagina": "lienzo.html?pieza=historia-quedan-5-plazas",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "plazas",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Entrenamiento personal",
+      "antes": "Quedan",
+      "numero": "5",
+      "despues": "Plazas",
+      "boton": "Escríbeme por privado"
+    },
+    "video": "01 Historias/02-quedan-5-plazas.mp4",
+    "imagen": "01 Historias/02-quedan-5-plazas.png"
+  },
+  {
+    "id": "historia-quedan-4-plazas",
+    "pagina": "lienzo.html?pieza=historia-quedan-4-plazas",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "plazas",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Entrenamiento personal",
+      "antes": "Quedan",
+      "numero": "4",
+      "despues": "Plazas",
+      "boton": "Escríbeme por privado"
+    },
+    "video": "01 Historias/03-quedan-4-plazas.mp4",
+    "imagen": "01 Historias/03-quedan-4-plazas.png"
+  },
+  {
+    "id": "historia-quedan-3-plazas",
+    "pagina": "lienzo.html?pieza=historia-quedan-3-plazas",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "plazas",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Entrenamiento personal",
+      "antes": "Quedan",
+      "numero": "3",
+      "despues": "Plazas",
+      "boton": "Escríbeme por privado"
+    },
+    "video": "01 Historias/04-quedan-3-plazas.mp4",
+    "imagen": "01 Historias/04-quedan-3-plazas.png"
+  },
+  {
+    "id": "historia-quedan-2-plazas",
+    "pagina": "lienzo.html?pieza=historia-quedan-2-plazas",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "plazas",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Entrenamiento personal",
+      "antes": "Quedan",
+      "numero": "2",
+      "despues": "Plazas",
+      "boton": "Escríbeme por privado"
+    },
+    "video": "01 Historias/05-quedan-2-plazas.mp4",
+    "imagen": "01 Historias/05-quedan-2-plazas.png"
+  },
+  {
+    "id": "historia-queda-1-plaza",
+    "pagina": "lienzo.html?pieza=historia-queda-1-plaza",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "plazas",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Entrenamiento personal",
+      "antes": "Queda",
+      "numero": "1",
+      "despues": "Plaza",
+      "boton": "Escríbeme por privado"
+    },
+    "video": "01 Historias/06-queda-1-plaza.mp4",
+    "imagen": "01 Historias/06-queda-1-plaza.png"
+  },
+  {
+    "id": "historia-ultimas-plazas",
+    "pagina": "lienzo.html?pieza=historia-ultimas-plazas",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "anuncio",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Entrenamiento personal",
+      "texto": "Sant Martí · Barcelona",
+      "boton": "Escríbeme por privado",
+      "titular": "Últimas plazas"
+    },
+    "video": "01 Historias/07-ultimas-plazas.mp4",
+    "imagen": "01 Historias/07-ultimas-plazas.png"
+  },
+  {
+    "id": "historia-reserva-primera-sesion",
+    "pagina": "lienzo.html?pieza=historia-reserva-primera-sesion",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "anuncio",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Primera sesión",
+      "titular": "¿Empezamos?",
+      "texto": "Entrenamiento personal uno a uno en Sant Martí, Barcelona.",
+      "boton": "Escríbeme por privado"
+    },
+    "video": "01 Historias/08-reserva-primera-sesion.mp4",
+    "imagen": "01 Historias/08-reserva-primera-sesion.png"
+  },
+  {
+    "id": "historia-cambio-fisico",
+    "pagina": "lienzo.html?pieza=historia-cambio-fisico",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "fotos",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Resultados",
+      "titular": "Cambio físico",
+      "izquierda": "Antes",
+      "derecha": "Después"
+    },
+    "video": "01 Historias/09-cambio-fisico.mp4",
+    "imagen": "01 Historias/09-cambio-fisico.png"
+  },
+  {
+    "id": "historia-opiniones",
+    "pagina": "lienzo.html?pieza=historia-opiniones",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "hueco",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Opiniones",
+      "titular": "Lo que dicen mis clientes",
+      "estrellas": "5",
+      "hueco": "foto"
+    },
+    "video": "01 Historias/10-opiniones.mp4",
+    "imagen": "01 Historias/10-opiniones.png"
+  },
+  {
+    "id": "historia-nuevo-record",
+    "pagina": "lienzo.html?pieza=historia-nuevo-record",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "hueco",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Enhorabuena",
+      "titular": "Nuevo récord",
+      "hueco": "record"
+    },
+    "video": "01 Historias/11-nuevo-record.mp4",
+    "imagen": "01 Historias/11-nuevo-record.png"
+  },
+  {
+    "id": "historia-preguntame",
+    "pagina": "lienzo.html?pieza=historia-preguntame",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "hueco",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Pregúntame",
+      "titular": "Lo que quieras",
+      "texto": "Entreno, dieta o lo que te esté frenando.",
+      "hueco": "sticker"
+    },
+    "video": "01 Historias/12-preguntame.mp4",
+    "imagen": "01 Historias/12-preguntame.png"
+  },
+  {
+    "id": "historia-encuesta",
+    "pagina": "lienzo.html?pieza=historia-encuesta",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "hueco",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Encuesta",
+      "titular": "¿Tú qué eliges?",
+      "hueco": "sticker"
+    },
+    "video": "01 Historias/13-encuesta.mp4",
+    "imagen": "01 Historias/13-encuesta.png"
+  },
+  {
+    "id": "historia-cuenta-atras",
+    "pagina": "lienzo.html?pieza=historia-cuenta-atras",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "hueco",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Atento",
+      "titular": "Se viene algo",
+      "hueco": "sticker"
+    },
+    "video": "01 Historias/14-cuenta-atras.mp4",
+    "imagen": "01 Historias/14-cuenta-atras.png"
+  },
+  {
+    "id": "historia-huecos-de-la-semana",
+    "pagina": "lienzo.html?pieza=historia-huecos-de-la-semana",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "semana",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Reservas",
+      "titular": "Huecos esta semana",
+      "dias": "Lunes\nMartes\nMiércoles\nJueves\nViernes\nSábado",
+      "pie": "Escríbeme por privado para reservar."
+    },
+    "video": "01 Historias/15-huecos-de-la-semana.mp4",
+    "imagen": "01 Historias/15-huecos-de-la-semana.png"
+  },
+  {
+    "id": "historia-consejo-del-dia",
+    "pagina": "lienzo.html?pieza=historia-consejo-del-dia",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "hueco",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Consejo",
+      "titular": "Consejo del día",
+      "hueco": "texto"
+    },
+    "video": "01 Historias/16-consejo-del-dia.mp4",
+    "imagen": "01 Historias/16-consejo-del-dia.png"
+  },
+  {
+    "id": "historia-entreno-del-dia",
+    "pagina": "lienzo.html?pieza=historia-entreno-del-dia",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "hueco",
+    "formato": "historia",
+    "datos": {
+      "antetitulo": "Hoy toca",
+      "titular": "Entreno del día",
+      "hueco": "texto"
+    },
+    "video": "01 Historias/17-entreno-del-dia.mp4",
+    "imagen": "01 Historias/17-entreno-del-dia.png"
+  },
+  {
+    "id": "historia-mito-o-realidad",
+    "pagina": "lienzo.html?pieza=historia-mito-o-realidad",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "mito",
+    "formato": "historia",
+    "datos": {
+      "arriba": "Mito",
+      "abajo": "Realidad"
+    },
+    "video": "01 Historias/18-mito-o-realidad.mp4",
+    "imagen": "01 Historias/18-mito-o-realidad.png"
+  },
+  {
+    "id": "fondo",
+    "pagina": "piezas/fondo.html",
+    "ancho": 1080,
+    "alto": 1920,
+    "video": "01 Historias/19-fondo-para-escribir.mp4",
+    "imagen": "01 Historias/19-fondo-para-escribir.png",
+    "portada": 0
+  },
+  {
+    "id": "intro-9x16",
+    "pagina": "piezas/intro.html?formato=9x16",
+    "ancho": 1080,
+    "alto": 1920,
+    "video": "02 Reels/1-intro-logo.mp4"
+  },
+  {
+    "id": "cta",
+    "pagina": "piezas/cta.html",
+    "ancho": 1080,
+    "alto": 1920,
+    "video": "02 Reels/2-cierre-empezamos.mp4"
+  },
+  {
+    "id": "manifiesto",
+    "pagina": "piezas/manifiesto.html",
+    "ancho": 1080,
+    "alto": 1920,
+    "video": "02 Reels/3-reel-del-alfa-al-omega.mp4",
+    "imagen": "02 Reels/Portadas/0-del-alfa-al-omega.png",
+    "portada": 2800
+  },
+  {
+    "id": "portada-reel-entreno",
+    "pagina": "lienzo.html?pieza=portada-reel-entreno",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "portada",
+    "formato": "9x16",
+    "datos": {
+      "antetitulo": "Alpha & Omega Training",
+      "titular": "Entreno"
+    },
+    "firma": false,
+    "imagen": "02 Reels/Portadas/1-entreno.png"
+  },
+  {
+    "id": "portada-reel-consejo",
+    "pagina": "lienzo.html?pieza=portada-reel-consejo",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "portada",
+    "formato": "9x16",
+    "datos": {
+      "antetitulo": "Alpha & Omega Training",
+      "titular": "Consejo"
+    },
+    "firma": false,
+    "imagen": "02 Reels/Portadas/2-consejo.png"
+  },
+  {
+    "id": "portada-reel-tecnica",
+    "pagina": "lienzo.html?pieza=portada-reel-tecnica",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "portada",
+    "formato": "9x16",
+    "datos": {
+      "antetitulo": "Alpha & Omega Training",
+      "titular": "Técnica"
+    },
+    "firma": false,
+    "imagen": "02 Reels/Portadas/3-tecnica.png"
+  },
+  {
+    "id": "portada-reel-cambio-fisico",
+    "pagina": "lienzo.html?pieza=portada-reel-cambio-fisico",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "portada",
+    "formato": "9x16",
+    "datos": {
+      "antetitulo": "Alpha & Omega Training",
+      "titular": "Cambio físico"
+    },
+    "firma": false,
+    "imagen": "02 Reels/Portadas/4-cambio-fisico.png"
+  },
+  {
+    "id": "portada-reel-mito-o-realidad",
+    "pagina": "lienzo.html?pieza=portada-reel-mito-o-realidad",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "portada",
+    "formato": "9x16",
+    "datos": {
+      "antetitulo": "Alpha & Omega Training",
+      "titular": "Mito o realidad"
+    },
+    "firma": false,
+    "imagen": "02 Reels/Portadas/5-mito-o-realidad.png"
+  },
+  {
+    "id": "portada-reel-nutricion",
+    "pagina": "lienzo.html?pieza=portada-reel-nutricion",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "portada",
+    "formato": "9x16",
+    "datos": {
+      "antetitulo": "Alpha & Omega Training",
+      "titular": "Nutrición"
+    },
+    "firma": false,
+    "imagen": "02 Reels/Portadas/6-nutricion.png"
+  },
+  {
+    "id": "portada-reel-preguntas",
+    "pagina": "lienzo.html?pieza=portada-reel-preguntas",
+    "ancho": 1080,
+    "alto": 1920,
+    "plantilla": "portada",
+    "formato": "9x16",
+    "datos": {
+      "antetitulo": "Alpha & Omega Training",
+      "titular": "Preguntas"
+    },
+    "firma": false,
+    "imagen": "02 Reels/Portadas/7-preguntas.png"
+  },
+  {
+    "id": "intro-4x5",
+    "pagina": "piezas/intro.html?formato=4x5",
+    "ancho": 1080,
+    "alto": 1350,
+    "video": "03 Publicaciones/1-logo.mp4",
+    "imagen": "03 Publicaciones/1-logo.png"
+  },
+  {
+    "id": "post-plazas-abiertas",
+    "pagina": "lienzo.html?pieza=post-plazas-abiertas",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "anuncio",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "Entrenamiento personal",
+      "texto": "Sant Martí · Barcelona",
+      "boton": "Escríbeme por privado",
+      "titular": "Plazas abiertas"
+    },
+    "video": "03 Publicaciones/2-plazas-abiertas.mp4",
+    "imagen": "03 Publicaciones/2-plazas-abiertas.png"
+  },
+  {
+    "id": "post-reserva",
+    "pagina": "lienzo.html?pieza=post-reserva",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "anuncio",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "Primera sesión",
+      "titular": "¿Empezamos?",
+      "texto": "Entrenamiento personal uno a uno en Sant Martí, Barcelona.",
+      "boton": "Escríbeme por privado"
+    },
+    "video": "03 Publicaciones/3-reserva-primera-sesion.mp4",
+    "imagen": "03 Publicaciones/3-reserva-primera-sesion.png"
+  },
+  {
+    "id": "post-portada-cambio",
+    "pagina": "lienzo.html?pieza=post-portada-cambio",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "portada",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "Resultados",
+      "titular": "Cambio físico",
+      "texto": "Desliza para verlo ›"
+    },
+    "firma": false,
+    "imagen": "03 Publicaciones/4-portada-carrusel-cambio-fisico.png"
+  },
+  {
+    "id": "post-portada-opiniones",
+    "pagina": "lienzo.html?pieza=post-portada-opiniones",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "portada",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "Opiniones",
+      "titular": "Lo que dicen mis clientes",
+      "texto": "Desliza para leerlas ›"
+    },
+    "firma": false,
+    "imagen": "03 Publicaciones/5-portada-carrusel-opiniones.png"
+  },
+  {
+    "id": "frase-1",
+    "pagina": "lienzo.html?pieza=frase-1",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "frase",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "",
+      "titular": "La constancia gana al talento.",
+      "texto": ""
+    },
+    "video": "03 Publicaciones/Frases/frase-1.mp4",
+    "imagen": "03 Publicaciones/Frases/frase-1.png"
+  },
+  {
+    "id": "frase-2",
+    "pagina": "lienzo.html?pieza=frase-2",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "frase",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "",
+      "titular": "No tiene que ser perfecto. Tiene que ser constante.",
+      "texto": ""
+    },
+    "video": "03 Publicaciones/Frases/frase-2.mp4",
+    "imagen": "03 Publicaciones/Frases/frase-2.png"
+  },
+  {
+    "id": "frase-3",
+    "pagina": "lienzo.html?pieza=frase-3",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "frase",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "",
+      "titular": "Tu única competencia eres tú ayer.",
+      "texto": ""
+    },
+    "video": "03 Publicaciones/Frases/frase-3.mp4",
+    "imagen": "03 Publicaciones/Frases/frase-3.png"
+  },
+  {
+    "id": "frase-4",
+    "pagina": "lienzo.html?pieza=frase-4",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "frase",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "",
+      "titular": "El mejor momento para empezar fue ayer. El segundo mejor es hoy.",
+      "texto": ""
+    },
+    "video": "03 Publicaciones/Frases/frase-4.mp4",
+    "imagen": "03 Publicaciones/Frases/frase-4.png"
+  },
+  {
+    "id": "frase-5",
+    "pagina": "lienzo.html?pieza=frase-5",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "frase",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "",
+      "titular": "Entrena por cómo te sientes, no solo por cómo te ves.",
+      "texto": ""
+    },
+    "video": "03 Publicaciones/Frases/frase-5.mp4",
+    "imagen": "03 Publicaciones/Frases/frase-5.png"
+  },
+  {
+    "id": "frase-6",
+    "pagina": "lienzo.html?pieza=frase-6",
+    "ancho": 1080,
+    "alto": 1350,
+    "plantilla": "frase",
+    "formato": "4x5",
+    "datos": {
+      "antetitulo": "",
+      "titular": "Poco a poco también se llega.",
+      "texto": ""
+    },
+    "video": "03 Publicaciones/Frases/frase-6.mp4",
+    "imagen": "03 Publicaciones/Frases/frase-6.png"
+  },
+  {
+    "id": "perfil",
+    "pagina": "piezas/perfil.html",
+    "ancho": 1080,
+    "alto": 1080,
+    "imagen": "04 Perfil y destacados/foto-de-perfil.png"
+  },
+  {
+    "id": "destacado-entrenos",
+    "pagina": "piezas/destacado.html?icono=entrenos",
+    "ancho": 1080,
+    "alto": 1920,
+    "imagen": "04 Perfil y destacados/destacado-1-entrenos.png"
+  },
+  {
+    "id": "destacado-nutricion",
+    "pagina": "piezas/destacado.html?icono=nutricion",
+    "ancho": 1080,
+    "alto": 1920,
+    "imagen": "04 Perfil y destacados/destacado-2-nutricion.png"
+  },
+  {
+    "id": "destacado-resultados",
+    "pagina": "piezas/destacado.html?icono=resultados",
+    "ancho": 1080,
+    "alto": 1920,
+    "imagen": "04 Perfil y destacados/destacado-3-resultados.png"
+  },
+  {
+    "id": "destacado-opiniones",
+    "pagina": "piezas/destacado.html?icono=opiniones",
+    "ancho": 1080,
+    "alto": 1920,
+    "imagen": "04 Perfil y destacados/destacado-4-opiniones.png"
+  },
+  {
+    "id": "destacado-reservas",
+    "pagina": "piezas/destacado.html?icono=reservas",
+    "ancho": 1080,
+    "alto": 1920,
+    "imagen": "04 Perfil y destacados/destacado-5-reservas.png"
+  },
+  {
+    "id": "destacado-marca",
+    "pagina": "piezas/destacado.html?icono=marca",
+    "ancho": 1080,
+    "alto": 1920,
+    "imagen": "04 Perfil y destacados/destacado-6-sobre-mi.png"
+  }
+]

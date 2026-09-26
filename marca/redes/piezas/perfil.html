@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Foto de perfil</title>
+    <link rel="stylesheet" href="../comun/marca.css" />
+    <style>
+      /*
+       * Foto de perfil para Instagram y TikTok. Las dos la recortan en circulo:
+       * el aro grueso queda dentro con margen para que no lo muerda el recorte.
+       */
+      .lienzo {
+        --alto: 1080px;
+        --resplandor-y: 50%;
+        --resplandor-tamano: 760px 760px;
+      }
+      .logo {
+        position: absolute;
+        left: 90px;
+        top: 90px;
+        width: 900px;
+        height: 900px;
+      }
+      .logo svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lienzo">
+      <div class="resplandor"></div>
+      <div class="logo"></div>
+      <div class="grano"></div>
+    </div>
+    <script src="../comun/trazos.js"></script>
+    <script src="../comun/marca.js"></script>
+    <script>
+      document.querySelector(".logo").appendChild(AO.logo({ estatico: true }))
+      AO.preparar({ duracion: 0 })
+    </script>
+  </body>
+</html>

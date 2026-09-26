@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fondo en bucle</title>
+    <link rel="stylesheet" href="../comun/marca.css" />
+    <style>
+      /*
+       * Fondo en bucle para historias y TikToks con texto encima: los aros del
+       * logo, enormes, con destellos que dan vueltas, polvo de oro que sube y una
+       * luz que respira. El centro queda libre para escribir.
+       *
+       * Dura 8 s y cada movimiento cabe un numero entero de veces en esos 8 s, asi
+       * que el ultimo fotograma empalma con el primero y se puede repetir sin
+       * que se note el salto.
+       */
+      .resplandor {
+        --resplandor-y: 900px;
+        --resplandor-tamano: 1000px 1100px;
+        animation: latir 4000ms ease-in-out -1000ms infinite;
+        --latido-min: 0.55;
+      }
+      .aros {
+        position: absolute;
+        width: 1400px;
+        height: 1400px;
+        left: -160px;
+        top: 200px;
+      }
+      .emblema {
+        position: absolute;
+        width: 820px;
+        height: 820px;
+        left: 130px;
+        top: 490px;
+        opacity: 0.07;
+      }
+      .aros svg,
+      .emblema svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        overflow: visible;
+      }
+      .polvo {
+        position: absolute;
+        border-radius: 50%;
+        background: radial-gradient(circle, #fff6d6 0%, #e0c158 45%, rgba(201, 162, 39, 0) 72%);
+        opacity: 0;
+        animation: polvo var(--periodo) linear var(--retraso) infinite;
+      }
+      @keyframes polvo {
+        0% {
+          opacity: 0;
+          transform: translate(0, 0);
+        }
+        15% {
+          opacity: var(--brillo);
+        }
+        80% {
+          opacity: var(--brillo);
+        }
+        100% {
+          opacity: 0;
+          transform: translate(var(--deriva), var(--subida));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lienzo">
+      <div class="resplandor"></div>
+      <div class="emblema"></div>
+      <div class="aros"></div>
+      <div class="vineta"></div>
+      <div class="grano"></div>
+    </div>
+
+    <script src="../comun/trazos.js"></script>
+    <script src="../comun/marca.js"></script>
+    <script>
+      const $ = (selector) => document.querySelector(selector)
+      const BUCLE = 8000
+
+      $(".aros").appendChild(
+        AO.logo({
+          partes: { emblema: false, letras: false },
+          estatico: true,
+          brillo: true,
+          brilloEn: 4200,
+          escala: 2.4,
+          destello: [
+            { aro: 0, inicio: -1000, periodo: BUCLE / 2 },
+            { aro: 1, inicio: -3000, periodo: BUCLE, sentido: -1 },
+            { aro: 2, inicio: -5500, periodo: BUCLE },
+          ],
+        }),
+      )
+      $(".emblema").appendChild(AO.logo({ partes: { aros: false }, estatico: true }))
+
+      // Polvo de oro. Numeros pseudoaleatorios con semilla fija: cada render
+      // sale igual.
+      let semilla = 7
+      const azar = () => {
+        semilla = (semilla * 16807) % 2147483647
+        return (semilla - 1) / 2147483646
+      }
+      const lienzo = $(".lienzo")
+      for (let i = 0; i < 34; i++) {
+        const mota = document.createElement("i")
+        mota.className = "polvo"
+        const lado = 4 + azar() * 10
+        const periodo = azar() < 0.5 ? BUCLE : BUCLE / 2
+        mota.style.cssText = [
+          `width:${lado}px`,
+          `height:${lado}px`,
+          `left:${Math.round(azar() * 1080)}px`,
+          `top:${Math.round(700 + azar() * 1200)}px`,
+          `--periodo:${periodo}ms`,
+          `--retraso:${-Math.round(azar() * periodo)}ms`,
+          `--subida:${-Math.round(260 + azar() * 520)}px`,
+          `--deriva:${Math.round((azar() - 0.5) * 120)}px`,
+          `--brillo:${(0.35 + azar() * 0.6).toFixed(2)}`,
+        ].join(";")
+        lienzo.insertBefore(mota, $(".vineta"))
+      }
+
+      AO.preparar({ duracion: BUCLE })
+    </script>
+  </body>
+</html>
