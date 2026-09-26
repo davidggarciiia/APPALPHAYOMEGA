@@ -51,7 +51,8 @@ export function ConsigueSesiones({
     setHecho(null)
     try {
       await accion()
-      await alCambiar()
+      // Hecho es hecho: si luego falla la recarga, no se presenta como un fallo.
+      await alCambiar().catch(() => undefined)
       setHecho(exito)
     } catch (error) {
       setFallo(
