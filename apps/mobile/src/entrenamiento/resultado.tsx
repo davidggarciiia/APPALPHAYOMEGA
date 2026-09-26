@@ -1,22 +1,43 @@
 import { StyleSheet, Text, View } from "react-native"
 import type {
-  Prescripcion,
   ResultadoEntrenamiento,
-  SeriePrescrita,
+  ResultadoSerie,
   ValoresEjecutados,
+  ValoresEjecutadosDistancia,
 } from "@alpha-omega/shared"
+import type { PrescripcionConDistancia, SerieConDistancia } from "./registro-modelo"
 import { Icono } from "../componentes/iconos"
 import { degradadoExito, tema } from "../tema"
 
-export function valoresLegibles(serie: SeriePrescrita | ValoresEjecutados): string {
-  return `${serie.tipoMedicion === "tiempo" ? `${serie.segundos} s` : `${serie.repeticiones} rep`}${serie.pesoKg === null ? "" : ` · ${serie.pesoKg} kg`}`
+/**
+ * D01 · El resumen lee ya series en metros aunque el contrato público no las
+ * acepte hasta D01.g; un resultado actual encaja sin cambios.
+ */
+export type ResultadoConDistancia = Omit<ResultadoEntrenamiento, "prescripcion" | "series"> & {
+  prescripcion: PrescripcionConDistancia
+  series: (ResultadoSerie | { serieId: string; hecha: true; valores: ValoresEjecutadosDistancia })[]
+}
+
+/** «8 rep · 60 kg», «30 s» o «20 m · 32 kg»: cada cantidad en su unidad. */
+export function valoresLegibles(
+  serie: SerieConDistancia | ValoresEjecutados | ValoresEjecutadosDistancia,
+): string {
+  const peso = serie.pesoKg === null ? "" : ` · ${serie.pesoKg} kg`
+  switch (serie.tipoMedicion) {
+    case "repeticiones":
+      return `${serie.repeticiones} rep${peso}`
+    case "tiempo":
+      return `${serie.segundos} s${peso}`
+    case "distancia":
+      return `${serie.metros} m${peso}`
+  }
 }
 export function PrescripcionVisible({
   prescripcion,
   resultado,
 }: {
-  prescripcion: Prescripcion
-  resultado?: ResultadoEntrenamiento
+  prescripcion: PrescripcionConDistancia
+  resultado?: ResultadoConDistancia
 }): React.JSX.Element {
   return (
     <View style={estilos.contenedor}>

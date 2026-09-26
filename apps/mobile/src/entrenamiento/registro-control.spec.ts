@@ -430,3 +430,167 @@ it("corregir o quitar el RIR de una serie hecha persiste al reabrir sin tocar lo
   expect(serie).toMatchObject({ hecha: true, pesoKg: 20, repeticiones: 10 })
   expect(serie).not.toHaveProperty("rir")
 })
+
+describe("Cambio de unidad y copias anteriores (D01)", () => {
+  const hecha = { serieId, peso: "20", valor: "10", hecha: true, rir: 2 }
+  const enSegundos: SesionCliente = {
+    ...sesion,
+    revisionPrescripcion: 1,
+    prescripcion: {
+      ...sesion.prescripcion,
+      ejercicios: sesion.prescripcion.ejercicios.map((ejercicio) => ({
+        ...ejercicio,
+        series: [{ id: serieId, tipoMedicion: "tiempo", pesoKg: 20, segundos: 30 }],
+      })),
+    },
+  }
+
+  // D01.g: con los metros en el contrato público, la copia local ya puede guardar esta pauta.
+  const enMetros: SesionCliente = {
+    ...sesion,
+    revisionPrescripcion: 1,
+    prescripcion: {
+      ...sesion.prescripcion,
+      ejercicios: sesion.prescripcion.ejercicios.map((ejercicio) => ({
+        ...ejercicio,
+        tipoCarga: "conCargaExterna",
+        series: [{ id: serieId, tipoMedicion: "distancia", pesoKg: 32, metros: 20 }],
+      })),
+    },
+  }
+
+  it.each([
+    [
+      "segundos",
+      enSegundos,
+      { serieId, tipoMedicion: "tiempo", pesoKg: null, segundos: null, hecha: false },
+    ],
+    [
+      "metros",
+      enMetros,
+      { serieId, tipoMedicion: "distancia", pesoKg: null, metros: null, hecha: false },
+    ],
+  ] as const)(
+    "cambiar la unidad a %s deja pendiente lo hecho y conserva el respaldo original",
+    async (_unidad, nueva, pendiente) => {
+      const { control, api, almacen } = preparar()
+      await control.abrir()
+      const original = { notas: "mi copia", series: [hecha] }
+      await control.editar(original)
+      jest.mocked(api.leerCliente).mockResolvedValue(nueva)
+      await control.recuperarServidor()
+      await control.recuperarCopia()
+
+      expect(control.documento?.edicion.series).toEqual([
+        { serieId, peso: "", valor: "", hecha: false },
+      ])
+      expect(control.documento?.edicion.notas).toBe("mi copia")
+      expect(control.documento?.respaldo).toEqual({
+        edicion: original,
+        prescripcion: sesion.prescripcion,
+      })
+      // Las 10 repeticiones no se envían como 10 segundos ni como 10 m.
+      expect(registroParaEnviar(nueva.prescripcion, control.documento!.edicion).series).toEqual([
+        pendiente,
+      ])
+
+      control.cerrar()
+      const reabierta = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+      await reabierta.abrir()
+      expect(reabierta.documento?.sesion.prescripcion).toEqual(nueva.prescripcion)
+      expect(reabierta.documento?.edicion.series[0]).toMatchObject({ valor: "", hecha: false })
+      expect(reabierta.documento?.respaldo?.edicion).toEqual(original)
+      expect(await hayCambiosLocales(almacen, cuenta)).toBe(true)
+    },
+  )
+
+  it("una sesión en metros se recupera sin conexión y reenvía la misma operación", async () => {
+    const { control, api, almacen } = preparar()
+    jest.mocked(api.leerCliente).mockResolvedValue(enMetros)
+    await control.abrir()
+    const edicion = { serieId, peso: "34", valor: "18", hecha: true }
+    await control.editar({ notas: "", series: [edicion] })
+    jest.spyOn(api, "guardar").mockImplementation(async (_id, datos) => ({
+      revision: 1,
+      revisionPrescripcion: 1,
+      registro: datos.registro,
+      actualizadoEn: new Date().toISOString(),
+    }))
+    const enviado: ResultadoEntrenamiento = {
+      ...resultado,
+      prescripcion: enMetros.prescripcion,
+      revisionPrescripcion: 1,
+      series: [
+        { serieId, hecha: true, valores: { tipoMedicion: "distancia", pesoKg: 34, metros: 18 } },
+      ],
+    }
+    const enviar = jest
+      .spyOn(api, "enviar")
+      .mockRejectedValueOnce(new Error("respuesta perdida"))
+      .mockResolvedValue(enviado)
+    await expect(control.enviar()).rejects.toThrow("respuesta perdida")
+    control.cerrar()
+
+    // Sin conexión, la copia del dispositivo conserva metros y kilos en su unidad.
+    jest.mocked(api.leerCliente).mockRejectedValue(new Error("sin red"))
+    const nueva = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+    await nueva.abrir()
+    const guardado = await almacen.leer(cuenta, claveSesion(id), DocumentoSesionSchema)
+    expect(guardado?.sesion.prescripcion).toEqual(enMetros.prescripcion)
+    expect(nueva.documento?.edicion.series).toEqual([edicion])
+    await nueva.enviar()
+    expect(enviar.mock.calls[1]).toEqual(enviar.mock.calls[0])
+    expect(enviar.mock.calls[0]![1].registro.series).toEqual([
+      { serieId, tipoMedicion: "distancia", pesoKg: 34, metros: 18, hecha: true },
+    ])
+    expect(nueva.documento?.resultado).toEqual(enviado)
+    expect(nueva.documento?.envioPendiente).toBeNull()
+    expect(await hayCambiosLocales(almacen, cuenta)).toBe(false)
+  })
+
+  it("un borrador del servidor en otra unidad no se reinterpreta al abrir", async () => {
+    const { control, api } = preparar()
+    jest.mocked(api.leerCliente).mockResolvedValue({
+      ...enSegundos,
+      borrador: {
+        revision: 1,
+        revisionPrescripcion: 0,
+        actualizadoEn: "2026-09-24T10:00:00.000Z",
+        registro: {
+          notas: null,
+          series: [
+            { serieId, tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10, hecha: true },
+          ],
+        },
+      },
+    })
+    await control.abrir()
+    expect(control.documento?.edicion.series).toEqual([
+      { serieId, peso: "", valor: "", hecha: false },
+    ])
+  })
+
+  it("una copia guardada antes de la distancia se sigue leyendo y enviando igual", async () => {
+    const { control, almacen } = preparar()
+    // Formato anterior: sin RIR, sin tiempo activo, sin vista ni intención de envío.
+    await almacen.guardar(cuenta, claveSesion(id), {
+      sesion,
+      edicion: {
+        notas: "copia antigua",
+        series: [{ serieId, peso: "20", valor: "10", hecha: true }],
+      },
+      secuencia: 1,
+      sincronizada: 0,
+      revisionBorrador: 0,
+      pendiente: null,
+      envioPendiente: null,
+      respaldo: null,
+      resultado: null,
+    })
+    await control.abrir()
+    expect(control.documento?.edicion.notas).toBe("copia antigua")
+    expect(registroParaEnviar(sesion.prescripcion, control.documento!.edicion).series).toEqual([
+      { serieId, tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10, hecha: true },
+    ])
+  })
+})

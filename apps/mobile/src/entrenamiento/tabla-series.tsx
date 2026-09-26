@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
-import type { EjercicioPrescrito, SeriePrescrita, ValoresEjecutados } from "@alpha-omega/shared"
-import type { EdicionRegistro } from "./registro-modelo"
+import type { ValoresEjecutados, ValoresEjecutadosDistancia } from "@alpha-omega/shared"
+import type { EdicionRegistro, EjercicioConDistancia, SerieConDistancia } from "./registro-modelo"
 import { valoresLegibles } from "./resultado"
 import { Icono } from "../componentes/iconos"
 import { degradadoExito, tema } from "../tema"
@@ -9,6 +9,14 @@ import { Opciones } from "./sesion/controles"
 import { kg, resumenPrescrito } from "./sesion/modelo"
 
 type SerieReal = EdicionRegistro["series"][number]
+type Unidad = SerieConDistancia["tipoMedicion"]
+
+/** Cómo se nombra cada unidad: cabecera sola, cabecera mezclada y campo accesible. */
+const UNIDADES = {
+  repeticiones: { cabecera: "Reps", corta: "Reps", nombre: "Repeticiones" },
+  tiempo: { cabecera: "Seg", corta: "s", nombre: "Segundos" },
+  distancia: { cabecera: "Metros", corta: "m", nombre: "Metros" },
+} as const satisfies Record<Unidad, { cabecera: string; corta: string; nombre: string }>
 
 const RIRS = [0, 1, 2, 3, 4, 5].map((valor) => ({
   valor,
@@ -21,16 +29,46 @@ function decimal(valor: number): string {
   return String(valor).replace(".", ",")
 }
 
-function objetivo(serie: SeriePrescrita): number {
-  return serie.tipoMedicion === "tiempo" ? serie.segundos : serie.repeticiones
+/** Lo que pauta la serie en su unidad; «Hecha» lo toma si no se escribió otra cosa. */
+export function cantidadObjetivo(serie: SerieConDistancia): number {
+  switch (serie.tipoMedicion) {
+    case "repeticiones":
+      return serie.repeticiones
+    case "tiempo":
+      return serie.segundos
+    case "distancia":
+      return serie.metros
+  }
 }
 
-/** «Anterior 65 kg × 6». */
-function anteriorLegible(valores: ValoresEjecutados): string {
-  const cantidad =
-    valores.tipoMedicion === "tiempo" ? `${valores.segundos} s` : `${valores.repeticiones}`
+/** «Reps», «Seg», «Metros» o, si el ejercicio mezcla unidades, «Reps / s». */
+function cabecera(series: SerieConDistancia[]): string {
+  const unidades = new Set(series.map((s) => s.tipoMedicion))
+  if (unidades.size <= 1) return UNIDADES[series[0]?.tipoMedicion ?? "repeticiones"].cabecera
+  return (["repeticiones", "tiempo", "distancia"] as const)
+    .filter((unidad) => unidades.has(unidad))
+    .map((unidad) => UNIDADES[unidad].corta)
+    .join(" / ")
+}
+
+type Anterior = ValoresEjecutados | ValoresEjecutadosDistancia
+
+function cantidadAnterior(valores: Anterior): string {
+  switch (valores.tipoMedicion) {
+    case "repeticiones":
+      return String(valores.repeticiones)
+    case "tiempo":
+      return `${valores.segundos} s`
+    case "distancia":
+      return `${valores.metros} m`
+  }
+}
+
+/** «Anterior 65 kg × 6», «6 reps», «30 s» o «30 kg × 20 m». */
+function anteriorLegible(valores: Anterior): string {
+  const cantidad = cantidadAnterior(valores)
   if (valores.pesoKg !== null) return `${kg(valores.pesoKg)} × ${cantidad}`
-  return valores.tipoMedicion === "tiempo" ? cantidad : `${cantidad} reps`
+  return valores.tipoMedicion === "repeticiones" ? `${cantidad} reps` : cantidad
 }
 
 /** Un ejercicio de la sesión en curso, con el diseño de «Sesión en curso». */
@@ -43,7 +81,7 @@ export function TablaSeries({
   enCurso = null,
   anterior,
 }: {
-  ejercicio: EjercicioPrescrito
+  ejercicio: EjercicioConDistancia
   series: SerieReal[]
   bloqueado: boolean
   cambiar: (id: string, cambio: Partial<SerieReal>) => void
@@ -52,10 +90,9 @@ export function TablaSeries({
   /** La serie que toca ahora: se resalta y pregunta cuántas quedaban. */
   enCurso?: string | null
   /** La mejor serie de la última vez. */
-  anterior?: ValoresEjecutados
+  anterior?: Anterior
 }): React.JSX.Element {
-  const unidades = new Set(ejercicio.series.map((s) => s.tipoMedicion))
-  const columna = unidades.size > 1 ? "Reps / s" : unidades.has("tiempo") ? "Seg" : "Reps"
+  const columna = cabecera(ejercicio.series)
   const sugerida = ejercicio.series[0]?.pesoKg ?? null
   const diferencia =
     anterior?.pesoKg !== undefined && anterior.pesoKg !== null && sugerida !== null
@@ -120,8 +157,8 @@ export function TablaSeries({
       </View>
       {ejercicio.series.map((prescrita, n) => {
         const real = series.find((serie) => serie.serieId === prescrita.id)!
-        const tiempo = prescrita.tipoMedicion === "tiempo"
-        const unidad = tiempo ? "Segundos" : "Repeticiones"
+        const unidad = UNIDADES[prescrita.tipoMedicion].nombre
+        const objetivo = cantidadObjetivo(prescrita)
         const actual = enCurso === prescrita.id
         const rir = real.rir ?? null
         const fueraDeObjetivo = rir !== null && rirObjetivo !== undefined && rir < rirObjetivo
@@ -136,7 +173,7 @@ export function TablaSeries({
         }
         const sugerencia = `Sugerencia de tu entrenador: ${[
           prescrita.pesoKg === null ? null : kg(prescrita.pesoKg),
-          tiempo ? `${prescrita.segundos} segundos` : `${prescrita.repeticiones} repeticiones`,
+          `${objetivo} ${unidad.toLowerCase()}`,
           rirObjetivo === undefined ? null : `RIR ${rirObjetivo}`,
         ]
           .filter(Boolean)
@@ -171,7 +208,7 @@ export function TablaSeries({
                 editable={!bloqueado}
                 value={real.valor}
                 onChangeText={(valor) => cambiar(prescrita.id, { valor })}
-                placeholder={String(objetivo(prescrita))}
+                placeholder={String(objetivo)}
                 placeholderTextColor={tema.marcador}
                 selectionColor={tema.acento}
                 keyboardType="number-pad"
@@ -214,7 +251,7 @@ export function TablaSeries({
                           hecha: true,
                           omitida: undefined,
                           // La sugerencia del entrenador vale si no se escribió otra cosa.
-                          ...(real.valor.trim() === "" && { valor: String(objetivo(prescrita)) }),
+                          ...(real.valor.trim() === "" && { valor: String(objetivo) }),
                           ...(real.peso.trim() === "" &&
                             mostrarPeso &&
                             prescrita.pesoKg !== null && { peso: decimal(prescrita.pesoKg) }),

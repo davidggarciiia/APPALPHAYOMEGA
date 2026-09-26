@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native"
 
 import { Icono } from "../../componentes/iconos"
 import { tema } from "../../tema"
+import type { SerieConDistancia } from "../registro-modelo"
+import { objetivoDeSerie } from "../sesion/modelo"
 import { Fila, Tarjeta, Titulo } from "./piezas"
 
 const RIR = [
@@ -23,6 +25,26 @@ const SEMAFORO = [
   },
 ]
 
+/**
+ * Una serie de ejemplo por unidad, leída con el formato de la sesión: «8–10»,
+ * «30 s» y «20 m». Una unidad nueva sin ejemplo no compila.
+ */
+const EJEMPLOS = {
+  repeticiones: {
+    id: "",
+    tipoMedicion: "repeticiones",
+    pesoKg: null,
+    repeticiones: 8,
+    repeticionesMax: 10,
+  },
+  tiempo: { id: "", tipoMedicion: "tiempo", pesoKg: null, segundos: 30 },
+  distancia: { id: "", tipoMedicion: "distancia", pesoKg: null, metros: 20 },
+} satisfies {
+  [U in SerieConDistancia["tipoMedicion"]]: Extract<SerieConDistancia, { tipoMedicion: U }>
+}
+
+const ejemplo = (unidad: keyof typeof EJEMPLOS): string => `«${objetivoDeSerie(EJEMPLOS[unidad])}»`
+
 /** Contenido fijo de la app: la guía no depende del plan. */
 export const TEMAS_DE_LA_GUIA = [
   {
@@ -34,6 +56,10 @@ export const TEMAS_DE_LA_GUIA = [
     titulo: "Cómo se ajusta tu sesión",
     texto:
       "Tu entrenador revisa lo que registras: series, repeticiones, RIR, molestias y cómo terminas. Con eso decide si sube la carga, la mantiene o baja el volumen. Si llegas cansado o con molestias, dilo en el check-in: se recortan series de accesorios y los ejercicios principales se mantienen.",
+  },
+  {
+    titulo: "Cómo se mide cada serie",
+    texto: `Cada serie indica su unidad junto al objetivo: ${ejemplo("repeticiones")} son repeticiones, ${ejemplo("tiempo")} son segundos y ${ejemplo("distancia")} son metros, por ejemplo al transportar un peso. Registra lo que hayas hecho en esa misma unidad y, si el ejercicio lleva carga, también los kilos.`,
   },
   {
     titulo: "Cómo subir las cargas",

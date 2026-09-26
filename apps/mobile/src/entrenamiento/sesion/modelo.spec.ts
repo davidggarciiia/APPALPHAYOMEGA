@@ -1,9 +1,15 @@
 import { describe, expect, it } from "@jest/globals"
 import { PrescripcionSchema, type Prescripcion } from "@alpha-omega/shared"
 
-import { desdePrescripcion, type EdicionRegistro } from "../registro-modelo"
+import {
+  desdePrescripcion,
+  type EdicionRegistro,
+  type EjercicioConDistancia,
+  type PrescripcionConDistancia,
+} from "../registro-modelo"
 import {
   duracionLegible,
+  objetivoDeSerie,
   porSecciones,
   proximaVez,
   reloj,
@@ -204,5 +210,59 @@ describe("Lógica de la sesión en curso", () => {
       new Set(),
     )
     expect(resultado.map((r) => r.texto)).toEqual(["67,5 kg, igual", "26 kg, igual"])
+  })
+})
+
+describe("Distancia en metros (D01, aún sin publicar)", () => {
+  const transporte: EjercicioConDistancia = {
+    id: u(6),
+    ejercicioId: u(106),
+    nombre: "Paseo del granjero",
+    indicaciones: null,
+    tipoCarga: "conCargaExterna",
+    rir: { min: 2, max: 3 },
+    descanso: "90 s",
+    subidaKg: 2,
+    series: [
+      { id: u(61), tipoMedicion: "distancia", pesoKg: 32, metros: 20 },
+      { id: u(62), tipoMedicion: "distancia", pesoKg: 32, metros: 20 },
+    ],
+  }
+  const conTransporte: PrescripcionConDistancia = {
+    ...prescripcion,
+    ejercicios: [...prescripcion.ejercicios, transporte],
+  }
+  function conMetros(
+    cambios: Record<string, Partial<EdicionRegistro["series"][number]>>,
+  ): EdicionRegistro {
+    const base = desdePrescripcion(conTransporte)
+    return {
+      ...base,
+      series: base.series.map((s) => ({ ...s, ...(cambios[s.serieId] ?? {}) })),
+    }
+  }
+
+  it("pauta los metros como metros, sin rango ni repeticiones, con el descanso escrito", () => {
+    expect(objetivoDeSerie(transporte.series[0]!)).toBe("20 m")
+    expect(resumenPrescrito(transporte)).toBe("2 × 20 m · RIR 2–3 · 90 s")
+    // El descanso sale del texto del entrenador, nunca de los metros.
+    expect(segundosDeDescanso(transporte.descanso)).toBe(90)
+    // Las series anteriores se leen igual.
+    expect(objetivoDeSerie(prescripcion.ejercicios[2]!.series[0]!)).toBe("8–10")
+    expect(objetivoDeSerie({ id: u(71), tipoMedicion: "tiempo", pesoKg: null, segundos: 45 })).toBe(
+      "45 s",
+    )
+  })
+
+  it("«La próxima vez» compara los metros con los metros pautados, nunca con repeticiones", () => {
+    const hecho = (valor: string, rir: number) => ({ hecha: true, peso: "32", valor, rir })
+    const deTransporte = (edicion: EdicionRegistro) =>
+      proximaVez(conTransporte, edicion, new Set()).find((p) => p.ejercicioId === u(6))
+    expect(
+      deTransporte(conMetros({ [u(61)]: hecho("20", 3), [u(62)]: hecho("20", 2) })),
+    ).toMatchObject({ texto: "Sube a 34 kg", tipo: "sube" })
+    expect(
+      deTransporte(conMetros({ [u(61)]: hecho("20", 3), [u(62)]: hecho("15", 3) })),
+    ).toMatchObject({ texto: "32 kg, igual", tipo: "igual" })
   })
 })

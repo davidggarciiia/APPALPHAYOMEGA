@@ -6,7 +6,17 @@ import {
   nuevaSerie,
   type EjercicioEditable,
   type SesionEditable,
+  type TipoMedicion,
 } from "./editor-modelo"
+
+const NOMBRE_DE_UNIDAD = {
+  repeticiones: "Repeticiones",
+  tiempo: "Segundos",
+  distancia: "Metros",
+} as const satisfies Record<TipoMedicion, string>
+
+/** Las unidades que se ofrecen al pautar; los metros, desde D01.g. */
+const UNIDADES_OFRECIDAS: readonly TipoMedicion[] = ["repeticiones", "tiempo", "distancia"]
 
 export function EditorSesion({
   valor,
@@ -144,14 +154,13 @@ export function EditorSesion({
                   Serie {numero + 1}
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  <BotonSecundario
-                    texto={s.tipoMedicion === "repeticiones" ? "✓ Repeticiones" : "Repeticiones"}
-                    onPress={() => editar({ tipoMedicion: "repeticiones", objetivo: "" })}
-                  />
-                  <BotonSecundario
-                    texto={s.tipoMedicion === "tiempo" ? "✓ Segundos" : "Segundos"}
-                    onPress={() => editar({ tipoMedicion: "tiempo", objetivo: "" })}
-                  />
+                  {UNIDADES_OFRECIDAS.map((unidad) => (
+                    <BotonSecundario
+                      key={unidad}
+                      texto={`${s.tipoMedicion === unidad ? "✓ " : ""}${NOMBRE_DE_UNIDAD[unidad]}`}
+                      onPress={() => editar({ tipoMedicion: unidad, objetivo: "" })}
+                    />
+                  ))}
                 </View>
                 {e.tipoCarga !== "sinCarga" && !e.calibrar && (
                   <Campo
@@ -163,7 +172,7 @@ export function EditorSesion({
                   />
                 )}
                 <Campo
-                  etiqueta={`${s.tipoMedicion === "repeticiones" ? "Repeticiones" : "Segundos"} — ${etiqueta}`}
+                  etiqueta={`${NOMBRE_DE_UNIDAD[s.tipoMedicion]} — ${etiqueta}`}
                   value={s.objetivo}
                   keyboardType="number-pad"
                   onChangeText={(objetivo) => editar({ objetivo })}

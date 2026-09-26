@@ -7,7 +7,12 @@ import {
   nuevoDocumento,
   type DocumentoSesion,
 } from "./documento-local"
-import { desdePrescripcion, registroParaEnviar, type EdicionRegistro } from "./registro-modelo"
+import {
+  desdePrescripcion,
+  edicionRecuperada,
+  registroParaEnviar,
+  type EdicionRegistro,
+} from "./registro-modelo"
 import { pausarTramo } from "./sesion/tiempo"
 import { ErrorDelServidor } from "../lib/http"
 
@@ -265,40 +270,8 @@ export class RegistroControl {
   async recuperarCopia(): Promise<void> {
     const local = this.exigir()
     if (!local.respaldo) return
-    const anteriores = new Map(
-      local.respaldo.prescripcion.ejercicios.flatMap((e) =>
-        e.series.map((s) => [s.id, s.tipoMedicion] as const),
-      ),
-    )
-    const actuales = new Map(
-      local.sesion.prescripcion.ejercicios.flatMap((e) =>
-        e.series.map((s) => [s.id, { serie: s, tipoCarga: e.tipoCarga }] as const),
-      ),
-    )
-    const valores = new Map(local.respaldo.edicion.series.map((s) => [s.serieId, s]))
-    const base = desdePrescripcion(local.sesion.prescripcion)
-    const edicion = {
-      ...base,
-      ...local.respaldo.edicion,
-      series: base.series.map((s) => {
-        const actual = actuales.get(s.serieId)
-        const anterior = valores.get(s.serieId)
-        if (!actual || !anterior || anteriores.get(s.serieId) !== actual.serie.tipoMedicion)
-          return s
-        // Una carga oculta o ausente dejaría una serie hecha imposible de enviar.
-        // La ejecución incompatible permanece en el respaldo, sin sustituir la pauta nueva.
-        const tienePeso = anterior.peso.trim() !== ""
-        if (actual.tipoCarga === "sinCarga" && tienePeso) return s
-        if (
-          anterior.hecha &&
-          !tienePeso &&
-          (actual.tipoCarga === "conCargaExterna" || actual.serie.pesoKg !== null)
-        )
-          return s
-        return anterior
-      }),
-    }
-    await this.editar(edicion)
+    // Una serie cuya unidad cambió queda pendiente; el respaldo se conserva.
+    await this.editar(edicionRecuperada(local.respaldo, local.sesion.prescripcion))
   }
   async enviar(): Promise<void> {
     if (this.enviando) return

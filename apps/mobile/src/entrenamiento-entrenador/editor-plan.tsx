@@ -10,7 +10,7 @@ import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../compone
 import { fechaLegible, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
 import { ErrorDePeticion, ErrorDelServidor, ErrorDePermiso } from "../lib/http"
 import { tema } from "../tema"
-import { convertirSesion, nuevaSesion, desdeSesion } from "./editor-modelo"
+import { convertirSesion, nuevaSesion, desdeSesion, unidadCorta } from "./editor-modelo"
 import { EditorPatron } from "./editor-patron"
 import type { ApiRutinas } from "./api-rutinas"
 import { ListadoDeRutinas } from "./listado-rutinas"
@@ -218,7 +218,7 @@ export function EditorPlan({
                       key={s.id}
                       style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}
                     >
-                      Serie {n + 1}: {s.objetivo} {s.tipoMedicion === "tiempo" ? "s" : "rep"}
+                      Serie {n + 1}: {s.objetivo} {unidadCorta(s.tipoMedicion)}
                       {s.peso ? ` · ${s.peso} kg` : ""}
                     </Text>
                   ))}

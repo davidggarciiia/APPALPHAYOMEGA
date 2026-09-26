@@ -1,6 +1,11 @@
 import { describe, expect, it } from "@jest/globals"
-import { PrescripcionSchema, crearRegistroDeSesionSchema } from "@alpha-omega/shared"
+import {
+  PrescripcionSchema,
+  SeriePrescritaDistanciaSchema,
+  crearRegistroDeSesionSchema,
+} from "@alpha-omega/shared"
 
+import type { SesionConDistancia } from "../editor-modelo"
 import {
   aSesionEnRutina,
   desdeSesionEnRutina,
@@ -9,6 +14,7 @@ import {
   nuevoDia,
   nuevoEjercicio,
   resumenDeSeccion,
+  seriesDeFila,
 } from "./modelo"
 
 let n = 0
@@ -166,5 +172,131 @@ describe("constructor de planes", () => {
     ]
     expect(resumenDeSeccion(dia, "principal")).toBe("2 ejercicios · 7 series")
     expect(resumenDeSeccion(dia, "circuito")).toBe("1 ejercicio · 2 vueltas")
+  })
+})
+
+// D01: el modelo representa la distancia y, desde D01.g, el contrato público la acepta.
+describe("distancia en metros en el constructor (D01)", () => {
+  const TRANSPORTE = { id: "10000000-0000-4000-8000-000000000003", nombre: "Transporte" }
+  const enMetros = (id: string) =>
+    SeriePrescritaDistanciaSchema.parse({ id, tipoMedicion: "distancia", pesoKg: 24, metros: 20 })
+  const guardada: SesionConDistancia = {
+    id: "20000000-0000-4000-8000-000000000001",
+    nombre: "Fuerza",
+    diaSemana: 1,
+    ejercicios: [
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        ejercicioId: TRANSPORTE.id,
+        indicaciones: null,
+        tipoCarga: "conCargaExterna",
+        rir: { min: 2, max: 2 },
+        series: [
+          enMetros("40000000-0000-4000-8000-000000000001"),
+          enMetros("40000000-0000-4000-8000-000000000002"),
+        ],
+      },
+    ],
+  }
+
+  it("al reabrir o duplicar una fila en metros conserva unidad, carga e ids", () => {
+    const dia = desdeSesionEnRutina(guardada, { [TRANSPORTE.id]: TRANSPORTE.nombre })
+    const fila = dia.ejercicios[0]!
+    expect(fila).toEqual(
+      expect.objectContaining({
+        tipo: "distancia",
+        series: "2",
+        objetivo: "20",
+        carga: "24",
+        rir: "2",
+        idsSeries: guardada.ejercicios[0]!.series.map((s) => s.id),
+      }),
+    )
+    expect(faltaEnDia(dia)).toBeNull()
+    expect(seriesDeFila(fila, 2, nuevoId)).toEqual(guardada.ejercicios[0]!.series)
+    // Una serie más recibe id nuevo y la misma unidad y carga.
+    const tres = seriesDeFila(fila, 3, nuevoId)
+    expect(tres.map((s) => SeriePrescritaDistanciaSchema.parse(s).metros)).toEqual([20, 20, 20])
+    expect(new Set(tres.map((s) => s.id)).size).toBe(3)
+  })
+
+  it("sin carga externa o calibrando, los metros no llevan kilos", () => {
+    const fila = desdeSesionEnRutina(guardada, {}).ejercicios[0]!
+    expect(seriesDeFila({ ...fila, tipoCarga: "sinCarga" }, 1, nuevoId)[0]!.pesoKg).toBeNull()
+    expect(seriesDeFila({ ...fila, calibrar: true }, 1, nuevoId)[0]!.pesoKg).toBeNull()
+  })
+
+  it("los metros no admiten rango y cambiar de unidad no arrastra campos de la otra", () => {
+    const dia = nuevoDia(nuevoId)
+    dia.nombre = "Fuerza"
+    const fila = { ...nuevoEjercicio(TRANSPORTE, "principal", nuevoId), carga: "24" }
+    dia.ejercicios = [{ ...fila, tipo: "distancia", objetivo: "8–10" }]
+    expect(faltaEnDia(dia)).toMatch(/metros/)
+    // El mismo rango sigue valiendo en repeticiones.
+    dia.ejercicios = [{ ...fila, objetivo: "8–10" }]
+    expect(faltaEnDia(dia)).toBeNull()
+    const [repeticiones] = seriesDeFila(dia.ejercicios[0]!, 1, nuevoId)
+    expect(repeticiones).toEqual(
+      expect.objectContaining({
+        tipoMedicion: "repeticiones",
+        repeticiones: 8,
+        repeticionesMax: 10,
+      }),
+    )
+    const [metros] = seriesDeFila(
+      { ...fila, tipo: "distancia", objetivo: "30", idsSeries: [repeticiones!.id] },
+      1,
+      nuevoId,
+    )
+    expect(SeriePrescritaDistanciaSchema.parse(metros)).toEqual({
+      id: repeticiones!.id,
+      tipoMedicion: "distancia",
+      pesoKg: null,
+      metros: 30,
+    })
+  })
+
+  it("un ejercicio que mezcla unidades no se aplana: la fila queda marcada y no se publica", () => {
+    // Pautado serie a serie en el editor de sesión: 10 repeticiones y 20 m.
+    const repeticiones = {
+      id: "40000000-0000-4000-8000-000000000003",
+      tipoMedicion: "repeticiones" as const,
+      pesoKg: 24,
+      repeticiones: 10,
+    }
+    const mezclada: SesionConDistancia = {
+      ...guardada,
+      ejercicios: [
+        {
+          ...guardada.ejercicios[0]!,
+          series: [repeticiones, enMetros("40000000-0000-4000-8000-000000000004")],
+        },
+      ],
+    }
+    const aviso = "Este ejercicio mezcla unidades: revísalo en el editor de sesión"
+    const dia = desdeSesionEnRutina(mezclada, { [TRANSPORTE.id]: TRANSPORTE.nombre })
+    expect(dia.ejercicios[0]).toEqual(expect.objectContaining({ mezclaUnidades: true }))
+    expect(faltaEnDia(dia)).toContain(aviso)
+    expect(faltaEnDia(dia)).toContain(TRANSPORTE.nombre)
+    // Ni publicar ni guardar como plantilla lo convierten en 2 × 10 repeticiones.
+    expect(() => aSesionEnRutina(dia, nuevoId)).toThrow(aviso)
+    // Una sola unidad, aunque sea metros, no se marca.
+    const unaUnidad = desdeSesionEnRutina(guardada, { [TRANSPORTE.id]: TRANSPORTE.nombre })
+    expect(unaUnidad.ejercicios[0]!.mezclaUnidades).toBeUndefined()
+    expect(faltaEnDia(unaUnidad)).toBeNull()
+  })
+
+  it("se publica en D01.g y las filas nuevas siguen naciendo en repeticiones", () => {
+    expect(nuevoEjercicio(TRANSPORTE, "principal", nuevoId).tipo).toBe("repeticiones")
+    const dia = desdeSesionEnRutina(guardada, { [TRANSPORTE.id]: TRANSPORTE.nombre })
+    // D01.g invierte el cierre de D01.b: reabrir y publicar conserva metros, carga e ids.
+    expect(aSesionEnRutina(dia, nuevoId).ejercicios).toEqual([
+      expect.objectContaining({
+        id: guardada.ejercicios[0]!.id,
+        tipoCarga: "conCargaExterna",
+        rir: { min: 2, max: 2 },
+        series: guardada.ejercicios[0]!.series,
+      }),
+    ])
   })
 })

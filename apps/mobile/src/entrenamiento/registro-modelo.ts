@@ -3,9 +3,31 @@ import {
   CheckinSchema,
   CierreSchema,
   crearRegistroDeSesionSchema,
+  type EjercicioPrescrito,
   type Prescripcion,
   type Registro,
+  type SeriePrescrita,
+  type SeriePrescritaDistancia,
+  type SerieRegistrada,
+  type SerieRegistradaDistancia,
 } from "@alpha-omega/shared"
+
+/**
+ * D01 · El registro local distingue ya los metros aunque el contrato público no
+ * los acepte hasta D01.g: registroParaEnviar valida con crearRegistroDeSesionSchema,
+ * que decide si una serie en metros se puede guardar o enviar.
+ */
+export type SerieConDistancia = SeriePrescrita | SeriePrescritaDistancia
+export type EjercicioConDistancia = Omit<EjercicioPrescrito, "series"> & {
+  series: SerieConDistancia[]
+}
+export type PrescripcionConDistancia = Omit<Prescripcion, "ejercicios"> & {
+  ejercicios: EjercicioConDistancia[]
+}
+type SerieRegistradaConDistancia = SerieRegistrada | SerieRegistradaDistancia
+export type RegistroConDistancia = Omit<Registro, "series"> & {
+  series: SerieRegistradaConDistancia[]
+}
 
 export const EdicionRegistroSchema = z.strictObject({
   notas: z.string().max(2000),
@@ -30,9 +52,21 @@ export const EdicionRegistroSchema = z.strictObject({
 })
 export type EdicionRegistro = z.infer<typeof EdicionRegistroSchema>
 
+/** Lo registrado en la unidad de la serie; nunca se lee de otra. */
+function cantidadRegistrada(serie: SerieRegistradaConDistancia): number | null {
+  switch (serie.tipoMedicion) {
+    case "repeticiones":
+      return serie.repeticiones
+    case "tiempo":
+      return serie.segundos
+    case "distancia":
+      return serie.metros
+  }
+}
+
 export function desdePrescripcion(
-  prescripcion: Prescripcion,
-  registro?: Registro,
+  prescripcion: PrescripcionConDistancia,
+  registro?: RegistroConDistancia,
 ): EdicionRegistro {
   const reales = new Map(registro?.series.map((serie) => [serie.serieId, serie]))
   return {
@@ -45,8 +79,10 @@ export function desdePrescripcion(
     cierre: registro?.cierre ?? null,
     series: prescripcion.ejercicios.flatMap((e) =>
       e.series.map((s) => {
-        const real = reales.get(s.id)
-        const valor = real?.tipoMedicion === "tiempo" ? real.segundos : real?.repeticiones
+        // Lo registrado en otra unidad no se reinterpreta: la serie queda pendiente.
+        const registrada = reales.get(s.id)
+        const real = registrada?.tipoMedicion === s.tipoMedicion ? registrada : undefined
+        const valor = real ? cantidadRegistrada(real) : null
         return {
           serieId: s.id,
           peso: real?.pesoKg?.toString().replace(".", ",") ?? "",
@@ -61,13 +97,17 @@ export function desdePrescripcion(
   }
 }
 
-export function registroParaEnviar(prescripcion: Prescripcion, edicion: EdicionRegistro): Registro {
+/** Lo escrito → registro sin validar, cada serie en la unidad que pauta la prescripción. */
+export function registroSinValidar(
+  prescripcion: PrescripcionConDistancia,
+  edicion: EdicionRegistro,
+): RegistroConDistancia {
   const unidades = new Map(
     prescripcion.ejercicios.flatMap((e) => e.series.map((s) => [s.id, s.tipoMedicion] as const)),
   )
   const numero = (texto: string): number | null =>
     texto.trim() === "" ? null : Number(texto.replace(",", "."))
-  return crearRegistroDeSesionSchema(prescripcion).parse({
+  return {
     notas: edicion.notas.trim() || null,
     checkin: edicion.checkin ?? null,
     inicio: edicion.inicio ?? null,
@@ -75,16 +115,70 @@ export function registroParaEnviar(prescripcion: Prescripcion, edicion: EdicionR
       tiempoActivoSegundos: edicion.tiempoActivoSegundos,
     }),
     cierre: edicion.cierre ?? null,
-    series: edicion.series.map((s) => ({
-      serieId: s.serieId,
-      tipoMedicion: unidades.get(s.serieId),
-      pesoKg: numero(s.peso),
-      hecha: s.hecha,
-      ...(s.omitida === true && { omitida: true as const }),
-      ...(typeof s.rir === "number" && { rir: s.rir }),
-      ...(unidades.get(s.serieId) === "tiempo"
-        ? { segundos: numero(s.valor) }
-        : { repeticiones: numero(s.valor) }),
-    })),
-  })
+    series: edicion.series.map((s): SerieRegistradaConDistancia => {
+      const comun = {
+        serieId: s.serieId,
+        pesoKg: numero(s.peso),
+        hecha: s.hecha,
+        ...(s.omitida === true && { omitida: true as const }),
+        ...(typeof s.rir === "number" && { rir: s.rir }),
+      }
+      const valor = numero(s.valor)
+      // Una serie ajena a la prescripción no tiene unidad; la validación la rechaza igual.
+      switch (unidades.get(s.serieId) ?? "repeticiones") {
+        case "repeticiones":
+          return { ...comun, tipoMedicion: "repeticiones", repeticiones: valor }
+        case "tiempo":
+          return { ...comun, tipoMedicion: "tiempo", segundos: valor }
+        case "distancia":
+          return { ...comun, tipoMedicion: "distancia", metros: valor }
+      }
+    }),
+  }
+}
+
+export function registroParaEnviar(prescripcion: Prescripcion, edicion: EdicionRegistro): Registro {
+  return crearRegistroDeSesionSchema(prescripcion).parse(registroSinValidar(prescripcion, edicion))
+}
+
+/**
+ * La copia que el cliente recupera sobre la pauta nueva. Solo vuelven las series
+ * con la misma unidad y una carga que la pauta admita; las demás quedan pendientes
+ * y su ejecución sigue en el respaldo, sin convertirse a otra unidad.
+ */
+export function edicionRecuperada(
+  respaldo: { edicion: EdicionRegistro; prescripcion: PrescripcionConDistancia },
+  prescripcion: PrescripcionConDistancia,
+): EdicionRegistro {
+  const anteriores = new Map(
+    respaldo.prescripcion.ejercicios.flatMap((e) =>
+      e.series.map((s) => [s.id, s.tipoMedicion] as const),
+    ),
+  )
+  const actuales = new Map(
+    prescripcion.ejercicios.flatMap((e) =>
+      e.series.map((s) => [s.id, { serie: s, tipoCarga: e.tipoCarga }] as const),
+    ),
+  )
+  const valores = new Map(respaldo.edicion.series.map((s) => [s.serieId, s]))
+  const base = desdePrescripcion(prescripcion)
+  return {
+    ...base,
+    ...respaldo.edicion,
+    series: base.series.map((s) => {
+      const actual = actuales.get(s.serieId)
+      const anterior = valores.get(s.serieId)
+      if (!actual || !anterior || anteriores.get(s.serieId) !== actual.serie.tipoMedicion) return s
+      // Una carga oculta o ausente dejaría una serie hecha imposible de enviar.
+      const tienePeso = anterior.peso.trim() !== ""
+      if (actual.tipoCarga === "sinCarga" && tienePeso) return s
+      if (
+        anterior.hecha &&
+        !tienePeso &&
+        (actual.tipoCarga === "conCargaExterna" || actual.serie.pesoKg !== null)
+      )
+        return s
+      return anterior
+    }),
+  }
 }

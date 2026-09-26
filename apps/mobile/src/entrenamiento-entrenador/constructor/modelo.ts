@@ -3,20 +3,21 @@ import {
   type SeccionDeSesion,
   type SesionEnRutina,
 } from "@alpha-omega/shared"
+import type { SerieConDistancia, SesionConDistancia, TipoMedicion } from "../editor-modelo"
 
 /**
  * El constructor edita cada ejercicio como una fila de la tabla del diseño:
- * series, repeticiones (o segundos), RIR, descanso, carga inicial o «Calibrar»
- * y subida. Todas las series de un ejercicio comparten objetivo.
+ * series, repeticiones (o segundos, o metros), RIR, descanso, carga inicial o
+ * «Calibrar» y subida. Todas las series de un ejercicio comparten objetivo.
  */
 export type EjercicioDelConstructor = {
   id: string
   ejercicioId: string
   nombre: string
   seccion: SeccionDeSesion
-  tipo: "repeticiones" | "tiempo"
+  tipo: TipoMedicion
   series: string
-  /** «6», «8–10» o, si es tiempo, segundos: «40». */
+  /** «6», «8–10» o, si es tiempo o distancia, segundos o metros: «40». */
   objetivo: string
   rir: string
   modoRir?: "desactivado" | "alFinalizarEjercicio" | "cadaSerie"
@@ -34,7 +35,14 @@ export type EjercicioDelConstructor = {
   indicaciones: string
   /** Se conservan para no romper registros al volver a publicar la misma rutina. */
   idsSeries: string[]
+  /**
+   * La sesión guardada pauta este ejercicio en varias unidades (10 repeticiones
+   * y 20 m). La fila no puede representarlo: no se publica hasta revisarlo.
+   */
+  mezclaUnidades?: true
 }
+
+const AVISO_MEZCLA = "Este ejercicio mezcla unidades: revísalo en el editor de sesión"
 
 export type DiaDelConstructor = {
   id: string
@@ -63,6 +71,18 @@ export function leerRango(texto: string): { min: number; max: number } | null {
 
 function rango(min: number, max: number | undefined): string {
   return max !== undefined && max !== min ? `${min}–${max}` : String(min)
+}
+
+/** Objetivo de la fila en su unidad; nunca se convierte a otra. */
+function objetivoDeFila(serie: SerieConDistancia): string {
+  switch (serie.tipoMedicion) {
+    case "repeticiones":
+      return rango(serie.repeticiones, serie.repeticionesMax)
+    case "tiempo":
+      return String(serie.segundos)
+    case "distancia":
+      return String(serie.metros)
+  }
 }
 
 export function nuevoEjercicio(
@@ -110,7 +130,7 @@ export function nuevoDia(nuevoId: () => string, diaSemana = 1): DiaDelConstructo
 
 /** De la sesión guardada al constructor. */
 export function desdeSesionEnRutina(
-  sesion: SesionEnRutina,
+  sesion: SesionConDistancia,
   nombres: Record<string, string>,
 ): DiaDelConstructor {
   return {
@@ -132,20 +152,14 @@ export function desdeSesionEnRutina(
     },
     ejercicios: sesion.ejercicios.map((e) => {
       const primera = e.series[0]
-      const tiempo = primera?.tipoMedicion === "tiempo"
       return {
         id: e.id,
         ejercicioId: e.ejercicioId,
         nombre: nombres[e.ejercicioId] ?? "Ejercicio",
         seccion: e.seccion ?? "principal",
-        tipo: tiempo ? "tiempo" : "repeticiones",
+        tipo: primera?.tipoMedicion ?? "repeticiones",
         series: String(e.series.length),
-        objetivo:
-          primera === undefined
-            ? ""
-            : primera.tipoMedicion === "tiempo"
-              ? String(primera.segundos)
-              : rango(primera.repeticiones, primera.repeticionesMax),
+        objetivo: primera === undefined ? "" : objetivoDeFila(primera),
         rir: e.rir ? rango(e.rir.min, e.rir.max) : "",
         modoRir: e.modoRir,
         tipoCarga: e.tipoCarga,
@@ -159,6 +173,10 @@ export function desdeSesionEnRutina(
         compuesto: e.compuesto ?? false,
         indicaciones: e.indicaciones ?? "",
         idsSeries: e.series.map((s) => s.id),
+        // Sin aplanar en silencio: se marca y `faltaEnDia` lo explica.
+        ...(e.series.some((s) => s.tipoMedicion !== primera?.tipoMedicion) && {
+          mezclaUnidades: true as const,
+        }),
       }
     }),
   }
@@ -170,10 +188,15 @@ export function faltaEnDia(dia: DiaDelConstructor): string | null {
   if (dia.nombre.trim() === "") return "Pon nombre a cada día (Empuje, Tracción…)."
   if (dia.ejercicios.length === 0) return `${nombre}: añade al menos un ejercicio.`
   for (const e of dia.ejercicios) {
+    if (e.mezclaUnidades) return `${e.nombre}. ${AVISO_MEZCLA}.`
     const series = Number(e.series)
     if (e.seccion !== "circuito" && (!Number.isInteger(series) || series < 1 || series > 30))
       return `${e.nombre}: de 1 a 30 series.`
-    if (!leerRango(e.objetivo)) return `${e.nombre}: escribe las repeticiones, como 6 u 8–10.`
+    const objetivo = leerRango(e.objetivo)
+    // Los metros no tienen rango: «8–10» no se queda en 8 m por su cuenta.
+    if (e.tipo === "distancia" && (!objetivo || objetivo.max !== objetivo.min))
+      return `${e.nombre}: escribe los metros, como 20.`
+    if (!objetivo) return `${e.nombre}: escribe las repeticiones, como 6 u 8–10.`
     if (e.rir.trim() !== "") {
       const r = leerRango(e.rir)
       if (!r || r.max > 5) return `${e.nombre}: el RIR va de 0 a 5, como 3 o 2–3.`
@@ -227,12 +250,7 @@ export function aSesionEnRutina(dia: DiaDelConstructor, nuevoId: () => string): 
       },
     }),
     ejercicios: dia.ejercicios.map((e) => {
-      const objetivo = leerRango(e.objetivo)!
       const rir = e.rir.trim() === "" ? null : leerRango(e.rir)
-      const carga =
-        e.tipoCarga === "sinCarga" || e.calibrar || e.carga.trim() === ""
-          ? null
-          : Number(e.carga.replace(",", "."))
       const alternativas = e.alternativas
         .split("\n")
         .map((a) => a.trim())
@@ -254,22 +272,48 @@ export function aSesionEnRutina(dia: DiaDelConstructor, nuevoId: () => string): 
         ...(alternativas.length > 0 && { alternativas }),
         ...(e.compuesto && { compuesto: true }),
         // En el circuito, una serie por vuelta.
-        series: Array.from(
-          { length: e.seccion === "circuito" ? Number(dia.circuito.vueltas) : Number(e.series) },
-          (_, n) => ({
-            id: e.idsSeries[n] ?? nuevoId(),
-            pesoKg: carga,
-            ...(e.tipo === "tiempo"
-              ? { tipoMedicion: "tiempo", segundos: objetivo.min }
-              : {
-                  tipoMedicion: "repeticiones",
-                  repeticiones: objetivo.min,
-                  ...(objetivo.max > objetivo.min && { repeticionesMax: objetivo.max }),
-                }),
-          }),
+        series: seriesDeFila(
+          e,
+          e.seccion === "circuito" ? Number(dia.circuito.vueltas) : Number(e.series),
+          nuevoId,
         ),
       }
     }),
+  })
+}
+
+/**
+ * Las series de una fila, cada una en su unidad y sin validar: el contrato
+ * público decide qué se publica (la distancia, desde D01.g). Conserva los ids
+ * ya publicados para no romper registros.
+ */
+export function seriesDeFila(
+  e: EjercicioDelConstructor,
+  cantidad: number,
+  nuevoId: () => string,
+): SerieConDistancia[] {
+  const objetivo = leerRango(e.objetivo)
+  if (!objetivo) throw new Error(`${e.nombre}: falta el objetivo de las series.`)
+  const pesoKg =
+    e.tipoCarga === "sinCarga" || e.calibrar || e.carga.trim() === ""
+      ? null
+      : Number(e.carga.replace(",", "."))
+  return Array.from({ length: cantidad }, (_, n): SerieConDistancia => {
+    const id = e.idsSeries[n] ?? nuevoId()
+    switch (e.tipo) {
+      case "repeticiones":
+        return {
+          id,
+          pesoKg,
+          tipoMedicion: "repeticiones",
+          repeticiones: objetivo.min,
+          ...(objetivo.max > objetivo.min && { repeticionesMax: objetivo.max }),
+        }
+      case "tiempo":
+        return { id, pesoKg, tipoMedicion: "tiempo", segundos: objetivo.min }
+      case "distancia":
+        return { id, pesoKg, tipoMedicion: "distancia", metros: objetivo.min }
+    }
   })
 }
 

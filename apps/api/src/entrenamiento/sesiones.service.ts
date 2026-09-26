@@ -10,6 +10,7 @@ import {
   type ProgresionFuerza,
   type ListadoSesiones,
   type ValoresEjecutados,
+  type ValoresEjecutadosDistancia,
   type SesionCliente,
   type SesionEntrenador,
 } from "@alpha-omega/shared"
@@ -23,15 +24,42 @@ export type FilaSesion = Prisma.SesionEntrenamientoGetPayload<{ include: { agend
 
 const DbNull = Prisma.DbNull
 
-function cantidad(v: ValoresEjecutados): number {
-  return v.tipoMedicion === "tiempo" ? v.segundos : v.repeticiones
+/** D01 · Lo hecho en cualquiera de las tres unidades; los metros se publican en D01.g. */
+type ValoresEnUnidad = ValoresEjecutados | ValoresEjecutadosDistancia
+
+/** Repeticiones, segundos o metros: la cantidad en la unidad de la serie. */
+function cantidad(v: ValoresEnUnidad): number {
+  switch (v.tipoMedicion) {
+    case "repeticiones":
+      return v.repeticiones
+    case "tiempo":
+      return v.segundos
+    case "distancia":
+      return v.metros
+  }
 }
 
-function mejorSerie(a: ValoresEjecutados, b: ValoresEjecutados): ValoresEjecutados {
+/**
+ * Más carga; a igual carga, más cantidad, como siempre entre repeticiones y
+ * segundos (40 s ganan a 6). Los metros solo se comparan con metros: 20 m no
+ * superan 10 repeticiones ni 60 s, y entonces se queda la primera.
+ */
+export function mejorSerie<T extends ValoresEnUnidad>(a: T, b: T): T {
   const cargaA = a.pesoKg ?? 0
   const cargaB = b.pesoKg ?? 0
   if (cargaA !== cargaB) return cargaA > cargaB ? a : b
+  const conMetros = a.tipoMedicion === "distancia" || b.tipoMedicion === "distancia"
+  if (conMetros && a.tipoMedicion !== b.tipoMedicion) return a
   return cantidad(b) > cantidad(a) ? b : a
+}
+
+/** Epley con repeticiones y carga. Tiempo y distancia no estiman fuerza. */
+export function fuerzaEstimada(
+  valores: ValoresEnUnidad | undefined,
+): { pesoKg: number; repeticiones: number; estimado: number } | null {
+  if (valores?.tipoMedicion !== "repeticiones" || !valores.pesoKg) return null
+  const estimado = Math.round(valores.pesoKg * (1 + valores.repeticiones / 30) * 10) / 10
+  return { pesoKg: valores.pesoKg, repeticiones: valores.repeticiones, estimado }
 }
 
 @Injectable()
@@ -105,7 +133,8 @@ export class SesionesService {
 
   /**
    * Para cada ejercicio de la sesión, la mejor serie hecha la última vez que el
-   * cliente lo envió en otra sesión (más carga; a igual carga, más repeticiones).
+   * cliente lo envió en otra sesión (más carga; a igual carga, más cantidad; los
+   * metros solo frente a metros).
    */
   async anteriores(identidad: IdentidadVerificada, id: string): Promise<ListadoAnteriores> {
     const fila = await this.fila(this.prisma, identidad, id)
@@ -207,11 +236,8 @@ export class SesionesService {
       for (const ejercicio of resultado.prescripcion.ejercicios) {
         let mejor: { pesoKg: number; repeticiones: number; estimado: number } | null = null
         for (const serie of ejercicio.series) {
-          const valores = hechas.get(serie.id)
-          if (valores?.tipoMedicion !== "repeticiones" || !valores.pesoKg) continue
-          const estimado = Math.round(valores.pesoKg * (1 + valores.repeticiones / 30) * 10) / 10
-          if (!mejor || estimado > mejor.estimado)
-            mejor = { pesoKg: valores.pesoKg, repeticiones: valores.repeticiones, estimado }
+          const estimada = fuerzaEstimada(hechas.get(serie.id))
+          if (estimada && (!mejor || estimada.estimado > mejor.estimado)) mejor = estimada
         }
         if (!mejor) continue
         const entrada = porEjercicio.get(ejercicio.ejercicioId) ?? {

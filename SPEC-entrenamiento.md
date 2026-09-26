@@ -292,8 +292,9 @@ implementación y el plan recogerá el comando exacto.
    ejecución los objetivos pautados y ambas capas permanecen diferenciadas.
 5. El cliente introduce valores diferentes del objetivo; se conservan ambos
    sin sustituir la prescripción.
-6. Una serie por repeticiones y otra por tiempo se guardan y muestran con sus
-   unidades correctas; los campos incompatibles se rechazan.
+6. Una serie por repeticiones, otra por tiempo y otra por distancia (metros,
+   desde D01) se guardan y muestran con sus unidades correctas; los campos
+   incompatibles se rechazan.
 7. Una serie sin carga se completa sin inventar un peso. Cero, campo vacío,
    decimales con coma y valores inválidos se tratan de forma explícita.
 8. Cerrar y reabrir la app recupera el último borrador persistido. Perder la
@@ -358,3 +359,47 @@ progresión se reservan para el panel profesional.
 Los planes y pendientes anteriores están en el
 [archivo de planes](tasks/planes%20antiguos/2026-09-24/INDEX.md), conservados
 como histórico y sin darlos por terminados.
+
+## Ampliación D01: distancia en metros (activa desde D01.g)
+
+Una serie puede medirse por distancia, con kilos cuando el ejercicio lleva
+carga (un transporte, por ejemplo). Es una tercera unidad junto a repeticiones
+y segundos: se muestra «m» y la app nunca convierte metros en otra unidad.
+
+- **Nombres fijados** para API y app: `tipoMedicion: "distancia"` y `metros`,
+  entero de 1 a 100 000. El objetivo vive en la serie prescrita; el resultado,
+  aparte, en la serie registrada (`metros` nulo mientras no se escribe) y en lo
+  ejecutado. Cada variante es estricta: no admite `repeticiones` ni `segundos`.
+- **Carga:** `pesoKg` funciona como en las otras unidades y manda el
+  `tipoCarga` del ejercicio. Sin carga externa no se aceptan kilos; con carga
+  externa, marcar «Hecha» exige el peso real. Un documento anterior a
+  `tipoCarga` conserva su regla: si el objetivo tenía kilos, el registro también.
+- Un campo vacío no es cero, «Hecha» exige los metros y una serie hecha no
+  puede estar omitida, igual que en repeticiones y segundos.
+- **Activación en dos pasos.** D01.a definió los contratos auxiliares
+  (`SeriePrescritaDistanciaSchema`, `SerieRegistradaDistanciaSchema`,
+  `ValoresEjecutadosDistanciaSchema` y `mantieneUnidadYCarga`) y los validó por
+  separado. D01.b–D01.f prepararon editor, registro local, envío, resumen y
+  lectura del entrenador. D01.g incorporó las variantes a las uniones públicas
+  (`SeriePrescritaSchema`, `SerieRegistradaSchema`, `ValoresEjecutadosSchema`)
+  y ofreció «Metros» en el editor de sesión y el constructor. Los documentos
+  anteriores no cambian.
+- El criterio de aceptación 6 cubre las tres unidades y la distancia queda
+  fuera de la fuerza estimada por repeticiones.
+- **Al cambiar la unidad** de una serie ya registrada, la copia local deja esa
+  serie pendiente y conserva el respaldo; la app nunca convierte lo hecho.
+- Las series y filas nuevas nacen en repeticiones; los metros se eligen de
+  forma explícita.
+- **«Anterior»** (la mejor serie de la última vez): más carga y, a igual
+  carga, más cantidad. Entre repeticiones y segundos se compara la cifra, como
+  antes de D01 (40 s ganan a 6 repeticiones). Los metros solo se comparan con
+  metros: frente a otra unidad con la misma carga se queda la primera serie.
+- **Constructor:** una fila tiene una sola unidad para todas sus series. Si una
+  sesión guardada pauta un ejercicio en varias unidades (10 repeticiones y
+  20 m, desde el editor de sesión), el constructor no la aplana: marca la fila
+  y no deja publicar ni guardar como plantilla («Este ejercicio mezcla
+  unidades: revísalo en el editor de sesión»).
+
+El inventario de consumidores de `tipoMedicion` está en la evidencia de D01.a
+([tasks/evidencia-mejoras-pdf.md](tasks/evidencia-mejoras-pdf.md)) y se repartió
+entre D01.b y D01.f.

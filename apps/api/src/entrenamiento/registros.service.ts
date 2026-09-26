@@ -9,6 +9,8 @@ import {
   type EnviarEntrenamiento,
   type GuardarBorrador,
   type ResultadoEntrenamiento,
+  type SerieRegistrada,
+  type SerieRegistradaDistancia,
 } from "@alpha-omega/shared"
 import { PrismaService } from "../prisma/prisma.service.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
@@ -17,6 +19,25 @@ import { AgendaService } from "../agenda/agenda.service.js"
 import { SesionesService, type FilaSesion } from "./sesiones.service.js"
 import { conflicto, hashPeticion, invalida, leerDocumento } from "./documentos.js"
 import { registrarNovedad } from "./novedades.js"
+
+/**
+ * Lo hecho en una serie, en la unidad registrada (la validación ya exige la
+ * pautada). D01: los metros se guardan como metros, nunca como repeticiones.
+ * ResultadoEntrenamientoSchema lo valida al construir el resultado.
+ */
+export function valoresHechos(
+  real: SerieRegistrada | SerieRegistradaDistancia,
+): Record<string, unknown> {
+  const comunes = { pesoKg: real.pesoKg, rir: real.rir ?? null }
+  switch (real.tipoMedicion) {
+    case "repeticiones":
+      return { tipoMedicion: real.tipoMedicion, ...comunes, repeticiones: real.repeticiones }
+    case "tiempo":
+      return { tipoMedicion: real.tipoMedicion, ...comunes, segundos: real.segundos }
+    case "distancia":
+      return { tipoMedicion: real.tipoMedicion, ...comunes, metros: real.metros }
+  }
+}
 
 @Injectable()
 export class RegistrosService {
@@ -149,18 +170,7 @@ export class RegistrosService {
             const real = registradas.get(objetivo.id)
             if (!real?.hecha)
               return { serieId: objetivo.id, hecha: false, ...(real?.omitida && { omitida: true }) }
-            return {
-              serieId: objetivo.id,
-              hecha: true,
-              valores: {
-                tipoMedicion: real.tipoMedicion,
-                pesoKg: real.pesoKg,
-                rir: real.rir ?? null,
-                ...(real.tipoMedicion === "tiempo"
-                  ? { segundos: real.segundos }
-                  : { repeticiones: real.repeticiones }),
-              },
-            }
+            return { serieId: objetivo.id, hecha: true, valores: valoresHechos(real) }
           }),
         ),
       })
