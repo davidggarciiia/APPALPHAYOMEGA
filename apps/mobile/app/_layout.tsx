@@ -26,7 +26,10 @@ function Enrutador(): React.JSX.Element {
   const movimientoReducido = useMovimientoReducido()
 
   useEffect(() => {
-    if (estado.fase === "comprobando") {
+    // Sin conexion se queda en la pantalla de reintentar, que no monta el
+    // navegador: redirigir desde ahi mandaria al login a quien tiene una sesion
+    // guardada y valida, y en web recargaria la app entera.
+    if (estado.fase === "comprobando" || sinConexion) {
       return
     }
 
@@ -37,7 +40,7 @@ function Enrutador(): React.JSX.Element {
     } else if (estado.fase === "dentro" && enRutaPublica) {
       router.replace("/")
     }
-  }, [estado, segmentos, router])
+  }, [estado, sinConexion, segmentos, router])
 
   let contenido: React.JSX.Element | null = null
 
