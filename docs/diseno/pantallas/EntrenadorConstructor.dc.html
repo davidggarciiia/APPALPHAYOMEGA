@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<title>Entrenador · Constructor de planes</title>
+<script src="b04ac192-26f5-4ad9-bd64-603d5f10fd41"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>/* vietnamese */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("767569e4-ebf8-44d8-911b-7592bb3fe542") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("c94b0842-0f3b-4522-b44a-e43a843480fd") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("b8196299-36a3-429e-99ee-ec099239070f") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("7991b7c9-0c6a-44e5-a748-3aaeb8b25b9c") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("55e34d18-394e-44e4-a673-b8ea6c745b9d") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("6753c0e8-ff66-4713-b1b4-e7b2e2da3792") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("7991b7c9-0c6a-44e5-a748-3aaeb8b25b9c") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("55e34d18-394e-44e4-a673-b8ea6c745b9d") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("6753c0e8-ff66-4713-b1b4-e7b2e2da3792") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("7991b7c9-0c6a-44e5-a748-3aaeb8b25b9c") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("55e34d18-394e-44e4-a673-b8ea6c745b9d") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("6753c0e8-ff66-4713-b1b4-e7b2e2da3792") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>
+body{margin:0;background:#0E0D0B;font-family:'Archivo',sans-serif}
+input,textarea,button{font-family:inherit}
+input::placeholder,textarea::placeholder{color:#948D80;opacity:1}
+input,textarea{caret-color:#FFC34C}
+::selection{background:rgba(255,195,76,.35);color:#F2EDE1}
+button{cursor:pointer}
+:focus-visible{outline:2px solid #FFC34C;outline-offset:2px}
+a{color:#FFC34C}a:hover{color:#FFD978}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1080px; box-sizing: border-box; background: #0E0D0B; color: #F2EDE1; font-family: 'Archivo', sans-serif; display: flex; overflow: hidden">
+
+<aside style="width: 232px; flex-shrink: 0; background: #151412; border-right: 1px solid #2B2823; padding: 28px 12px 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 32px">
+<img src="e982dfd8-aaf9-4a7b-9e6c-22cbcd729fbe" alt="Alpha &amp; Omega Training" style="width: 168px; height: auto; display: block; margin: 0 12px">
+<nav aria-label="Entrenador" style="display: flex; flex-direction: column; gap: 2px">
+<a href="#" style="height: 40px; padding: 0 12px; border-radius: 10px; display: flex; align-items: center; font-size: 15px; font-weight: 600; color: #A39C8F; text-decoration: none">Hoy</a>
+<a href="EntrenadorFicha.dc.html" style="height: 40px; padding: 0 12px; border-radius: 10px; display: flex; align-items: center; font-size: 15px; font-weight: 600; color: #A39C8F; text-decoration: none">Clientes</a>
+<a href="EntrenadorConstructor.dc.html" style="height: 40px; padding: 0 12px; border-radius: 10px; background: #1F1D19; display: flex; align-items: center; font-size: 15px; font-weight: 700; color: #F2EDE1; text-decoration: none">Planes</a>
+<a href="#" style="height: 40px; padding: 0 12px; border-radius: 10px; display: flex; align-items: center; font-size: 15px; font-weight: 600; color: #A39C8F; text-decoration: none">Ejercicios</a>
+<a href="#" style="height: 40px; padding: 0 12px; border-radius: 10px; display: flex; align-items: center; font-size: 15px; font-weight: 600; color: #A39C8F; text-decoration: none">Guía y reglas</a>
+<a href="#" style="height: 40px; padding: 0 12px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 600; color: #A39C8F; text-decoration: none">Mensajes<span style="color: #FFC34C">2</span></a>
+</nav>
+<span style="margin-top: auto; padding: 0 12px; font-size: 13px; color: #A39C8F">[Nombre del entrenador]</span>
+</aside>
+
+<main style="flex-grow: 1; min-width: 0; padding: 36px 48px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 36px">
+
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<h1 style="margin: 0; font-family: 'Anton', sans-serif; font-weight: 400; font-size: 34px; line-height: 1.1; text-transform: uppercase">Bloque 1 · Recomposición</h1>
+<span style="font-size: 15px; color: #A39C8F">David Gómez · versión 1, publicada el 21 de septiembre</span>
+</div>
+<div style="display: flex; gap: 8px; align-items: center">
+<button style="height: 44px; padding: 0 14px; border: none; background: none; color: #FFC34C; font-size: 15px; font-weight: 600">Ver como cliente</button>
+<button style="height: 44px; padding: 0 14px; border: none; background: none; color: #FFC34C; font-size: 15px; font-weight: 600">Exportar PDF</button>
+<button style="height: 44px; padding: 0 20px; border-radius: 12px; border: none; background: linear-gradient(135deg, #FFF09A 0%, #FFCF52 38%, #FFB53C 72%, #E99A1F 100%); color: #16140F; font-size: 15px; font-weight: 700">Publicar</button>
+</div>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 20px; font-weight: 700">Fases</h2>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px">
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 2px solid #FFC34C"><span style="font-size: 13px; color: #A39C8F">Semanas 1–2</span><span style="font-size: 16px; font-weight: 700">Calibrar</span><span style="font-size: 13px; line-height: 1.45; color: #A39C8F">Compuestos RIR 3, accesorios RIR 2–3</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 2px solid #2B2823"><span style="font-size: 13px; color: #A39C8F">Semanas 3–4</span><span style="font-size: 16px; font-weight: 700">Progresar</span><span style="font-size: 13px; line-height: 1.45; color: #A39C8F">Doble progresión y revisión de calorías</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 2px solid #2B2823"><span style="font-size: 13px; color: #A39C8F">Semana 5</span><span style="font-size: 16px; font-weight: 700">Apretar</span><span style="font-size: 13px; line-height: 1.45; color: #A39C8F">Accesorios RIR 1–2, sin fallo en compuestos</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding-top: 14px; border-top: 2px solid #2B2823"><span style="font-size: 13px; color: #A39C8F">Semana 6</span><span style="font-size: 16px; font-weight: 700">Descarga</span><span style="font-size: 13px; line-height: 1.45; color: #A39C8F">40–50 % menos series, RIR 3–4</span></div>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; border-bottom: 1px solid #2B2823">
+<div role="tablist" aria-label="Días de la semana" style="display: flex; gap: 28px">
+<button role="tab" aria-selected="true" style="height: 44px; padding: 0; border: none; border-bottom: 2px solid #FFC34C; margin-bottom: -1px; background: none; color: #F2EDE1; font-size: 15px; font-weight: 700">Lun · Empuje</button>
+<button role="tab" aria-selected="false" style="height: 44px; padding: 0; border: none; background: none; color: #A39C8F; font-size: 15px; font-weight: 600">Mar · Tracción</button>
+<button role="tab" aria-selected="false" style="height: 44px; padding: 0; border: none; background: none; color: #A39C8F; font-size: 15px; font-weight: 600">Mié · Pierna</button>
+<button role="tab" aria-selected="false" style="height: 44px; padding: 0; border: none; background: none; color: #A39C8F; font-size: 15px; font-weight: 600">Jue · Torso</button>
+<button role="tab" aria-selected="false" style="height: 44px; padding: 0; border: none; background: none; color: #A39C8F; font-size: 15px; font-weight: 600">Vie · Brazos</button>
+</div>
+<div style="display: flex; align-items: center; gap: 16px"><span style="font-size: 13px; color: #A39C8F">K-1 · jueves y domingo · 60 min</span><button style="height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid rgba(255, 195, 76, 0.4); background: transparent; color: #FFC34C; font-size: 15px; font-weight: 700">Añadir deporte</button></div>
+</div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; align-items: start">
+
+<div style="display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 12px"><span style="font-size: 13px; color: #A39C8F">Duración estimada 100–115 min</span><button style="height: 44px; padding: 0; border: none; background: none; color: #FFC34C; font-size: 15px; font-weight: 600">Guardar como plantilla</button></div>
+
+<div style="padding: 14px 0; border-top: 1px solid #2B2823; display: flex; justify-content: space-between; gap: 16px; font-size: 15px"><span style="font-weight: 700">Calentamiento</span><span style="color: #A39C8F">8 ejercicios · 8–10 min</span></div>
+
+<div style="padding: 14px 0 8px; border-top: 1px solid #2B2823; display: flex; justify-content: space-between; gap: 16px; font-size: 15px"><span style="font-weight: 700">Parte principal</span><span style="color: #A39C8F">7 ejercicios · 20 series · 70–85 min</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 64px 56px 84px 84px 64px; gap: 12px; padding: 8px 12px; font-size: 13px; color: #A39C8F">
+<span>Ejercicio</span><span style="text-align: center">Series</span><span style="text-align: center">Reps</span><span style="text-align: center">RIR</span><span style="text-align: center">Descanso</span><span style="text-align: center">Carga ini.</span><span style="text-align: center">Subida</span>
+</div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 64px 56px 84px 84px 64px; gap: 12px; padding: 12px; border-radius: 10px; background: #1F1D19; align-items: center; font-size: 15px; font-variant-numeric: tabular-nums"><span style="font-weight: 600">Press banca con barra</span><span style="text-align: center">4</span><span style="text-align: center">6</span><span style="text-align: center">3</span><span style="text-align: center">2–3 min</span><span style="text-align: center">60 kg</span><span style="text-align: center">2,5 kg</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 64px 56px 84px 84px 64px; gap: 12px; padding: 12px; align-items: center; font-size: 15px; font-variant-numeric: tabular-nums"><span style="font-weight: 600">Press inclinado con mancuernas</span><span style="text-align: center">3</span><span style="text-align: center">8–10</span><span style="text-align: center">2–3</span><span style="text-align: center">2 min</span><span style="text-align: center; color: #948D80">Calibrar</span><span style="text-align: center">2 kg</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 64px 56px 84px 84px 64px; gap: 12px; padding: 12px; align-items: center; font-size: 15px; font-variant-numeric: tabular-nums"><span style="font-weight: 600">Press de hombro en máquina</span><span style="text-align: center">3</span><span style="text-align: center">8–12</span><span style="text-align: center">2–3</span><span style="text-align: center">90–120 s</span><span style="text-align: center; color: #948D80">Calibrar</span><span style="text-align: center">5 kg</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 64px 56px 84px 84px 64px; gap: 12px; padding: 12px; align-items: center; font-size: 15px; font-variant-numeric: tabular-nums"><span style="font-weight: 600">Aperturas en polea</span><span style="text-align: center">2</span><span style="text-align: center">12–15</span><span style="text-align: center">2</span><span style="text-align: center">60–75 s</span><span style="text-align: center; color: #948D80">Calibrar</span><span style="text-align: center">2,5 kg</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 64px 56px 84px 84px 64px; gap: 12px; padding: 12px; align-items: center; font-size: 15px; font-variant-numeric: tabular-nums"><span style="font-weight: 600">Elevaciones laterales en polea</span><span style="text-align: center">3</span><span style="text-align: center">12–18</span><span style="text-align: center">2</span><span style="text-align: center">60–75 s</span><span style="text-align: center; color: #948D80">Calibrar</span><span style="text-align: center">1,25 kg</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 64px 56px 84px 84px 64px; gap: 12px; padding: 12px; align-items: center; font-size: 15px; font-variant-numeric: tabular-nums"><span style="font-weight: 600">Extensión de tríceps con cuerda</span><span style="text-align: center">3</span><span style="text-align: center">10–15</span><span style="text-align: center">2</span><span style="text-align: center">60–75 s</span><span style="text-align: center; color: #948D80">Calibrar</span><span style="text-align: center">2,5 kg</span></div>
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 64px 56px 84px 84px 64px; gap: 12px; padding: 12px; align-items: center; font-size: 15px; font-variant-numeric: tabular-nums"><span style="font-weight: 600">Extensión sobre la cabeza</span><span style="text-align: center">2</span><span style="text-align: center">10–15</span><span style="text-align: center">2</span><span style="text-align: center">60–75 s</span><span style="text-align: center; color: #948D80">Calibrar</span><span style="text-align: center">2,5 kg</span></div>
+<button style="align-self: flex-start; height: 44px; margin-left: 12px; padding: 0; border: none; background: none; color: #FFC34C; font-size: 15px; font-weight: 600">Añadir desde la biblioteca</button>
+
+<div style="padding: 14px 0; border-top: 1px solid #2B2823; display: flex; justify-content: space-between; gap: 16px; font-size: 15px"><span style="font-weight: 700">Core en circuito</span><span style="color: #A39C8F">4 ejercicios · 2 vueltas · 60–90 s entre vueltas</span></div>
+<div style="padding: 14px 0; border-top: 1px solid #2B2823; display: flex; justify-content: space-between; gap: 16px; font-size: 15px"><span style="font-weight: 700">Cinta inclinada</span><span style="color: #A39C8F">15 min · 5–8 % · RPE 5–6 · lo primero que se quita</span></div>
+<div style="padding: 14px 0; border-top: 1px solid #2B2823; border-bottom: 1px solid #2B2823; display: flex; justify-content: space-between; gap: 16px; font-size: 15px"><span style="font-weight: 700">Vuelta a la calma</span><span style="color: #A39C8F">5 min · opcional</span></div>
+</div>
+
+<aside style="background: #1A1916; border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 4px"><h3 style="margin: 0; font-size: 18px; font-weight: 700">Press banca con barra</h3><span style="font-size: 13px; color: #A39C8F">Compuesto · nunca se recorta</span></div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="nota-cliente" style="font-size: 13px; color: #A39C8F">Nota para David</label>
+<textarea id="nota-cliente" style="height: 96px; box-sizing: border-box; border: none; border-radius: 12px; background: #26231E; color: #F2EDE1; font-size: 15px; line-height: 1.45; padding: 12px; resize: none">Orientativo: 60 kg para 4 × 6 si completas todas las series con RIR 3 y técnica estable.</textarea>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; color: #A39C8F">Alternativas si molesta</span>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><span style="height: 36px; padding: 0 14px; border-radius: 18px; background: #26231E; font-size: 14px; display: flex; align-items: center">Press en multipower</span><span style="height: 36px; padding: 0 14px; border-radius: 18px; background: #26231E; font-size: 14px; display: flex; align-items: center">Press con mancuernas</span></div>
+</div>
+<a href="#" style="font-size: 15px; font-weight: 600; color: #FFC34C; text-decoration: none">Ver técnica en la biblioteca</a>
+</aside>
+
+</div>
+</section>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1080}}">
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+
+
+</body></html>

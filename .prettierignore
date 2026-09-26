@@ -18,3 +18,7 @@ apps/mobile/expo-env.d.ts
 # Skills de terceros, copiadas tal cual de su repositorio. Si Prettier las
 # reescribe, actualizarlas desde el original deja de ser copiar y pegar.
 .claude/skills/animate-expo/
+
+# Pantallas exportadas tal cual de Claude Design. Si Prettier las reformatea,
+# los números de línea que cita la auditoría dejan de coincidir.
+docs/diseno/pantallas/
