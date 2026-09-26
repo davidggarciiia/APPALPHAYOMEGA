@@ -108,6 +108,25 @@ tirado y un riesgo innecesario.
 Sigue sin decidir el proveedor. Cuando toque, la restricción que manda es que los
 datos estén en la Unión Europea, por el [ADR 0005](adr/0005-almacenamiento-de-fotos.md).
 
+### 5b. Cobros en efectivo y tiendas de aplicaciones
+
+**Estado: previsto en el diseño, por confirmar antes de publicar.** Llega con
+horarios y reservas ([SPEC-planes.md](../SPEC-planes.md)). La app no cobra nada:
+muestra precios, el cliente pide un producto con «Lo quiero» y el entrenador lo
+activa cuando cobra en efectivo.
+
+- Las normas de App Store no exigen la compra integrada de Apple para servicios
+  físicos que se consumen fuera de la app, como una sesión presencial (3.1.3(e)), ni
+  para servicios en tiempo real entre dos personas (3.1.3(d)). Google Play tiene
+  una excepción equivalente. Hay que releer las normas vigentes el día de enviar
+  la app a revisión.
+- Los packs online no se ofrecen al cliente dentro de la app. Son seguimiento a
+  distancia y un revisor podría leerlos como contenido digital, que sí exige compra
+  integrada. El entrenador los activa igual desde su lado.
+- La app registra importes y fechas de cobro, pero no emite facturas. Conviene que
+  el gestor confirme que eso no la convierte en un sistema de facturación sujeto a
+  VERI\*FACTU.
+
 ## Bloqueantes blandos
 
 No impiden publicar, pero conviene resolverlos antes o poco después.
