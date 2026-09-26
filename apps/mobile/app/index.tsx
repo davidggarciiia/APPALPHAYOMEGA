@@ -13,6 +13,8 @@ import { lunesDeSemana } from "../src/entrenamiento/fechas"
 import { HoyInicio } from "../src/nutricion/hoy-inicio"
 import { useNutricion } from "../src/nutricion/api"
 import { usePanel } from "../src/panel/api"
+import { useReservas } from "../src/reservas/api"
+import { ProximaCita } from "../src/reservas/proxima-cita"
 import { PanelHoy } from "../src/panel/panel-hoy"
 import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
 import { useValoraciones } from "../src/seguimiento/use-valoraciones"
@@ -31,6 +33,7 @@ export default function Inicio(): React.JSX.Element {
   const nutricion = useNutricion()
   const valoraciones = useValoraciones()
   const panel = usePanel()
+  const reservas = useReservas()
   const [bloque, setBloque] = useState<Bloque | null>(null)
   const clienteId =
     estado.fase === "dentro" && estado.usuario.rol === "cliente" ? estado.usuario.id : null
@@ -88,6 +91,8 @@ export default function Inicio(): React.JSX.Element {
             deportes={bloque?.deportes}
             abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
           />
+          {/* Su próxima cita con el entrenador, o un acceso a reservar la siguiente. */}
+          <ProximaCita api={reservas} />
           <NovedadesEntrenamiento
             clienteId={usuario.id}
             api={api}
