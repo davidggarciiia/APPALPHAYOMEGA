@@ -219,8 +219,14 @@ export function calcularHuecos(entrada: EntradaHuecos): DiaConHuecos[] {
  * minuto que sí existe (hacia delante para un inicio, hacia atrás para un fin).
  * `minutos` = 1440 es la medianoche del día siguiente.
  */
-function instanteValido(fecha: string, minutos: number, zona: string, sentido: 1 | -1): number | null {
-  if (minutos >= 1440) return aInstante(sumarDiasFecha(fecha, 1), minutos - 1440, zona)?.getTime() ?? null
+function instanteValido(
+  fecha: string,
+  minutos: number,
+  zona: string,
+  sentido: 1 | -1,
+): number | null {
+  if (minutos >= 1440)
+    return aInstante(sumarDiasFecha(fecha, 1), minutos - 1440, zona)?.getTime() ?? null
   for (let desplazado = minutos, pasos = 0; pasos <= 120; pasos++, desplazado += sentido) {
     if (desplazado < 0 || desplazado >= 1440) return null
     const instante = aInstante(fecha, desplazado, zona)
