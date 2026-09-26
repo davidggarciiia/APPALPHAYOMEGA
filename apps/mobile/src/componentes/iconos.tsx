@@ -19,6 +19,8 @@ export type NombreIcono =
   | "pausa"
   | "reproducir"
   | "progreso"
+  | "agenda"
+  | "reservar"
 
 export function Icono({
   nombre,
@@ -88,6 +90,23 @@ export function Icono({
         )}
         {nombre === "reproducir" && <Path d="M8 5.5v13l11-6.5z" fill={color} />}
         {nombre === "progreso" && <Path d="M4 20h16M5 15l4-4 3 3 7-7M15 7h4v4" {...trazo} />}
+        {/* Calendario con citas: se distingue del de «Plan», que va vacío. */}
+        {nombre === "agenda" && (
+          <>
+            <Rect x={4} y={5} width={16} height={15} rx={3} {...trazo} />
+            <Path
+              d="M4 10h16M9 3v4M15 3v4M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"
+              {...trazo}
+            />
+          </>
+        )}
+        {/* Reloj: reservar es elegir una hora. */}
+        {nombre === "reservar" && (
+          <>
+            <Circle cx={12} cy={12} r={8} {...trazo} />
+            <Path d="M12 8v4l3 2" {...trazo} />
+          </>
+        )}
       </Svg>
     </View>
   )
