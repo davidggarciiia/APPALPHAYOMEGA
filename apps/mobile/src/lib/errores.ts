@@ -39,9 +39,10 @@ export function faltaDe(error: unknown, respaldo: string): Falta {
   }
 
   if (error instanceof ErrorDeSesion) {
-    // El token de acceso dura quince minutos y hoy no se renueva solo mientras
-    // la app está abierta. Una pantalla abierta más de ese rato se encuentra
-    // esto, y un "reintentar" no la arreglaría jamás.
+    // El transporte ya renueva solo el token de acceso caducado. Si aun así
+    // llega un 401 aquí, es que el servidor tampoco aceptó la renovación: la
+    // sesión se revocó o la cuenta se dio de baja. Un "reintentar" no la
+    // arreglaría jamás.
     return {
       texto: "Tu sesión ha caducado. Vuelve a entrar.",
       reintentable: false,

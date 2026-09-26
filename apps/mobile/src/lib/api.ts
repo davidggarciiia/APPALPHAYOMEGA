@@ -22,84 +22,11 @@ import {
   type UsuarioCreado,
 } from "@alpha-omega/shared"
 
-import { direccionDeLaApi } from "./direccion-api"
+import { pedir, pedirAutenticado } from "./transporte"
 
-/**
- * Cuanto se espera antes de dar una peticion por perdida.
- *
- * React Native configura su cliente HTTP de Android **sin ningun tiempo limite**.
- * Sin esto, una peticion contra una direccion inalcanzable, que es exactamente lo
- * que pasa al abrir la app fuera de la wifi de casa, no termina jamas: la app se
- * queda con la ruleta girando y la unica salida es matarla desde el gestor de
- * tareas.
- */
-const LIMITE_MS = 10_000
-
-/** El servidor rechazo la sesion o las credenciales (401). */
-export class ErrorDeSesion extends Error {}
-
-/**
- * La sesion es valida, pero ese rol no puede hacer eso (403).
- *
- * Se separa de `ErrorDeSesion` porque las consecuencias son opuestas: ante un
- * 401 hay que descartar la credencial guardada, y ante un 403 **no**, porque la
- * sesion sigue siendo buena. Confundirlos acaba echando de la app a alguien que
- * solo se ha asomado a una pantalla que no le tocaba.
- */
-export class ErrorDePermiso extends Error {}
-
-/**
- * No se pudo hablar con el servidor: sin cobertura, direccion inalcanzable o
- * demasiado lento.
- *
- * Se distingue de un error del servidor a proposito. Ante este, la sesion
- * guardada sigue siendo valida y **no hay que borrarla**: el problema es la red,
- * no la credencial.
- */
-export class ErrorDeRed extends Error {}
-
-/** El servidor contesto, pero con un fallo suyo. */
-export class ErrorDelServidor extends Error {
-  constructor(readonly codigo: number) {
-    super(`El servidor respondio ${String(codigo)}`)
-  }
-}
-
-async function pedir(ruta: string, opciones: RequestInit = {}): Promise<unknown> {
-  let respuesta: Response
-
-  try {
-    respuesta = await fetch(`${direccionDeLaApi()}${ruta}`, {
-      ...opciones,
-      signal: AbortSignal.timeout(LIMITE_MS),
-      headers: {
-        "Content-Type": "application/json",
-        ...opciones.headers,
-      },
-    })
-  } catch (error) {
-    // Aqui solo caen fallos de transporte: sin red, DNS, o el limite de tiempo.
-    throw new ErrorDeRed(error instanceof Error ? error.message : "Sin conexion")
-  }
-
-  if (respuesta.status === 401) {
-    throw new ErrorDeSesion("401")
-  }
-
-  if (respuesta.status === 403) {
-    throw new ErrorDePermiso("403")
-  }
-
-  if (!respuesta.ok) {
-    throw new ErrorDelServidor(respuesta.status)
-  }
-
-  if (respuesta.status === 204) {
-    return null
-  }
-
-  return respuesta.json()
-}
+// Los errores viven con el transporte. Se reexportan aqui porque las pantallas
+// ya los importan de este fichero y no tienen por que saber de donde salen.
+export { ErrorDeRed, ErrorDeSesion, ErrorDelServidor, ErrorDePermiso } from "./transporte"
 
 /**
  * Toda respuesta se valida antes de usarse. Lo que llega por la red es dato de
@@ -132,9 +59,7 @@ export async function activarCuenta(token: string, contrasena: string): Promise<
 }
 
 export async function leerPerfil(tokenAcceso: string): Promise<PerfilPropio> {
-  return PerfilPropioSchema.parse(
-    await pedir("/perfil", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+  return PerfilPropioSchema.parse(await pedirAutenticado("/perfil", tokenAcceso))
 }
 
 export async function guardarPerfil(
@@ -142,9 +67,8 @@ export async function guardarPerfil(
   cambios: CambiosDePerfil,
 ): Promise<PerfilPropio> {
   return PerfilPropioSchema.parse(
-    await pedir("/perfil", {
+    await pedirAutenticado("/perfil", tokenAcceso, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify(cambios),
     }),
   )
@@ -169,9 +93,7 @@ export async function listarUsuarios(
   consulta.set("desde", String(filtros.desde))
 
   return ListadoUsuariosSchema.parse(
-    await pedir(`/usuarios?${consulta.toString()}`, {
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
+    await pedirAutenticado(`/usuarios?${consulta.toString()}`, tokenAcceso),
   )
 }
 
@@ -181,9 +103,8 @@ export async function crearUsuario(
   datos: CrearUsuario,
 ): Promise<UsuarioCreado> {
   return UsuarioCreadoSchema.parse(
-    await pedir("/usuarios", {
+    await pedirAutenticado("/usuarios", tokenAcceso, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify(datos),
     }),
   )
@@ -191,9 +112,7 @@ export async function crearUsuario(
 
 /** La ficha completa de una persona de la cartera. */
 export async function leerUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
-  return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}`, { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+  return FichaDeUsuarioSchema.parse(await pedirAutenticado(`/usuarios/${id}`, tokenAcceso))
 }
 
 /** Corrige los datos de contacto. El rol, el estado y el correo no viajan aqui. */
@@ -203,9 +122,8 @@ export async function guardarUsuario(
   cambios: CambiosDeUsuario,
 ): Promise<FichaDeUsuario> {
   return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}`, {
+    await pedirAutenticado(`/usuarios/${id}`, tokenAcceso, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify(cambios),
     }),
   )
@@ -218,9 +136,8 @@ export async function corregirCorreo(
   email: string,
 ): Promise<FichaDeUsuario> {
   return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/correo`, {
+    await pedirAutenticado(`/usuarios/${id}/correo`, tokenAcceso, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
       body: JSON.stringify({ email }),
     }),
   )
@@ -232,9 +149,8 @@ export async function reenviarActivacion(
   id: string,
 ): Promise<ResultadoDeEnvio> {
   return ResultadoDeEnvioSchema.parse(
-    await pedir(`/usuarios/${id}/reenviar-activacion`, {
+    await pedirAutenticado(`/usuarios/${id}/reenviar-activacion`, tokenAcceso, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
   )
 }
@@ -242,9 +158,8 @@ export async function reenviarActivacion(
 /** Da de baja. No borra: el historico se conserva entero. */
 export async function desactivarUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
   return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/desactivar`, {
+    await pedirAutenticado(`/usuarios/${id}/desactivar`, tokenAcceso, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
   )
 }
@@ -252,9 +167,8 @@ export async function desactivarUsuario(tokenAcceso: string, id: string): Promis
 /** Deshace una baja. Quien nunca activo vuelve a pendiente, no a activo. */
 export async function reactivarUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
   return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/reactivar`, {
+    await pedirAutenticado(`/usuarios/${id}/reactivar`, tokenAcceso, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
     }),
   )
 }
@@ -265,9 +179,7 @@ export async function leerAsignaciones(
   nutricionistaId: string,
 ): Promise<AsignacionesDeNutricionista> {
   return AsignacionesDeNutricionistaSchema.parse(
-    await pedir(`/nutricionistas/${nutricionistaId}/clientes`, {
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
+    await pedirAutenticado(`/nutricionistas/${nutricionistaId}/clientes`, tokenAcceso),
   )
 }
 
@@ -277,9 +189,8 @@ export async function asignarCliente(
   nutricionistaId: string,
   clienteId: string,
 ): Promise<void> {
-  await pedir(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, {
+  await pedirAutenticado(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, tokenAcceso, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${tokenAcceso}` },
   })
 }
 
@@ -289,17 +200,14 @@ export async function retirarCliente(
   nutricionistaId: string,
   clienteId: string,
 ): Promise<void> {
-  await pedir(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, {
+  await pedirAutenticado(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, tokenAcceso, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${tokenAcceso}` },
   })
 }
 
 /** La lista del propio nutricionista. Sale del token, no de la ruta. */
 export async function listarMisClientes(tokenAcceso: string): Promise<ListadoUsuarios> {
-  return ListadoUsuariosSchema.parse(
-    await pedir("/mis-clientes", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+  return ListadoUsuariosSchema.parse(await pedirAutenticado("/mis-clientes", tokenAcceso))
 }
 
 /**

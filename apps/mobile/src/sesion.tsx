@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import type { Credenciales, Sesion, UsuarioPublico } from "@alpha-omega/shared"
 
@@ -9,6 +9,7 @@ import {
   iniciarSesion as pedirSesion,
   refrescarSesion,
 } from "./lib/api"
+import { conectarSesion } from "./lib/transporte"
 
 type EstadoSesion =
   | { fase: "comprobando" }
@@ -40,12 +41,41 @@ const ContextoSesion = createContext<Contexto | null>(null)
  * error del servidor o un llavero roto no son motivo para destruir una sesion
  * valida de treinta dias. Antes se borraba ante cualquier excepcion, asi que
  * abrir la app en el metro sin cobertura te dejaba fuera de forma permanente.
+ *
+ * Mientras la app esta abierta, la sesion se renueva sola: cuando el servidor
+ * rechaza un token de acceso caducado, el transporte (`lib/transporte.ts`) pide
+ * aqui una renovacion y repite la peticion. Antes el token solo se renovaba al
+ * arrancar, y a los quince minutos cualquier pantalla abierta dejaba de
+ * funcionar.
  */
 export function ProveedorDeSesion({ children }: { children: ReactNode }): React.JSX.Element {
   const [estado, setEstado] = useState<EstadoSesion>({ fase: "comprobando" })
   const [sesionCaducada, setSesionCaducada] = useState(false)
   const [sinConexion, setSinConexion] = useState(false)
   const [intento, setIntento] = useState(0)
+
+  // Lo que la renovacion necesita leer sin esperar a un repintado. El token de
+  // refresco se guarda tambien en memoria: si el llavero no admite una
+  // escritura, la siguiente renovacion no puede volver al token ya rotado, que
+  // el servidor tomaria por una copia robada.
+  const tokenAcceso = useRef<string | null>(null)
+  const tokenRefresco = useRef<string | null>(null)
+
+  // Cambia cada vez que se entra o se sale. Una renovacion que empezo en otra
+  // epoca termina sin tocar nada: sus tokens ya no son de nadie.
+  const epoca = useRef(0)
+
+  const abrir = useCallback((sesion: Sesion): void => {
+    tokenAcceso.current = sesion.tokenAcceso
+    tokenRefresco.current = sesion.tokenRefresco
+    setEstado({ fase: "dentro", usuario: sesion.usuario, tokenAcceso: sesion.tokenAcceso })
+  }, [])
+
+  const olvidar = useCallback((): void => {
+    epoca.current += 1
+    tokenAcceso.current = null
+    tokenRefresco.current = null
+  }, [])
 
   useEffect(() => {
     let vigente = true
@@ -91,7 +121,7 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
 
       if (vigente) {
         setSesionCaducada(false)
-        setEstado({ fase: "dentro", usuario: sesion.usuario, tokenAcceso: sesion.tokenAcceso })
+        abrir(sesion)
       }
     }
 
@@ -104,20 +134,24 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     return () => {
       vigente = false
     }
-  }, [intento])
+  }, [intento, abrir])
 
-  const entrar = useCallback(async (credenciales: Credenciales): Promise<void> => {
-    const sesion = await pedirSesion(credenciales)
+  const entrar = useCallback(
+    async (credenciales: Credenciales): Promise<void> => {
+      const sesion = await pedirSesion(credenciales)
 
-    // Si el llavero no admite la escritura, la sesion sigue siendo valida para
-    // esta ejecucion: no se cae el login entero. Lo unico que se pierde es que
-    // sobreviva a cerrar la app, y eso no justifica rechazar la entrada.
-    await guardarTokenRefresco(sesion.tokenRefresco).catch(() => undefined)
+      // Si el llavero no admite la escritura, la sesion sigue siendo valida para
+      // esta ejecucion: no se cae el login entero. Lo unico que se pierde es que
+      // sobreviva a cerrar la app, y eso no justifica rechazar la entrada.
+      await guardarTokenRefresco(sesion.tokenRefresco).catch(() => undefined)
 
-    setSesionCaducada(false)
-    setSinConexion(false)
-    setEstado({ fase: "dentro", usuario: sesion.usuario, tokenAcceso: sesion.tokenAcceso })
-  }, [])
+      olvidar()
+      setSesionCaducada(false)
+      setSinConexion(false)
+      abrir(sesion)
+    },
+    [abrir, olvidar],
+  )
 
   /**
    * Cierra la sesion.
@@ -130,7 +164,13 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
    * No es ideal, pero dejar al usuario dentro contra su voluntad es peor.
    */
   const salir = useCallback(async (): Promise<void> => {
-    const guardado = await leerTokenRefresco()
+    // Lo primero, olvidar: una renovacion en vuelo no puede volver a abrir la
+    // sesion que se esta cerrando.
+    const enMemoria = tokenRefresco.current
+    olvidar()
+    conectarSesion(null)
+
+    const guardado = enMemoria ?? (await leerTokenRefresco())
 
     if (guardado !== null) {
       await cerrarSesionEnServidor(guardado).catch(() => undefined)
@@ -140,7 +180,69 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     setSesionCaducada(false)
     setSinConexion(false)
     setEstado({ fase: "fuera" })
-  }, [])
+  }, [olvidar])
+
+  /**
+   * Canjea el token de refresco por una sesion nueva sin salir de la pantalla.
+   *
+   * La llama el transporte cuando el servidor rechaza un token de acceso, y
+   * nunca dos a la vez: el transporte comparte una sola renovacion entre todas
+   * las peticiones que caducan juntas.
+   */
+  const renovar = useCallback(async (): Promise<string> => {
+    const epocaDeInicio = epoca.current
+    const refresco = tokenRefresco.current ?? (await leerTokenRefresco())
+
+    if (refresco === null) {
+      throw new ErrorDeSesion("No hay sesion guardada")
+    }
+
+    let sesion: Sesion
+    try {
+      sesion = await refrescarSesion(refresco)
+    } catch (error) {
+      // Solo un rechazo del servidor cierra la sesion. Sin red, la sesion sigue
+      // guardada y la pantalla ofrece reintentar.
+      if (error instanceof ErrorDeSesion && epoca.current === epocaDeInicio) {
+        olvidar()
+        conectarSesion(null)
+        await borrarTokenRefresco()
+        setSesionCaducada(true)
+        setEstado({ fase: "fuera" })
+      }
+      throw error
+    }
+
+    if (epoca.current !== epocaDeInicio) {
+      throw new ErrorDeSesion("La sesion cambio mientras se renovaba")
+    }
+
+    // El token nuevo se guarda ANTES de usarse, por lo mismo que al arrancar: el
+    // servidor ya roto y el viejo solo serviria para parecer una copia robada.
+    tokenRefresco.current = sesion.tokenRefresco
+    await guardarTokenRefresco(sesion.tokenRefresco).catch(() => undefined)
+
+    if (epoca.current !== epocaDeInicio) {
+      throw new ErrorDeSesion("La sesion cambio mientras se renovaba")
+    }
+
+    abrir(sesion)
+    return sesion.tokenAcceso
+  }, [abrir, olvidar])
+
+  // El transporte solo puede renovar mientras hay alguien dentro.
+  const dentro = estado.fase === "dentro"
+  useEffect(() => {
+    if (!dentro) {
+      conectarSesion(null)
+      return
+    }
+
+    conectarSesion({ tokenActual: () => tokenAcceso.current, renovar })
+    return () => {
+      conectarSesion(null)
+    }
+  }, [dentro, renovar])
 
   /** Vuelve a intentar restaurar la sesion. Para el caso de "sin conexion". */
   const reintentar = useCallback((): void => {
