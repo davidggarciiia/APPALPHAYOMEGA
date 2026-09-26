@@ -1,4 +1,4 @@
-import { ErrorDePermiso, ErrorDeRed, ErrorDeSesion } from "./api"
+import { ErrorDePermiso, ErrorDeRed, ErrorDelServidor, ErrorDeSesion } from "./http"
 
 /**
  * Lo que la pantalla enseña cuando algo falla.
@@ -31,22 +31,30 @@ export function faltaDe(error: unknown, respaldo: string): Falta {
   }
 
   if (error instanceof ErrorDePermiso) {
+    // Genérico a propósito: ahora también hay pantallas del cliente, y un
+    // cliente no tiene por qué leer que algo es "solo para el entrenador".
     return {
-      texto: "Esta pantalla es solo para el entrenador.",
+      texto: "Tu perfil no tiene acceso a esto.",
       reintentable: false,
       sesionCaducada: false,
     }
   }
 
   if (error instanceof ErrorDeSesion) {
-    // El token de acceso dura quince minutos y hoy no se renueva solo mientras
-    // la app está abierta. Una pantalla abierta más de ese rato se encuentra
-    // esto, y un "reintentar" no la arreglaría jamás.
+    // Solo llega aquí si la renovación automática también falló: la sesión de
+    // refresco caducó o se revocó. Un "reintentar" no la arreglaría jamás.
     return {
       texto: "Tu sesión ha caducado. Vuelve a entrar.",
       reintentable: false,
       sesionCaducada: true,
     }
+  }
+
+  // Los conflictos con código (entrenamiento, agenda, catálogo) traen un texto
+  // escrito para enseñarlo, y reintentar lo mismo no los arreglaría. Los errores
+  // de identidad no llevan código y siguen usando el texto de cada pantalla.
+  if (error instanceof ErrorDelServidor && error.detalle?.codigo !== undefined) {
+    return { texto: error.mensaje ?? respaldo, reintentable: false, sesionCaducada: false }
   }
 
   return { texto: respaldo, reintentable: true, sesionCaducada: false }

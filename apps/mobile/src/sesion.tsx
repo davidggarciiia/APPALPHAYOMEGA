@@ -1,19 +1,29 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react"
-import type { Credenciales, Sesion, UsuarioPublico } from "@alpha-omega/shared"
+import { AppState } from "react-native"
+import type { Credenciales, UsuarioPublico } from "@alpha-omega/shared"
 
+import { borrarDatosDeCuenta } from "./entrenamiento-cliente/almacen-borradores"
 import { borrarTokenRefresco, guardarTokenRefresco, leerTokenRefresco } from "./lib/almacen-seguro"
+import { ErrorDeSesion, cerrarSesionEnServidor, iniciarSesion as pedirSesion } from "./lib/api"
 import {
-  ErrorDeSesion,
-  cerrarSesionEnServidor,
-  iniciarSesion as pedirSesion,
-  refrescarSesion,
-} from "./lib/api"
+  escucharCredenciales,
+  establecerCredenciales,
+  olvidarCredenciales,
+  renovarAcceso,
+} from "./lib/credenciales"
+import { borrarIdentidadLocal, guardarIdentidadLocal, leerIdentidadLocal } from "./lib/sesion-local"
 
-type EstadoSesion =
+/**
+ * - `local`: no hay red al abrir la app y la última cuenta era de un cliente.
+ *   Solo puede seguir con las sesiones que ya descargó; el servidor no le
+ *   concede nada hasta que vuelva la conexión.
+ */
+export type EstadoSesion =
   | { fase: "comprobando" }
   | { fase: "fuera" }
   | { fase: "dentro"; usuario: UsuarioPublico; tokenAcceso: string }
+  | { fase: "local"; usuario: UsuarioPublico }
 
 type Contexto = {
   estado: EstadoSesion
@@ -24,6 +34,8 @@ type Contexto = {
   entrar: (credenciales: Credenciales) => Promise<void>
   salir: () => Promise<void>
   reintentar: () => void
+  /** Desde el modo local, vuelve a hablar con el servidor sin desmontar la pantalla abierta. */
+  reconectar: () => Promise<boolean>
 }
 
 const ContextoSesion = createContext<Contexto | null>(null)
@@ -47,6 +59,28 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
   const [sinConexion, setSinConexion] = useState(false)
   const [intento, setIntento] = useState(0)
 
+  // Toda renovación, la haga quien la haga, actualiza el token del estado. Las
+  // pantallas que dependen de `tokenAcceso` vuelven a pedir sus datos una vez y
+  // se recuperan, en lugar de quedarse en "sesión caducada".
+  useEffect(
+    () =>
+      escucharCredenciales((evento) => {
+        if (evento.tipo === "renovada") {
+          setSinConexion(false)
+          setSesionCaducada(false)
+          setEstado({
+            fase: "dentro",
+            usuario: evento.sesion.usuario,
+            tokenAcceso: evento.sesion.tokenAcceso,
+          })
+        } else {
+          setSesionCaducada(true)
+          setEstado({ fase: "fuera" })
+        }
+      }),
+    [],
+  )
+
   useEffect(() => {
     let vigente = true
 
@@ -63,35 +97,30 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
         return
       }
 
-      let sesion: Sesion
       try {
-        sesion = await refrescarSesion(guardado)
+        // La misma puerta que usan las pantallas: nunca dos renovaciones a la vez.
+        await renovarAcceso(null)
       } catch (error) {
         if (!vigente) return
 
         if (error instanceof ErrorDeSesion) {
           // Este es el unico caso en el que el token deja de servir: caducado,
-          // revocado, o la cuenta desactivada. Se borra para no reintentarlo.
-          await borrarTokenRefresco()
+          // revocado, o la cuenta desactivada. `renovarAcceso` ya lo borro.
           setSesionCaducada(true)
-        } else {
-          // Red o servidor. El token sigue valiendo y se conserva: el usuario
-          // podra reintentar sin volver a escribir su contrasena.
-          setSinConexion(true)
+          setEstado({ fase: "fuera" })
+          return
         }
 
+        // Red o servidor. El token sigue valiendo y se conserva. Un cliente puede
+        // seguir con lo que ya descargo; el resto espera a reintentar.
+        const local = await leerIdentidadLocal()
+        if (!vigente) return
+        if (local !== null && local.rol === "cliente") {
+          setEstado({ fase: "local", usuario: local })
+          return
+        }
+        setSinConexion(true)
         setEstado({ fase: "fuera" })
-        return
-      }
-
-      // El token nuevo se guarda ANTES de dar la sesion por buena. Si la app
-      // muriera entre ambas cosas, el servidor ya habria rotado y al volver
-      // mandariamos el viejo, que el servidor interpreta como una copia robada.
-      await guardarTokenRefresco(sesion.tokenRefresco)
-
-      if (vigente) {
-        setSesionCaducada(false)
-        setEstado({ fase: "dentro", usuario: sesion.usuario, tokenAcceso: sesion.tokenAcceso })
       }
     }
 
@@ -106,13 +135,31 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     }
   }, [intento])
 
+  // En modo local, volver a la app es el momento natural de probar la red.
+  const enModoLocal = estado.fase === "local"
+  useEffect(() => {
+    if (!enModoLocal) {
+      return
+    }
+    const suscripcion = AppState.addEventListener("change", (siguiente) => {
+      if (siguiente === "active") {
+        void renovarAcceso(null).catch(() => undefined)
+      }
+    })
+    return () => {
+      suscripcion.remove()
+    }
+  }, [enModoLocal])
+
   const entrar = useCallback(async (credenciales: Credenciales): Promise<void> => {
     const sesion = await pedirSesion(credenciales)
+    establecerCredenciales(sesion)
 
     // Si el llavero no admite la escritura, la sesion sigue siendo valida para
     // esta ejecucion: no se cae el login entero. Lo unico que se pierde es que
     // sobreviva a cerrar la app, y eso no justifica rechazar la entrada.
     await guardarTokenRefresco(sesion.tokenRefresco).catch(() => undefined)
+    await guardarIdentidadLocal(sesion.usuario).catch(() => undefined)
 
     setSesionCaducada(false)
     setSinConexion(false)
@@ -130,17 +177,25 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
    * No es ideal, pero dejar al usuario dentro contra su voluntad es peor.
    */
   const salir = useCallback(async (): Promise<void> => {
+    const usuarioId = estado.fase === "dentro" || estado.fase === "local" ? estado.usuario.id : null
+    await olvidarCredenciales()
     const guardado = await leerTokenRefresco()
 
     if (guardado !== null) {
       await cerrarSesionEnServidor(guardado).catch(() => undefined)
     }
 
+    // Salir a propósito limpia lo de esta cuenta en el móvil: borradores, sesiones
+    // descargadas y su clave. Quien entre después no hereda nada.
+    if (usuarioId !== null) {
+      await borrarDatosDeCuenta(usuarioId).catch(() => undefined)
+    }
+    await borrarIdentidadLocal()
     await borrarTokenRefresco()
     setSesionCaducada(false)
     setSinConexion(false)
     setEstado({ fase: "fuera" })
-  }, [])
+  }, [estado])
 
   /** Vuelve a intentar restaurar la sesion. Para el caso de "sin conexion". */
   const reintentar = useCallback((): void => {
@@ -148,9 +203,18 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     setIntento((n) => n + 1)
   }, [])
 
+  const reconectar = useCallback(async (): Promise<boolean> => {
+    try {
+      await renovarAcceso(null)
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
   const valor = useMemo<Contexto>(
-    () => ({ estado, sesionCaducada, sinConexion, entrar, salir, reintentar }),
-    [estado, sesionCaducada, sinConexion, entrar, salir, reintentar],
+    () => ({ estado, sesionCaducada, sinConexion, entrar, salir, reintentar, reconectar }),
+    [estado, sesionCaducada, sinConexion, entrar, salir, reintentar, reconectar],
   )
 
   return <ContextoSesion.Provider value={valor}>{children}</ContextoSesion.Provider>
