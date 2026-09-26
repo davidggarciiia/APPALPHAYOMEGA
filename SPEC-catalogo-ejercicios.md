@@ -312,15 +312,16 @@ La guía de ejercicios que el entrenador entrega hoy explica cada ejercicio con
 «Cómo realizarlo» y «Evita». Esa guía pasa a ser el catálogo. Campos nuevos,
 todos aditivos:
 
-| Campo           | Contenido                                                                 |
-| --------------- | ------------------------------------------------------------------------- |
-| `tipo`          | `fuerza`, `calentamiento`, `core`, `cardio`, `estiramiento` o `movilidad` |
-| `medicion`      | Por defecto al prescribirlo: repeticiones, tiempo o distancia             |
-| `instrucciones` | Se muestra como «Cómo realizarlo»; ya existe                              |
-| `evita`         | Errores que evitar                                                        |
-| `paraSi`        | Señales para parar, si las tiene                                          |
-| `carga`         | `compuesto` o `accesorio`; decide qué RIR le da cada fase del plan        |
-| `alternativas`  | Ejercicios del catálogo que suelen sustituirlo                            |
+| Campo           | Contenido                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `tipo`          | `fuerza`, `calentamiento`, `core`, `cardio`, `estiramiento` o `movilidad`                    |
+| `medicion`      | Por defecto al prescribirlo: repeticiones, tiempo o distancia                                |
+| `instrucciones` | Se muestra como «Cómo realizarlo»; ya existe                                                 |
+| `evita`         | Errores que evitar                                                                           |
+| `paraSi`        | Señales para parar, si las tiene                                                             |
+| `carga`         | `compuesto` o `accesorio`; decide qué RIR le da cada fase del plan                           |
+| `alternativas`  | Ejercicios del catálogo que suelen sustituirlo                                               |
+| `incrementoKg`  | Incremento mínimo de carga del ejercicio o de su máquina; si falta, el del plan o el general |
 
 El tren (superior o inferior) para el incremento de carga se deduce del grupo
 principal. Un ejercicio de cardio o de movilidad general puede no tener grupo

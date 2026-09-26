@@ -392,6 +392,7 @@ valida un documento antiguo.
 | Ejercicio | `unilateral`                                  | `no`, `por lado` o `por brazo`                               |
 | Ejercicio | `recorte`                                     | `nunca`, `normal` o `primero`                                |
 | Ejercicio | `alternativas`                                | Ejercicios del catálogo si molesta                           |
+| Ejercicio | `incrementoKg`                                | Incremento de carga de este ejercicio en el plan             |
 | Ejercicio | `dosis`                                       | Texto para calentamiento y calma («1×8/lado», «2–3 series»)  |
 | Ejercicio | `cardio`                                      | Rangos de inclinación, velocidad y RPE                       |
 | Sección   | `formato`, `vueltas`, descanso entre vueltas  | Circuito de core: cada vuelta es una serie de cada ejercicio |
@@ -415,14 +416,20 @@ El plan asignado y la rutina guardada ganan:
   intensidad 0–10, si le pesaban las piernas y si fue antes o después de la
   fuerza) y cuenta en la semana.
 - **NEAT**: objetivo de pasos, en texto hasta que exista seguimiento corporal.
+- **Incrementos de carga** por tren (superior e inferior), para la progresión.
 
 Qué es compuesto o accesorio lo dice el catálogo, y se puede cambiar por
 ejercicio en el plan.
 
 ### Progresión sugerida
 
-Tras cada envío, el servidor calcula la carga de la próxima vez de cada ejercicio
-con carga, con la doble progresión:
+La app sugiere la carga de la próxima vez de cada ejercicio con carga, con la
+doble progresión. La sugerencia **no se guarda en las ocurrencias**: el servidor
+la calcula al leer una sesión sin empezar, a partir del resultado enviado del
+mismo ejercicio en el mismo plan con la **fecha de sesión** (la actual, no el
+instante del envío) más reciente anterior a la de esa sesión. Así, enviar tarde
+una sesión antigua no pisa lo que dejó una posterior, y nunca se escribe en una
+sesión empezada o enviada.
 
 Las reglas se miran en este orden y manda **la primera que se cumple**; así una
 molestia nunca acaba en una subida y un RIR 0 nunca se queda en «Igual»:
@@ -435,11 +442,14 @@ molestia nunca acaba en una subida y un RIR 0 nunca se queda en «Igual»:
 | 4     | Todas las series hechas, al máximo del rango y con RIR ≥ el mínimo | Sube el incremento del ejercicio             |
 | 5     | Cualquier otro caso (dentro del rango, series sin hacer…)          | Igual                                        |
 
-Incremento por defecto: 2,5 kg en tren superior y 5 kg en inferior; el plan y el
-ejercicio lo pueden cambiar. La carga de cada ocurrencia tiene origen `inicial`
-o `fijada`. Una `inicial` se sustituye por la sugerencia cuando la hay; una
-`fijada` (el entrenador la ajustó) manda siempre. El cliente ve la sugerencia
-como objetivo tenue, nunca como valor registrado.
+El incremento se busca del más concreto al más general y manda el primero que
+exista: el del ejercicio en el plan (`incrementoKg` en la prescripción), el del
+ejercicio en el catálogo (`incrementoKg`, por ejemplo 1,25 kg en una polea), el
+del plan por tren (`incrementos.superiorKg` e `incrementos.inferiorKg`) y, si no
+hay ninguno, 2,5 kg en tren superior y 5 kg en inferior. La carga de cada
+ocurrencia tiene origen `inicial` o `fijada`. Una `inicial` se sustituye por la
+sugerencia cuando la hay; una `fijada` (el entrenador la ajustó) manda siempre.
+El cliente ve la sugerencia como objetivo tenue, nunca como valor registrado.
 
 ### Señales de ajuste
 
@@ -458,7 +468,10 @@ cuando el entrenador la confirma, con la revisión de cada prescripción.
 Antes de empezar, el cliente rellena: horas de sueño, calidad del sueño,
 energía, motivación (1–5), agujetas por zona (0–10), dolor articular, rigidez o
 molestia de espalda (con zona), K-1 en las últimas 24 horas (con intensidad) y
-cómo recuperó de la sesión anterior.
+cómo recuperó de la sesión anterior, y si tiene **síntomas de alarma**: mareo,
+dolor en el pecho o dificultad para respirar anormal. Un síntoma de alarma da
+siempre rojo, con la decisión «Detén la sesión y pide valoración sanitaria», en
+el cálculo del teléfono y en el del servidor.
 
 La app calcula en el teléfono, con los umbrales de la guía descargados con la
 sesión, el nivel y la recomendación de «cuándo modificar la sesión», para que
@@ -468,11 +481,12 @@ cambia la sesión. Un check-in rojo avisa al entrenador.
 ### Molestias
 
 Zona, lado, intensidad 0–10, síntomas (rigidez, va a más, pinchazo o irradia,
-pérdida de fuerza, síntomas generales), ejercicio y serie opcionales, momento y
-nota. El servidor calcula el semáforo: rojo con pinchazo o irradiación, pérdida de
-fuerza, intensidad 7 o más o síntomas generales; ámbar con «va a más», rigidez o
-4 a 6; verde en el resto. Con síntomas generales la app le dice al cliente que
-pare y pida valoración sanitaria.
+pérdida de fuerza y síntomas generales de alarma: mareo, dolor en el pecho o
+falta de aire, que la hoja ofrece como opción propia), ejercicio y serie
+opcionales, momento y nota. El servidor calcula el semáforo: rojo con pinchazo o
+irradiación, pérdida de fuerza, intensidad 7 o más o síntomas generales; ámbar
+con «va a más», rigidez o 4 a 6; verde en el resto. Con síntomas generales la
+app le dice al cliente que pare y pida valoración sanitaria.
 
 Se puede registrar dentro o fuera de una sesión. Sin red, queda en cola con su
 id de operación y la pantalla dice que se enviará al volver la conexión.
@@ -537,12 +551,14 @@ plan, a partir de lo que ya hay en la app. Es lo último de esta ampliación.
 20. Tras un envío, la próxima sesión del mismo ejercicio muestra la carga
     sugerida según la tabla y en su orden, con un caso de prueba por cada
     coincidencia de reglas (RIR 0 con RIR bajo el mínimo, molestia con subida).
-    Una carga fijada por el entrenador no se toca y una molestia deja el
-    ejercicio pendiente.
+    Una carga fijada por el entrenador no se toca, una molestia deja el
+    ejercicio pendiente y un envío atrasado de una sesión anterior no cambia la
+    sugerencia que dejó una posterior.
 21. Dos señales en una semana avisan al entrenador; «Aplicar a la semana» no
     cambia nada hasta confirmarse y no toca sesiones empezadas ni enviadas.
 22. El check-in funciona sin red, muestra la recomendación correcta para cada
-    fila de la tabla y un check-in rojo aparece en el panel.
+    fila de la tabla (un síntoma de alarma da siempre rojo) y un check-in rojo
+    aparece en el panel.
 23. Una molestia llega al panel en menos de 10 s con red; sin red, llega al
     reconectar y no se duplica al reintentar.
 24. El entrenador no obtiene valores, notas ni cierre de un borrador, aunque sí

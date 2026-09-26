@@ -115,18 +115,19 @@ seguir.
 Requiere el checkpoint A.
 
 - [ ] **P25. Contratos de la prescripción rica.** Rangos, RIR, distancia,
-      secciones, circuito, cardio, unilateral, recorte, alternativas, dosis y
-      nota; RIR en el registro. _Verificar:_ un documento antiguo sigue
+      secciones, circuito, cardio, unilateral, recorte, alternativas, dosis,
+      incremento y nota; RIR en el registro. _Verificar:_ un documento antiguo sigue
       validando; los campos incompatibles se rechazan.
 - [ ] **P26. La API acepta y devuelve la prescripción rica.** Planes, ajustes,
       borradores, envíos y resultado. _Verificar:_ e2e.
 - [ ] **P27. Catálogo ampliado.** Tipo, medición, «Evita», «Para si», carga,
-      alternativas y grupos nuevos, con migración aditiva.
+      alternativas, incremento y grupos nuevos, con migración aditiva.
 - [ ] **P28. Bloque con fases y deporte.** Objetivos, indicaciones, fases que se
-      aplican a cada semana al asignar, deporte y NEAT.
+      aplican a cada semana al asignar, deporte, NEAT e incrementos por tren.
 - [ ] **P29. Registro de deporte.** Tabla, operación del cliente idempotente y
       lectura del entrenador.
-- [ ] **P30. Progresión sugerida.** Servicio puro con la tabla del spec, origen
+- [ ] **P30. Progresión sugerida.** Servicio puro con la tabla del spec y su orden,
+      calculada al leer desde el último resultado por fecha de sesión, origen
       de la carga (`inicial` o `fijada`) y exposición al cliente y al entrenador.
 - [ ] **P31. Señales de ajuste y «Aplicar a la semana».** Propuesta, confirmación
       con revisión, sin tocar sesiones empezadas.

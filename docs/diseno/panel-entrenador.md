@@ -231,16 +231,17 @@ Claude Design (Checkin, Sesion, Molestia, Cierre) y se amplían así.
 
 Completo, como la comprobación rápida de la guía semanal:
 
-| Campo                              | Entrada                            |
-| ---------------------------------- | ---------------------------------- |
-| Horas de sueño                     | Número con medias horas            |
-| Calidad del sueño                  | 1 a 5                              |
-| Energía general                    | 1 a 5                              |
-| Motivación para entrenar           | 1 a 5                              |
-| Agujetas                           | «Ninguna» o 0 a 10 por zona tocada |
-| Dolor articular, rigidez o espalda | No / sí, con zona                  |
-| K-1 en las últimas 24 h            | No / sí, con intensidad 0 a 10     |
-| Cómo recuperaste de la anterior    | Normal / peor de lo normal         |
+| Campo                                    | Entrada                            |
+| ---------------------------------------- | ---------------------------------- |
+| Horas de sueño                           | Número con medias horas            |
+| Calidad del sueño                        | 1 a 5                              |
+| Energía general                          | 1 a 5                              |
+| Motivación para entrenar                 | 1 a 5                              |
+| Agujetas                                 | «Ninguna» o 0 a 10 por zona tocada |
+| Dolor articular, rigidez o espalda       | No / sí, con zona                  |
+| K-1 en las últimas 24 h                  | No / sí, con intensidad 0 a 10     |
+| Cómo recuperaste de la anterior          | Normal / peor de lo normal         |
+| Mareo, dolor en el pecho o falta de aire | No / sí (da siempre rojo)          |
 
 Al terminar, la app muestra la fila que toca de «Cuándo modificar la sesión»:
 
@@ -266,7 +267,8 @@ velocidad y RPE. «Añadir molestia» abre la hoja de molestia.
 
 Zona, **lado** (izquierdo, derecho, ambos, no aplica; faltaba en el diseño),
 intensidad 0 a 10, qué nota (rigidez, va a más, pinchazo o irradia, pérdida de
-fuerza), ejercicio y serie (ya rellenos si se abre desde uno) y momento. El
+fuerza, o mareo, dolor en el pecho o falta de aire), ejercicio y serie (ya
+rellenos si se abre desde uno) y momento. El
 servidor calcula el nivel con el semáforo de la guía:
 
 - **Rojo:** pinchazo o irradia, pérdida de fuerza, intensidad 7 o más, o
@@ -307,8 +309,11 @@ Manda la primera regla que se cumple, en este orden:
 
 La sugerencia aparece al cliente como objetivo tenue de peso en la próxima sesión
 y al entrenador en la columna «Próxima vez». Si el entrenador fija una carga, la
-suya manda. El incremento sale del grupo muscular del ejercicio y se puede
-cambiar por ejercicio.
+suya manda. No se guarda en las sesiones: se calcula al abrirlas, desde el último
+resultado por fecha de sesión, así que un envío atrasado no pisa uno posterior.
+El incremento manda del más concreto al más general: el del ejercicio en el
+plan, el del ejercicio en el catálogo, el del plan por tren y, por último, 2,5 kg
+arriba y 5 kg abajo.
 
 ### Señales de ajuste
 

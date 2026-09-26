@@ -2273,6 +2273,8 @@
           <div class="chips"><button type="button" class="chip" aria-pressed="false">Ninguna</button><button type="button" class="chip" aria-pressed="true">Cuádriceps · 5</button><button type="button" class="chip" aria-pressed="false">+ Zona</button></div></div>
         <div class="pregunta" role="radiogroup" aria-labelledby="c-dolor"><span id="c-dolor">Dolor articular, rigidez o espalda</span>
           <div class="chips"><button type="button" class="chip" role="radio" aria-checked="true">No</button><button type="button" class="chip" role="radio" aria-checked="false">Sí</button></div></div>
+        <div class="pregunta" role="radiogroup" aria-labelledby="c-alarma"><span id="c-alarma">Mareo, dolor en el pecho o falta de aire</span>
+          <div class="chips"><button type="button" class="chip" role="radio" aria-checked="true">No</button><button type="button" class="chip" role="radio" aria-checked="false">Sí</button></div></div>
         <div class="pregunta" role="radiogroup" aria-labelledby="c-recu"><span id="c-recu">Después de la última sesión</span>
           <div class="chips"><button type="button" class="chip" role="radio" aria-checked="true">Recuperé normal</button><button type="button" class="chip" role="radio" aria-checked="false">Peor de lo normal</button></div></div>
         <div class="recomendacion" role="status"><strong>Ámbar · K-1 intenso ayer.</strong> Mantén 3 RIR y elimina primero la cinta.</div>
@@ -2302,7 +2304,7 @@
           <div class="chips">${["Izquierdo", "Derecho", "Ambos", "No aplica"].map((z, i) => `<button type="button" class="chip" role="radio" aria-checked="${i === 1}">${z}</button>`).join("")}</div></div>
         <div class="deslizador"><label for="c-int"><strong>Intensidad:</strong> 4 de 10</label><input id="c-int" type="range" min="0" max="10" value="4" /></div>
         <div class="pregunta" role="group" aria-labelledby="c-nota"><span id="c-nota">Qué notas</span>
-          <div class="chips">${["Rigidez", "Va a más", "Pinchazo o irradia", "Pérdida de fuerza"].map((z, i) => `<button type="button" class="chip" role="checkbox" aria-checked="${i === 1}">${z}</button>`).join("")}</div></div>
+          <div class="chips">${["Rigidez", "Va a más", "Pinchazo o irradia", "Pérdida de fuerza", "Mareo, pecho o falta de aire"].map((z, i) => `<button type="button" class="chip" role="checkbox" aria-checked="${i === 1}">${z}</button>`).join("")}</div></div>
         <div class="recomendacion" role="status"><strong>Ámbar.</strong> Para la serie, baja carga o recorrido y valora la alternativa: press inclinado en máquina.</div>
         <button type="button" class="btn btn-oro" style="min-height:52px">Avisar a mi entrenador</button>
       </section>
