@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react"
 import { useRouter, type Href } from "expo-router"
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native"
-import type { ActividadDelPanel, EstadoEntrenoDeHoy, PanelHoy as Datos } from "@alpha-omega/shared"
+import {
+  horaDeMinutos,
+  partesLocales,
+  ZONA_AGENDA,
+  type ActividadDelPanel,
+  type EstadoEntrenoDeHoy,
+  type PanelHoy as Datos,
+} from "@alpha-omega/shared"
 
 import { AvisoDeError } from "../componentes/formulario"
 import { Pulsable } from "../componentes/pulsable"
@@ -41,6 +48,20 @@ const ANCHO_ESCRITORIO = 1024
  * abre decenas de veces al día: a partir de la segunda, las cifras ya están.
  */
 let yaEntraron = false
+
+/** «10:00» en la hora de la agenda, no en la del teléfono. */
+function horaLocal(instante: string): string {
+  return horaDeMinutos(partesLocales(new Date(instante), ZONA_AGENDA).minutos)
+}
+
+/** Céntimos a «35 €» o «12,50 €». */
+function euros(centimos: number): string {
+  const entero = centimos % 100 === 0
+  return `${(centimos / 100).toLocaleString("es-ES", {
+    minimumFractionDigits: entero ? 0 : 2,
+    maximumFractionDigits: 2,
+  })} €`
+}
 
 /** Pestañas de la ficha a las que lleva el panel (`?pestana=` en la ruta). */
 type PestanaDeFicha = "sesiones" | "progreso"
@@ -229,6 +250,94 @@ export function PanelHoy({ api, nombre }: { api: ApiPanel; nombre: string }): Re
         }
       />
     </View>
+  )
+
+  const { agenda, negocio } = datos
+  const abrirAgenda = (): void => ir("/agenda" as Href)
+  const citasDeHoy = (
+    <Seccion titulo="Agenda de hoy" derecha={agenda.total > 0 ? String(agenda.total) : null}>
+      <Tarjeta>
+        {agenda.citas.length === 0 ? (
+          <FilaDeTexto primera>Hoy no hay citas reservadas.</FilaDeTexto>
+        ) : (
+          agenda.citas.map((cita, n) => {
+            const franja = `${horaLocal(cita.inicio)}–${horaLocal(cita.fin)}`
+            const servicio =
+              cita.personas > 1 ? `${cita.servicio} · ${cita.personas} personas` : cita.servicio
+            return (
+              <FilaPulsable
+                key={cita.reservaId}
+                primera={n === 0}
+                etiqueta={`${franja}, ${cita.cliente.nombre}, ${servicio}`}
+                onPress={abrirAgenda}
+              >
+                <View style={s.filaConPildora}>
+                  <Text style={s.hora}>{horaLocal(cita.inicio)}</Text>
+                  <View style={s.textos}>
+                    <Text style={p.fuerte} numberOfLines={1}>
+                      {cita.cliente.nombre}
+                    </Text>
+                    <Text style={p.tenue} numberOfLines={1}>
+                      {`${franja} · ${servicio}`}
+                    </Text>
+                  </View>
+                </View>
+              </FilaPulsable>
+            )
+          })
+        )}
+        {agenda.total > agenda.citas.length && (
+          <FilaDeTexto>{`Y ${agenda.total - agenda.citas.length} más`}</FilaDeTexto>
+        )}
+      </Tarjeta>
+    </Seccion>
+  )
+
+  const bloqueNegocio = (
+    <Seccion titulo="Negocio">
+      <Tarjeta>
+        <View style={s.negocio}>
+          <Pulsable
+            style={s.celda}
+            accessibilityRole="button"
+            accessibilityLabel={`Por cobrar: ${euros(negocio.pendienteCentimos)} en ${cuenta(negocio.cobrosPendientes, "cobro", "cobros")}`}
+            onPress={abrirAgenda}
+          >
+            <Text style={[p.marca, s.tenueMarca]}>Por cobrar</Text>
+            <Text style={[s.cifraNegocio, negocio.pendienteCentimos > 0 && s.cifraAviso]}>
+              {euros(negocio.pendienteCentimos)}
+            </Text>
+            <Text style={p.tenue}>{cuenta(negocio.cobrosPendientes, "cobro", "cobros")}</Text>
+          </Pulsable>
+          <Pulsable
+            style={s.celda}
+            accessibilityRole="button"
+            accessibilityLabel={`Cobrado este mes: ${euros(negocio.cobradoMesCentimos)}`}
+            onPress={abrirAgenda}
+          >
+            <Text style={[p.marca, s.tenueMarca]}>Cobrado este mes</Text>
+            <Text style={s.cifraNegocio}>{euros(negocio.cobradoMesCentimos)}</Text>
+            <Text style={p.tenue}>En efectivo, sin facturas</Text>
+          </Pulsable>
+        </View>
+        <FilaPulsable
+          etiqueta={`Solicitudes «Lo quiero» pendientes: ${negocio.solicitudesPendientes}`}
+          onPress={abrirAgenda}
+        >
+          <View style={s.filaConPildora}>
+            <Text style={[p.fuerte, s.textos]}>Solicitudes «Lo quiero»</Text>
+            <Pildora
+              texto={
+                negocio.solicitudesPendientes === 0
+                  ? "Ninguna"
+                  : cuenta(negocio.solicitudesPendientes, "pendiente", "pendientes")
+              }
+              tono={negocio.solicitudesPendientes > 0 ? "aviso" : "neutro"}
+            />
+          </View>
+        </FilaPulsable>
+      </Tarjeta>
+    </Seccion>
   )
 
   const hoyEntrenan = (
@@ -479,10 +588,12 @@ export function PanelHoy({ api, nombre }: { api: ApiPanel; nombre: string }): Re
       {escritorio ? (
         <View style={s.columnas}>
           <View style={s.columna}>
+            {citasDeHoy}
             {hoyEntrenan}
             {pendiente}
           </View>
           <View style={s.columna}>
+            {bloqueNegocio}
             {bloqueSemana}
             {bloqueActividad}
             {accesos(datos)}
@@ -490,8 +601,10 @@ export function PanelHoy({ api, nombre }: { api: ApiPanel; nombre: string }): Re
         </View>
       ) : (
         <>
+          {citasDeHoy}
           {hoyEntrenan}
           {pendiente}
+          {bloqueNegocio}
           {bloqueSemana}
           {bloqueActividad}
           {accesos(datos)}
@@ -525,6 +638,11 @@ const s = StyleSheet.create({
   subtitulo: { borderTopWidth: 1, borderTopColor: tema.borde, paddingTop: 14, paddingBottom: 2 },
   tenueMarca: { color: tema.textoTenue },
   porcentaje: { color: tema.aviso, fontFamily: tema.fuenteBoton, fontSize: 16 },
+  hora: { color: tema.acento, fontFamily: tema.fuenteTitulo, fontSize: 20, width: 56 },
+  negocio: { flexDirection: "row", gap: 12, paddingVertical: 14 },
+  celda: { flex: 1, minWidth: 0, gap: 4 },
+  cifraNegocio: { color: tema.texto, fontFamily: tema.fuenteTitulo, fontSize: 28, lineHeight: 34 },
+  cifraAviso: { color: tema.aviso },
   cartera: { gap: 6 },
   accesos: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   acceso: {

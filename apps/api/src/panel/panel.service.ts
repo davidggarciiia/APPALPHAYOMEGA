@@ -1,6 +1,9 @@
 import { ForbiddenException, Injectable } from "@nestjs/common"
 import { Prisma } from "@prisma/client"
 import {
+  aInstante,
+  mesDeFecha,
+  sumarMeses,
   MAXIMO_ACTIVIDAD,
   MAXIMO_HOY,
   MAXIMO_POR_REVISAR,
@@ -259,7 +262,58 @@ export class PanelService {
       },
       semana: resumen,
       actividad,
+      ...(await this.agendaYNegocio(hoy)),
     })
+  }
+
+  /** Citas de hoy en la agenda, «Lo quiero» sin activar y cobros del negocio. */
+  private async agendaYNegocio(hoy: string): Promise<Pick<PanelHoy, "agenda" | "negocio">> {
+    const desde = aInstante(hoy, 0, ZONA_AGENDA) ?? new Date(`${hoy}T00:00:00Z`)
+    const manana = sumarDias(hoy, 1)
+    const hasta = aInstante(manana, 0, ZONA_AGENDA) ?? new Date(`${manana}T00:00:00Z`)
+    const mes = mesDeFecha(hoy)
+    const inicioMes = aInstante(mes, 0, ZONA_AGENDA) ?? new Date(`${mes}T00:00:00Z`)
+    const siguiente = sumarMeses(mes, 1)
+    const finMes = aInstante(siguiente, 0, ZONA_AGENDA) ?? new Date(`${siguiente}T00:00:00Z`)
+    const deHoy = { estado: "confirmada", inicio: { gte: desde, lt: hasta } } as const
+    const [citas, totalCitas, solicitudes, pendientes, cobrado] = await Promise.all([
+      this.prisma.reserva.findMany({
+        where: deHoy,
+        include: { cliente: NOMBRE, servicio: { select: { nombre: true } } },
+        orderBy: [{ inicio: "asc" }, { id: "asc" }],
+        take: MAXIMO_HOY,
+      }),
+      this.prisma.reserva.count({ where: deHoy }),
+      this.prisma.solicitudProducto.count({ where: { estado: "pendiente" } }),
+      this.prisma.cobro.aggregate({
+        where: { estado: "pendiente" },
+        _count: { _all: true },
+        _sum: { importeCentimos: true },
+      }),
+      this.prisma.cobro.aggregate({
+        where: { estado: "cobrado", cobradoEn: { gte: inicioMes, lt: finMes } },
+        _sum: { importeCentimos: true },
+      }),
+    ])
+    return {
+      agenda: {
+        total: totalCitas,
+        citas: citas.map((fila) => ({
+          reservaId: fila.id,
+          cliente: cliente(fila.cliente),
+          servicio: fila.servicio.nombre,
+          inicio: fila.inicio.toISOString(),
+          fin: fila.fin.toISOString(),
+          personas: fila.personas,
+        })),
+      },
+      negocio: {
+        solicitudesPendientes: solicitudes,
+        cobrosPendientes: pendientes._count._all,
+        pendienteCentimos: pendientes._sum.importeCentimos ?? 0,
+        cobradoMesCentimos: cobrado._sum.importeCentimos ?? 0,
+      },
+    }
   }
 
   /**

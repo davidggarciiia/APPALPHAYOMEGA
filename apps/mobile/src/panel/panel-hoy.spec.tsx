@@ -103,6 +103,33 @@ function lleno(): Datos {
       { tipo: "fotos", id: id(31), cliente: ana, fecha: hace, fotos: 3 },
       { tipo: "medida", id: id(51), cliente: carla, fecha: hace },
     ],
+    agenda: {
+      total: 2,
+      citas: [
+        {
+          reservaId: id(61),
+          cliente: ana,
+          servicio: "Entrenamiento personal",
+          inicio: "2026-09-26T08:00:00.000Z",
+          fin: "2026-09-26T09:00:00.000Z",
+          personas: 1,
+        },
+        {
+          reservaId: id(62),
+          cliente: bruno,
+          servicio: "Entrenamiento en pareja o grupo",
+          inicio: "2026-09-26T16:00:00.000Z",
+          fin: "2026-09-26T17:00:00.000Z",
+          personas: 2,
+        },
+      ],
+    },
+    negocio: {
+      solicitudesPendientes: 1,
+      cobrosPendientes: 2,
+      pendienteCentimos: 8500,
+      cobradoMesCentimos: 43250,
+    },
   })
 }
 
@@ -123,6 +150,13 @@ function vacio(): Datos {
       menorAdherencia: [],
     },
     actividad: [],
+    agenda: { total: 0, citas: [] },
+    negocio: {
+      solicitudesPendientes: 0,
+      cobrosPendientes: 0,
+      pendienteCentimos: 0,
+      cobradoMesCentimos: 0,
+    },
   })
 }
 
@@ -195,6 +229,28 @@ it("sin datos: lo dice en cada bloque en vez de inventar cifras", async () => {
   expect(screen.queryByRole("progressbar")).toBeNull()
   expect(screen.queryByText("Menor adherencia")).toBeNull()
   expect(screen.queryByText(/sin consentimiento/)).toBeNull()
+  expect(screen.getByText("Hoy no hay citas reservadas.")).toBeTruthy()
+  expect(screen.getByText("Ninguna")).toBeTruthy()
+})
+
+it("agenda de hoy y negocio: citas en hora de Madrid, por cobrar y cobrado, y llevan a la agenda", async () => {
+  await render(<PanelHoy api={api(lleno())} nombre="David" />)
+
+  // 08:00Z y 16:00Z del 26-09 son las 10:00 y las 18:00 en Madrid.
+  const cita = await screen.findByRole("button", {
+    name: "10:00–11:00, Ana López, Entrenamiento personal",
+  })
+  expect(
+    screen.getByRole("button", {
+      name: "18:00–19:00, Bruno Díaz, Entrenamiento en pareja o grupo · 2 personas",
+    }),
+  ).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Por cobrar: 85 € en 2 cobros" })).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Cobrado este mes: 432,50 €" })).toBeTruthy()
+  expect(screen.getByText("1 pendiente")).toBeTruthy()
+
+  fireEvent.press(cita)
+  expect(mockPush).toHaveBeenCalledWith("/agenda")
 })
 
 it("si falla la carga, lo explica, ofrece reintentar y conserva los accesos", async () => {

@@ -143,6 +143,17 @@ export const ActividadDelPanelSchema = z.discriminatedUnion("tipo", [
 ])
 export type ActividadDelPanel = z.infer<typeof ActividadDelPanelSchema>
 
+/** Una reserva confirmada de hoy: quién viene, a qué y a qué hora. */
+export const CitaDeHoySchema = z.strictObject({
+  reservaId: z.uuid(),
+  cliente: ClienteDelPanelSchema,
+  servicio: z.string().min(1),
+  inicio: z.iso.datetime(),
+  fin: z.iso.datetime(),
+  personas: z.number().int().min(1),
+})
+export type CitaDeHoy = z.infer<typeof CitaDeHoySchema>
+
 export const PanelHoySchema = z.strictObject({
   /** Hoy en la zona de la agenda (Europe/Madrid). */
   fecha: FechaAgendaSchema,
@@ -184,5 +195,18 @@ export const PanelHoySchema = z.strictObject({
     menorAdherencia: z.array(AdherenciaDeClienteSchema).max(MAXIMO_MENOR_ADHERENCIA),
   }),
   actividad: z.array(ActividadDelPanelSchema).max(MAXIMO_ACTIVIDAD),
+  /** Citas confirmadas de hoy en la agenda (reservas), por hora. */
+  agenda: z.strictObject({
+    total: CantidadSchema,
+    citas: z.array(CitaDeHoySchema).max(MAXIMO_HOY),
+  }),
+  /** Lo que el negocio tiene pendiente: «Lo quiero» sin activar y cobros. */
+  negocio: z.strictObject({
+    solicitudesPendientes: CantidadSchema,
+    cobrosPendientes: CantidadSchema,
+    pendienteCentimos: CantidadSchema,
+    /** Cobrado en el mes en curso (Europe/Madrid). */
+    cobradoMesCentimos: CantidadSchema,
+  }),
 })
 export type PanelHoy = z.infer<typeof PanelHoySchema>
