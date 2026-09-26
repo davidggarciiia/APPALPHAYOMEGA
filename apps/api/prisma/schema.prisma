@@ -101,6 +101,12 @@ model Usuario {
   solicitudesFotos         SolicitudFotos[]           @relation("SolicitudesFotosCliente")
   solicitudesFotosCreadas  SolicitudFotos[]           @relation("SolicitudesFotosAutor")
   consentimientosSalud     ConsentimientoSalud[]
+  reservas                 Reserva[]                  @relation("ReservasCliente")
+  suscripciones            Suscripcion[]              @relation("SuscripcionesCliente")
+  bonos                    Bono[]                     @relation("BonosCliente")
+  movimientosSaldo         MovimientoSaldo[]          @relation("MovimientosCliente")
+  solicitudesProducto      SolicitudProducto[]        @relation("SolicitudesProductoCliente")
+  cobros                   Cobro[]                    @relation("CobrosCliente")
 
   @@map("usuarios")
 }
@@ -907,4 +913,301 @@ model ConsentimientoSalud {
 
   @@unique([usuarioId, version])
   @@map("consentimientos_salud")
+}
+
+// ─── Horarios y reservas (SPEC-agenda.md, «Ampliación: horarios y reservas») ───
+
+/// Fila única (id = 1) con los ajustes de la agenda. Reservar, mover y cambiar el
+/// horario la bloquean antes que nada: es también el candado de la agenda.
+model AjustesAgenda {
+  id               Int      @id @default(1)
+  antelacionMin    Int      @default(120)
+  horizonteDias    Int      @default(28)
+  cancelacionHoras Int      @default(24)
+  intervaloMin     Int      @default(60)
+  actualizadoEn    DateTime @default(now()) @updatedAt
+
+  @@map("ajustes_agenda")
+}
+
+/// Clase de saldo que gasta un servicio o da un producto.
+enum ClaseSaldo {
+  ep
+  boxeo
+}
+
+/// Lo que se reserva. Sin `claseDeSaldo` se paga allí (EP en pareja o grupo).
+model Servicio {
+  id             String        @id @default(uuid())
+  codigo         String        @unique @db.VarChar(40)
+  nombre         String        @db.VarChar(60)
+  descripcion    String?       @db.VarChar(200)
+  duracionMin    Int
+  minPersonas    Int           @default(1)
+  maxPersonas    Int           @default(1)
+  claseDeSaldo   ClaseSaldo?
+  precioCentimos Int?
+  reservable     Boolean       @default(true)
+  activo         Boolean       @default(true)
+  orden          Int           @default(0)
+  tarifas        TarifaGrupo[]
+  reservas       Reserva[]
+
+  @@map("servicios_agenda")
+}
+
+/// Precio por persona de un servicio en grupo, según cuántas vienen.
+model TarifaGrupo {
+  servicioId               String
+  servicio                 Servicio @relation(fields: [servicioId], references: [id], onDelete: Cascade)
+  personas                 Int
+  precioPorPersonaCentimos Int
+
+  @@id([servicioId, personas])
+  @@map("tarifas_grupo")
+}
+
+/// Plantilla del horario, en minutos desde medianoche de Europe/Madrid.
+model FranjaSemanal {
+  id        String @id @default(uuid())
+  diaSemana Int
+  inicioMin Int
+  finMin    Int
+
+  @@index([diaSemana])
+  @@map("franjas_semanales")
+}
+
+enum TipoExcepcionAgenda {
+  cierre
+  apertura
+}
+
+/// Cierre o apertura puntual de la agenda.
+model ExcepcionAgenda {
+  id       String              @id @default(uuid())
+  tipo     TipoExcepcionAgenda
+  inicio   DateTime            @db.Timestamptz(3)
+  fin      DateTime            @db.Timestamptz(3)
+  motivo   String?             @db.VarChar(120)
+  autorId  String
+  creadaEn DateTime            @default(now())
+
+  @@index([inicio, fin])
+  @@map("excepciones_agenda")
+}
+
+enum EstadoReserva {
+  confirmada
+  cancelada
+}
+
+/// Cita con hora en la agenda del entrenador. No se borra: cancelar cambia su
+/// estado. Dos confirmadas nunca se solapan (restricción EXCLUDE en la migración).
+model Reserva {
+  id                     String        @id @default(uuid())
+  servicioId             String
+  servicio               Servicio      @relation(fields: [servicioId], references: [id], onDelete: Restrict)
+  clienteId              String
+  cliente                Usuario       @relation("ReservasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  inicio                 DateTime      @db.Timestamptz(3)
+  fin                    DateTime      @db.Timestamptz(3)
+  personas               Int           @default(1)
+  estado                 EstadoReserva @default(confirmada)
+  /// Clave del cargo de saldo vigente (`origenId` del movimiento). Cambia si al
+  /// moverla de mes se devuelve y se vuelve a gastar.
+  cargoSaldo             String?       @db.VarChar(80)
+  creadaPorId            String
+  operacionId            String
+  revision               Int           @default(0)
+  creadaEn               DateTime      @default(now())
+  canceladaEn            DateTime?
+  canceladaPorId         String?
+  canceladaPorEntrenador Boolean?
+  motivoCancelacion      String?       @db.VarChar(200)
+  /// El entrenador devolvió a mano la sesión de una reserva cancelada tarde o pasada.
+  devueltaAManoEn        DateTime?
+
+  @@unique([creadaPorId, operacionId])
+  @@index([inicio])
+  @@index([clienteId, inicio])
+  @@map("reservas")
+}
+
+// ─── Planes, saldo y cobros (SPEC-planes.md) ───
+
+enum TipoProducto {
+  plan
+  bono
+  matricula
+}
+
+/// Lo que se vende. Se copia al activarse: cambiar el catálogo no altera lo concedido.
+model Producto {
+  id                 String              @id @default(uuid())
+  codigo             String              @unique @db.VarChar(40)
+  tipo               TipoProducto
+  clase              ClaseSaldo?
+  nombre             String              @db.VarChar(80)
+  descripcion        String?             @db.VarChar(200)
+  precioCentimos     Int
+  sesionesPorMes     Int?
+  clasesPorSemana    Int?
+  meses              Int?
+  sesiones           Int?
+  validezDias        Int?
+  regalo             String?             @db.VarChar(120)
+  visibleParaCliente Boolean             @default(true)
+  activo             Boolean             @default(true)
+  orden              Int                 @default(0)
+  suscripciones      Suscripcion[]
+  bonos              Bono[]
+  solicitudes        SolicitudProducto[]
+
+  @@map("productos")
+}
+
+/// Un plan activado: da `sesionesPorMes` en cada mes desde `mesInicio`.
+model Suscripcion {
+  id              String            @id @default(uuid())
+  clienteId       String
+  cliente         Usuario           @relation("SuscripcionesCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  productoId      String
+  producto        Producto          @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  nombre          String            @db.VarChar(80)
+  clase           ClaseSaldo
+  sesionesPorMes  Int
+  clasesPorSemana Int?
+  mesInicio       DateTime          @db.Date
+  meses           Int
+  creadaPorId     String
+  creadaEn        DateTime          @default(now())
+  movimientos     MovimientoSaldo[]
+
+  @@index([clienteId, mesInicio])
+  @@map("suscripciones")
+}
+
+enum OrigenBono {
+  compra
+  compensacion
+}
+
+/// Sesiones compradas. Caducan a los `validezDias` de su primera sesión.
+model Bono {
+  id          String            @id @default(uuid())
+  clienteId   String
+  cliente     Usuario           @relation("BonosCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  productoId  String?
+  producto    Producto?         @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  nombre      String            @db.VarChar(80)
+  clase       ClaseSaldo
+  sesiones    Int
+  validezDias Int               @default(365)
+  /// Sesión suelta o compensación: se gasta después de los bonos.
+  suelta      Boolean           @default(false)
+  primerUsoEn DateTime?         @db.Date
+  caducaEn    DateTime?         @db.Date
+  origen      OrigenBono        @default(compra)
+  creadoPorId String
+  creadoEn    DateTime          @default(now())
+  movimientos MovimientoSaldo[]
+
+  @@index([clienteId])
+  @@map("bonos")
+}
+
+enum MotivoMovimiento {
+  consumo
+  devolucion
+  ajuste
+}
+
+/// Libro del saldo: ±1 por fuente. Nunca se borra ni se modifica. Un mismo
+/// origen se gasta una vez y se devuelve una vez (índice único).
+model MovimientoSaldo {
+  id            String           @id @default(uuid())
+  clienteId     String
+  cliente       Usuario          @relation("MovimientosCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  cantidad      Int
+  motivo        MotivoMovimiento
+  suscripcionId String?
+  suscripcion   Suscripcion?     @relation(fields: [suscripcionId], references: [id], onDelete: Restrict)
+  /// Mes de la suscripción al que se imputa.
+  periodo       DateTime?        @db.Date
+  bonoId        String?
+  bono          Bono?            @relation(fields: [bonoId], references: [id], onDelete: Restrict)
+  fechaSesion   DateTime         @db.Date
+  origenTipo    String           @db.VarChar(30)
+  origenId      String           @db.VarChar(80)
+  autorId       String
+  creadoEn      DateTime         @default(now())
+
+  @@unique([origenTipo, origenId, motivo])
+  @@index([clienteId, creadoEn])
+  @@index([suscripcionId, periodo])
+  @@index([bonoId])
+  @@map("movimientos_saldo")
+}
+
+enum EstadoSolicitudProducto {
+  pendiente
+  activada
+  rechazada
+  anulada
+}
+
+/// «Lo quiero» del cliente. Solo una pendiente por cliente y producto (índice
+/// parcial en la migración).
+model SolicitudProducto {
+  id             String                  @id @default(uuid())
+  clienteId      String
+  cliente        Usuario                 @relation("SolicitudesProductoCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  productoId     String
+  producto       Producto                @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  precioCentimos Int
+  estado         EstadoSolicitudProducto @default(pendiente)
+  operacionId    String
+  creadaEn       DateTime                @default(now())
+  resueltaEn     DateTime?
+  resueltaPorId  String?
+
+  @@unique([clienteId, operacionId])
+  @@index([estado, creadaEn])
+  @@map("solicitudes_producto")
+}
+
+enum EstadoCobro {
+  pendiente
+  cobrado
+  anulado
+}
+
+enum OrigenCobro {
+  producto
+  reserva
+  manual
+}
+
+/// Dinero que se debe o que se cobró. La app no factura.
+model Cobro {
+  id              String      @id @default(uuid())
+  clienteId       String
+  cliente         Usuario     @relation("CobrosCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  concepto        String      @db.VarChar(120)
+  importeCentimos Int
+  estado          EstadoCobro @default(pendiente)
+  origenTipo      OrigenCobro
+  /// Activación o reserva que lo creó. Único por tipo: repetir no duplica.
+  origenId        String?     @db.VarChar(80)
+  cobradoEn       DateTime?
+  anuladoPorId    String?
+  autorId         String
+  creadoEn        DateTime    @default(now())
+
+  @@unique([origenTipo, origenId])
+  @@index([estado, creadoEn])
+  @@index([cobradoEn])
+  @@index([clienteId])
+  @@map("cobros")
 }
