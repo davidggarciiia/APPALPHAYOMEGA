@@ -346,21 +346,29 @@ model SesionEntrenamiento {
   planId String
   plan   PlanEntrenamiento @relation(fields: [planId], references: [id], onDelete: Cascade)
 
+  /// Copia de `prescripcion.nombre`, para que los listados no lean el JSON.
+  nombre               String
   prescripcion         Json
-  revisionPrescripcion Int  @default(0)
+  revisionPrescripcion Int    @default(0)
 
-  /// Privado del cliente. Ninguna respuesta al entrenador lo incluye.
-  borrador          Json?
-  revisionBorrador  Int       @default(0)
-  operacionBorrador String?
-  huellaBorrador    String?
+  /// Privado del cliente. Ninguna respuesta al entrenador lo incluye, y las
+  /// consultas del entrenador usan `select` explicito para no cargarlo siquiera.
+  borrador              Json?
+  revisionBorrador      Int       @default(0)
+  borradorActualizadoEn DateTime?
+  /// Ultima operacion de guardado aplicada y su huella: repetirla devuelve lo mismo.
+  operacionBorrador     String?
+  huellaBorrador        String?
   /// Primer borrador sincronizado. Desde ese momento la prescripcion no se ajusta.
-  iniciadaEn        DateTime?
+  iniciadaEn            DateTime?
 
-  resultado      Json?
-  enviadoEn      DateTime?
-  operacionEnvio String?   @unique
-  huellaEnvio    String?
+  resultado        Json?
+  enviadoEn        DateTime?
+  operacionEnvio   String?   @unique
+  huellaEnvio      String?
+  /// Resumen del resultado enviado. Nulos mientras no se envia.
+  seriesHechas     Int?
+  seriesPrescritas Int?
 
   referencias ReferenciaEjercicio[]
 

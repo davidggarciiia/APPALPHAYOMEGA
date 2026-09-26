@@ -447,6 +447,17 @@ describe("Contratos nuevos de consulta y planificación", () => {
         ejecucion: { seriesHechas: 2, seriesPrescritas: 0 },
       }).success,
     ).toBe(false)
+    // Sin envío no hay resumen, y un envío siempre lo lleva.
+    expect(
+      contratos.FilaPanelSchema.safeParse({
+        ...fila,
+        ejecucion: { seriesHechas: 1, seriesPrescritas: 2 },
+      }).success,
+    ).toBe(false)
+    expect(
+      contratos.FilaPanelSchema.safeParse({ ...fila, enviadoEn: "2026-09-14T10:00:00.000Z" })
+        .success,
+    ).toBe(false)
   })
 
   it("normaliza nombres de ejercicio para compararlos", () => {

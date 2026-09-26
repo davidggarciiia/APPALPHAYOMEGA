@@ -295,10 +295,12 @@ export type ConsultarPanel = z.infer<typeof ConsultarPanelSchema>
  * Cuánto se hizo de lo previsto. Se deriva solo del resultado enviado: mientras
  * la sesión no se envía vale `null`, igual haya borrador o no.
  */
-export const ResumenEjecucionSchema = z.strictObject({
-  seriesHechas: z.number().int().nonnegative(),
-  seriesPrescritas: z.number().int().positive(),
-})
+export const ResumenEjecucionSchema = z
+  .strictObject({
+    seriesHechas: z.number().int().positive(),
+    seriesPrescritas: z.number().int().positive(),
+  })
+  .refine((resumen) => resumen.seriesHechas <= resumen.seriesPrescritas)
 export type ResumenEjecucion = z.infer<typeof ResumenEjecucionSchema>
 
 export const ClienteDelPanelSchema = z.strictObject({
@@ -308,13 +310,18 @@ export const ClienteDelPanelSchema = z.strictObject({
 })
 export type ClienteDelPanel = z.infer<typeof ClienteDelPanelSchema>
 
-export const FilaPanelSchema = z.strictObject({
-  agenda: SesionProgramadaSchema,
-  nombre: NombreSchema,
-  enviadoEn: z.iso.datetime().nullable(),
-  cliente: ClienteDelPanelSchema,
-  ejecucion: ResumenEjecucionSchema.nullable(),
-})
+export const FilaPanelSchema = z
+  .strictObject({
+    agenda: SesionProgramadaSchema,
+    nombre: NombreSchema,
+    enviadoEn: z.iso.datetime().nullable(),
+    cliente: ClienteDelPanelSchema,
+    ejecucion: ResumenEjecucionSchema.nullable(),
+  })
+  .refine(
+    (fila) => (fila.enviadoEn === null) === (fila.ejecucion === null),
+    "El resumen de ejecución solo existe tras el envío",
+  )
 export type FilaPanel = z.infer<typeof FilaPanelSchema>
 
 export const PanelSemanalSchema = z.strictObject({
@@ -384,4 +391,16 @@ export function fechasDelPlan(
 /** Cuántas series prescribe una sesión. */
 export function seriesDe(prescripcion: Pick<Prescripcion, "ejercicios">): number {
   return prescripcion.ejercicios.reduce((total, ejercicio) => total + ejercicio.series.length, 0)
+}
+
+/** GET del borrador propio. Envuelto porque un `null` desnudo viaja como cuerpo vacío. */
+export const RespuestaBorradorSchema = z.strictObject({ borrador: BorradorSchema.nullable() })
+export type RespuestaBorrador = z.infer<typeof RespuestaBorradorSchema>
+
+/** Hechas y prescritas de un resultado ya enviado. */
+export function resumenDeResultado(resultado: ResultadoEntrenamiento): ResumenEjecucion {
+  return {
+    seriesHechas: resultado.series.filter((serie) => serie.hecha).length,
+    seriesPrescritas: resultado.series.length,
+  }
 }

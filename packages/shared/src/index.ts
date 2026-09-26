@@ -3,6 +3,7 @@ import { z } from "zod"
 export * from "./catalogo-ejercicios"
 export * from "./agenda"
 export * from "./entrenamiento"
+export * from "./errores"
 
 /**
  * Vocabulario y contratos compartidos por la app y el servidor.
