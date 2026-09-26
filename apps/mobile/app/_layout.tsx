@@ -10,6 +10,9 @@ import { tema } from "../src/tema"
  *  por definicion, quien activa o rescata su cuenta todavia no tiene ninguna. */
 const RUTAS_PUBLICAS = ["login", "activar", "recuperar", "restablecer"]
 
+/** Sin conexión, un cliente solo llega al inicio y a sus entrenos descargados. */
+const RUTAS_LOCALES = ["entrenos"]
+
 /**
  * Manda al login a quien no tiene sesion y saca del login a quien si la tiene.
  *
@@ -28,10 +31,14 @@ function Enrutador(): React.JSX.Element {
 
     const enRutaPublica = RUTAS_PUBLICAS.includes(segmentos[0] ?? "")
 
+    const enRutaLocal = segmentos[0] === undefined || RUTAS_LOCALES.includes(segmentos[0])
+
     if (estado.fase === "fuera" && !enRutaPublica) {
       router.replace("/login")
     } else if (estado.fase === "dentro" && enRutaPublica) {
       router.replace("/")
+    } else if (estado.fase === "local" && !enRutaLocal) {
+      router.replace("/entrenos")
     }
   }, [estado, segmentos, router])
 

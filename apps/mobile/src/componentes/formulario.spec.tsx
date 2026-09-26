@@ -13,7 +13,7 @@ describe("Componentes de formulario", () => {
   it("el botón ocupado no se puede pulsar otra vez", async () => {
     const pulsar = jest.fn()
     await render(<BotonPrincipal texto="ENVIAR" onPress={pulsar} ocupado />)
-    fireEvent.press(screen.getByRole("button"))
+    await fireEvent.press(screen.getByRole("button"))
     expect(pulsar).not.toHaveBeenCalled()
   })
 })

@@ -4,6 +4,7 @@ import { AppState } from "react-native"
 import type { Credenciales, UsuarioPublico } from "@alpha-omega/shared"
 
 import { borrarDatosDeCuenta } from "./entrenamiento-cliente/almacen-borradores"
+import { cerrarSesionesEnCurso } from "./entrenamiento-cliente/use-sesion-en-curso"
 import { borrarTokenRefresco, guardarTokenRefresco, leerTokenRefresco } from "./lib/almacen-seguro"
 import { ErrorDeSesion, cerrarSesionEnServidor, iniciarSesion as pedirSesion } from "./lib/api"
 import {
@@ -179,6 +180,7 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
   const salir = useCallback(async (): Promise<void> => {
     const usuarioId = estado.fase === "dentro" || estado.fase === "local" ? estado.usuario.id : null
     await olvidarCredenciales()
+    cerrarSesionesEnCurso()
     const guardado = await leerTokenRefresco()
 
     if (guardado !== null) {
