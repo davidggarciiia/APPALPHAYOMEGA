@@ -1,7 +1,13 @@
 # Tareas de Codex — entrenamiento
 
-> Estado: ejecución de Codex autorizada por David el 2026-09-18 («comienza tu parte»).
-> C00 en curso. Ninguna tarea terminada todavía.
+> **Estado a 2026-09-26: implementado en una sola línea de trabajo.** David pidió
+> el recorrido completo sin el reparto Codex/Fable (rama
+> `claude/sleepy-goodall-go7nzc`, integrada en `dev`). El resumen de lo hecho, cómo
+> se ha comprobado y lo que queda pendiente de dispositivo está en
+> [Entrega en una sola línea](#entrega-en-una-sola-línea-2026-09-26), al final.
+> Las casillas de abajo se conservan como referencia del plan original.
+>
+> Estado anterior: ejecución de Codex autorizada por David el 2026-09-18 («comienza tu parte»).
 > [Plan general](plan.md) · [Plan independiente de Fable](plan-fable.md).
 > Los identificadores C pertenecen a Codex; los F están en [todo-fable.md](todo-fable.md).
 > Esta lista no sustituye `tasks/todo.md` de identidad.
@@ -433,5 +439,59 @@ recorrido en Expo Go desde `npm run dev --workspace apps/mobile`.
 
 ## Registro de entregas
 
-No hay commits de implementación ni pruebas ejecutadas para esta iteración.
-Base leída: `055c401`. El plan y los contratos propuestos esperan revisión.
+Base leída: `055c401`. La implementación se hizo en una sola línea de trabajo; ver
+la sección siguiente.
+
+## Entrega en una sola línea (2026-09-26)
+
+David pidió el 2026-09-26 «todo el registro de cargas y los entrenamientos activos,
+conectado a la pantalla del entrenador». Decisiones tomadas con él en esa sesión:
+
+- El entrenador no ve nada del borrador: solo planificación, estado y el resultado
+  tras «Enviar» (lo que dice la spec), con refresco automático cada 5 s.
+- Panel global del entrenador con la semana de todos sus clientes, además de la
+  vista por cliente.
+- Semilla de desarrollo con ~20 ejercicios básicos (`npm run db:seed`, se omite
+  con `NODE_ENV=production`).
+- El entrenador puede anular una sesión, o lo pendiente de un plan, mientras el
+  cliente no la haya empezado ni enviado (amplía la spec; lo empezado nunca se toca).
+- Diseño de Claude Design (`docs/diseno/pantallas`, estilo de Nutrición), con una
+  figura animada de muestra (press de banca) a la espera de visto bueno para el resto.
+
+### Hecho
+
+| Parte             | Qué                                                                                                                                                                         | Dónde                                              |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Contratos         | Fechas de agenda sin zona del móvil, `fechasDelPlan`, panel, planes, anulación, códigos de conflicto                                                                        | `packages/shared/src`                              |
+| BD                | Dos migraciones aditivas: catálogo, agenda, planes, sesiones, referencias, rutinas                                                                                          | `apps/api/prisma/migrations`                       |
+| API catálogo      | Búsqueda, alta, edición, retirar/reponer, nombre normalizado único                                                                                                          | `apps/api/src/catalogo-ejercicios`                 |
+| API agenda        | Mover dentro de la semana original, historial de cambios                                                                                                                    | `apps/api/src/agenda`                              |
+| API entrenamiento | Asignar plan (idempotente), semana, panel, detalle público/privado, borrador con revisiones, envío atómico e idempotente, ajuste, anulación, rutinas                        | `apps/api/src/entrenamiento`                       |
+| Móvil base        | Renovación de sesión única, modo sin conexión para clientes, almacén cifrado de borradores (SQLite + AES-GCM; `localStorage` en web), motor de sincronización local primero | `apps/mobile/src/lib`, `src/entrenamiento-cliente` |
+| Cliente           | Inicio («Hoy toca»), semana con cambiar día, entreno activo serie a serie, envío, resultado                                                                                 | `app/index.tsx`, `app/entrenos`                    |
+| Entrenador        | Panel semanal con sondeo, detalle con resultado, ajustar/anular/cambiar día, planes del cliente, editor de planes, rutinas, catálogo                                        | `app/entrenador`, `app/catalogo`                   |
+
+### Cómo se ha comprobado
+
+- `npm run test`: 78 unitarios de API y contratos; 71+ de la app (valores,
+  sincronización con respuestas perdidas y 409, sondeo con temporizadores falsos,
+  modelo del editor de planes, fila de serie, tarjeta de hoy).
+- `npm run test:e2e --workspace apps/api -- --runInBand` con Postgres real, 264
+  pruebas en 20 suites:
+  identidad más catálogo, agenda (también con `TZ=Europe/Madrid`), asignación,
+  borrador (centinela de privacidad: ni el entrenador ni otro cliente lo reciben),
+  envío, ajustes, rutinas y carreras con `Promise.all`.
+- Recorrido en el navegador (Expo web + API real + Playwright): el cliente
+  registra y envía; con el borrador ya en el servidor el panel del entrenador
+  sigue en «Sin enviar», y tras enviar pasa a «Enviado · 1 de 7 series» en 4,9 s
+  sin recargar. El entrenador crea y asigna un plan de 4 semanas (8 sesiones, con
+  aviso de 2 choques), ajusta una sesión no empezada y guarda una rutina.
+
+### Pendiente de dispositivo real
+
+No se puede comprobar en este contenedor y **no** se da por verificado:
+
+- Cifrado del almacén SQLite nativo y su recuperación tras cerrar la app.
+- Modo sin conexión en Expo Go (abrir sin red, registrar, reconectar y enviar).
+- Rendimiento de la figura animada en un Android lento (build de release).
+- Teclado numérico y lector de pantalla (VoiceOver/TalkBack) en los campos de serie.

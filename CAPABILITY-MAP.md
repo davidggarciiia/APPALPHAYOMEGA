@@ -47,7 +47,8 @@ Secuencia: `identity` → `planes` + `agenda` (horarios y reservas) →
   necesaria desde el primer día. El panel de horarios del entrenador es su cara
   de admin y sale casi gratis.
 - **El panel del entrenador vive en `entrenamiento`.** Lee los mismos registros
-  que escribe el cliente. Separarlo crearía dos modelos del mismo dato.
+  que escribe el cliente. Separarlo crearía dos modelos del mismo dato. Solo ve
+  el resultado después de que el cliente lo envía: el borrador es privado.
 - **`fichajes` no depende de nada salvo el login.** Se puede cortar entero sin
   tocar el resto. Por eso es el último.
 - **El saldo y el dinero viven en `planes`, no en `agenda`.** Tienen reglas propias
@@ -87,14 +88,14 @@ con la ampliación del 2026-09-25.
 
 ## Estado
 
-| Módulo                | Spec                                         | Plan                                 | Implementación                               |
-| --------------------- | -------------------------------------------- | ------------------------------------ | -------------------------------------------- |
-| `identity`            | aprobada                                     | aprobado                             | 17 de 21 tareas. Fases 0, 1, 2 y 4 completas |
-| `planes`              | redactada, en revisión                       | aprobado el 2026-09-25               | Sin empezar. Es lo siguiente                 |
-| `agenda`              | aprobada; ampliación de horarios en revisión | aprobado el 2026-09-25               | Sin empezar. Es lo siguiente                 |
-| `catalogo-ejercicios` | borrador                                     | parcial, en el plan de entrenamiento | Sin empezar                                  |
-| `entrenamiento`       | aprobada                                     | aprobado; en pausa tras horarios     | Contratos Zod en `packages/shared`           |
-| resto                 | —                                            | —                                    | —                                            |
+| Módulo                | Spec                                         | Plan                                 | Implementación                                                                    |
+| --------------------- | -------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
+| `identity`            | aprobada                                     | aprobado                             | 17 de 21 tareas. Fases 0, 1, 2 y 4 completas                                      |
+| `planes`              | redactada, en revisión                       | aprobado el 2026-09-25               | Sin empezar. Es lo siguiente                                                      |
+| `agenda`              | aprobada; ampliación de horarios en revisión | aprobado el 2026-09-25               | Sin empezar. Es lo siguiente                                                      |
+| `catalogo-ejercicios` | borrador                                     | parcial, en el plan de entrenamiento | Catálogo básico hecho; sin mapa Symmetry ni vídeo; una figura animada de muestra  |
+| `entrenamiento`       | aprobada                                     | aprobado                             | Hecho el 2026-09-26 (ver `tasks/entrenamiento/todo.md`); pendiente de dispositivo |
+| resto                 | —                                            | —                                    | —                                                                                 |
 
 ### Detalle de `identity`
 

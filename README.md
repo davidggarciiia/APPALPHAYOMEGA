@@ -8,26 +8,31 @@ Se publicará en App Store y Google Play.
 
 ## Estado
 
-El proyecto está en construcción. De los nueve módulos previstos hay uno
-avanzado, `identity`, que es el que decide quién entra y qué puede tocar cada
-uno. Lo siguiente es horarios y reservas (`planes` y `agenda`).
+El proyecto está en construcción. De los nueve módulos previstos están
+avanzados `identity`, que decide quién entra y qué puede tocar cada uno, y
+`entrenamiento` con su catálogo de ejercicios: el entrenador asigna planes y el
+cliente registra sus series y las envía.
 
-| Módulo                 | Estado                                     |
-| ---------------------- | ------------------------------------------ |
-| `identity`             | 17 de 21 tareas                            |
-| `planes`               | Especificado, en revisión. Es lo siguiente |
-| `agenda`               | Especificado, en revisión. Es lo siguiente |
-| `catalogo-ejercicios`  | Borrador de spec, sin empezar              |
-| `entrenamiento`        | Especificado, contratos escritos; en pausa |
-| `nutricion`            | Sin empezar                                |
-| `seguimiento-corporal` | Sin empezar                                |
-| `leads`                | Sin empezar                                |
-| `fichajes`             | Sin empezar                                |
+| Módulo                 | Estado                                         |
+| ---------------------- | ---------------------------------------------- |
+| `identity`             | 17 de 21 tareas                                |
+| `planes`               | Especificado, en revisión. Es lo siguiente     |
+| `agenda`               | Especificado, en revisión. Es lo siguiente     |
+| `catalogo-ejercicios`  | Catálogo básico hecho; figuras, una de muestra |
+| `entrenamiento`        | Hecho; pendiente de probar en dispositivo      |
+| `nutricion`            | Sin empezar                                    |
+| `seguimiento-corporal` | Sin empezar                                    |
+| `leads`                | Sin empezar                                    |
+| `fichajes`             | Sin empezar                                    |
 
 Pantallas que funcionan hoy: entrar, activar la cuenta desde el correo,
 recuperar la contraseña, perfil propio, la cartera del entrenador con búsqueda y
 filtros, la ficha de cada cliente con alta, edición, baja y reactivación, y el
-reparto de clientes al nutricionista.
+reparto de clientes al nutricionista. Y de entrenamiento: el inicio del cliente
+con lo que toca hoy, su semana, el entreno activo serie a serie (se guarda en el
+móvil al momento y funciona sin conexión) y el envío; para el entrenador, el
+panel de la semana que se actualiza solo, el resultado de cada sesión, el editor
+de planes, las rutinas y el catálogo de ejercicios.
 
 ## Cómo arrancarlo
 
@@ -38,7 +43,7 @@ npm install
 cp .env.example .env        # y rellena los valores
 npm run db:up               # Postgres en Docker
 npm run db:migrate          # aplica las migraciones
-npm run db:seed             # crea la cuenta del entrenador
+npm run db:seed             # crea la cuenta del entrenador y ~20 ejercicios de prueba
 ```
 
 Después, en dos terminales:
@@ -61,7 +66,8 @@ npm test                    # unitarios
 npm run test:e2e            # de extremo a extremo, necesita la base levantada
 ```
 
-Hoy son 247 pruebas. Los tests de extremo a extremo hablan con una base de datos
+`npm test` incluye también los de la app (`apps/mobile`, con Jest y el preset de
+Expo). Los tests de extremo a extremo hablan con una base de datos
 de verdad y nunca salen a la red: el envío de correo se sustituye por un doble en
 memoria.
 
