@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react"
 import { AccessibilityInfo } from "react-native"
+import { useReducedMotion } from "react-native-reanimated"
 
 /**
  * Si la persona ha pedido al sistema que se mueva menos la pantalla.
@@ -14,16 +15,23 @@ import { AccessibilityInfo } from "react-native"
  *
  * Lo consulta cada boton de la app, asi que todos comparten una sola
  * suscripcion al sistema en lugar de abrir una por boton.
+ *
+ * La consulta al sistema es asincrona. Hasta que contesta se usa lo que leyo
+ * Reanimated al arrancar, que no escucha cambios pero esta disponible desde el
+ * primer fotograma: sin eso, la pantalla de carga empezaria la animacion
+ * completa y la cambiaria a mitad al llegar la respuesta.
  */
 export function useMovimientoReducido(): boolean {
-  return useSyncExternalStore(suscribirse, leer)
+  const alArrancar = useReducedMotion()
+  return useSyncExternalStore(suscribirse, leer) ?? alArrancar
 }
 
-let reducido = false
+/** Null hasta que el sistema contesta. */
+let reducido: boolean | null = null
 const avisos = new Set<() => void>()
 let dejarDeEscuchar: (() => void) | null = null
 
-function leer(): boolean {
+function leer(): boolean | null {
   return reducido
 }
 

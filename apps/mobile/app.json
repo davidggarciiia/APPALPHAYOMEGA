@@ -7,7 +7,19 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "plugins": ["expo-router", "expo-secure-store", "expo-sqlite"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A0A0A",
+          "image": "./assets/splash/vacio.png",
+          "imageWidth": 48
+        }
+      ]
+    ],
     "ios": {
       "bundleIdentifier": "com.alphaomegatraining.app",
       "supportsTablet": false
