@@ -1,0 +1,378 @@
+/*
+ * Base de todas las piezas de redes: colores, letras y movimientos.
+ *
+ * Los colores son los de la app (apps/mobile/src/tema.ts). El oro metalico es
+ * el del logo animado de la pantalla de carga, y las curvas de movimiento
+ * tambien. Nada de esto se inventa para redes: la marca ya existe.
+ */
+
+@font-face {
+  font-family: "Anton";
+  src: url("tipos/anton.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Archivo";
+  src: url("tipos/archivo.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: block;
+}
+@font-face {
+  font-family: "Cinzel";
+  src: url("tipos/cinzel.woff2") format("woff2");
+  font-weight: 400 900;
+  font-display: block;
+}
+
+:root {
+  --fondo: #0a0a0a;
+  --superficie: #141414;
+  --borde: #2a2413;
+  --oro: #c9a227;
+  --oro-suave: #e0c158;
+  --texto: #f5f5f0;
+  --texto-tenue: #8a8a85;
+  --luz: #fff6d6;
+
+  /* Bandas de luz y sombra en diagonal, como en el logo. */
+  --oro-metal: linear-gradient(
+    135deg,
+    #f6e4a0 0%,
+    #cfa136 20%,
+    #f1d57e 38%,
+    #b98b26 55%,
+    #e6c463 72%,
+    #a47b1d 88%,
+    #d4ae52 100%
+  );
+
+  /* Salida fuerte: para lo que aparece y lo que se va. */
+  --salida: cubic-bezier(0.23, 1, 0.32, 1);
+  /* Entrada y salida fuertes: para lo que se dibuja y lo que cruza. */
+  --dentro-y-fuera: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Letras. Anton para gritar, Cinzel para firmar, Archivo para leer. */
+  --titular: "Anton", "Archivo", sans-serif;
+  --firma: "Cinzel", serif;
+  --texto-base: "Archivo", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: #000;
+}
+
+/* El lienzo mide lo que mide la pieza: 1080 de ancho, y el alto del formato. */
+.lienzo {
+  position: relative;
+  width: var(--ancho, 1080px);
+  height: var(--alto, 1920px);
+  overflow: hidden;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--texto-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Resplandor calido detras de lo importante, como en las pantallas de la app. */
+.resplandor {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    var(--resplandor-tamano, 900px 900px) at var(--resplandor-x, 50%) var(--resplandor-y, 42%),
+    rgba(58, 42, 12, 0.95) 0%,
+    rgba(42, 36, 19, 0.45) 38%,
+    rgba(10, 10, 10, 0) 70%
+  );
+  pointer-events: none;
+}
+
+/*
+ * Grano fino. Da textura de papel y, sobre todo, evita que los degradados
+ * oscuros salgan a escalones cuando Instagram o TikTok recomprimen el video.
+ */
+.grano {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.09;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.6 -0.3'/></filter><rect width='320' height='320' filter='url(%23g)'/></svg>");
+  z-index: 50;
+}
+
+/* Viñeta: oscurece los bordes para que la vista vaya al centro. */
+.vineta {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.55) 100%);
+  z-index: 40;
+}
+
+/* ---------- Texto ---------- */
+
+.titular {
+  font-family: var(--titular);
+  font-weight: 400;
+  text-transform: uppercase;
+  line-height: 0.95;
+  letter-spacing: 0.005em;
+  margin: 0;
+}
+
+.firma {
+  font-family: var(--firma);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  margin: 0;
+}
+
+.etiqueta {
+  font-family: var(--texto-base);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  margin: 0;
+}
+
+/*
+ * Oro metalico sobre texto, con una banda de luz que lo cruza cuando se anima
+ * --p de 1 a 0 (animacion `barrer`). Las letras sueltas de AO.letras pintan
+ * cada una su trozo, y AO.preparar les dice donde estan para que el oro y la
+ * luz sigan de una letra a otra.
+ */
+@property --p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+.metal {
+  --banda-ancho: calc(var(--caja-ancho, 100px) * 3.2);
+  background-image:
+    linear-gradient(
+      115deg,
+      rgba(255, 246, 214, 0) 45%,
+      rgba(255, 246, 214, 0.95) 50%,
+      rgba(255, 246, 214, 0) 55%
+    ),
+    var(--oro-metal);
+  background-size:
+    var(--banda-ancho) var(--caja-alto, 100%),
+    var(--caja-ancho, 100%) var(--caja-alto, 100%);
+  background-position:
+    calc(var(--metal-x, 0px) + (var(--caja-ancho, 100px) - var(--banda-ancho)) * var(--p))
+      var(--metal-y, 0px),
+    var(--metal-x, 0px) var(--metal-y, 0px);
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.metal-padre {
+  position: relative;
+}
+
+/* Hasta que las letras cargan y todo esta colocado, nada se mueve. */
+html:not(.en-marcha) *,
+html:not(.en-marcha) *::before,
+html:not(.en-marcha) *::after {
+  animation-play-state: paused !important;
+}
+
+.letra {
+  display: inline-block;
+  white-space: pre;
+}
+.palabra {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/*
+ * El tajo: el rayo del logo cruza la pantalla y deja detras la escena nueva.
+ * Va inclinado como el rayo, unos 19 grados. La escena que entra lleva
+ * `entra-tras-tajo` y la que se va `sale-tras-tajo`, con el mismo retraso que
+ * el tajo; asi el borde entre las dos es siempre la linea de luz.
+ * Medidas para 1920 de alto: el rayo se desplaza 330 px arriba y abajo.
+ */
+.tajo {
+  position: absolute;
+  left: 0;
+  top: -140px;
+  width: 16px;
+  height: 2200px;
+  margin-left: -8px;
+  transform: translateX(-400px) rotate(19deg);
+  /* El resplandor va fuera y la forma dentro: clip-path recortaria la sombra. */
+  filter: drop-shadow(0 0 14px rgba(255, 214, 110, 0.95))
+    drop-shadow(0 0 40px rgba(201, 162, 39, 0.7));
+  z-index: 30;
+  pointer-events: none;
+}
+.tajo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 246, 214, 0) 0%,
+    #fff6d6 28%,
+    #f1d57e 50%,
+    #fff6d6 72%,
+    rgba(255, 246, 214, 0) 100%
+  );
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+@keyframes tajo {
+  from {
+    transform: translateX(-400px) rotate(19deg);
+  }
+  to {
+    transform: translateX(1480px) rotate(19deg);
+  }
+}
+@keyframes entra-tras-tajo {
+  from {
+    clip-path: polygon(0 0, -70px 0, -730px 1920px, 0 1920px);
+  }
+  to {
+    clip-path: polygon(0 0, 1810px 0, 1150px 1920px, 0 1920px);
+  }
+}
+@keyframes sale-tras-tajo {
+  from {
+    clip-path: polygon(-70px 0, 1900px 0, 1900px 1920px, -730px 1920px);
+  }
+  to {
+    clip-path: polygon(1810px 0, 1900px 0, 1900px 1920px, 1150px 1920px);
+  }
+}
+
+/* ---------- Movimientos ---------- */
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes desaparecer {
+  to {
+    opacity: 0;
+  }
+}
+/* Sube un poco mientras aparece. */
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(var(--desde-y, 40px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Sale hacia arriba. */
+@keyframes irse-arriba {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--desde-y, 40px) * -1));
+  }
+}
+/* Asoma desde detras de una mascara: el padre lleva overflow hidden. */
+@keyframes asomar {
+  from {
+    transform: translateY(105%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes esconderse {
+  to {
+    transform: translateY(-105%);
+  }
+}
+/* Crece desde un poco mas pequeno. */
+@keyframes crecer {
+  from {
+    opacity: 0;
+    transform: scale(var(--desde-escala, 0.94));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Un trazo SVG se dibuja: el elemento lleva --desde con su largo. */
+@keyframes dibujar {
+  from {
+    stroke-dashoffset: var(--desde);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* Una linea crece desde su centro. */
+@keyframes abrir {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+/* La luz cruza un texto metalico de izquierda a derecha. */
+@keyframes barrer {
+  from {
+    --p: 1;
+  }
+  to {
+    --p: 0;
+  }
+}
+/* La banda de luz cruza el logo en diagonal. */
+@keyframes cruzar {
+  from {
+    transform: translateX(-1700px);
+  }
+  to {
+    transform: translateX(1150px);
+  }
+}
+/* El destello recorre el aro. */
+@keyframes recorrer {
+  from {
+    stroke-dashoffset: var(--desde);
+  }
+  to {
+    stroke-dashoffset: var(--hasta);
+  }
+}
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes latir {
+  0%,
+  100% {
+    opacity: var(--latido-min, 0.7);
+  }
+  50% {
+    opacity: 1;
+  }
+}

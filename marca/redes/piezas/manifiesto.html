@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Manifiesto: del alfa al omega</title>
+    <link rel="stylesheet" href="../comun/marca.css" />
+    <style>
+      /*
+       * Lo que significa el nombre, en cuatro golpes, para TikTok y Reels:
+       *
+       * ALFA, el dia que empiezas. OMEGA, la version que construyes. Todo lo
+       * que hay en medio, lo entrenamos juntos. Y el logo.
+       *
+       * Entre escena y escena el rayo del logo cruza la pantalla. El aro que
+       * empieza a trazarse con ALFA se cierra con OMEGA.
+       *
+       * Lo importante queda entre y = 285 y y = 1440: cabe en el recorte 4:5 del
+       * feed de Instagram y no lo tapan los botones de TikTok.
+       */
+      .escena {
+        position: absolute;
+        inset: 0;
+        background: var(--fondo);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding-bottom: 200px;
+      }
+      .escena + .escena {
+        animation: entra-tras-tajo 700ms var(--dentro-y-fuera) var(--corte) both;
+      }
+      .escena-2 {
+        --corte: 3300ms;
+      }
+      .escena-3 {
+        --corte: 6800ms;
+      }
+      .escena-4 {
+        --corte: 10000ms;
+      }
+      .tajo-2 {
+        animation: tajo 700ms var(--dentro-y-fuera) 3300ms both;
+      }
+      .tajo-3 {
+        animation: tajo 700ms var(--dentro-y-fuera) 6800ms both;
+      }
+      .tajo-4 {
+        animation: tajo 700ms var(--dentro-y-fuera) 10000ms both;
+      }
+
+      /* Lo de dentro se acerca despacio mientras la escena esta quieta. */
+      .contenido {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        animation: acercar 4200ms linear var(--acercar-en, 0ms) both;
+      }
+      @keyframes acercar {
+        from {
+          transform: scale(1);
+        }
+        to {
+          transform: scale(1.045);
+        }
+      }
+
+      .aro {
+        position: absolute;
+        width: 1040px;
+        height: 1040px;
+        left: 50%;
+        /* El centro del texto: la escena lo sube 100 px con su padding. */
+        top: 860px;
+        margin: -520px 0 0 -520px;
+        overflow: visible;
+      }
+
+      .enorme {
+        font-size: 290px;
+        line-height: 1.02;
+        padding: 0.04em 0.06em 0;
+        overflow: hidden;
+      }
+      .debajo {
+        margin: 36px 0 0;
+        font-size: 56px;
+        font-weight: 500;
+        color: var(--texto);
+        letter-spacing: -0.01em;
+      }
+
+      .escena-3 .contenido {
+        gap: 0;
+      }
+      .previa {
+        margin: 0 0 34px;
+        font-size: 58px;
+        font-weight: 500;
+        color: var(--texto-tenue);
+        letter-spacing: -0.01em;
+      }
+      .mascara {
+        overflow: hidden;
+        padding: 0.04em 0.06em 0;
+      }
+      .medio {
+        font-size: 150px;
+        line-height: 1.02;
+        color: var(--texto);
+      }
+      .juntos {
+        font-size: 270px;
+        line-height: 1.02;
+      }
+
+      .escena-4 {
+        --resplandor-y: 700px;
+        padding-bottom: 260px;
+      }
+      .marco-logo {
+        position: relative;
+        width: 600px;
+        height: 600px;
+      }
+      .marco-logo svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        overflow: visible;
+      }
+      .nombre {
+        margin-top: 64px;
+        font-size: 60px;
+        letter-spacing: 0.3em;
+        margin-right: -0.3em;
+        white-space: nowrap;
+      }
+      .lema {
+        margin-top: 30px;
+        font-size: 32px;
+        margin-right: -0.28em;
+        --desde-y: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lienzo">
+      <section class="escena escena-1">
+        <div class="resplandor" style="--resplandor-y: 42%"></div>
+        <svg class="aro" viewBox="-520 -520 1040 1040" aria-hidden="true">
+          <path
+            id="aro-1"
+            d="M0 -480A480 480 0 1 1 0 480A480 480 0 1 1 0 -480Z"
+            fill="none"
+            stroke="url(#oro-aro)"
+            stroke-width="4"
+            style="
+              stroke-dasharray: 3016 3016;
+              --desde: 3016px;
+              animation: empezar-aro 1600ms var(--dentro-y-fuera) 250ms both;
+            "
+          />
+          <defs>
+            <linearGradient
+              id="oro-aro"
+              gradientUnits="userSpaceOnUse"
+              x1="-520"
+              y1="-520"
+              x2="520"
+              y2="520"
+            >
+              <stop offset="0" stop-color="#f6e4a0" />
+              <stop offset="0.2" stop-color="#cfa136" />
+              <stop offset="0.38" stop-color="#f1d57e" />
+              <stop offset="0.55" stop-color="#b98b26" />
+              <stop offset="0.72" stop-color="#e6c463" />
+              <stop offset="0.88" stop-color="#a47b1d" />
+              <stop offset="1" stop-color="#d4ae52" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="contenido">
+          <h1 class="titular enorme metal" id="alfa">Alfa</h1>
+          <p class="debajo" style="animation: subir 800ms var(--salida) 1250ms both">
+            El día que empiezas.
+          </p>
+        </div>
+      </section>
+
+      <section class="escena escena-2">
+        <div class="resplandor" style="--resplandor-y: 42%; --resplandor-x: 50%"></div>
+        <svg class="aro" viewBox="-520 -520 1040 1040" aria-hidden="true">
+          <path
+            d="M0 -480A480 480 0 1 1 0 480A480 480 0 1 1 0 -480Z"
+            fill="none"
+            stroke="url(#oro-aro)"
+            stroke-width="4"
+            style="
+              stroke-dasharray: 3016 3016;
+              --desde: 2011px;
+              animation: dibujar 1700ms var(--dentro-y-fuera) 3800ms both;
+            "
+          />
+          <path
+            d="M0 -480A480 480 0 1 1 0 480A480 480 0 1 1 0 -480Z"
+            fill="none"
+            stroke="#fff4cf"
+            stroke-width="6"
+            style="
+              stroke-dasharray: 150 2866;
+              --desde: 0px;
+              --hasta: -3016px;
+              opacity: 0;
+              animation:
+                aparecer 200ms var(--salida) 5500ms both,
+                recorrer 2600ms linear 5500ms infinite;
+              filter: drop-shadow(0 0 8px rgba(255, 230, 160, 0.9));
+            "
+          />
+        </svg>
+        <div class="contenido" style="--acercar-en: 3700ms">
+          <h1 class="titular enorme metal" id="omega">Omega</h1>
+          <p class="debajo" style="animation: subir 800ms var(--salida) 4650ms both">
+            La versión que construyes.
+          </p>
+        </div>
+      </section>
+
+      <section class="escena escena-3">
+        <div class="resplandor" style="--resplandor-y: 50%"></div>
+        <div class="contenido" style="--acercar-en: 7200ms">
+          <p class="previa" style="animation: subir 800ms var(--salida) 7250ms both">
+            Todo lo que hay en medio,
+          </p>
+          <div class="mascara">
+            <p class="titular medio" style="animation: asomar 900ms var(--salida) 7550ms both">
+              Lo entrenamos
+            </p>
+          </div>
+          <h1 class="titular juntos metal" id="juntos">Juntos.</h1>
+        </div>
+      </section>
+
+      <section class="escena escena-4">
+        <div class="resplandor"></div>
+        <div class="contenido" style="--acercar-en: 10300ms">
+          <div class="marco-logo"></div>
+          <p class="firma nombre metal" id="nombre">Alpha &amp; Omega</p>
+          <p class="etiqueta lema" style="animation: subir 800ms var(--salida) 12300ms both">
+            Entrenamiento personal · Barcelona
+          </p>
+        </div>
+      </section>
+
+      <div class="tajo tajo-2"></div>
+      <div class="tajo tajo-3"></div>
+      <div class="tajo tajo-4"></div>
+      <div class="vineta"></div>
+      <div class="grano"></div>
+    </div>
+
+    <style>
+      /* El aro de ALFA solo empieza: se queda en un tercio. */
+      @keyframes empezar-aro {
+        from {
+          stroke-dashoffset: 3016px;
+        }
+        to {
+          stroke-dashoffset: 2011px;
+        }
+      }
+    </style>
+
+    <script src="../comun/trazos.js"></script>
+    <script src="../comun/marca.js"></script>
+    <script>
+      const $ = (selector) => document.querySelector(selector)
+
+      AO.letras($("#alfa"), { animacion: "asomar", inicio: 300, paso: 80, duracion: 950 })
+      $("#alfa").style.animation = "barrer 1200ms var(--dentro-y-fuera) 1500ms both"
+
+      AO.letras($("#omega"), { animacion: "asomar", inicio: 3750, paso: 80, duracion: 950 })
+      $("#omega").style.animation = "barrer 1200ms var(--dentro-y-fuera) 5000ms both"
+
+      AO.letras($("#juntos"), { animacion: "asomar", inicio: 7900, paso: 70, duracion: 900 })
+      $("#juntos").style.cssText =
+        "overflow:hidden;padding:0.04em 0.06em 0;animation:barrer 1200ms var(--dentro-y-fuera) 8700ms both"
+
+      $(".marco-logo").appendChild(
+        AO.logo({
+          inicio: 10350,
+          escala: 1.35,
+          destello: { inicio: 12400, periodo: 2600 },
+        }),
+      )
+      AO.letras($("#nombre"), { animacion: "subir", inicio: 11700, paso: 40, duracion: 700 })
+      $("#nombre").style.animation = "barrer 1100ms var(--dentro-y-fuera) 12500ms both"
+
+      AO.preparar({ duracion: 14000 })
+    </script>
+  </body>
+</html>

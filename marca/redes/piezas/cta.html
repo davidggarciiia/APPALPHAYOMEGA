@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cierre: ¿empezamos?</title>
+    <link rel="stylesheet" href="../comun/marca.css" />
+    <style>
+      /*
+       * Cierre para pegar al final de cualquier TikTok o Reel: el rayo abre la
+       * pantalla, se construye el logo y pide el siguiente paso.
+       *
+       * Todo queda entre y = 285 y y = 1440, fuera de lo que tapan los botones
+       * de TikTok y dentro del recorte 4:5 del feed de Instagram.
+       */
+      .escena {
+        position: absolute;
+        inset: 0;
+        background: var(--fondo);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 330px;
+        animation: entra-tras-tajo 700ms var(--dentro-y-fuera) 0ms both;
+        --resplandor-y: 470px;
+        --resplandor-tamano: 800px 800px;
+      }
+      .tajo {
+        animation: tajo 700ms var(--dentro-y-fuera) 0ms both;
+      }
+      .marco-logo {
+        position: relative;
+        width: 330px;
+        height: 330px;
+      }
+      .marco-logo svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+        overflow: visible;
+      }
+      .pregunta {
+        margin-top: 90px;
+        font-size: 150px;
+        line-height: 1.05;
+        padding: 0.04em 0.06em 0;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+      .sub {
+        margin: 20px 0 0;
+        font-size: 52px;
+        font-weight: 500;
+        color: var(--texto);
+        --desde-y: 24px;
+      }
+      .boton {
+        position: relative;
+        margin-top: 70px;
+        width: 660px;
+        height: 124px;
+        display: grid;
+        place-items: center;
+      }
+      .boton svg {
+        position: absolute;
+        inset: 0;
+        overflow: visible;
+      }
+      .boton span {
+        font-size: 34px;
+        color: var(--oro-suave);
+        margin-right: -0.28em;
+        --desde-y: 12px;
+      }
+      .lugar {
+        margin-top: 44px;
+        font-size: 26px;
+        color: var(--texto-tenue);
+        margin-right: -0.34em;
+        letter-spacing: 0.34em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lienzo">
+      <section class="escena">
+        <div class="resplandor" style="animation: aparecer 1200ms var(--salida) 300ms both"></div>
+        <div class="marco-logo"></div>
+        <h1 class="titular pregunta metal" id="pregunta">¿Empezamos?</h1>
+        <p class="sub" style="animation: subir 800ms var(--salida) 1750ms both">
+          Reserva tu primera sesión.
+        </p>
+        <div class="boton">
+          <svg viewBox="0 0 660 124" aria-hidden="true">
+            <defs>
+              <linearGradient
+                id="oro-boton"
+                gradientUnits="userSpaceOnUse"
+                x1="0"
+                y1="0"
+                x2="660"
+                y2="124"
+              >
+                <stop offset="0" stop-color="#f6e4a0" />
+                <stop offset="0.3" stop-color="#cfa136" />
+                <stop offset="0.5" stop-color="#f1d57e" />
+                <stop offset="0.75" stop-color="#b98b26" />
+                <stop offset="1" stop-color="#e6c463" />
+              </linearGradient>
+            </defs>
+            <rect
+              x="2"
+              y="2"
+              width="656"
+              height="120"
+              rx="60"
+              fill="rgba(201, 162, 39, 0.08)"
+              style="animation: aparecer 600ms var(--salida) 2700ms both"
+            />
+            <!-- Perimetro: 2 x (656 - 120) + pi x 120 = 1449 -->
+            <rect
+              x="2"
+              y="2"
+              width="656"
+              height="120"
+              rx="60"
+              fill="none"
+              stroke="url(#oro-boton)"
+              stroke-width="4"
+              style="
+                stroke-dasharray: 1449 1449;
+                --desde: 1449px;
+                animation: dibujar 1000ms var(--dentro-y-fuera) 2100ms both;
+              "
+            />
+            <rect
+              x="2"
+              y="2"
+              width="656"
+              height="120"
+              rx="60"
+              fill="none"
+              stroke="#fff4cf"
+              stroke-width="5"
+              style="
+                stroke-dasharray: 90 1359;
+                --desde: 0px;
+                --hasta: -1449px;
+                opacity: 0;
+                filter: drop-shadow(0 0 6px rgba(255, 230, 160, 0.9));
+                animation:
+                  aparecer 200ms var(--salida) 3200ms both,
+                  recorrer 2400ms linear 3200ms infinite;
+              "
+            />
+          </svg>
+          <span class="etiqueta" style="animation: subir 700ms var(--salida) 2650ms both">
+            Enlace en la bio →
+          </span>
+        </div>
+        <p class="etiqueta lugar" style="animation: aparecer 900ms var(--salida) 3100ms both">
+          Sant Martí · Barcelona
+        </p>
+      </section>
+      <div class="tajo"></div>
+      <div class="vineta"></div>
+      <div class="grano"></div>
+    </div>
+
+    <script src="../comun/trazos.js"></script>
+    <script src="../comun/marca.js"></script>
+    <script>
+      const $ = (selector) => document.querySelector(selector)
+
+      $(".marco-logo").appendChild(
+        AO.logo({ inicio: 450, escala: 1.1, destello: { inicio: 2400, periodo: 2400 } }),
+      )
+      AO.letras($("#pregunta"), { animacion: "asomar", inicio: 1150, paso: 45, duracion: 800 })
+      $("#pregunta").style.animation = "barrer 1200ms var(--dentro-y-fuera) 2000ms both"
+
+      AO.preparar({ duracion: 6500 })
+    </script>
+  </body>
+</html>

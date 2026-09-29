@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Intro con el logo</title>
+    <link rel="stylesheet" href="../comun/marca.css" />
+    <style>
+      /*
+       * El logo se construye como en la pantalla de carga de la app, algo mas
+       * despacio para que en video se lea, y debajo firma la marca.
+       *
+       * 9x16: TikTok y Reels. Todo queda entre los 150 px de arriba y los 480 de
+       * abajo, que es lo que tapan los botones y el texto de cada red.
+       * 4x5: publicacion del feed de Instagram.
+       */
+      .lienzo {
+        --alto: 1920px;
+        --resplandor-y: 780px;
+      }
+      .formato-4x5 .lienzo {
+        --alto: 1350px;
+        --resplandor-y: 470px;
+      }
+
+      .resplandor {
+        animation: aparecer 1400ms var(--salida) 0ms both;
+      }
+
+      .escena {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        animation: acercar 5600ms linear 0ms both;
+      }
+      @keyframes acercar {
+        from {
+          transform: scale(0.965);
+        }
+        to {
+          transform: none;
+        }
+      }
+
+      .marco-logo {
+        position: relative;
+        margin-top: 420px;
+        width: 720px;
+        height: 720px;
+      }
+      .formato-4x5 .marco-logo {
+        margin-top: 150px;
+        width: 620px;
+        height: 620px;
+      }
+      .marco-logo svg {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: block;
+        overflow: visible;
+      }
+      /* Luz calida que se enciende cuando el emblema se llena de oro. */
+      .halo {
+        position: absolute;
+        inset: -18%;
+        background: radial-gradient(
+          closest-side,
+          rgba(224, 193, 88, 0.2),
+          rgba(201, 162, 39, 0.08) 55%,
+          rgba(201, 162, 39, 0) 100%
+        );
+        animation:
+          aparecer 900ms var(--salida) 1300ms both,
+          latir 2600ms ease-in-out 2200ms infinite;
+        --latido-min: 0.65;
+      }
+
+      .nombre {
+        margin-top: 70px;
+        font-size: 66px;
+        letter-spacing: 0.3em;
+        margin-right: -0.3em;
+        white-space: nowrap;
+        animation: barrer 1100ms var(--dentro-y-fuera) 3050ms both;
+      }
+      .formato-4x5 .nombre {
+        margin-top: 64px;
+        font-size: 60px;
+      }
+
+      .raya {
+        margin-top: 34px;
+        width: 300px;
+        height: 2px;
+        background: linear-gradient(
+          90deg,
+          rgba(201, 162, 39, 0),
+          var(--oro-suave) 50%,
+          rgba(201, 162, 39, 0)
+        );
+        animation: abrir 800ms var(--dentro-y-fuera) 2700ms both;
+      }
+
+      .lema {
+        margin-top: 34px;
+        font-size: 34px;
+        color: var(--texto);
+        text-align: center;
+        line-height: 1.6;
+        margin-right: -0.28em;
+        --desde-y: 18px;
+        animation: subir 800ms var(--salida) 2950ms both;
+      }
+      .lugar {
+        margin-top: 6px;
+        font-size: 28px;
+        letter-spacing: 0.34em;
+        margin-right: -0.34em;
+        color: var(--texto-tenue);
+        --desde-y: 18px;
+        animation: subir 800ms var(--salida) 3150ms both;
+      }
+      .formato-4x5 .lema {
+        margin-top: 28px;
+        font-size: 31px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="lienzo">
+      <div class="resplandor"></div>
+      <div class="escena">
+        <div class="marco-logo"><div class="halo"></div></div>
+        <p class="firma nombre metal">Alpha &amp; Omega</p>
+        <div class="raya"></div>
+        <p class="etiqueta lema">Entrenamiento personal</p>
+        <p class="etiqueta lugar">Sant Martí · Barcelona</p>
+      </div>
+      <div class="vineta"></div>
+      <div class="grano"></div>
+    </div>
+
+    <script src="../comun/trazos.js"></script>
+    <script src="../comun/marca.js"></script>
+    <script>
+      document.querySelector(".marco-logo").appendChild(
+        AO.logo({
+          inicio: 250,
+          escala: 1.7,
+          destello: { inicio: 3000, periodo: 2600 },
+        }),
+      )
+      AO.letras(document.querySelector(".nombre"), {
+        animacion: "subir",
+        inicio: 2150,
+        paso: 45,
+        duracion: 700,
+      })
+      AO.preparar({ duracion: 5600 })
+    </script>
+  </body>
+</html>
