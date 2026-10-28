@@ -2,12 +2,13 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { Pressable, StyleSheet, Text } from "react-native"
+import { StyleSheet, Text } from "react-native"
 import { z } from "zod"
 import { ContrasenaNuevaSchema } from "@alpha-omega/shared"
 
 import {
   AvisoDeError,
+  BotonEnlace,
   BotonPrincipal,
   Campo,
   PantallaDeFormulario,
@@ -143,15 +144,7 @@ export default function Restablecer(): React.JSX.Element {
 
       <BotonPrincipal texto="CAMBIAR MI CONTRASEÑA" onPress={enviarUnaVez} ocupado={isSubmitting} />
 
-      <Pressable
-        style={estilos.volver}
-        onPress={() => {
-          router.replace("/login")
-        }}
-        accessibilityRole="button"
-      >
-        <Text style={estilos.textoVolver}>VOLVER A ENTRAR</Text>
-      </Pressable>
+      <BotonEnlace texto="VOLVER A ENTRAR" onPress={() => router.replace("/login")} />
     </PantallaDeFormulario>
   )
 }
@@ -164,12 +157,5 @@ const estilos = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     lineHeight: 17,
-  },
-  volver: { alignItems: "center", marginTop: 16, paddingVertical: 12 },
-  textoVolver: {
-    fontFamily: tema.fuenteTexto,
-    color: tema.acentoClaro,
-    fontSize: 12,
-    letterSpacing: 2,
   },
 })

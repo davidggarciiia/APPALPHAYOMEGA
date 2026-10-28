@@ -17,6 +17,7 @@ import { HoyNutricion } from "./hoy-nutricion"
 import type { AlmacenLocal } from "../entrenamiento/almacen-local"
 import { hoyAgenda } from "../entrenamiento/fechas"
 import { ErrorDeRed } from "../lib/http"
+import { EstadoVacio } from "../componentes/estado-vacio"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { degradadoOro, tema } from "../tema"
 import type { ApiNutricion } from "./api"
@@ -257,9 +258,11 @@ export function VistaDieta({
         </View>
       )}
       {dieta === null ? (
-        <Text style={s.vacio}>
-          Tu dieta aún no está publicada. Cuando tu profesional la publique aparecerá aquí.
-        </Text>
+        <EstadoVacio
+          icono="nutricion"
+          titulo="Aún sin dieta"
+          texto="Tu dieta aún no está publicada. Cuando tu profesional la publique aparecerá aquí."
+        />
       ) : semana ? (
         <>
           <Enlace texto="‹ Volver a hoy" onPress={() => setSemana(false)} />
@@ -332,13 +335,6 @@ const s = StyleSheet.create({
   titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
   nombre: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  vacio: {
-    color: tema.textoTenue,
-    fontFamily: tema.fuenteTexto,
-    fontSize: 15,
-    textAlign: "center",
-    padding: 24,
-  },
   sinRed: { backgroundColor: tema.acentoSuave, borderRadius: 14, padding: 12 },
   textoSinRed: { color: tema.aviso, fontFamily: tema.fuenteBoton, fontSize: 14 },
   pautas: { gap: 12 },

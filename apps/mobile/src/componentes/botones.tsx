@@ -264,6 +264,8 @@ type PropiedadesBoton = {
   ocupado?: boolean
   etiquetaAccesible?: string
   deshabilitado?: boolean
+  /** Sin el margen superior propio: para varios botones en fila, que si no se desalinean. */
+  sinMargen?: boolean
 }
 
 export function BotonPrincipal(props: PropiedadesBoton): React.JSX.Element {
@@ -300,6 +302,7 @@ function Boton({
   onPress,
   ocupado = false,
   deshabilitado = false,
+  sinMargen = false,
   mantenerParaConfirmar = false,
 }: PropiedadesBoton & { variante: Variante; mantenerParaConfirmar?: boolean }): React.JSX.Element {
   const v = VARIANTES[variante]
@@ -366,7 +369,11 @@ function Boton({
 
   return (
     <Pressable
-      style={[v.raiz, Platform.OS === "web" && estilos.sinContornoWeb]}
+      style={[
+        v.raiz,
+        sinMargen && estilos.sinMargen,
+        Platform.OS === "web" && estilos.sinContornoWeb,
+      ]}
       onPress={mantenerParaConfirmar ? undefined : onPress}
       onLongPress={
         mantenerParaConfirmar
@@ -596,6 +603,7 @@ const estilos = StyleSheet.create({
   },
   punto: { width: 8, height: 8, transform: [{ skewX: "-20deg" }] },
   sinContornoWeb: { outlineColor: "transparent" },
+  sinMargen: { marginTop: 0 },
   enlace: {
     alignSelf: "center",
     marginTop: 8,

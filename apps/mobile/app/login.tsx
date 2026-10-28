@@ -2,11 +2,11 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { Pressable, StyleSheet, Text } from "react-native"
 import { CredencialesSchema, type Credenciales } from "@alpha-omega/shared"
 
 import {
   AvisoDeError,
+  BotonEnlace,
   BotonPrincipal,
   Campo,
   PantallaDeFormulario,
@@ -14,7 +14,6 @@ import {
 import { ErrorDeRed, ErrorDeSesion } from "../src/lib/api"
 import { useEnvioUnico } from "../src/lib/envio-unico"
 import { useSesion } from "../src/sesion"
-import { tema } from "../src/tema"
 
 export default function Login(): React.JSX.Element {
   const { entrar, sesionCaducada } = useSesion()
@@ -95,25 +94,7 @@ export default function Login(): React.JSX.Element {
 
       <BotonPrincipal texto="ENTRAR" onPress={enviarUnaVez} ocupado={isSubmitting} />
 
-      <Pressable
-        style={estilos.olvidada}
-        onPress={() => {
-          router.push("/recuperar")
-        }}
-        accessibilityRole="button"
-      >
-        <Text style={estilos.textoOlvidada}>HE OLVIDADO MI CONTRASEÑA</Text>
-      </Pressable>
+      <BotonEnlace texto="HE OLVIDADO MI CONTRASEÑA" onPress={() => router.push("/recuperar")} />
     </PantallaDeFormulario>
   )
 }
-
-const estilos = StyleSheet.create({
-  olvidada: { alignItems: "center", marginTop: 16, paddingVertical: 12 },
-  textoOlvidada: {
-    fontFamily: tema.fuenteTexto,
-    color: tema.acentoClaro,
-    fontSize: 12,
-    letterSpacing: 2,
-  },
-})

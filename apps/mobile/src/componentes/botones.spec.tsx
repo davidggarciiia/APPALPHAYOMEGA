@@ -67,6 +67,19 @@ describe.each<[string, typeof BotonPrincipal]>([
     expect(screen.getByText("Sí")).toBeOnTheScreen()
   })
 
+  it("sinMargen quita el margen superior propio, para alinear varios botones en una fila", async () => {
+    const margen = (boton: ReturnType<typeof screen.getByRole>): unknown =>
+      (StyleSheet.flatten(boton.props.style as object) as { marginTop?: number }).marginTop
+    await render(
+      <>
+        <Boton texto="Con margen" onPress={jest.fn()} />
+        <Boton texto="Sin margen" onPress={jest.fn()} sinMargen />
+      </>,
+    )
+    expect(margen(screen.getByRole("button", { name: "Con margen" }))).toBeGreaterThan(0)
+    expect(margen(screen.getByRole("button", { name: "Sin margen" }))).toBe(0)
+  })
+
   it("ocupado: conserva el nombre, anuncia la carga y no admite otra pulsación", async () => {
     const guardar = jest.fn()
     await render(<Boton texto="Guardar" onPress={guardar} ocupado />)

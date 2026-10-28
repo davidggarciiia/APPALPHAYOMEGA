@@ -582,14 +582,7 @@ export function ConstructorPlan({
           conservan todas sus sesiones y series.
         </Text>
         {error !== "" && <AvisoDeError mensaje={error} />}
-        <Pressable
-          accessibilityRole="button"
-          disabled={ocupado}
-          onPress={preparar}
-          style={[s.principal, degradadoOro]}
-        >
-          <Text style={s.textoPrincipal}>Reintentar publicación</Text>
-        </Pressable>
+        <BotonPrincipal texto="Reintentar publicación" onPress={preparar} deshabilitado={ocupado} />
         <Dialogo
           visible={confirmando !== null}
           titulo="¿Publicar el plan?"
@@ -626,28 +619,23 @@ export function ConstructorPlan({
             · {semanas || "?"} semanas
           </Text>
         </View>
+        {/* Cada botón crece hasta llenar su fila y envuelve en pantallas estrechas. */}
         <View style={s.botones}>
-          <Pressable accessibilityRole="button" onPress={previsualizar} style={s.secundario}>
-            <Text style={s.textoSecundario}>Ver como cliente</Text>
-          </Pressable>
+          <View style={[s.boton, ancho && s.botonAncho]}>
+            <BotonSecundario texto="Ver como cliente" onPress={previsualizar} sinMargen />
+          </View>
           {Platform.OS === "web" && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => exportarPdf(nombre || "Plan", nombreCliente, dias)}
-              style={s.secundario}
-            >
-              <Text style={s.textoSecundario}>Exportar PDF</Text>
-            </Pressable>
+            <View style={[s.boton, ancho && s.botonAncho]}>
+              <BotonSecundario
+                texto="Exportar PDF"
+                onPress={() => exportarPdf(nombre || "Plan", nombreCliente, dias)}
+                sinMargen
+              />
+            </View>
           )}
-          <Pressable
-            accessibilityRole="button"
-            onPress={preparar}
-            style={[s.principal, degradadoOro]}
-          >
-            <Text style={s.textoPrincipal}>
-              {pendiente ? "Reintentar publicación" : "Publicar"}
-            </Text>
-          </Pressable>
+          <View style={[s.boton, ancho && s.botonAncho]}>
+            <BotonPrincipal texto="Publicar" onPress={preparar} sinMargen />
+          </View>
         </View>
       </View>
       {aviso !== "" && <Text style={s.aviso}>{aviso}</Text>}
@@ -1029,18 +1017,10 @@ const s = StyleSheet.create({
     paddingVertical: 2,
   },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  botones: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  secundario: {
-    minHeight: 42,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tema.bordeFuerte,
-    justifyContent: "center",
-  },
-  textoSecundario: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  principal: { minHeight: 42, paddingHorizontal: 16, borderRadius: 12, justifyContent: "center" },
-  textoPrincipal: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  // Debajo del título, a todo el ancho: junto a él lo aplastaban en escritorio y se salían en móvil.
+  botones: { flexDirection: "row", flexWrap: "wrap", gap: 8, width: "100%" },
+  boton: { flexGrow: 1, flexBasis: 200 },
+  botonAncho: { maxWidth: 240 },
   recuperacion: { gap: 8 },
   aviso: {
     backgroundColor: tema.exitoSuave,

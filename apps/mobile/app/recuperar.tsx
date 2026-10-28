@@ -2,11 +2,12 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { Pressable, StyleSheet, Text } from "react-native"
+import { StyleSheet, Text } from "react-native"
 import { SolicitudRecuperacionSchema, type SolicitudRecuperacion } from "@alpha-omega/shared"
 
 import {
   AvisoDeError,
+  BotonEnlace,
   BotonPrincipal,
   Campo,
   PantallaDeFormulario,
@@ -63,15 +64,7 @@ export default function Recuperar(): React.JSX.Element {
           Si no te llega, revisa la carpeta de spam o pídeselo a tu entrenador.
         </Text>
 
-        <Pressable
-          style={estilos.volver}
-          onPress={() => {
-            router.replace("/login")
-          }}
-          accessibilityRole="button"
-        >
-          <Text style={estilos.textoVolver}>VOLVER A ENTRAR</Text>
-        </Pressable>
+        <BotonEnlace texto="VOLVER A ENTRAR" onPress={() => router.replace("/login")} />
       </PantallaDeFormulario>
     )
   }
@@ -108,15 +101,7 @@ export default function Recuperar(): React.JSX.Element {
 
       <BotonPrincipal texto="ENVIARME EL ENLACE" onPress={enviarUnaVez} ocupado={isSubmitting} />
 
-      <Pressable
-        style={estilos.volver}
-        onPress={() => {
-          router.back()
-        }}
-        accessibilityRole="button"
-      >
-        <Text style={estilos.textoVolver}>VOLVER</Text>
-      </Pressable>
+      <BotonEnlace texto="VOLVER" onPress={() => router.back()} />
     </PantallaDeFormulario>
   )
 }
@@ -129,12 +114,5 @@ const estilos = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
     lineHeight: 17,
-  },
-  volver: { alignItems: "center", marginTop: 16, paddingVertical: 12 },
-  textoVolver: {
-    fontFamily: tema.fuenteTexto,
-    color: tema.acentoClaro,
-    fontSize: 12,
-    letterSpacing: 2,
   },
 })

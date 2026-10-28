@@ -122,55 +122,57 @@ export function EditorDeBloque({
       <Text style={s.titulo} accessibilityRole="header">
         Fases
       </Text>
-      <View style={s.fases}>
-        {bloque.fases.map((fase, n) => (
-          <View key={n} style={s.fase}>
-            <View style={s.filaFase}>
-              <Text style={s.tenue}>Semanas</Text>
-              <Celda
-                etiqueta={`Primera semana de la fase ${n + 1}`}
-                valor={String(fase.desde)}
-                cambiar={(v) => cambiarFase(n, { desde: numero(v, 1) })}
-                ancho={44}
-                teclado="number-pad"
+      {bloque.fases.length > 0 && (
+        <View testID="fases" style={s.fases}>
+          {bloque.fases.map((fase, n) => (
+            <View key={n} style={s.fase}>
+              <View style={s.filaFase}>
+                <Text style={s.tenue}>Semanas</Text>
+                <Celda
+                  etiqueta={`Primera semana de la fase ${n + 1}`}
+                  valor={String(fase.desde)}
+                  cambiar={(v) => cambiarFase(n, { desde: numero(v, 1) })}
+                  ancho={44}
+                  teclado="number-pad"
+                />
+                <Text style={s.tenue}>a</Text>
+                <Celda
+                  etiqueta={`Última semana de la fase ${n + 1}`}
+                  valor={String(fase.hasta)}
+                  cambiar={(v) => cambiarFase(n, { hasta: numero(v, 1) })}
+                  ancho={44}
+                  teclado="number-pad"
+                />
+                <Enlace
+                  texto="Quitar"
+                  etiqueta={`Quitar la fase ${n + 1}`}
+                  onPress={() =>
+                    cambiar({ ...bloque, fases: bloque.fases.filter((_, i) => i !== n) })
+                  }
+                />
+              </View>
+              <TextInput
+                accessibilityLabel={`Nombre de la fase ${n + 1}`}
+                value={fase.nombre}
+                onChangeText={(v) => cambiarFase(n, { nombre: v })}
+                placeholder="Calibrar"
+                placeholderTextColor={tema.marcador}
+                maxLength={40}
+                style={s.nombreFase}
               />
-              <Text style={s.tenue}>a</Text>
-              <Celda
-                etiqueta={`Última semana de la fase ${n + 1}`}
-                valor={String(fase.hasta)}
-                cambiar={(v) => cambiarFase(n, { hasta: numero(v, 1) })}
-                ancho={44}
-                teclado="number-pad"
-              />
-              <Enlace
-                texto="Quitar"
-                etiqueta={`Quitar la fase ${n + 1}`}
-                onPress={() =>
-                  cambiar({ ...bloque, fases: bloque.fases.filter((_, i) => i !== n) })
-                }
+              <TextInput
+                accessibilityLabel={`Detalle de la fase ${n + 1}`}
+                value={fase.detalle ?? ""}
+                onChangeText={(v) => cambiarFase(n, { detalle: v === "" ? null : v })}
+                placeholder="Compuestos RIR 3, accesorios RIR 2–3"
+                placeholderTextColor={tema.marcador}
+                maxLength={120}
+                style={s.detalleFase}
               />
             </View>
-            <TextInput
-              accessibilityLabel={`Nombre de la fase ${n + 1}`}
-              value={fase.nombre}
-              onChangeText={(v) => cambiarFase(n, { nombre: v })}
-              placeholder="Calibrar"
-              placeholderTextColor={tema.marcador}
-              maxLength={40}
-              style={s.nombreFase}
-            />
-            <TextInput
-              accessibilityLabel={`Detalle de la fase ${n + 1}`}
-              value={fase.detalle ?? ""}
-              onChangeText={(v) => cambiarFase(n, { detalle: v === "" ? null : v })}
-              placeholder="Compuestos RIR 3, accesorios RIR 2–3"
-              placeholderTextColor={tema.marcador}
-              maxLength={120}
-              style={s.detalleFase}
-            />
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+      )}
       {bloque.fases.length < 8 && (
         <Enlace
           texto="Añadir fase"
