@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import { act } from "react"
 import type { BorradorDieta, DocumentoDieta } from "@alpha-omega/shared"
-import { ErrorDePeticion } from "../lib/http"
+import { ErrorDePeticion, ErrorDeRed } from "../lib/http"
 import type { ApiNutricion } from "./api"
 import { EditorDieta } from "./editor-dieta"
 
@@ -252,4 +252,88 @@ it("avisa antes de apartar platos completos y deja cancelar el cambio sin perder
   await fireEvent.press(screen.getByRole("radio", { name: "Intercambio" }))
   await fireEvent.press(screen.getByRole("button", { name: "Cambiar a intercambio" }))
   expect(screen.getByRole("radio", { name: "Intercambio" })).toBeChecked()
+})
+
+describe("autoguardado del borrador (N-02)", () => {
+  // El formulario es larguísimo y «Guardar borrador» está al final: si se cierra la app
+  // o se pierde la conexión sin pulsarlo, se perdía todo lo escrito.
+  beforeEach(() => {
+    jest.useFakeTimers()
+  })
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
+  const avanzar = async (ms: number): Promise<void> => {
+    await act(async () => {
+      jest.advanceTimersByTime(ms)
+    })
+  }
+  const montar = async (guardar: ApiNutricion["guardar"]): Promise<void> => {
+    await render(
+      <EditorDieta
+        clienteId={CLIENTE}
+        api={api({ guardar })}
+        origen="nueva"
+        ids={generador()}
+        volver={jest.fn()}
+      />,
+    )
+  }
+  const rellenarValido = async (): Promise<void> => {
+    await fireEvent.changeText(screen.getByLabelText("Nombre de la dieta"), "Definición")
+    await fireEvent.changeText(screen.getByLabelText("Kcal — objetivo de Todos los días"), "2000")
+  }
+
+  it("guarda sola el borrador, ya válido, cuando se deja de escribir", async () => {
+    const guardar = jest.fn(async (_c: string, revision: number, documento: DocumentoDieta) =>
+      borrador(documento, revision + 1),
+    )
+    await montar(guardar)
+    await rellenarValido()
+    expect(guardar).not.toHaveBeenCalled()
+    await avanzar(2600)
+    expect(guardar).toHaveBeenCalledTimes(1)
+    expect(guardar.mock.calls[0]![1]).toBe(0)
+    expect(screen.getByText("Guardado")).toBeOnTheScreen()
+  })
+
+  it("no guarda mientras se sigue escribiendo", async () => {
+    const guardar = jest.fn(async (_c: string, revision: number, documento: DocumentoDieta) =>
+      borrador(documento, revision + 1),
+    )
+    await montar(guardar)
+    await rellenarValido()
+    await avanzar(2000)
+    await fireEvent.changeText(screen.getByLabelText("Nombre de la dieta"), "Definición 2")
+    await avanzar(2000)
+    expect(guardar).not.toHaveBeenCalled()
+    await avanzar(700)
+    expect(guardar).toHaveBeenCalledTimes(1)
+  })
+
+  it("si falta algo no manda nada ni llena la pantalla de errores", async () => {
+    const guardar = jest.fn()
+    await montar(guardar)
+    await fireEvent.changeText(screen.getByLabelText("Nombre de la dieta"), "Solo el nombre")
+    await avanzar(2600)
+    expect(guardar).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alert")).toBeNull()
+    expect(screen.getByText("Cambios sin guardar")).toBeOnTheScreen()
+  })
+
+  it("un fallo de red al autoguardar es silencioso y los cambios siguen en pantalla", async () => {
+    const guardar = jest.fn(async () => {
+      throw new ErrorDeRed("sin red")
+    })
+    await montar(guardar)
+    await rellenarValido()
+    await avanzar(2600)
+    expect(guardar).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(/No se pudo guardar/)).toBeNull()
+    expect(screen.getByText("Cambios sin guardar")).toBeOnTheScreen()
+    expect(screen.getByDisplayValue("Definición")).toBeOnTheScreen()
+    await avanzar(10_000)
+    expect(guardar).toHaveBeenCalledTimes(1)
+  })
 })

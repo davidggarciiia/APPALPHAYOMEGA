@@ -25,6 +25,13 @@ export type OrigenDelEditor = "borrador" | "vigente" | "nueva"
 type Guardado = "sin cambios" | "cambios" | "guardando" | "guardado" | "conflicto"
 
 /**
+ * Tras dejar de escribir se guarda sola. El formulario es larguísimo y «Guardar
+ * borrador» está al final: sin esto, cerrar la app o perder la conexión antes de
+ * pulsarlo costaba todo lo escrito.
+ */
+const AUTOGUARDADO_MS = 2500
+
+/**
  * Editor de la dieta de un cliente. Guarda el borrador con su revisión; nunca
  * publica: eso se hace desde la ficha de la dieta, después de guardar.
  */
@@ -49,6 +56,9 @@ export function EditorDieta({
   const [recarga, setRecarga] = useState(0)
   const enCurso = useRef(false)
   const edicion = useRef(0)
+  // Un único intento automático por edición: si falla, no se reintenta en bucle.
+  const autoIntentada = useRef(0)
+  const autoguardar = useRef<() => Promise<void>>(async () => undefined)
   const { proteger, proteccion } = useSalidaProtegida(
     guardado === "cambios" || guardado === "conflicto" || guardado === "guardando",
   )
@@ -83,6 +93,15 @@ export function EditorDieta({
     }
   }, [api, clienteId, origen, ids, recarga])
 
+  useEffect(() => {
+    if (guardado !== "cambios" || edicion.current === autoIntentada.current) return
+    const id = setTimeout(() => {
+      autoIntentada.current = edicion.current
+      void autoguardar.current()
+    }, AUTOGUARDADO_MS)
+    return () => clearTimeout(id)
+  }, [guardado, dieta])
+
   if (falloCarga !== "") {
     return (
       <View style={s.contenido}>
@@ -100,11 +119,12 @@ export function EditorDieta({
     if (guardado !== "conflicto" && !enCurso.current) setGuardado("cambios")
   }
 
-  const guardar = async (): Promise<void> => {
+  /** Con `silencioso` (autoguardado) no se llena la pantalla de errores: el estado ya lo dice. */
+  const guardar = async (silencioso = false): Promise<void> => {
     if (enCurso.current || guardado === "conflicto") return
     const { documento, errores: problemas } = convertir(dieta)
     if (documento === null) {
-      setErrores(problemas)
+      if (!silencioso) setErrores(problemas)
       return
     }
     enCurso.current = true
@@ -120,19 +140,21 @@ export function EditorDieta({
         return
       }
       setGuardado("cambios")
-      setErrores([
-        error instanceof ErrorDeRed
-          ? "No se pudo guardar: revisa la conexión. Tus cambios siguen en pantalla."
-          : error instanceof ErrorDePermiso
-            ? "Ya no tienes acceso a este cliente."
-            : error instanceof ErrorDePeticion
-              ? error.message
-              : "No se pudo guardar el borrador.",
-      ])
+      if (!silencioso)
+        setErrores([
+          error instanceof ErrorDeRed
+            ? "No se pudo guardar: revisa la conexión. Tus cambios siguen en pantalla."
+            : error instanceof ErrorDePermiso
+              ? "Ya no tienes acceso a este cliente."
+              : error instanceof ErrorDePeticion
+                ? error.message
+                : "No se pudo guardar el borrador.",
+        ])
     } finally {
       enCurso.current = false
     }
   }
+  autoguardar.current = () => guardar(true)
 
   const estadoGuardado: Record<Guardado, string> = {
     "sin cambios": revision === 0 ? "Sin guardar todavía" : "Borrador guardado",
