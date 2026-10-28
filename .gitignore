@@ -31,3 +31,6 @@ __pycache__/
 # Referencias personales del entrenador: resultados reales de una persona
 # (tasks/para-claude.md: «permanecen fuera de Git»). Nunca a Git.
 PDF/referencias-entrenador/
+
+# Worktrees de agentes en paralelo (copias locales con su propio node_modules).
+.claude/worktrees/
