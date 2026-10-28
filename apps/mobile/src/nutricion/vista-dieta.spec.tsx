@@ -6,7 +6,7 @@ import type {
   DocumentoDieta,
 } from "@alpha-omega/shared"
 import type { AlmacenLocal } from "../entrenamiento/almacen-local"
-import { ErrorDeRed } from "../lib/http"
+import { ErrorDeRed, ErrorDeSesion, ErrorDelServidor } from "../lib/http"
 import type { ApiNutricion } from "./api"
 import { VistaDieta } from "./vista-dieta"
 import type { ApiSeguimiento } from "../seguimiento/api"
@@ -443,4 +443,67 @@ it("limpia el error de lectura al volver a cargar correctamente", async () => {
   expect(
     screen.queryByText("No se pudieron cargar los registros de hoy. Revisa la conexión."),
   ).toBeNull()
+})
+
+describe("fallos que no son de red (N-05, N-06)", () => {
+  const conCopia = async () => {
+    const almacen = almacenEnMemoria()
+    const vigente = jest.fn().mockResolvedValueOnce({ dieta: publicada(), deNutricionista: true })
+    const primera = await render(
+      <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
+    )
+    await screen.findByText("Dieta de tu nutricionista")
+    await primera.unmount()
+    return { almacen, vigente }
+  }
+
+  it("un error del servidor también enseña la copia descargada, no «No hemos podido cargar»", async () => {
+    const { almacen, vigente } = await conCopia()
+    vigente.mockRejectedValue(new ErrorDelServidor(503))
+    await render(
+      <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
+    )
+    expect(await screen.findByText(/Sin conexión · copia del/)).toBeOnTheScreen()
+    expect(screen.getByText("Dieta de tu nutricionista")).toBeOnTheScreen()
+    expect(screen.queryByText("No hemos podido cargar tu dieta.")).toBeNull()
+  })
+
+  it("una sesión caducada no enseña la copia: es otro problema", async () => {
+    const { almacen, vigente } = await conCopia()
+    vigente.mockRejectedValue(new ErrorDeSesion("caducada"))
+    await render(
+      <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
+    )
+    expect(await screen.findByText("No hemos podido cargar tu dieta.")).toBeOnTheScreen()
+  })
+
+  it("al recargar no deja los suplementos sin registro mientras llega la respuesta", async () => {
+    const seguimiento = seguimientoEnMemoria()
+    const dieta = publicada()
+    dieta.documento.suplementos = [{ nombre: "Vitamina D", dosis: null }]
+    const nutricion = api(async () => ({ dieta, deNutricionista: false }))
+    const almacen = almacenEnMemoria()
+    const vista = await render(
+      <VistaDieta
+        clienteId={CUENTA}
+        cuenta={CUENTA}
+        api={nutricion}
+        almacen={almacen}
+        seguimiento={seguimiento}
+      />,
+    )
+    expect(await screen.findByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
+
+    seguimiento.dias.mockImplementationOnce(() => new Promise(() => undefined))
+    await vista.rerender(
+      <VistaDieta
+        clienteId={CUENTA}
+        cuenta={CUENTA}
+        api={nutricion}
+        almacen={almacen}
+        seguimiento={{ ...seguimiento }}
+      />,
+    )
+    expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
+  })
 })

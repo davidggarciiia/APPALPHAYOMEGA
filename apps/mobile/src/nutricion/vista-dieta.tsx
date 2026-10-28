@@ -16,7 +16,7 @@ import { cambioDeSuplemento } from "./hoy-modelo"
 import { HoyNutricion } from "./hoy-nutricion"
 import type { AlmacenLocal } from "../entrenamiento/almacen-local"
 import { hoyAgenda } from "../entrenamiento/fechas"
-import { ErrorDeRed } from "../lib/http"
+import { ErrorDePermiso, ErrorDeRed, ErrorDeSesion } from "../lib/http"
 import { EstadoVacio } from "../componentes/estado-vacio"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { degradadoOro, tema } from "../tema"
@@ -158,9 +158,9 @@ export function VistaDieta({
       let vigente = true
       const cancelacion = new AbortController()
       const cargar = async (): Promise<void> => {
+        // Sin vaciar lo ya mostrado: al recargar (foco, volver de segundo plano) las marcas
+        // y los suplementos no pasan a «registro no disponible» mientras llega la respuesta.
         setAviso("")
-        setDiaCargado(false)
-        setRegistradas(null)
         try {
           const { dieta, deNutricionista } = await api.vigente(clienteId, cancelacion.signal)
           if (!vigente) return
@@ -186,7 +186,8 @@ export function VistaDieta({
           await guardarCopia(almacen, cuenta, dieta, deNutricionista).catch(() => undefined)
         } catch (error) {
           if (!vigente) return
-          if (error instanceof ErrorDeRed) {
+          // Una sesión caducada o un permiso retirado no son «sin conexión»: la copia no vale.
+          if (!(error instanceof ErrorDeSesion) && !(error instanceof ErrorDePermiso)) {
             const copia = await leerCopia(almacen, cuenta).catch(() => null)
             if (!vigente) return
             setEstado(
@@ -200,7 +201,9 @@ export function VistaDieta({
                 : {
                     fase: "error",
                     mensaje:
-                      "Necesitas conexión para descargar tu dieta la primera vez. Después podrás verla sin red.",
+                      error instanceof ErrorDeRed
+                        ? "Necesitas conexión para descargar tu dieta la primera vez. Después podrás verla sin red."
+                        : "No hemos podido cargar tu dieta.",
                   },
             )
             return
