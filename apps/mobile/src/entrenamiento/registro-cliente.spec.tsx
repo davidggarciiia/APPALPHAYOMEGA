@@ -478,3 +478,49 @@ describe("RegistroCliente · serie sin el peso que pide el ejercicio", () => {
     expect(screen.getAllByText(/Escribe los valores realizados/)).toHaveLength(1)
   })
 })
+
+describe("RegistroCliente · terminar la sesión", () => {
+  beforeEach(async () => {
+    mockFalloDeDisco = false
+    await almacenDispositivo.limpiar(CUENTA)
+    almacenDispositivo.habilitar(CUENTA)
+    AppState.currentState = "background"
+  })
+  afterEach(() => {
+    AppState.currentState = "active"
+  })
+
+  it("al acabar la última serie hay un botón para terminar al pie, no solo en la cabecera", async () => {
+    const { comoApi } = crearApi()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    // La cabecera (arriba, fuera de la vista tras bajar) ya no es la única vía.
+    await fireEvent.press(await screen.findByRole("button", { name: "Terminar entreno" }))
+    expect(await screen.findByRole("button", { name: "Terminar sesión" })).toBeTruthy()
+  })
+
+  it("mientras falten series no empuja a terminar", async () => {
+    const { api, comoApi } = crearApi()
+    const pendiente: SesionCliente = {
+      ...sesion,
+      borrador: {
+        ...sesion.borrador!,
+        registro: {
+          ...sesion.borrador!.registro,
+          series: [
+            {
+              serieId: SERIE,
+              tipoMedicion: "repeticiones",
+              pesoKg: 40,
+              repeticiones: 8,
+              hecha: false,
+            },
+          ],
+        },
+      },
+    }
+    api.leerCliente.mockResolvedValue(pendiente)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await screen.findByRole("button", { name: "Terminar" })
+    expect(screen.queryByRole("button", { name: "Terminar entreno" })).toBeNull()
+  })
+})

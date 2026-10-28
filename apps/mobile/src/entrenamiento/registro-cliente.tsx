@@ -666,6 +666,14 @@ export function RegistroCliente({
             onPress={() => void control.guardarVista({ ejercicioElegidoId: null })}
           />
         )}
+      {/* El botón de la cabecera queda arriba, fuera de la vista y del pulgar, justo
+          cuando se acaba la última serie. */}
+      {!documento.envioPendiente &&
+        !documento.intencionEnvio &&
+        trabajo.length > 0 &&
+        hechasTrabajo >= trabajo.length && (
+          <BotonPrincipal texto="Terminar entreno" onPress={terminar} />
+        )}
       <View style={e.listaEjercicios}>
         <Pressable
           accessibilityRole="button"
