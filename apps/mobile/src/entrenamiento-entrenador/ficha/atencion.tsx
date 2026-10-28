@@ -45,6 +45,13 @@ export function DialogoResponder({
   const [texto, setTexto] = useState("")
   const [error, setError] = useState("")
   const [enviando, setEnviando] = useState(false)
+  // Lo escrito es una indicación de salud para ESTA molestia: no debe quedar
+  // puesto cuando se abra la respuesta de otra.
+  const cancelar = (): void => {
+    setTexto("")
+    setError("")
+    cerrar()
+  }
   return (
     <Dialogo
       visible={molestia !== null}
@@ -52,7 +59,7 @@ export function DialogoResponder({
       texto={molestia ? textoDeMolestia(molestia).detalle : ""}
       confirmar={enviando ? "Enviando…" : "Enviar respuesta"}
       cancelar="Cancelar"
-      alCancelar={cerrar}
+      alCancelar={cancelar}
       alConfirmar={() => {
         if (!molestia || enviando) return
         if (texto.trim() === "") return setError("Escribe qué debe hacer.")
