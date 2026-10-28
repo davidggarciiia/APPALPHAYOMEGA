@@ -4,7 +4,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { ResumenUsuario } from "@alpha-omega/shared"
 
-import { BotonSecundario } from "../src/componentes/formulario"
+import { BotonEnlace, BotonSecundario } from "../src/componentes/formulario"
 import { InsigniaDeEstado } from "../src/componentes/insignia-estado"
 import { listarMisClientes } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
@@ -98,15 +98,7 @@ export default function MisClientes(): React.JSX.Element {
     <SafeAreaView style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>MIS CLIENTES</Text>
-        <Pressable
-          onPress={() => {
-            router.back()
-          }}
-          accessibilityRole="button"
-          hitSlop={12}
-        >
-          <Text style={estilos.volver}>VOLVER</Text>
-        </Pressable>
+        <BotonEnlace texto="VOLVER" onPress={() => router.back()} />
       </View>
 
       <FlatList
@@ -169,7 +161,6 @@ const estilos = StyleSheet.create({
     paddingBottom: 8,
   },
   titulo: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 16, letterSpacing: 3 },
-  volver: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
   aviso: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 15, textAlign: "center" },
   lista: { padding: 20, gap: 10 },
   fila: {

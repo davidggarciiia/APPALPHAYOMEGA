@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import {
   CambiosDeUsuarioSchema,
   CorreoDeUsuarioSchema,
@@ -13,6 +13,7 @@ import {
 import {
   AvisoDeError,
   BotonDestructivo,
+  BotonEnlace,
   BotonPrincipal,
   BotonSecundario,
   Campo,
@@ -369,15 +370,7 @@ export default function FichaDeCliente(): React.JSX.Element {
               Todavía no ha activado la cuenta. Si te equivocaste al teclearlo, aún puedes
               corregirlo.
             </Text>
-            <Pressable
-              onPress={() => {
-                setCorreoNuevo(ficha.email)
-              }}
-              accessibilityRole="button"
-              hitSlop={8}
-            >
-              <Text style={estilos.enlace}>CORREGIR CORREO</Text>
-            </Pressable>
+            <BotonEnlace texto="CORREGIR CORREO" onPress={() => setCorreoNuevo(ficha.email)} />
           </>
         ) : (
           <>
@@ -395,15 +388,7 @@ export default function FichaDeCliente(): React.JSX.Element {
               onPress={() => void guardarCorreo()}
               ocupado={ocupado === "correo"}
             />
-            <Pressable
-              onPress={() => {
-                setCorreoNuevo(null)
-              }}
-              accessibilityRole="button"
-              hitSlop={8}
-            >
-              <Text style={estilos.enlace}>CANCELAR</Text>
-            </Pressable>
+            <BotonEnlace texto="CANCELAR" onPress={() => setCorreoNuevo(null)} />
           </>
         )
       ) : (
@@ -561,15 +546,7 @@ export default function FichaDeCliente(): React.JSX.Element {
 
       <Respuesta zona="acceso" />
 
-      <Pressable
-        style={estilos.volver}
-        onPress={() => {
-          router.back()
-        }}
-        accessibilityRole="button"
-      >
-        <Text style={estilos.textoVolver}>VOLVER A LA CARTERA</Text>
-      </Pressable>
+      <BotonEnlace texto="VOLVER A LA CARTERA" onPress={() => router.back()} />
     </PantallaDeFormulario>
   )
 }
@@ -616,14 +593,6 @@ const estilos = StyleSheet.create({
     marginTop: 8,
     lineHeight: 17,
   },
-  enlace: {
-    color: tema.acento,
-    fontSize: 12,
-    letterSpacing: 2,
-    fontWeight: "700",
-    marginTop: 12,
-    paddingVertical: 6,
-  },
   separador: { height: 1, backgroundColor: tema.borde, marginTop: 24 },
   confirmacion: {
     fontFamily: tema.fuenteTexto,
@@ -640,11 +609,4 @@ const estilos = StyleSheet.create({
     marginTop: 16,
   },
   textoPanel: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 14, lineHeight: 20 },
-  volver: { alignItems: "center", marginTop: 24, paddingVertical: 12 },
-  textoVolver: {
-    fontFamily: tema.fuenteTexto,
-    color: tema.textoTenue,
-    fontSize: 12,
-    letterSpacing: 2,
-  },
 })

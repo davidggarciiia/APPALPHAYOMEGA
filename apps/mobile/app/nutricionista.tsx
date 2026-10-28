@@ -1,18 +1,10 @@
 import { useFocusEffect, useRouter } from "expo-router"
 import { useCallback, useRef, useState } from "react"
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native"
+import { ActivityIndicator, FlatList, StyleSheet, Switch, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { ResumenUsuario } from "@alpha-omega/shared"
 
-import { BotonSecundario } from "../src/componentes/formulario"
+import { BotonEnlace, BotonSecundario } from "../src/componentes/formulario"
 import { InsigniaDeEstado } from "../src/componentes/insignia-estado"
 import { asignarCliente, leerAsignaciones, listarUsuarios, retirarCliente } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
@@ -214,15 +206,7 @@ export default function Nutricionista(): React.JSX.Element {
     <SafeAreaView style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>NUTRICIONISTA</Text>
-        <Pressable
-          onPress={() => {
-            router.back()
-          }}
-          accessibilityRole="button"
-          hitSlop={12}
-        >
-          <Text style={estilos.volver}>VOLVER</Text>
-        </Pressable>
+        <BotonEnlace texto="VOLVER" onPress={() => router.back()} />
       </View>
 
       <View style={estilos.ficha}>
@@ -308,7 +292,6 @@ const estilos = StyleSheet.create({
     paddingBottom: 8,
   },
   titulo: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 16, letterSpacing: 3 },
-  volver: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 12, letterSpacing: 2 },
   ficha: {
     marginHorizontal: 20,
     marginTop: 4,
