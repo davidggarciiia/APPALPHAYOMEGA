@@ -251,6 +251,8 @@ export function ConstructorPlan({
   const [plantillas, setPlantillas] = useState(false)
   /** Plantilla elegida sobre un plan ya empezado: se pregunta antes de sustituirlo. */
   const [sustituyendoPor, setSustituyendoPor] = useState<RutinaGuardada | null>(null)
+  /** «Quitar día» con ejercicios: elimina todo lo del día, así que se pregunta antes. */
+  const [quitandoDia, setQuitandoDia] = useState(false)
   const [comoCliente, setComoCliente] = useState(false)
   const [confirmando, setConfirmando] = useState<AsignarPlan | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioDelConstructor | null>(null)
@@ -385,6 +387,11 @@ export function ConstructorPlan({
     setDias((todos) => todos.map((d) => (d.id === dia.id ? { ...d, ...cambio } : d)))
   const cambiarEjercicio = (id: string, cambio: Partial<EjercicioDelConstructor>): void =>
     cambiarDia({ ejercicios: dia.ejercicios.map((e) => (e.id === id ? { ...e, ...cambio } : e)) })
+  const quitarDia = (): void => {
+    const resto = dias.filter((d) => d.id !== dia.id)
+    setDias(resto)
+    setActivo(resto[0]!.id)
+  }
   const quitar = (id: string): void => {
     cambiarDia({ ejercicios: dia.ejercicios.filter((e) => e.id !== id) })
     if (elegido === id) setElegido(null)
@@ -790,11 +797,7 @@ export function ConstructorPlan({
           {dias.length > 1 && (
             <Enlace
               texto="Quitar día"
-              onPress={() => {
-                const resto = dias.filter((d) => d.id !== dia.id)
-                setDias(resto)
-                setActivo(resto[0]!.id)
-              }}
+              onPress={() => (dia.ejercicios.length === 0 ? quitarDia() : setQuitandoDia(true))}
             />
           )}
         </View>
@@ -957,6 +960,19 @@ export function ConstructorPlan({
         ocupado={ocupado}
         alConfirmar={() => confirmando && void publicar(confirmando)}
         alCancelar={() => setConfirmando(null)}
+      />
+      <Dialogo
+        visible={quitandoDia}
+        titulo="¿Quitar este día?"
+        texto={`Se eliminan los ${dia.ejercicios.length} ejercicios de «${dia.nombre || "Sin nombre"}». No se puede deshacer.`}
+        confirmar="Quitar este día"
+        cancelar="Conservarlo"
+        peligro
+        alConfirmar={() => {
+          setQuitandoDia(false)
+          quitarDia()
+        }}
+        alCancelar={() => setQuitandoDia(false)}
       />
       <Dialogo
         visible={sustituyendoPor !== null}

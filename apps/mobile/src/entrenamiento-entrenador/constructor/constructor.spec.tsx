@@ -916,3 +916,37 @@ describe("elegir una plantilla (T-02)", () => {
     expect(screen.queryByText("¿Sustituir lo que has montado?")).toBeNull()
   })
 })
+
+describe("quitar un día (T-04)", () => {
+  // «Quitar día» elimina todos los ejercicios de ese día: no puede ser un toque suelto.
+  const conDosDias = async (): Promise<void> => {
+    await prepararConstructor()
+    await completarDia()
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir día" }))
+    await fireEvent.press(await screen.findByText(/Lun · Fuerza/))
+  }
+
+  it("con ejercicios pregunta antes y «Conservarlo» no quita nada", async () => {
+    await conDosDias()
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar día" }))
+    expect(await screen.findByText("¿Quitar este día?")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Conservarlo" }))
+    expect(screen.queryByText("¿Quitar este día?")).toBeNull()
+    expect(screen.getByText(/Lun · Fuerza/)).toBeTruthy()
+  })
+
+  it("al confirmar, el día se quita", async () => {
+    await conDosDias()
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar día" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Quitar este día" }))
+    expect(screen.queryByText(/Lun · Fuerza/)).toBeNull()
+  })
+
+  it("un día vacío se quita directamente, sin preguntar", async () => {
+    await prepararConstructor()
+    await fireEvent.press(await screen.findByRole("button", { name: "Añadir día" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar día" }))
+    expect(screen.queryByText("¿Quitar este día?")).toBeNull()
+    expect(screen.queryByText(/Mar · Sin nombre/)).toBeNull()
+  })
+})
