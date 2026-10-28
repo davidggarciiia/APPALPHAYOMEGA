@@ -385,6 +385,7 @@ function Boton({
       // El nombre accesible no cambia mientras se envía.
       accessibilityLabel={etiquetaAccesible}
       accessibilityState={{ disabled: desactivado, busy: ocupado }}
+      aria-busy={ocupado}
       accessibilityHint={mantenerParaConfirmar ? "Mantén pulsado para confirmar" : undefined}
       accessibilityActions={
         mantenerParaConfirmar ? [{ name: "activate", label: etiquetaAccesible }] : undefined
@@ -535,6 +536,7 @@ export function BotonEnlace({
       accessibilityRole="button"
       accessibilityLabel={etiquetaAccesible}
       accessibilityState={{ disabled: desactivado, busy: ocupado }}
+      aria-busy={ocupado}
     >
       <View style={deshabilitado && !ocupado ? estilos.deshabilitado : undefined}>
         <Text style={estilos.textoEnlace}>{texto}</Text>
