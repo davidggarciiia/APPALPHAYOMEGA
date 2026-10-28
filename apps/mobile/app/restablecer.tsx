@@ -13,6 +13,7 @@ import {
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
 import { restablecerContrasena } from "../src/lib/api"
+import { useEnvioUnico } from "../src/lib/envio-unico"
 import { faltaDe } from "../src/lib/errores"
 import { tema } from "../src/tema"
 
@@ -74,6 +75,7 @@ export default function Restablecer(): React.JSX.Element {
       )
     }
   })
+  const enviarUnaVez = useEnvioUnico(enviar)
 
   if (hecho) {
     return (
@@ -131,7 +133,7 @@ export default function Restablecer(): React.JSX.Element {
             secureTextEntry
             autoComplete="new-password"
             returnKeyType="go"
-            onSubmitEditing={() => void enviar()}
+            onSubmitEditing={enviarUnaVez}
             error={errors.repetida?.message}
           />
         )}
@@ -139,11 +141,7 @@ export default function Restablecer(): React.JSX.Element {
 
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
-      <BotonPrincipal
-        texto="CAMBIAR MI CONTRASEÑA"
-        onPress={() => void enviar()}
-        ocupado={isSubmitting}
-      />
+      <BotonPrincipal texto="CAMBIAR MI CONTRASEÑA" onPress={enviarUnaVez} ocupado={isSubmitting} />
 
       <Pressable
         style={estilos.volver}

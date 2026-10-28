@@ -12,6 +12,7 @@ import {
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
 import { ErrorDeRed, ErrorDeSesion } from "../src/lib/api"
+import { useEnvioUnico } from "../src/lib/envio-unico"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
@@ -47,6 +48,7 @@ export default function Login(): React.JSX.Element {
       }
     }
   })
+  const enviarUnaVez = useEnvioUnico(enviar)
 
   return (
     <PantallaDeFormulario acceso>
@@ -83,7 +85,7 @@ export default function Login(): React.JSX.Element {
             autoComplete="current-password"
             placeholder="••••••••"
             returnKeyType="go"
-            onSubmitEditing={() => void enviar()}
+            onSubmitEditing={enviarUnaVez}
             error={errors.contrasena !== undefined ? "Escribe tu contraseña" : undefined}
           />
         )}
@@ -91,7 +93,7 @@ export default function Login(): React.JSX.Element {
 
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
-      <BotonPrincipal texto="ENTRAR" onPress={() => void enviar()} ocupado={isSubmitting} />
+      <BotonPrincipal texto="ENTRAR" onPress={enviarUnaVez} ocupado={isSubmitting} />
 
       <Pressable
         style={estilos.olvidada}

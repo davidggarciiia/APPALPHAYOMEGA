@@ -9,10 +9,12 @@ import { ContrasenaNuevaSchema } from "@alpha-omega/shared"
 import {
   AvisoDeError,
   BotonPrincipal,
+  BotonSecundario,
   Campo,
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
 import { ErrorDeRed, activarCuenta } from "../src/lib/api"
+import { useEnvioUnico } from "../src/lib/envio-unico"
 import { tema } from "../src/tema"
 
 const FormularioSchema = z
@@ -60,7 +62,6 @@ export default function Activar(): React.JSX.Element {
     try {
       await activarCuenta(token, contrasena)
       setHecho(true)
-      router.replace("/login")
     } catch (error) {
       if (error instanceof ErrorDeRed) {
         setErrorGeneral("No hemos podido conectar. Revisa tu conexión.")
@@ -71,6 +72,22 @@ export default function Activar(): React.JSX.Element {
       }
     }
   })
+  const enviarUnaVez = useEnvioUnico(enviar)
+  const irAEntrar = (): void => {
+    router.replace("/login")
+  }
+
+  if (hecho) {
+    return (
+      <PantallaDeFormulario acceso>
+        <Text style={estilos.titulo}>Cuenta activada</Text>
+        <Text style={estilos.detalle}>
+          Ya puedes entrar con la contraseña que acabas de elegir.
+        </Text>
+        <BotonPrincipal texto="ENTRAR" onPress={irAEntrar} />
+      </PantallaDeFormulario>
+    )
+  }
 
   if (token === undefined || token === "") {
     return (
@@ -79,6 +96,7 @@ export default function Activar(): React.JSX.Element {
         <Text style={estilos.detalle}>
           Abre el enlace desde el correo que te enviamos, sin copiarlo a mano.
         </Text>
+        <BotonSecundario texto="VOLVER A ENTRAR" onPress={irAEntrar} />
       </PantallaDeFormulario>
     )
   }
@@ -120,7 +138,7 @@ export default function Activar(): React.JSX.Element {
             secureTextEntry
             autoComplete="new-password"
             returnKeyType="go"
-            onSubmitEditing={() => void enviar()}
+            onSubmitEditing={enviarUnaVez}
             error={errors.repetida?.message}
           />
         )}
@@ -128,11 +146,8 @@ export default function Activar(): React.JSX.Element {
 
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
-      <BotonPrincipal
-        texto={hecho ? "LISTO" : "ACTIVAR MI CUENTA"}
-        onPress={() => void enviar()}
-        ocupado={isSubmitting}
-      />
+      <BotonPrincipal texto="ACTIVAR MI CUENTA" onPress={enviarUnaVez} ocupado={isSubmitting} />
+      <BotonSecundario texto="VOLVER A ENTRAR" onPress={irAEntrar} />
     </PantallaDeFormulario>
   )
 }

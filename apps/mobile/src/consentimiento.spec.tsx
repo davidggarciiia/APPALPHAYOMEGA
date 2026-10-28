@@ -6,7 +6,7 @@ import {
   type EstadoConsentimiento,
 } from "@alpha-omega/shared"
 
-import { ErrorDeRed } from "./lib/http"
+import { ErrorDeRed, ErrorDelServidor } from "./lib/http"
 import {
   PuertaConsentimiento,
   TarjetaConsentimiento,
@@ -14,6 +14,10 @@ import {
 } from "./consentimiento"
 
 jest.mock("./componentes/iconos", () => ({ Icono: () => null }))
+jest.mock("react-native-safe-area-context", () => {
+  const { View } = jest.requireActual("react-native")
+  return { SafeAreaView: (props: object) => <View testID="zona-segura" {...props} /> }
+})
 
 const pendiente: EstadoConsentimiento = {
   version: null,
@@ -88,6 +92,41 @@ it("sin conexión para comprobarlo no bloquea: el servidor lo exige al guardar",
   falsa.estado.mockRejectedValueOnce(new ErrorDeRed())
   await pintar(falsa)
   expect(await screen.findByText("Inicio de la app")).toBeTruthy()
+})
+
+it("un error del servidor al comprobarlo NO abre la app: ofrece reintentar o salir", async () => {
+  const falsa = api(aceptado)
+  falsa.estado.mockRejectedValueOnce(new ErrorDelServidor(500))
+  const salir = await pintar(falsa)
+  expect(await screen.findByText(/No hemos podido comprobar tu consentimiento/)).toBeTruthy()
+  expect(screen.queryByText("Inicio de la app")).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
+  expect(await screen.findByText("Inicio de la app")).toBeTruthy()
+  expect(falsa.estado).toHaveBeenCalledTimes(2)
+  expect(salir).not.toHaveBeenCalled()
+})
+
+it("el error de comprobación también permite cerrar sesión", async () => {
+  const falsa = api()
+  falsa.estado.mockRejectedValueOnce(new ErrorDelServidor(503))
+  const salir = await pintar(falsa)
+  await fireEvent.press(await screen.findByRole("button", { name: "Cerrar sesión" }))
+  expect(salir).toHaveBeenCalledTimes(1)
+})
+
+it("mientras lo comprueba hay un indicador accesible, no una pantalla vacía", async () => {
+  const falsa = api()
+  falsa.estado.mockImplementationOnce(() => new Promise(() => undefined))
+  await pintar(falsa)
+  expect(screen.getByLabelText("Comprobando tu consentimiento")).toBeTruthy()
+})
+
+it("la pantalla de consentimiento respeta la zona segura de arriba y de abajo", async () => {
+  await pintar(api())
+  await screen.findByText(TEXTO_CONSENTIMIENTO.titulo)
+  expect(screen.getByTestId("zona-segura").props.edges).toEqual(
+    expect.arrayContaining(["top", "bottom"]),
+  )
 })
 
 it("se puede no aceptar y cerrar sesión", async () => {

@@ -12,6 +12,7 @@ import {
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
 import { pedirEnlaceDeRecuperacion } from "../src/lib/api"
+import { useEnvioUnico } from "../src/lib/envio-unico"
 import { faltaDe } from "../src/lib/errores"
 import { tema } from "../src/tema"
 
@@ -48,6 +49,7 @@ export default function Recuperar(): React.JSX.Element {
       setErrorGeneral(faltaDe(error, "No hemos podido enviar el correo.").texto)
     }
   })
+  const enviarUnaVez = useEnvioUnico(enviar)
 
   if (enviado) {
     return (
@@ -96,7 +98,7 @@ export default function Recuperar(): React.JSX.Element {
             placeholder="tu@correo.com"
             autoFocus
             returnKeyType="send"
-            onSubmitEditing={() => void enviar()}
+            onSubmitEditing={enviarUnaVez}
             error={errors.email !== undefined ? "Correo no válido" : undefined}
           />
         )}
@@ -104,11 +106,7 @@ export default function Recuperar(): React.JSX.Element {
 
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
-      <BotonPrincipal
-        texto="ENVIARME EL ENLACE"
-        onPress={() => void enviar()}
-        ocupado={isSubmitting}
-      />
+      <BotonPrincipal texto="ENVIARME EL ENLACE" onPress={enviarUnaVez} ocupado={isSubmitting} />
 
       <Pressable
         style={estilos.volver}
