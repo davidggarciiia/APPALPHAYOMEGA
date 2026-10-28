@@ -4,7 +4,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +13,10 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import { degradadoOro, fondoDeAcceso, tema } from "../tema"
+import { fondoDeAcceso, tema } from "../tema"
+
+// Los botones viven en su archivo; se reexportan para no tocar los imports de las pantallas.
+export { BotonDestructivo, BotonEnlace, BotonPrincipal, BotonSecundario, vibrar } from "./botones"
 
 /**
  * Envoltorio de pantalla con formulario.
@@ -99,65 +101,6 @@ export function Campo({
   )
 }
 
-type PropiedadesBoton = {
-  texto: string
-  onPress: () => void
-  ocupado?: boolean
-}
-
-type PropiedadesBotonSecundario = PropiedadesBoton & {
-  etiquetaAccesible?: string
-  deshabilitado?: boolean
-}
-
-export function BotonPrincipal(props: PropiedadesBoton): React.JSX.Element {
-  return <Boton {...props} estilo="boton" estiloTexto="textoBoton" />
-}
-
-/**
- * Acción secundaria: cancelar, volver, reenviar.
- *
- * Cuando todos los
- * botones de una pantalla se ven igual, el que da de baja a alguien se pulsa por
- * error tarde o temprano.
- */
-export function BotonSecundario(props: PropiedadesBotonSecundario): React.JSX.Element {
-  return <Boton {...props} estilo="secundario" estiloTexto="textoSecundario" />
-}
-
-/** Acción con consecuencias, identificada por su texto y separada de guardar. */
-export function BotonDestructivo(props: PropiedadesBoton): React.JSX.Element {
-  return <Boton {...props} estilo="destructivo" estiloTexto="textoDestructivo" />
-}
-
-function Boton({
-  texto,
-  etiquetaAccesible = texto,
-  onPress,
-  ocupado = false,
-  deshabilitado = false,
-  estilo,
-  estiloTexto,
-}: PropiedadesBotonSecundario & {
-  estilo: "boton" | "secundario" | "destructivo"
-  estiloTexto: "textoBoton" | "textoSecundario" | "textoDestructivo"
-}): React.JSX.Element {
-  const desactivado = ocupado || deshabilitado
-  return (
-    <Pressable
-      style={({ pressed }) => [estilos[estilo], (pressed || desactivado) && estilos.botonPulsado]}
-      onPress={onPress}
-      disabled={desactivado}
-      accessibilityRole="button"
-      // El nombre accesible no cambia mientras se envía.
-      accessibilityLabel={etiquetaAccesible}
-      accessibilityState={{ disabled: desactivado, busy: ocupado }}
-    >
-      <Text style={estilos[estiloTexto]}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
-  )
-}
-
 export function AvisoDeError({ mensaje }: { mensaje: string }): React.JSX.Element {
   return (
     <Text
@@ -238,52 +181,4 @@ const estilos = StyleSheet.create({
     marginTop: 16,
     textAlign: "center",
   },
-  boton: {
-    ...degradadoOro,
-    borderRadius: 14,
-    marginTop: 24,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    minHeight: 52,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  botonPulsado: { opacity: 0.8 },
-  textoBoton: {
-    color: tema.sobreAcento,
-    fontFamily: tema.fuenteBoton,
-    fontSize: 16,
-    textAlign: "center",
-  },
-  secundario: {
-    maxWidth: "100%",
-    flexShrink: 1,
-    borderColor: tema.bordeFuerte,
-    borderWidth: 1,
-    borderRadius: 14,
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    minHeight: 48,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  textoSecundario: {
-    textAlign: "center",
-    color: tema.texto,
-    fontFamily: tema.fuenteSemi,
-    fontSize: 15,
-  },
-  destructivo: {
-    borderColor: tema.error,
-    borderWidth: 1,
-    borderRadius: 14,
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    minHeight: 48,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  textoDestructivo: { color: tema.error, fontFamily: tema.fuenteBoton, fontSize: 15 },
 })
