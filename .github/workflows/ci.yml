@@ -1,0 +1,98 @@
+name: CI
+
+# Repite en cada cambio lo que se hace a mano antes de dar algo por bueno:
+# tipos, lint, pruebas unitarias y, con una base PostgreSQL desechable, las
+# pruebas de extremo a extremo y el minimo de cobertura de SPEC.md.
+# Todo es sintetico: ninguna prueba toca correo, S3 ni cuentas reales.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # `engines` admite 22.22.3+, 24.15+ o 26+; se prueba la linea 24.
+  NODE_VERSION: "24"
+  # `packageManager` fija npm 10.9.4; Node 24 trae uno mas nuevo.
+  NPM_VERSION: "10.9.4"
+
+jobs:
+  calidad:
+    name: Tipos, lint y pruebas unitarias
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${{ env.NPM_VERSION }}
+      # `prepare` aplica los parches, compila el paquete compartido y genera Prisma.
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  e2e-cobertura:
+    name: E2E y minimo de cobertura
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: alpha_ci
+          POSTGRES_PASSWORD: contrasena-sintetica-de-ci
+          POSTGRES_DB: alpha_omega_e2e_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U alpha_ci -d alpha_omega_e2e_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # El nombre de la base lleva "e2e": los E2E se niegan a correr contra otra.
+      POSTGRES_USER: alpha_ci
+      POSTGRES_PASSWORD: contrasena-sintetica-de-ci
+      POSTGRES_DB: alpha_omega_e2e_ci
+      POSTGRES_HOST: localhost
+      JWT_SECRET: secreto-sintetico-de-ci-sin-valor-fuera-de-esta-ejecucion
+      SEED_ENTRENADOR_EMAIL: entrenador@ejemplo.invalid
+      SEED_ENTRENADOR_PASSWORD: contrasena-sintetica-de-ci
+      # Los E2E sustituyen el envio de correo por un doble en memoria.
+      RESEND_API_KEY: re_sintetica_sin_uso_de_red
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm install --global npm@${{ env.NPM_VERSION }}
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      # Unitarias + E2E, suma de cobertura y minimo del 80 % en servicios y guardas.
+      - run: npm run test:cobertura
+
+  auditoria:
+    name: Auditoria de dependencias (informativa)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Un aviso nuevo de una dependencia no debe bloquear un cambio ajeno; se lee y se decide.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm install --global npm@${{ env.NPM_VERSION }}
+      - run: npm audit --omit=dev --audit-level=high

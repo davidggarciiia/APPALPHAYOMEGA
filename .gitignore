@@ -23,3 +23,11 @@ Thumbs.db
 
 # Objetos del almacén local de fotos (desarrollo y pruebas). Nunca a Git.
 .almacen-local/
+
+# Cachés de Python de tools/ (se regeneran solas).
+__pycache__/
+*.pyc
+
+# Referencias personales del entrenador: resultados reales de una persona
+# (tasks/para-claude.md: «permanecen fuera de Git»). Nunca a Git.
+PDF/referencias-entrenador/
