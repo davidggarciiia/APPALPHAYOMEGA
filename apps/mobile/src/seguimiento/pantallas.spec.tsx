@@ -73,6 +73,41 @@ function api(dias: DiaDeSeguimiento[] = []): ApiSeguimiento {
 }
 
 describe("HoyDiario", () => {
+  it("bloquea el diálogo durante un guardado lento y conserva el dato hasta confirmarlo", async () => {
+    const seguimiento = api()
+    let terminar!: (dia: DiaDeSeguimiento) => void
+    seguimiento.cambiarDia = jest.fn(
+      () =>
+        new Promise<DiaDeSeguimiento>((resolve) => {
+          terminar = resolve
+        }),
+    )
+    await render(<HoyDiario clienteId={CLIENTE} api={seguimiento} objetivoPasos={null} />)
+    await fireEvent.press(screen.getByRole("button", { name: "Peso: sin apuntar. Cambiar" }))
+    await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "80")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    expect(screen.getByRole("button", { name: "Cancelar" }).props.accessibilityState.disabled).toBe(
+      true,
+    )
+    expect(screen.getByLabelText("Peso (kg)").props.editable).toBe(false)
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    expect(seguimiento.cambiarDia).toHaveBeenCalledTimes(1)
+    await act(async () =>
+      terminar({
+        fecha: hoyAgenda(),
+        pesoKg: 80,
+        pasos: null,
+        suenoMin: null,
+        creatina: null,
+        suplementos: [],
+      }),
+    )
+    expect(await screen.findByText("80,0 kg")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Sueño: sin apuntar. Cambiar" }))
+    await fireEvent.changeText(screen.getByLabelText("Horas dormidas"), "7:40")
+    expect(screen.getByDisplayValue("7:40")).toBeTruthy()
+  })
+
   it("enseña lo apuntado hoy con el objetivo de pasos", async () => {
     const hoy = hoyAgenda()
     await render(

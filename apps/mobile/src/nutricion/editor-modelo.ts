@@ -1,5 +1,6 @@
 import {
-  DocumentoDietaSchema,
+  DocumentoDietaParaGuardarSchema,
+  tieneAlgunNumero,
   type Alimento,
   type Comida,
   type DocumentoDieta,
@@ -13,6 +14,17 @@ import {
  */
 
 export type GeneradorDeIds = () => string
+
+type MetadatosDieta = Pick<DocumentoDieta, "suplementos" | "nota" | "registroComidas" | "calculo">
+
+function metadatos(dieta: MetadatosDieta): MetadatosDieta {
+  return {
+    ...(dieta.suplementos !== undefined && { suplementos: dieta.suplementos }),
+    ...(dieta.nota !== undefined && { nota: dieta.nota }),
+    ...(dieta.registroComidas !== undefined && { registroComidas: dieta.registroComidas }),
+    ...(dieta.calculo !== undefined && { calculo: dieta.calculo }),
+  }
+}
 
 const CLAVES_MACROS = ["kcal", "proteinaG", "hidratosG", "grasaG"] as const
 type ClaveMacro = (typeof CLAVES_MACROS)[number]
@@ -43,9 +55,13 @@ export type TipoEditable = {
   nombre: string
   objetivo: MacrosEditables
   comidas: ComidaEditable[]
+  margenKcal?: number
 }
 export type IndicacionEditable = { clave: string; titulo: string; texto: string }
-export type DietaEditable = {
+export type DietaEditable = Omit<
+  DocumentoDieta,
+  "formato" | "tiposDeDia" | "nombre" | "semana" | "indicaciones"
+> & {
   nombre: string
   tipos: TipoEditable[]
   /** De lunes a domingo; `null` mientras un día no tenga tipo asignado. */
@@ -188,12 +204,14 @@ function comidaEditable(comida: Comida, ids: GeneradorDeIds): ComidaEditable {
 
 export function desdeDocumento(documento: DocumentoDieta, ids: GeneradorDeIds): DietaEditable {
   return {
+    ...metadatos(documento),
     nombre: documento.nombre,
     tipos: documento.tiposDeDia.map((tipo: TipoDeDia) => ({
       id: tipo.id,
       nombre: tipo.nombre,
       objetivo: macrosEditables(tipo.objetivo),
       comidas: tipo.comidas.map((comida) => comidaEditable(comida, ids)),
+      ...(tipo.margenKcal !== undefined && { margenKcal: tipo.margenKcal }),
     })),
     semana: [...documento.semana],
     indicaciones: documento.indicaciones.map((i) => ({
@@ -301,19 +319,20 @@ function macros(valor: MacrosEditables, etiqueta: string, errores: string[]): Ma
   return resultado
 }
 
-const hayNumero = (m: Macros): boolean => Object.values(m).some((v) => v !== null)
-const opcional = (valor: string): string | null => (valor.trim() === "" ? null : valor.trim())
+const opcional = (valor: string): string | null => valor.trim() || null
 
 /** Las filas de alimento totalmente vacías se ignoran; una cantidad sin nombre es un error. */
 function alimentos(lista: AlimentoEditable[], etiqueta: string, errores: string[]): Alimento[] {
   const resultado: Alimento[] = []
   for (const a of lista) {
-    if (a.nombre.trim() === "" && a.cantidad.trim() === "") continue
-    if (a.nombre.trim() === "") {
+    const nombre = a.nombre.trim()
+    const cantidad = opcional(a.cantidad)
+    if (nombre === "" && cantidad === null) continue
+    if (nombre === "") {
       errores.push(`${etiqueta}: hay una cantidad sin alimento.`)
       continue
     }
-    resultado.push({ nombre: a.nombre.trim(), cantidad: opcional(a.cantidad) })
+    resultado.push({ nombre, cantidad })
   }
   if (resultado.length === 0) errores.push(`${etiqueta}: añade al menos un alimento.`)
   return resultado
@@ -332,6 +351,9 @@ function comida(c: ComidaEditable, etiquetaTipo: string, errores: string[]): Com
     indicacion: opcional(c.indicacion),
   }
   if (c.forma === "intercambio") {
+    const nombres = c.columnas.map((columna) => columna.nombre.trim())
+    if (new Set(nombres).size !== nombres.length)
+      errores.push(`${etiqueta}: cada columna debe tener un nombre distinto.`)
     return {
       ...base,
       forma: "intercambio",
@@ -362,7 +384,7 @@ function comida(c: ComidaEditable, etiquetaTipo: string, errores: string[]): Com
           titulo: a.titulo.trim(),
           alimentos: alimentos(a.alimentos, `${etiqueta} · ${nombreAlternativa}`, errores),
           nota: opcional(a.nota),
-          macros: hayNumero(cifras) ? cifras : null,
+          macros: tieneAlgunNumero(cifras) ? cifras : null,
         }
       }),
     })),
@@ -375,15 +397,17 @@ export function convertir(d: DietaEditable): Conversion {
   const tiposDeDia = d.tipos.map((t) => {
     const etiqueta = t.nombre.trim() || "Tipo de día sin nombre"
     if (t.nombre.trim() === "") errores.push("Pon nombre a cada tipo de día.")
-    const objetivo = macros(t.objetivo, `${etiqueta}, objetivo`, errores)
-    if (t.comidas.length === 0 && !hayNumero(objetivo)) {
+    const cifras = macros(t.objetivo, `${etiqueta}, objetivo`, errores)
+    const objetivo = tieneAlgunNumero(cifras) ? cifras : null
+    if (t.comidas.length === 0 && objetivo === null) {
       errores.push(`${etiqueta}: añade una comida o algún número del objetivo.`)
     }
     return {
       id: t.id,
       nombre: t.nombre.trim(),
-      objetivo: hayNumero(objetivo) ? objetivo : null,
+      objetivo,
       comidas: t.comidas.map((c) => comida(c, etiqueta, errores)),
+      ...(t.margenKcal !== undefined && { margenKcal: t.margenKcal }),
     }
   })
   d.semana.forEach((id, n) => {
@@ -401,7 +425,8 @@ export function convertir(d: DietaEditable): Conversion {
     })
   if (errores.length > 0) return { documento: null, errores: [...new Set(errores)] }
 
-  const resultado = DocumentoDietaSchema.safeParse({
+  const resultado = DocumentoDietaParaGuardarSchema.safeParse({
+    ...metadatos(d),
     formato: 1,
     nombre: d.nombre.trim(),
     tiposDeDia,

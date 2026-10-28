@@ -7,27 +7,14 @@ import {
   type Prescripcion,
   type Registro,
   type SeriePrescrita,
-  type SeriePrescritaDistancia,
   type SerieRegistrada,
-  type SerieRegistradaDistancia,
 } from "@alpha-omega/shared"
 
-/**
- * D01 · El registro local distingue ya los metros aunque el contrato público no
- * los acepte hasta D01.g: registroParaEnviar valida con crearRegistroDeSesionSchema,
- * que decide si una serie en metros se puede guardar o enviar.
- */
-export type SerieConDistancia = SeriePrescrita | SeriePrescritaDistancia
-export type EjercicioConDistancia = Omit<EjercicioPrescrito, "series"> & {
-  series: SerieConDistancia[]
-}
-export type PrescripcionConDistancia = Omit<Prescripcion, "ejercicios"> & {
-  ejercicios: EjercicioConDistancia[]
-}
-type SerieRegistradaConDistancia = SerieRegistrada | SerieRegistradaDistancia
-export type RegistroConDistancia = Omit<Registro, "series"> & {
-  series: SerieRegistradaConDistancia[]
-}
+export type SerieConDistancia = SeriePrescrita
+export type EjercicioConDistancia = EjercicioPrescrito
+export type PrescripcionConDistancia = Prescripcion
+type SerieRegistradaConDistancia = SerieRegistrada
+export type RegistroConDistancia = Registro
 
 export const EdicionRegistroSchema = z.strictObject({
   notas: z.string().max(2000),

@@ -138,7 +138,9 @@ describe("Alta de un ejercicio", () => {
 
     await escribirFondos()
     await fireEvent.press(screen.getByRole("button", { name: "CANCELAR" }))
-
+    expect(onCancelar).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue("Fondos en paralelas")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Salir sin guardar" }))
     expect(onCancelar).toHaveBeenCalledTimes(1)
     expect((await api.buscar({})).total).toBe(0)
   })

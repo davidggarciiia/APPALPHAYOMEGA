@@ -81,10 +81,10 @@ describe("Compatibilidad del transporte de identidad", () => {
     }
   })
 
-  it.each([
+  it.each<[number, typeof ErrorDeSesion | typeof ErrorDePermiso]>([
     [401, ErrorDeSesion],
     [403, ErrorDePermiso],
-  ] as const)("mantiene la distinción del estado %i", async (estado, TipoError) => {
+  ])("mantiene la distinción del estado %i", async (estado, TipoError) => {
     fetchSimulado.mockResolvedValue(new Response(null, { status: estado }))
     await expect(consultarSalud()).rejects.toBeInstanceOf(TipoError)
   })
@@ -161,10 +161,10 @@ describe("Punto de acceso autenticado", () => {
 })
 
 describe("Contratos de peticiones nuevas", () => {
-  it.each([
+  it.each<[number, string]>([
     [400, "solicitud_invalida"],
     [409, "nombre_duplicado"],
-  ] as const)("ofrece el detalle validado para HTTP %i", async (statusCode, codigo) => {
+  ])("ofrece el detalle validado para HTTP %i", async (statusCode, codigo) => {
     const detalle = { statusCode, codigo, message: "Revisa el nombre" }
     fetchSimulado.mockResolvedValue(new Response(JSON.stringify(detalle), { status: statusCode }))
     const resultado = http.pedir("/ejercicios")

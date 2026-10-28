@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import type {
@@ -146,12 +146,14 @@ export function ValoracionesProfesional({
   api,
   medios,
   nuevoId,
+  alEditar,
 }: {
   clienteId: string
   api: ApiValoraciones
   /** Sin él no se muestran las solicitudes de fotos (por ejemplo, en pruebas aisladas). */
   medios?: ApiMedios
   nuevoId: () => string
+  alEditar?: (editando: boolean) => void
 }): React.JSX.Element {
   const [listado, setListado] = useState<ListadoValoraciones | null>(null)
   const [plantilla, setPlantilla] = useState<PlantillaValoracion | null>(null)
@@ -161,12 +163,24 @@ export function ValoracionesProfesional({
   const [error, setError] = useState("")
   const [ocupado, setOcupado] = useState(false)
   const [intento, setIntento] = useState(0)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const consulta = useRef(0)
   // La misma operación en cada reintento: el servidor no crea dos visitas ni correcciones.
   const operacion = useRef<string | null>(null)
+  const editando =
+    vista.tipo === "plantilla" ||
+    vista.tipo === "pauta" ||
+    (vista.tipo === "visita" && vista.valoracion.borrador !== null)
+  useEffect(() => {
+    alEditar?.(editando)
+    return () => alEditar?.(false)
+  }, [alEditar, editando])
 
   useFocusEffect(
     useCallback(() => {
       let vigente = true
+      consulta.current += 1
+      setCargandoMas(false)
       Promise.all([api.listar(clienteId), api.plantilla(clienteId), api.proximaRevision(clienteId)])
         .then(([lista, actual, pauta]) => {
           if (!vigente) return
@@ -180,6 +194,7 @@ export function ValoracionesProfesional({
         })
       return () => {
         vigente = false
+        consulta.current += 1
       }
     }, [api, clienteId, intento]),
   )
@@ -350,6 +365,7 @@ export function ValoracionesProfesional({
                 <Pressable
                   key={b}
                   accessibilityRole="checkbox"
+                  aria-checked={elegido}
                   accessibilityLabel={NOMBRE_DE_BLOQUE[b]}
                   accessibilityState={{ checked: elegido, disabled: ocupado }}
                   disabled={ocupado}
@@ -413,9 +429,48 @@ export function ValoracionesProfesional({
         </Tarjeta>
       )}
       {listado.total > listado.valoraciones.length && (
-        <Text style={s.tenue}>
-          Mostrando {listado.valoraciones.length} de {listado.total}.
-        </Text>
+        <View>
+          <Text style={s.tenue}>
+            Mostrando {listado.valoraciones.length} de {listado.total}.
+          </Text>
+          <BotonSecundario
+            texto="Ver más valoraciones"
+            ocupado={cargandoMas}
+            onPress={() => {
+              if (cargandoMas) return
+              const vigente = consulta.current
+              setCargandoMas(true)
+              void api
+                .listar(clienteId, 20, listado.valoraciones.length)
+                .then((pagina) => {
+                  if (vigente !== consulta.current) return
+                  setListado(
+                    (actual) =>
+                      actual && {
+                        ...pagina,
+                        valoraciones: [
+                          ...new Map(
+                            [...actual.valoraciones, ...pagina.valoraciones].map((valoracion) => [
+                              valoracion.id,
+                              valoracion,
+                            ]),
+                          ).values(),
+                        ],
+                      },
+                  )
+                })
+                .catch((fallo: unknown) => {
+                  if (vigente === consulta.current)
+                    setError(
+                      faltaDe(fallo, "No se pudieron cargar más valoraciones. Reintenta.").texto,
+                    )
+                })
+                .finally(() => {
+                  if (vigente === consulta.current) setCargandoMas(false)
+                })
+            }}
+          />
+        </View>
       )}
       {medios && (
         <SolicitudesFotos

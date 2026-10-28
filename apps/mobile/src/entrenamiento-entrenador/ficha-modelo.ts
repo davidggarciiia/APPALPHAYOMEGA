@@ -1,9 +1,4 @@
-import type {
-  Molestia,
-  ResultadoEntrenamiento,
-  ValoresEjecutados,
-  ValoresEjecutadosDistancia,
-} from "@alpha-omega/shared"
+import type { Molestia, ResultadoEntrenamiento, ValoresEjecutados } from "@alpha-omega/shared"
 
 import type { EdicionRegistro } from "../entrenamiento/registro-modelo"
 import type { ResultadoConDistancia } from "../entrenamiento/resultado"
@@ -19,8 +14,7 @@ import {
 
 const decimal = (valor: number): string => String(valor).replace(".", ",")
 
-/** D01 · Lo ejecutado puede ir en metros aunque el contrato público no lo acepte hasta D01.g. */
-type Ejecutado = ValoresEjecutados | ValoresEjecutadosDistancia
+type Ejecutado = ValoresEjecutados
 
 /** Lo hecho en su propia unidad; nunca se convierte a otra. */
 function cantidadEjecutada(v: Ejecutado): number {

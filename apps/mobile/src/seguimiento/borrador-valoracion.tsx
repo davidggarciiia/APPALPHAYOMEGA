@@ -10,6 +10,7 @@ import type {
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
+import { useSalidaProtegida } from "../componentes/salida-protegida"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
@@ -88,6 +89,7 @@ function BloqueMedidas({
             </View>
             <Pressable
               accessibilityRole="checkbox"
+              aria-checked={valor.noRealizado}
               accessibilityLabel={`No realizado — ${d.nombre}`}
               accessibilityState={{ checked: valor.noRealizado, disabled: bloqueado }}
               disabled={bloqueado}
@@ -163,6 +165,7 @@ function Resumen({
               <Pressable
                 key={d.id}
                 accessibilityRole="checkbox"
+                aria-checked={elegido}
                 accessibilityLabel={`Destacar ${d.nombre}`}
                 accessibilityState={{ checked: elegido, disabled: bloqueado }}
                 disabled={bloqueado}
@@ -207,6 +210,7 @@ export function BorradorValoracion({
   const [edicion, setEdicion] = useState(() => edicionDe(inicial))
   const [estado, setEstado] = useState<Estado>("guardado")
   const [error, setError] = useState("")
+  const { proteger, permitir, proteccion } = useSalidaProtegida(estado !== "guardado")
   const [abierta, setAbierta] = useState<Seccion>(
     () => inicial.borrador!.documento.bloques.find((b) => CON_FORMULARIO.includes(b)) ?? "resumen",
   )
@@ -282,7 +286,7 @@ export function BorradorValoracion({
         sustituyePublicacionId: borrador.corrigePublicacionId,
       })
       operacionPublicar.current = null
-      publicada(publicacion)
+      permitir(() => publicada(publicacion))
     } catch (fallo) {
       setEstado("guardado")
       if (fallo instanceof ErrorDePeticion && fallo.detalle.codigo === "revision_obsoleta")
@@ -306,6 +310,11 @@ export function BorradorValoracion({
     enCurso.current = true
     try {
       const actual = await recargar()
+      if (!actual.borrador) {
+        if (actual.publicacion) permitir(() => publicada(actual.publicacion!))
+        else setError("Esta valoración ya no tiene un borrador abierto. Vuelve a la lista.")
+        return
+      }
       setValoracion(actual)
       if (!conservar) setEdicion(edicionDe(actual))
       setEstado(conservar ? "cambios" : "guardado")
@@ -325,6 +334,7 @@ export function BorradorValoracion({
 
   return (
     <View style={s.contenido}>
+      {proteccion}
       <View style={s.cabecera}>
         <View style={s.textos}>
           <Text style={s.titulo} accessibilityRole="header">
@@ -337,7 +347,7 @@ export function BorradorValoracion({
             {TEXTO_DE_ESTADO[estado]}
           </Text>
         </View>
-        <Enlace texto="Volver" onPress={volver} />
+        <Enlace texto="Volver" onPress={() => proteger(volver)} />
       </View>
       <Campo
         etiqueta="Fecha de toma (AAAA-MM-DD)"

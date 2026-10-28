@@ -210,6 +210,7 @@ export function EditorDeBloque({
                 <Pressable
                   key={inicial}
                   accessibilityRole="checkbox"
+                  aria-checked={activo}
                   accessibilityState={{ checked: activo }}
                   accessibilityLabel={`${inicial}, ${d.nombre}`}
                   onPress={() => {

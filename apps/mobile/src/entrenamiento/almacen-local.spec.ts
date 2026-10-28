@@ -33,6 +33,30 @@ function memoria() {
 const CUENTA = "10000000-0000-4000-8000-000000000000"
 const OTRA = "20000000-0000-4000-8000-000000000000"
 
+it("no confunde el orden de propiedades de una copia idéntica con otra edición", async () => {
+  const deps = memoria()
+  const a = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  const b = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  const esquema = z.object({ notas: z.string(), series: z.array(z.string()) })
+  await a.guardar(CUENTA, "sesion-compartida", { notas: "igual", series: [] })
+  await b.leer(CUENTA, "sesion-compartida", esquema)
+  await a.guardar(CUENTA, "sesion-compartida", { series: [], notas: "igual" })
+  await expect(
+    b.guardar(CUENTA, "sesion-compartida", { notas: "nueva", series: [] }),
+  ).resolves.toBeUndefined()
+})
+
+it("rechaza la escritura de una pestaña que leyó un borrador anterior", async () => {
+  const deps = memoria()
+  const a = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  const b = crearAlmacenLocal(deps.persistencia, deps.cifrado)
+  await a.guardar(CUENTA, "sesion-compartida", "base")
+  await b.leer(CUENTA, "sesion-compartida", z.string())
+  await a.guardar(CUENTA, "sesion-compartida", "edición A")
+  await expect(b.guardar(CUENTA, "sesion-compartida", "edición B")).rejects.toThrow(/otra edición/i)
+  expect(await a.leer(CUENTA, "sesion-compartida", z.string())).toBe("edición A")
+})
+
 it("recupera documentos mayores de 2 KiB y no los mezcla entre cuentas", async () => {
   const deps = memoria()
   const almacen = crearAlmacenLocal(deps.persistencia, deps.cifrado)

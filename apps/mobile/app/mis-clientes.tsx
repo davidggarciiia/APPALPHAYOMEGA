@@ -23,7 +23,7 @@ const SIN_FALTA: Falta = { texto: "", reintentable: true, sesionCaducada: false 
  * numero.
  */
 export default function MisClientes(): React.JSX.Element {
-  const { estado: sesion } = useSesion()
+  const { estado: sesion, pedir } = useSesion()
   const router = useRouter()
 
   const [fase, setFase] = useState<Fase>("cargando")
@@ -38,7 +38,7 @@ export default function MisClientes(): React.JSX.Element {
 
     let vigente = true
 
-    listarMisClientes(tokenAcceso)
+    listarMisClientes(pedir)
       .then((listado) => {
         if (!vigente) return
 
@@ -55,7 +55,7 @@ export default function MisClientes(): React.JSX.Element {
     return () => {
       vigente = false
     }
-  }, [tokenAcceso, intento])
+  }, [tokenAcceso, pedir, intento])
 
   if (fase === "cargando") {
     return (

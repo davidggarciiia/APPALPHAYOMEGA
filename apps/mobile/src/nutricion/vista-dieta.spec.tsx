@@ -217,12 +217,14 @@ it("sin dieta publicada lo dice en lugar de enseñar un ejemplo", async () => {
 })
 
 it("sin conexión enseña la última copia y, si no hay, pide conexión", async () => {
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date("2026-09-24T10:30:00Z")) // jueves con comidas, tras la publicación
   const almacen = almacenEnMemoria()
-  const vigente = jest.fn().mockResolvedValueOnce({ dieta: publicada() })
+  const vigente = jest.fn().mockResolvedValueOnce({ dieta: publicada(), deNutricionista: true })
   const primera = await render(
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
-  expect(await screen.findByText("Dieta de tu entrenador")).toBeOnTheScreen()
+  expect(await screen.findByText("Dieta de tu nutricionista")).toBeOnTheScreen()
   await primera.unmount()
   expect(almacen.datos.has("dieta-vigente")).toBe(true)
 
@@ -231,8 +233,9 @@ it("sin conexión enseña la última copia y, si no hay, pide conexión", async 
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
   expect(await screen.findByText(/Sin conexión · copia del/)).toBeOnTheScreen()
+  expect(screen.getByText("Dieta de tu nutricionista")).toBeOnTheScreen()
   // Sin conexión se ve la dieta y se puede consultar el plato; no se marca desde el resumen.
-  expect(screen.getByRole("button", { name: /^Desayuno, ahora: / })).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: /^Desayuno: / })).toBeOnTheScreen()
   expect(screen.queryByRole("checkbox", { name: "Desayuno hecha" })).toBeNull()
   await sinRed.unmount()
 
@@ -245,6 +248,44 @@ it("sin conexión enseña la última copia y, si no hay, pide conexión", async 
     />,
   )
   expect(await screen.findByText(/Necesitas conexión para descargar tu dieta/)).toBeOnTheScreen()
+})
+
+it("sin registros de comidas no presenta un progreso de cero", async () => {
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date("2026-09-24T10:30:00Z"))
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={{
+        ...api(async () => ({ dieta: publicada(), deNutricionista: true })),
+        comidas: async () => {
+          throw new ErrorDeRed("Sin red")
+        },
+      }}
+      almacen={almacenEnMemoria()}
+    />,
+  )
+  expect(await screen.findByText("Registro de comidas no disponible")).toBeOnTheScreen()
+  expect(screen.queryByText("0 de 2")).toBeNull()
+  expect(screen.queryByRole("progressbar", { name: "Comidas hechas" })).toBeNull()
+  expect(screen.getByRole("button", { name: /^Desayuno: / })).toBeOnTheScreen()
+})
+
+it("una copia antigua sin autor lo presenta como profesional", async () => {
+  const almacen = almacenEnMemoria()
+  almacen.datos.set("dieta-vigente", { dieta: publicada(), actualizadaEn: "2026-09-24T10:30:00Z" })
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={api(async () => {
+        throw new ErrorDeRed("Sin red")
+      })}
+      almacen={almacen}
+    />,
+  )
+  expect(await screen.findByText("Dieta de tu profesional")).toBeOnTheScreen()
 })
 
 it("abre la elección de comida sin registrarla desde el círculo del resumen", async () => {
@@ -359,7 +400,8 @@ it("espera el registro del día antes de habilitar las tomas", async () => {
       seguimiento={seguimiento}
     />,
   )
-  expect(await screen.findByRole("checkbox", { name: "Omega 3 tomada" })).toBeDisabled()
+  expect(await screen.findByLabelText("Omega 3: registro no disponible")).toBeOnTheScreen()
+  expect(screen.queryByRole("checkbox", { name: "Omega 3 tomada" })).toBeNull()
   await act(async () => terminar())
   expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
   await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
@@ -386,6 +428,8 @@ it("limpia el error de lectura al volver a cargar correctamente", async () => {
   expect(
     await screen.findByText("No se pudieron cargar los registros de hoy. Revisa la conexión."),
   ).toBeTruthy()
+  expect(screen.queryByRole("checkbox", { name: "Vitamina D tomada" })).toBeNull()
+  expect(screen.getByLabelText("Vitamina D: registro no disponible")).toBeOnTheScreen()
   await vista.rerender(
     <VistaDieta
       clienteId={CUENTA}

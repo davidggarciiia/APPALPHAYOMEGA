@@ -48,7 +48,7 @@ type Fase = "cargando" | "listo" | "error"
  * trabajo diario en un listin de todo el mundo.
  */
 export default function Cartera(): React.JSX.Element {
-  const { estado: sesion } = useSesion()
+  const { estado: sesion, pedir } = useSesion()
   const router = useRouter()
 
   const [texto, setTexto] = useState("")
@@ -92,7 +92,7 @@ export default function Cartera(): React.JSX.Element {
     let vigente = true
     setActualizando(true)
 
-    listarUsuarios(tokenAcceso, {
+    listarUsuarios(pedir, {
       rol: "cliente",
       buscar: busqueda === "" ? undefined : busqueda,
       estado: filtro ?? undefined,
@@ -120,7 +120,7 @@ export default function Cartera(): React.JSX.Element {
     return () => {
       vigente = false
     }
-  }, [tokenAcceso, busqueda, filtro, intento])
+  }, [tokenAcceso, pedir, busqueda, filtro, intento])
 
   // Al volver de una ficha, la lista se vuelve a pedir. Sin esto, dar de baja a
   // alguien y pulsar VOLVER lo dejaria pintado como ACTIVO, y en una pantalla de

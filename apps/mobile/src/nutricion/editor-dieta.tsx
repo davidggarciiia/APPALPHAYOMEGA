@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
+import { useSalidaProtegida } from "../componentes/salida-protegida"
 import { ErrorDePeticion, ErrorDePermiso, ErrorDeRed } from "../lib/http"
 import { degradadoOro, tema } from "../tema"
 import type { ApiNutricion } from "./api"
@@ -45,8 +46,12 @@ export function EditorDieta({
   const [guardado, setGuardado] = useState<Guardado>("sin cambios")
   const [errores, setErrores] = useState<string[]>([])
   const [falloCarga, setFalloCarga] = useState("")
-  const [saliendo, setSaliendo] = useState(false)
   const [recarga, setRecarga] = useState(0)
+  const enCurso = useRef(false)
+  const edicion = useRef(0)
+  const { proteger, proteccion } = useSalidaProtegida(
+    guardado === "cambios" || guardado === "conflicto" || guardado === "guardando",
+  )
 
   useEffect(() => {
     let vigente = true
@@ -89,22 +94,26 @@ export function EditorDieta({
   if (dieta === null) return <Text style={s.tenue}>Cargando la dieta…</Text>
 
   const cambiar = (nueva: DietaEditable): void => {
+    edicion.current++
     setDieta(nueva)
     setErrores([])
-    if (guardado !== "conflicto") setGuardado("cambios")
+    if (guardado !== "conflicto" && !enCurso.current) setGuardado("cambios")
   }
 
   const guardar = async (): Promise<void> => {
+    if (enCurso.current || guardado === "conflicto") return
     const { documento, errores: problemas } = convertir(dieta)
     if (documento === null) {
       setErrores(problemas)
       return
     }
+    enCurso.current = true
+    const edicionEnviada = edicion.current
     setGuardado("guardando")
     try {
       const borrador = await api.guardar(clienteId, revision, documento)
       setRevision(borrador.revision)
-      setGuardado("guardado")
+      setGuardado(edicion.current === edicionEnviada ? "guardado" : "cambios")
     } catch (error) {
       if (error instanceof ErrorDePeticion && error.detalle.codigo === "revision_obsoleta") {
         setGuardado("conflicto")
@@ -120,6 +129,8 @@ export function EditorDieta({
               ? error.message
               : "No se pudo guardar el borrador.",
       ])
+    } finally {
+      enCurso.current = false
     }
   }
 
@@ -166,6 +177,7 @@ export function EditorDieta({
                 <Pressable
                   key={tipo.id}
                   accessibilityRole="radio"
+                  aria-checked={elegido}
                   accessibilityState={{ checked: elegido }}
                   accessibilityLabel={`${dia}: ${tipo.nombre || "tipo sin nombre"}`}
                   onPress={() =>
@@ -279,20 +291,8 @@ export function EditorDieta({
         ocupado={guardado === "guardando"}
         onPress={() => void guardar()}
       />
-      {saliendo ? (
-        <View style={s.aviso}>
-          <AvisoDeError mensaje="Tienes cambios sin guardar. Si sales ahora se perderán." />
-          <BotonSecundario texto="Seguir editando" onPress={() => setSaliendo(false)} />
-          <BotonSecundario texto="Salir sin guardar" onPress={volver} />
-        </View>
-      ) : (
-        <BotonSecundario
-          texto="Volver a la dieta"
-          onPress={() =>
-            guardado === "cambios" || guardado === "conflicto" ? setSaliendo(true) : volver()
-          }
-        />
-      )}
+      <BotonSecundario texto="Volver a la dieta" onPress={() => proteger(volver)} />
+      {proteccion}
     </View>
   )
 }

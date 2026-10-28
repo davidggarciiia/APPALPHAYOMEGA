@@ -157,6 +157,43 @@ async function abrirNueva(falsa: ReturnType<typeof api>): Promise<void> {
   await screen.findByText("Valoración inicial")
 }
 
+it("Volver conserva el borrador de valoración hasta confirmar que se descarta", async () => {
+  await abrirNueva(api())
+  await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "78,5")
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(screen.getByDisplayValue("78,5")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Seguir editando" }))
+  expect(screen.getByDisplayValue("78,5")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Salir sin guardar" }))
+  expect(await screen.findByText("Valoraciones")).toBeOnTheScreen()
+})
+
+it("permite consultar valoraciones posteriores a la primera página", async () => {
+  const valoraciones: ListadoValoraciones["valoraciones"] = Array.from({ length: 21 }, (_, n) => ({
+    id: `60000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+    tipo: "revision",
+    estado: "publicada",
+    fechaToma: n === 20 ? "2026-08-01" : "2026-09-24",
+    publicadaEn: "2026-09-24T10:00:00.000Z",
+    numeroPublicacion: 1,
+  }))
+  const listar = jest.fn(
+    async (_cliente: string, _limite = 20, desplazamiento = 0): Promise<ListadoValoraciones> => ({
+      valoraciones: valoraciones.slice(desplazamiento, desplazamiento + 20),
+      total: 21,
+    }),
+  )
+  await render(
+    <ValoracionesProfesional clienteId={CLIENTE} api={{ ...api(), listar }} nuevoId={nuevoId} />,
+  )
+  await fireEvent.press(await screen.findByRole("button", { name: "Ver más valoraciones" }))
+  expect(
+    await screen.findByRole("button", { name: /Revisión del .*ago.*Publicada/ }),
+  ).toBeOnTheScreen()
+  expect(listar).toHaveBeenLastCalledWith(CLIENTE, 20, 20)
+})
+
 it("sin medidas en la plantilla ofrece añadir peso y altura explícitamente", async () => {
   const falsa = api({ revision: 0, corporales: [], pruebas: [] })
   await render(<ValoracionesProfesional clienteId={CLIENTE} api={falsa} nuevoId={nuevoId} />)
@@ -290,6 +327,22 @@ it("un conflicto no pisa el servidor: permite cargar la versión guardada o cons
 })
 
 const PUBLICACION = "60000000-0000-4000-8000-000000000001"
+it.each(["Cargar versión guardada", "Conservar mi edición"])(
+  "muestra la valoración publicada si otro dispositivo publica antes de %s",
+  async (resolver) => {
+    const falsa = api()
+    await abrirNueva(falsa)
+    falsa.cambiar.mockRejectedValueOnce(conflicto())
+    await fireEvent.changeText(screen.getByLabelText("Peso (kg)"), "85")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    await screen.findByText("Otra edición se guardó antes")
+    falsa.leer.mockResolvedValue(publicada())
+    await fireEvent.press(screen.getByRole("button", { name: resolver }))
+    expect(await screen.findByRole("button", { name: "Corregir" })).toBeTruthy()
+    expect(screen.queryByLabelText("Peso (kg)")).toBeNull()
+  },
+)
+
 function publicada(numero = 1): ValoracionProfesional {
   const base = visita(3, { peso: 80 })
   const documento = base.borrador!.documento

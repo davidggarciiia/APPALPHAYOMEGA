@@ -123,27 +123,39 @@ export function ProveedorDeSesion({ children }: { children: ReactNode }): React.
     if (!fallo) cuentaPorLimpiar.current = null
   }, [enCola])
 
-  const revocarBajoCandado = useCallback(async (): Promise<void> => {
-    const version = epoca.current
-    const anterior = actual.current
-    const cuenta =
-      "usuario" in anterior ? anterior.usuario.id : await leerCuentaLocal().catch(() => null)
-    if (version !== epoca.current) return
-    const cuentaCompartida = leerCuentaWeb()
-    if (cuentaCompartida !== null && cuentaCompartida !== cuenta) {
-      abandonarCuentaCompartida()
-      return
-    }
-    epoca.current++
-    refresco.current = null
-    cuentaPorLimpiar.current = cuenta
-    actualizar({ fase: "fuera" })
-    setSesionCaducada(true)
-    setSinConexion(false)
-    await limpiarAcceso()
-  }, [abandonarCuentaCompartida, actualizar, limpiarAcceso])
+  const revocarBajoCandado = useCallback(
+    async (tokenRechazado?: string): Promise<void> => {
+      const version = epoca.current
+      const anterior = actual.current
+      const cuenta =
+        "usuario" in anterior ? anterior.usuario.id : await leerCuentaLocal().catch(() => null)
+      if (version !== epoca.current) return
+      const cuentaCompartida = leerCuentaWeb()
+      if (cuentaCompartida !== null && cuentaCompartida !== cuenta) {
+        abandonarCuentaCompartida()
+        return
+      }
+      if (
+        tokenRechazado &&
+        (actual.current.fase !== "dentro" || actual.current.tokenAcceso !== tokenRechazado)
+      )
+        return
+      // Un acceso rechazado puede pertenecer a una rotación ya reemplazada en otra pestaña.
+      // Bajo el mismo candado de renovación, solo revocamos la credencial que rechazaron.
+      if (Platform.OS === "web" && (await leerTokenRefresco()) !== refresco.current) return
+      epoca.current++
+      refresco.current = null
+      cuentaPorLimpiar.current = cuenta
+      actualizar({ fase: "fuera" })
+      setSesionCaducada(true)
+      setSinConexion(false)
+      await limpiarAcceso()
+    },
+    [abandonarCuentaCompartida, actualizar, limpiarAcceso],
+  )
   const revocar = useCallback(
-    (): Promise<void> => conCredencialesExclusivas(revocarBajoCandado),
+    (tokenRechazado: string): Promise<void> =>
+      conCredencialesExclusivas(() => revocarBajoCandado(tokenRechazado)),
     [revocarBajoCandado],
   )
 

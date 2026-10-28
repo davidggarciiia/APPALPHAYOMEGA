@@ -1,34 +1,19 @@
 import { randomUUID } from "expo-crypto"
-import {
-  SesionEnRutinaSchema,
-  type SeriePrescrita,
-  type SeriePrescritaDistancia,
-  type SesionEnRutina,
-} from "@alpha-omega/shared"
+import { SesionEnRutinaSchema, type SeriePrescrita, type SesionEnRutina } from "@alpha-omega/shared"
 
-/**
- * D01 · Los modelos profesionales representan la distancia aunque el contrato
- * público no la acepte hasta D01.g: convertirSesion valida con
- * SesionEnRutinaSchema, que decide si una serie en metros se puede publicar.
- */
-export type SerieConDistancia = SeriePrescrita | SeriePrescritaDistancia
+export type SerieConDistancia = SeriePrescrita
 export type TipoMedicion = SerieConDistancia["tipoMedicion"]
-type EjercicioConDistancia = Omit<SesionEnRutina["ejercicios"][number], "series"> & {
-  series: SerieConDistancia[]
-}
-export type SesionConDistancia = Omit<SesionEnRutina, "ejercicios"> & {
-  ejercicios: EjercicioConDistancia[]
-}
+type EjercicioConDistancia = SesionEnRutina["ejercicios"][number]
+export type SesionConDistancia = SesionEnRutina
 
 export type SerieEditable = {
   id: string
   tipoMedicion: TipoMedicion
   peso: string
   objetivo: string
+  repeticionesMax?: number
 }
-export type EjercicioEditable = {
-  id: string
-  ejercicioId: string
+export type EjercicioEditable = Omit<EjercicioConDistancia, "series" | "indicaciones"> & {
   nombre: string
   indicaciones: string
   modoRir?: "desactivado" | "alFinalizarEjercicio" | "cadaSerie"
@@ -36,10 +21,7 @@ export type EjercicioEditable = {
   calibrar?: boolean
   series: SerieEditable[]
 }
-export type SesionEditable = {
-  id: string
-  nombre: string
-  diaSemana: number
+export type SesionEditable = Omit<SesionConDistancia, "ejercicios"> & {
   ejercicios: EjercicioEditable[]
 }
 
@@ -80,6 +62,8 @@ export function desdeSerie(serie: SerieConDistancia): SerieEditable {
     tipoMedicion: serie.tipoMedicion,
     peso: serie.pesoKg?.toString() ?? "",
     objetivo: String(cantidadPrescrita(serie)),
+    ...(serie.tipoMedicion === "repeticiones" &&
+      serie.repeticionesMax !== undefined && { repeticionesMax: serie.repeticionesMax }),
   }
 }
 
@@ -95,7 +79,14 @@ export function convertirSerie(
   const cantidad = Number(serie.objetivo)
   switch (serie.tipoMedicion) {
     case "repeticiones":
-      return { id: serie.id, tipoMedicion: "repeticiones", pesoKg, repeticiones: cantidad }
+      return {
+        id: serie.id,
+        tipoMedicion: "repeticiones",
+        pesoKg,
+        repeticiones: cantidad,
+        ...(serie.repeticionesMax !== undefined &&
+          serie.repeticionesMax >= cantidad && { repeticionesMax: serie.repeticionesMax }),
+      }
     case "tiempo":
       return { id: serie.id, tipoMedicion: "tiempo", pesoKg, segundos: cantidad }
     case "distancia":
@@ -152,18 +143,19 @@ export function moverEjercicio(
   return { ...sesion, ejercicios }
 }
 export function convertirSesion(sesion: SesionEditable): SesionEnRutina {
+  const { ejercicios, ...datosSesion } = sesion
   return SesionEnRutinaSchema.parse({
-    id: sesion.id,
-    nombre: sesion.nombre,
-    diaSemana: sesion.diaSemana,
-    ejercicios: sesion.ejercicios.map((ejercicio) => ({
-      id: ejercicio.id,
-      ejercicioId: ejercicio.ejercicioId,
-      indicaciones: ejercicio.indicaciones || null,
-      ...(ejercicio.modoRir !== undefined && { modoRir: ejercicio.modoRir }),
-      ...(ejercicio.tipoCarga !== undefined && { tipoCarga: ejercicio.tipoCarga }),
-      ...(ejercicio.calibrar && { calibrar: true }),
-      series: ejercicio.series.map((serie) => convertirSerie(serie, ejercicio)),
-    })),
+    ...datosSesion,
+    ejercicios: ejercicios.map((ejercicio) => {
+      const { nombre: _nombre, indicaciones, series, subidaKg, ...prescripcion } = ejercicio
+      // El nombre mostrado pertenece al catálogo, no al documento de la rutina.
+      void _nombre
+      return {
+        ...prescripcion,
+        ...(ejercicio.tipoCarga !== "sinCarga" && subidaKg !== undefined && { subidaKg }),
+        indicaciones: indicaciones || null,
+        series: series.map((serie) => convertirSerie(serie, ejercicio)),
+      }
+    }),
   })
 }

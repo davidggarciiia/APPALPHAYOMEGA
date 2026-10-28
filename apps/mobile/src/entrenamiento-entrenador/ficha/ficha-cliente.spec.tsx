@@ -8,6 +8,26 @@ import type { ApiMedios } from "../../seguimiento/medios-api"
 import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { FichaCliente } from "./ficha-cliente"
 
+jest.mock("../../seguimiento/editor-valoracion", () => ({
+  ValoracionesProfesional: function EditorDePrueba({
+    alEditar,
+  }: {
+    alEditar?: (valor: boolean) => void
+  }) {
+    const { useEffect, useState } = jest.requireActual<typeof import("react")>("react")
+    const { TextInput } = jest.requireActual<typeof import("react-native")>("react-native")
+    const [valor, cambiar] = useState("")
+    useEffect(() => {
+      alEditar?.(true)
+      return () => alEditar?.(false)
+    }, [alEditar])
+    return (
+      <TextInput accessibilityLabel="Valoración en edición" value={valor} onChangeText={cambiar} />
+    )
+  },
+}))
+jest.mock("../../seguimiento/progreso", () => ({ ProgresoCliente: () => null }))
+
 const mockPush = jest.fn()
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
@@ -17,6 +37,43 @@ jest.mock("expo-router", () => ({
 
 const clienteId = "30000000-0000-4000-8000-000000000000"
 const sesionId = "20000000-0000-4000-8000-000000000000"
+
+it("cambiar de pestaña conserva el editor de valoraciones abierto", async () => {
+  await render(
+    <FichaCliente
+      clienteId={clienteId}
+      cuentaId={clienteId}
+      leerFicha={async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario}
+      api={
+        {
+          plan: async () => ({ plan: null }),
+          resultados: async () => ({ resultados: [] }),
+          molestias: async () => ({ molestias: [] }),
+          novedades: async () => ({ novedades: [], total: 0, sinLeer: 0 }),
+        } as unknown as ApiEntrenamiento
+      }
+      seguimiento={
+        {
+          medidas: async () => ({ medidas: [], fechaNacimiento: null }),
+          consentimiento: async () => null,
+        } as unknown as ApiSeguimiento
+      }
+      nutricion={{ vigente: async () => null } as unknown as ApiNutricion}
+      valoraciones={{} as ApiValoraciones}
+      medios={{} as ApiMedios}
+      nuevoId={() => clienteId}
+      editarPlan={jest.fn()}
+      verSemana={jest.fn()}
+      abrirNutricion={jest.fn()}
+    />,
+  )
+  await fireEvent.press(await screen.findByRole("tab", { name: "Progreso" }))
+  await fireEvent.changeText(screen.getByLabelText("Valoración en edición"), "Datos pendientes")
+  await fireEvent.press(screen.getByRole("tab", { name: "Resumen" }))
+  expect(screen.getByRole("tab", { name: "Progreso" }).props.accessibilityState.selected).toBe(true)
+  await fireEvent.press(screen.getByRole("tab", { name: "Progreso" }))
+  expect(screen.getByDisplayValue("Datos pendientes")).toBeTruthy()
+})
 
 it("muestra novedades de la ficha y abre el detalle de su sesión", async () => {
   const api = {
@@ -73,6 +130,7 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
 
   await waitFor(() => expect(screen.getByText(/cambió el día de Fuerza A/)).toBeTruthy())
   expect(screen.getByText(/Sin consentimiento de datos de salud/)).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Crear plan nuevo" })).toBeOnTheScreen()
   expect(screen.getByText(/envió Fuerza A/)).toBeTruthy()
   expect(screen.getByText(/comunicó una molestia en Fuerza A/)).toBeTruthy()
   await fireEvent.press(screen.getByRole("button", { name: /comunicó una molestia en Fuerza A/ }))

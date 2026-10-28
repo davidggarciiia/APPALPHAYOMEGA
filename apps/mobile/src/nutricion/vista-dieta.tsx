@@ -41,7 +41,7 @@ type Estado =
   | {
       fase: "lista"
       dieta: DietaPublicada | null
-      deNutricionista: boolean
+      deNutricionista: boolean | null
       copiaDel: string | null
     }
 
@@ -159,6 +159,7 @@ export function VistaDieta({
       const cargar = async (): Promise<void> => {
         setAviso("")
         setDiaCargado(false)
+        setRegistradas(null)
         try {
           const { dieta, deNutricionista } = await api.vigente(clienteId, cancelacion.signal)
           if (!vigente) return
@@ -181,7 +182,7 @@ export function VistaDieta({
                 setAviso("No se pudieron cargar los registros de hoy. Revisa la conexión.")
             })
           // Si falla el guardado local, la dieta se sigue viendo: solo se pierde la copia.
-          await guardarCopia(almacen, cuenta, dieta).catch(() => undefined)
+          await guardarCopia(almacen, cuenta, dieta, deNutricionista).catch(() => undefined)
         } catch (error) {
           if (!vigente) return
           if (error instanceof ErrorDeRed) {
@@ -192,7 +193,7 @@ export function VistaDieta({
                 ? {
                     fase: "lista",
                     dieta: copia.dieta,
-                    deNutricionista: false,
+                    deNutricionista: copia.deNutricionista ?? null,
                     copiaDel: copia.actualizadaEn,
                   }
                 : {
@@ -229,6 +230,24 @@ export function VistaDieta({
       </View>
     )
   }
+  const dieta = estado.dieta
+  const enLinea = estado.copiaDel === null
+  const tomarSuplemento = async (suplemento: Suplemento, tomado: boolean): Promise<void> => {
+    if (!seguimiento || !diaCargado || guardando.current) return
+    guardando.current = true
+    setGuardandoSuplemento(true)
+    setAviso("")
+    try {
+      setDia(
+        await seguimiento.cambiarDia(clienteId, hoy, cambioDeSuplemento(suplemento, tomado, dia)),
+      )
+    } catch (error) {
+      setAviso(faltaDe(error, "No se pudo guardar el suplemento.").texto)
+    } finally {
+      guardando.current = false
+      setGuardandoSuplemento(false)
+    }
+  }
   return (
     <View style={s.contenido}>
       {estado.copiaDel !== null && (
@@ -237,71 +256,41 @@ export function VistaDieta({
           <BotonSecundario texto="Actualizar" onPress={() => setIntento((n) => n + 1)} />
         </View>
       )}
-      {estado.dieta === null ? (
+      {dieta === null ? (
         <Text style={s.vacio}>
           Tu dieta aún no está publicada. Cuando tu profesional la publique aparecerá aquí.
         </Text>
+      ) : semana ? (
+        <>
+          <Enlace texto="‹ Volver a hoy" onPress={() => setSemana(false)} />
+          <View>
+            <Text style={s.nombre}>{dieta.documento.nombre}</Text>
+            <Text style={s.tenue}>Publicada el {fechaCorta(dieta.publicadaEn)}</Text>
+          </View>
+          <DocumentoVisible documento={dieta.documento} />
+        </>
       ) : (
-        (() => {
-          const dieta = estado.dieta
-          const enLinea = estado.copiaDel === null
-          const tomarSuplemento = async (
-            suplemento: Suplemento,
-            tomado: boolean,
-          ): Promise<void> => {
-            if (!seguimiento || !diaCargado || guardando.current) return
-            guardando.current = true
-            setGuardandoSuplemento(true)
-            setAviso("")
-            try {
-              setDia(
-                await seguimiento.cambiarDia(
-                  clienteId,
-                  hoy,
-                  cambioDeSuplemento(suplemento, tomado, dia),
-                ),
-              )
-            } catch (error) {
-              setAviso(faltaDe(error, "No se pudo guardar el suplemento.").texto)
-            } finally {
-              guardando.current = false
-              setGuardandoSuplemento(false)
-            }
-          }
-          return semana ? (
-            <>
-              <Enlace texto="‹ Volver a hoy" onPress={() => setSemana(false)} />
-              <View>
-                <Text style={s.nombre}>{dieta.documento.nombre}</Text>
-                <Text style={s.tenue}>Publicada el {fechaCorta(dieta.publicadaEn)}</Text>
-              </View>
-              <DocumentoVisible documento={dieta.documento} />
-            </>
-          ) : (
-            <>
-              {aviso !== "" && <AvisoDeError mensaje={aviso} />}
-              {guardandoSuplemento && (
-                <Text style={s.tenue} accessibilityLiveRegion="polite">
-                  Guardando suplemento…
-                </Text>
-              )}
-              <HoyNutricion
-                documento={dieta.documento}
-                deNutricionista={estado.deNutricionista}
-                hoy={hoy}
-                hora={horaActual()}
-                registradas={registradas ?? []}
-                dia={dia}
-                puedeTomar={
-                  enLinea && seguimiento !== undefined && diaCargado && !guardandoSuplemento
-                }
-                abrirComida={(comida) => (abrirComida ? abrirComida(comida) : setSemana(true))}
-                tomarSuplemento={(suplemento, tomado) => void tomarSuplemento(suplemento, tomado)}
-                verSemana={() => setSemana(true)}
-              />
-            </>
-          )
-        })()
+        <>
+          {aviso !== "" && <AvisoDeError mensaje={aviso} />}
+          {guardandoSuplemento && (
+            <Text style={s.tenue} accessibilityLiveRegion="polite">
+              Guardando suplemento…
+            </Text>
+          )}
+          <HoyNutricion
+            documento={dieta.documento}
+            deNutricionista={estado.deNutricionista}
+            hoy={hoy}
+            hora={horaActual()}
+            registradas={registradas}
+            dia={dia}
+            diaCargado={diaCargado}
+            puedeTomar={enLinea && seguimiento !== undefined && diaCargado && !guardandoSuplemento}
+            abrirComida={(comida) => (abrirComida ? abrirComida(comida) : setSemana(true))}
+            tomarSuplemento={(suplemento, tomado) => void tomarSuplemento(suplemento, tomado)}
+            verSemana={() => setSemana(true)}
+          />
+        </>
       )}
     </View>
   )

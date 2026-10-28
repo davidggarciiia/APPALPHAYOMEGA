@@ -86,7 +86,7 @@ export function TarjetaHoy({
               alto={184}
             />
           ) : (
-            <Image source={entrenamiento} style={s.imagen} accessible={false} />
+            <Image source={entrenamiento} style={s.imagen} resizeMode="cover" accessible={false} />
           )}
           {primero?.ejercicio && (
             <Text style={s.etiqueta} numberOfLines={1}>
@@ -146,7 +146,7 @@ const s = StyleSheet.create({
     gap: 20,
   },
   medio: { height: 184, borderRadius: 14, backgroundColor: tema.hundido, overflow: "hidden" },
-  imagen: { width: "100%", height: "100%", resizeMode: "cover" },
+  imagen: { width: "100%", height: "100%" },
   etiqueta: {
     position: "absolute",
     left: 14,

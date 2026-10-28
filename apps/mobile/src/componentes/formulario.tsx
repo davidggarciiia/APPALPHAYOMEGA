@@ -52,7 +52,13 @@ export function PantallaDeFormulario({
         >
           {acceso && (
             <View style={estilos.identidad}>
-              <Image source={marca} style={estilos.logo} accessibilityLabel="Alpha & Omega" />
+              <Image
+                source={marca}
+                style={estilos.logo}
+                tintColor={tema.acento}
+                resizeMode="contain"
+                accessibilityLabel="Alpha & Omega"
+              />
               <Text style={estilos.marca}>ALPHA &amp; OMEGA</Text>
               <Text style={estilos.lema}>TRAINING</Text>
             </View>
@@ -93,29 +99,19 @@ export function Campo({
   )
 }
 
-export function BotonPrincipal({
-  texto,
-  onPress,
-  ocupado = false,
-}: {
+type PropiedadesBoton = {
   texto: string
   onPress: () => void
   ocupado?: boolean
-}): React.JSX.Element {
-  return (
-    <Pressable
-      style={({ pressed }) => [estilos.boton, (pressed || ocupado) && estilos.botonPulsado]}
-      onPress={onPress}
-      disabled={ocupado}
-      accessibilityRole="button"
-      // El nombre accesible no cambia mientras se envia. Antes el boton se
-      // quedaba sin texto y un lector de pantalla no sabia que anunciar.
-      accessibilityLabel={texto}
-      accessibilityState={{ disabled: ocupado, busy: ocupado }}
-    >
-      <Text style={estilos.textoBoton}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
-  )
+}
+
+type PropiedadesBotonSecundario = PropiedadesBoton & {
+  etiquetaAccesible?: string
+  deshabilitado?: boolean
+}
+
+export function BotonPrincipal(props: PropiedadesBoton): React.JSX.Element {
+  return <Boton {...props} estilo="boton" estiloTexto="textoBoton" />
 }
 
 /**
@@ -125,56 +121,39 @@ export function BotonPrincipal({
  * botones de una pantalla se ven igual, el que da de baja a alguien se pulsa por
  * error tarde o temprano.
  */
-export function BotonSecundario({
+export function BotonSecundario(props: PropiedadesBotonSecundario): React.JSX.Element {
+  return <Boton {...props} estilo="secundario" estiloTexto="textoSecundario" />
+}
+
+/** Acción con consecuencias, identificada por su texto y separada de guardar. */
+export function BotonDestructivo(props: PropiedadesBoton): React.JSX.Element {
+  return <Boton {...props} estilo="destructivo" estiloTexto="textoDestructivo" />
+}
+
+function Boton({
   texto,
   etiquetaAccesible = texto,
   onPress,
   ocupado = false,
   deshabilitado = false,
-}: {
-  texto: string
-  etiquetaAccesible?: string
-  onPress: () => void
-  ocupado?: boolean
-  deshabilitado?: boolean
+  estilo,
+  estiloTexto,
+}: PropiedadesBotonSecundario & {
+  estilo: "boton" | "secundario" | "destructivo"
+  estiloTexto: "textoBoton" | "textoSecundario" | "textoDestructivo"
 }): React.JSX.Element {
+  const desactivado = ocupado || deshabilitado
   return (
     <Pressable
-      style={({ pressed }) => [
-        estilos.secundario,
-        (pressed || ocupado || deshabilitado) && estilos.botonPulsado,
-      ]}
+      style={({ pressed }) => [estilos[estilo], (pressed || desactivado) && estilos.botonPulsado]}
       onPress={onPress}
-      disabled={ocupado || deshabilitado}
+      disabled={desactivado}
       accessibilityRole="button"
+      // El nombre accesible no cambia mientras se envía.
       accessibilityLabel={etiquetaAccesible}
-      accessibilityState={{ disabled: ocupado || deshabilitado, busy: ocupado }}
+      accessibilityState={{ disabled: desactivado, busy: ocupado }}
     >
-      <Text style={estilos.textoSecundario}>{ocupado ? "..." : texto}</Text>
-    </Pressable>
-  )
-}
-
-/** Acción con consecuencias, identificada por su texto y separada de guardar. */
-export function BotonDestructivo({
-  texto,
-  onPress,
-  ocupado = false,
-}: {
-  texto: string
-  onPress: () => void
-  ocupado?: boolean
-}): React.JSX.Element {
-  return (
-    <Pressable
-      style={({ pressed }) => [estilos.destructivo, (pressed || ocupado) && estilos.botonPulsado]}
-      onPress={onPress}
-      disabled={ocupado}
-      accessibilityRole="button"
-      accessibilityLabel={texto}
-      accessibilityState={{ disabled: ocupado, busy: ocupado }}
-    >
-      <Text style={estilos.textoDestructivo}>{ocupado ? "..." : texto}</Text>
+      <Text style={estilos[estiloTexto]}>{ocupado ? "..." : texto}</Text>
     </Pressable>
   )
 }
@@ -212,8 +191,6 @@ const estilos = StyleSheet.create({
   logo: {
     width: 96,
     height: 96,
-    tintColor: tema.acento,
-    resizeMode: "contain",
     marginBottom: 16,
   },
   marca: {

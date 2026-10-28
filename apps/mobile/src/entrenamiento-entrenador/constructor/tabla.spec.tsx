@@ -30,6 +30,27 @@ function sinMezcla(): EjercicioDelConstructor {
 }
 
 describe("ejercicio que mezcla unidades en el constructor", () => {
+  it("advierte de series distintas y exige decidir antes de unificar su pauta", async () => {
+    const ejercicio = { ...sinMezcla(), seriesDistintas: true as const }
+    const cambiar = jest.fn()
+    expect(pautaDeFila(ejercicio)).toBe("Series distintas: revisar")
+    await render(
+      <PanelEjercicio
+        ejercicio={ejercicio}
+        nombreCliente="Lara"
+        cambiar={cambiar}
+        verTecnica={jest.fn()}
+      />,
+    )
+    expect(screen.getByText(/cargas u objetivos distintos/)).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Pautar todas las series por igual" }))
+    expect(cambiar).toHaveBeenCalledWith(ejercicio.id, {
+      seriesDistintas: undefined,
+      objetivo: "",
+      carga: "",
+    })
+  })
+
   it("la fila lo dice en vez de parecer correcta", async () => {
     await render(
       <TablaPrincipal

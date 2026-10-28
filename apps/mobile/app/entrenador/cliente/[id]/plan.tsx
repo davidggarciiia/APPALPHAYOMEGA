@@ -13,7 +13,7 @@ import { tema } from "../../../../src/tema"
 import { almacenDispositivo } from "../../../../src/entrenamiento/almacen-dispositivo"
 import { useRutinas } from "../../../../src/entrenamiento-entrenador/api-rutinas"
 
-/** «Editar plan»: el constructor de planes del diseño. */
+/** «Crear plan nuevo»: prepara una nueva asignación para el cliente. */
 export default function PrepararPlan(): React.JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { estado, pedir } = useSesion()

@@ -25,6 +25,7 @@ jest.mock("expo-crypto", () => ({
 }))
 // Copia local en memoria: sin cifrado del dispositivo ni SQLite.
 const mockFilas = new Map<string, string>()
+let mockFalloDeDisco = false
 jest.mock("./almacen-dispositivo", () => {
   const { crearAlmacenLocal } =
     jest.requireActual<typeof import("./almacen-local")>("./almacen-local")
@@ -33,6 +34,7 @@ jest.mock("./almacen-dispositivo", () => {
       {
         leer: async (_c, k) => mockFilas.get(k) ?? null,
         escribir: async (_c, k, v) => {
+          if (mockFalloDeDisco) throw new Error("Disco lleno")
           mockFilas.set(k, v)
         },
         borrar: async (_c, k) => {
@@ -166,14 +168,73 @@ function muestraElCierreComprometido(): void {
 }
 
 describe("RegistroCliente · cierre comprometido", () => {
-  beforeEach(() => {
-    mockFilas.clear()
+  beforeEach(async () => {
+    mockFalloDeDisco = false
+    await almacenDispositivo.limpiar(CUENTA)
+    almacenDispositivo.habilitar(CUENTA)
     // La comprobación automática cada 5 s solo actúa con la app activa: así cada
     // reintento de la prueba es explícito y el número de envíos, exacto.
     AppState.currentState = "background"
   })
   afterEach(() => {
+    mockFalloDeDisco = false
     AppState.currentState = "active"
+  })
+
+  it("un fallo al leer la copia local conserva los datos y no pide conexión", async () => {
+    const { api, comoApi } = crearApi()
+    const copia = "copia local ilegible"
+    mockFilas.set(claveSesion(ID), copia)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(
+      await screen.findByText(
+        "No se pudo leer la copia guardada en este dispositivo. La copia se conserva; reintenta para recuperarla.",
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByText(/Necesitas conexión/)).toBeNull()
+    expect(api.leerCliente).not.toHaveBeenCalled()
+    expect(mockFilas.get(claveSesion(ID))).toBe(copia)
+  })
+
+  it("reintentar un guardado local fallido indica el problema del dispositivo", async () => {
+    const { api, comoApi } = crearApi()
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), nuevoDocumento(sesion))
+    const anterior = mockFilas.get(claveSesion(ID))
+    mockFalloDeDisco = true
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(await screen.findByRole("button", { name: "Reintentar guardado local" }))
+    expect(
+      await screen.findByText(
+        "No se pudo guardar la sesión en este dispositivo. Reintenta antes de salir.",
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByText(/Reintenta cuando tengas conexión/)).toBeNull()
+    expect(mockFilas.get(claveSesion(ID))).toBe(anterior)
+    expect(api.guardar).not.toHaveBeenCalled()
+  })
+
+  it("no abandona la sesión si falla persistir la pausa y permite reintentar", async () => {
+    const { comoApi } = crearApi()
+    const salir = jest.fn()
+    const copia = nuevoDocumento(sesion)
+    copia.edicion.tiempoActivoSegundos = 0
+    copia.edicion.tramoActivoDesde = new Date().toISOString()
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
+    await screen.findByRole("button", { name: "Terminar" })
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
+    await fireEvent.changeText(screen.getByLabelText("Nota para tu entrenador"), "No perder")
+    await waitFor(() => expect(screen.getByText(/Guardado en el dispositivo/)).toBeTruthy())
+    mockFalloDeDisco = true
+    await fireEvent.press(screen.getByRole("button", { name: "Salir de la sesión" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Salir" }))
+    expect(await screen.findByText(/No se pudo guardar la sesión en este dispositivo/)).toBeTruthy()
+    expect(salir).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue("No perder")).toBeTruthy()
+    mockFalloDeDisco = false
+    await fireEvent.press(screen.getByRole("button", { name: "Salir de la sesión" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Salir" }))
+    await waitFor(() => expect(salir).toHaveBeenCalledTimes(1))
   })
 
   it("sin red conserva el cierre enviado; al volver y reintentar se entrega lo que se ve", async () => {
@@ -222,6 +283,34 @@ describe("RegistroCliente · cierre comprometido", () => {
     expect(original.registro.notas).toBe("Me cansé")
   })
 
+  it("Volver del cierre guarda el feedback completo y lo recupera sin enviarlo", async () => {
+    const { comoApi } = crearApi()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await abrirCierre()
+    await fireEvent.press(screen.getByRole("radio", { name: "2" }))
+    await fireEvent.press(screen.getByRole("radio", { name: "Algo incómodo" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
+    await fireEvent.changeText(screen.getByLabelText("Nota para tu entrenador"), "No perder cierre")
+    mockFalloDeDisco = true
+    await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
+    expect(
+      await screen.findByText(
+        "No se pudo guardar el cierre en este dispositivo. Reintenta antes de salir.",
+      ),
+    ).toBeTruthy()
+    expect(screen.getByDisplayValue("No perder cierre")).toBeTruthy()
+    mockFalloDeDisco = false
+    await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
+    await abrirCierre()
+    expect(screen.getByDisplayValue("No perder cierre")).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "2", checked: true })).toBeTruthy()
+    expect(screen.getByRole("radio", { name: "Algo incómodo", checked: true })).toBeTruthy()
+    const copia = JSON.parse(mockFilas.get(claveSesion(ID))!) as {
+      datos: { edicion: { cierre: unknown } }
+    }
+    expect(copia.datos.edicion.cierre).toEqual({ esfuerzo: 5, energia: 2, incomodo: true })
+  })
+
   it("con una respuesta lenta muestra lo que se está enviando y no deja cambiarlo", async () => {
     const { api, comoApi } = crearApi()
     let responder!: () => void
@@ -247,6 +336,61 @@ describe("RegistroCliente · cierre comprometido", () => {
     const [, envio] = api.enviar.mock.calls[0]!
     expect(envio.registro.cierre).toEqual({ esfuerzo: 8, energia: 2, incomodo: true })
     expect(envio.registro.notas).toBe("Me cansé")
+  })
+
+  it("cuenta solo las series de la parte principal tanto en sesión como en cierre", async () => {
+    const { api, comoApi } = crearApi()
+    const calentamiento = "30000000-0000-4000-8000-000000000002"
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      prescripcion: {
+        ...sesion.prescripcion,
+        ejercicios: [
+          {
+            id: "40000000-0000-4000-8000-000000000002",
+            ejercicioId: "50000000-0000-4000-8000-000000000002",
+            nombre: "Movilidad",
+            indicaciones: null,
+            seccion: "calentamiento",
+            series: [{ id: calentamiento, tipoMedicion: "tiempo", pesoKg: null, segundos: 60 }],
+          },
+          ...sesion.prescripcion.ejercicios,
+        ],
+      },
+      borrador: {
+        ...sesion.borrador!,
+        registro: {
+          ...sesion.borrador!.registro,
+          series: [
+            {
+              serieId: calentamiento,
+              tipoMedicion: "tiempo",
+              pesoKg: null,
+              segundos: 60,
+              hecha: true,
+            },
+            ...sesion.borrador!.registro.series,
+          ],
+        },
+      },
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByText("1 de 1 series de la parte principal")).toBeTruthy()
+    await abrirCierre()
+    expect(screen.getByText("Series de la parte principal")).toBeTruthy()
+    expect(screen.getByText("1 hechas · 0 omitidas · 0 pendientes")).toBeTruthy()
+  })
+
+  it("ofrece volver al plan después de confirmar el envío", async () => {
+    const { api, comoApi } = crearApi()
+    const salir = jest.fn()
+    api.guardar.mockImplementation(borradorGuardado)
+    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
+    await abrirCierre()
+    await responderCierre()
+    await fireEvent.press(await screen.findByRole("button", { name: "Volver al plan" }))
+    expect(salir).toHaveBeenCalledTimes(1)
   })
 
   it("un envío pendiente sin cierre se reintenta tal cual, sin inventar respuestas", async () => {

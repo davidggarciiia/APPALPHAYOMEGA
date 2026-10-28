@@ -124,11 +124,6 @@ const TEMA_DE_NAVEGACION = {
   },
 }
 
-/** Todo el diseño es oscuro: la barra de estado va siempre en claro. */
-function BarraDeEstado(): React.JSX.Element {
-  return <StatusBar style="light" />
-}
-
 export default function DisposicionRaiz(): React.JSX.Element {
   const [fuentes, errorFuentes] = useFonts({
     Anton: anton,
@@ -145,7 +140,7 @@ export default function DisposicionRaiz(): React.JSX.Element {
     )
   return (
     <ProveedorDeSesion>
-      <BarraDeEstado />
+      <StatusBar style="light" />
       <Enrutador />
     </ProveedorDeSesion>
   )

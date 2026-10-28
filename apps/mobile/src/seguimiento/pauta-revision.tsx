@@ -8,6 +8,7 @@ import type {
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
+import { useSalidaProtegida } from "../componentes/salida-protegida"
 import { fechaLegible } from "../entrenamiento/fechas"
 import { Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
@@ -54,6 +55,9 @@ export function EditorPautaRevision({
   const [bloques, setBloques] = useState<BloqueValoracion[]>(pauta?.bloques ?? ["medidas"])
   const [error, setError] = useState("")
   const [ocupado, setOcupado] = useState(false)
+  const version = JSON.stringify({ modo, fecha, semanas, bloques })
+  const guardada = useRef(version)
+  const { proteger, proteccion } = useSalidaProtegida(version !== guardada.current)
   const enCurso = useRef(false)
 
   const enviar = async (nueva: PautaRevision | null): Promise<void> => {
@@ -63,6 +67,7 @@ export function EditorPautaRevision({
     setError("")
     try {
       setProxima(await guardar({ revision: proxima.revision, pauta: nueva }))
+      guardada.current = version
     } catch (fallo) {
       if (fallo instanceof ErrorDePeticion && fallo.detalle.codigo === "revision_obsoleta") {
         setError("La pauta cambió en otro sitio. Mostramos la guardada; revisa y vuelve a guardar.")
@@ -90,11 +95,12 @@ export function EditorPautaRevision({
 
   return (
     <View style={s.contenido}>
+      {proteccion}
       <View style={s.cabecera}>
         <Text style={s.titulo} accessibilityRole="header">
           Próxima revisión
         </Text>
-        <Enlace texto="Cerrar" onPress={cerrar} />
+        <Enlace texto="Cerrar" onPress={() => proteger(cerrar)} />
       </View>
       <Text style={s.texto} accessibilityLiveRegion="polite">
         Ahora: {textoDePauta(proxima.pauta)}
@@ -105,6 +111,7 @@ export function EditorPautaRevision({
           <Pressable
             key={m}
             accessibilityRole="radio"
+            aria-checked={modo === m}
             accessibilityState={{ checked: modo === m, disabled: ocupado }}
             disabled={ocupado}
             onPress={() => setModo(m)}
@@ -140,6 +147,7 @@ export function EditorPautaRevision({
             <Pressable
               key={b.valor}
               accessibilityRole="checkbox"
+              aria-checked={elegido}
               accessibilityLabel={b.texto}
               accessibilityState={{ checked: elegido, disabled: ocupado }}
               disabled={ocupado}

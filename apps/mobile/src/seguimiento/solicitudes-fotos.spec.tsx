@@ -7,7 +7,7 @@ import type {
   SolicitudFotos,
 } from "@alpha-omega/shared"
 
-import { ErrorDeRed } from "../lib/http"
+import { ErrorDePeticion, ErrorDeRed } from "../lib/http"
 import type { ApiMedios } from "./medios-api"
 import { liberarFoto, obtenerFoto } from "./preparar-foto"
 import { SolicitudesFotos } from "./solicitudes-fotos"
@@ -157,6 +157,56 @@ it("recibida no es revisada: el entrenador la revisa y puede incorporar la foto"
   )
 })
 
+it("conserva el contenido exacto de una solicitud sin respuesta antes de permitir otra", async () => {
+  const falsa = api()
+  falsa.pedirFotos.mockRejectedValueOnce(new ErrorDeRed())
+  await render(
+    <SolicitudesFotos clienteId={CLIENTE} api={falsa} modo="entrenador" nuevoId={nuevoId} />,
+  )
+  await screen.findByText("Aún no has pedido fotos.")
+  await fireEvent.press(screen.getByRole("button", { name: "Pedir fotos al cliente" }))
+  await fireEvent.changeText(
+    screen.getByLabelText("Indicación para el cliente (opcional)"),
+    "Luz A",
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Pedir fotos" }))
+  await screen.findByText(/No hemos podido conectar/)
+  expect(screen.getByLabelText("Indicación para el cliente (opcional)")).toBeDisabled()
+  expect(screen.getByRole("checkbox", { name: "Espalda" })).toBeDisabled()
+  await fireEvent.press(screen.getByRole("button", { name: "Pedir fotos" }))
+  await waitFor(() => expect(falsa.pedirFotos).toHaveBeenCalledTimes(2))
+  expect(falsa.pedirFotos.mock.calls[1]![1]).toEqual(falsa.pedirFotos.mock.calls[0]![1])
+  await fireEvent.press(await screen.findByRole("button", { name: "Pedir fotos al cliente" }))
+  await fireEvent.changeText(
+    screen.getByLabelText("Indicación para el cliente (opcional)"),
+    "Luz B",
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Pedir fotos" }))
+  await waitFor(() => expect(falsa.pedirFotos).toHaveBeenCalledTimes(3))
+  expect(falsa.pedirFotos.mock.calls[2]![1].operacionId).not.toBe(
+    falsa.pedirFotos.mock.calls[0]![1].operacionId,
+  )
+})
+
+it("permite corregir una solicitud rechazada por validación antes de crearla", async () => {
+  const falsa = api()
+  falsa.pedirFotos.mockRejectedValueOnce(
+    new ErrorDePeticion({
+      statusCode: 400,
+      codigo: "solicitud_invalida",
+      message: "Fecha inválida",
+    }),
+  )
+  await render(
+    <SolicitudesFotos clienteId={CLIENTE} api={falsa} modo="entrenador" nuevoId={nuevoId} />,
+  )
+  await screen.findByText("Aún no has pedido fotos.")
+  await fireEvent.press(screen.getByRole("button", { name: "Pedir fotos al cliente" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Pedir fotos" }))
+  await waitFor(() => expect(falsa.pedirFotos).toHaveBeenCalled())
+  expect(screen.getByLabelText("Indicación para el cliente (opcional)")).toBeEnabled()
+})
+
 it("sin visita en curso no ofrece incorporar", async () => {
   const falsa = api([solicitud({ estado: "recibida", medios: [medio] })])
   await render(
@@ -299,6 +349,65 @@ describe("copia local de la foto (RI07b)", () => {
     caducaEn: "2026-09-24T12:15:00.000Z",
   }
   const enviando = { ...medio, estado: "pendiente" as const }
+
+  it("una subida colgada caduca, conserva la foto y reintenta con la misma operación", async () => {
+    const foto = fotoSintetica("timeout")
+    jest.mocked(obtenerFoto).mockResolvedValueOnce({ tipo: "lista", foto })
+    let intentos = 0
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (url, opciones) => {
+      if (String(url).startsWith("file:///"))
+        return { blob: async () => new Blob(["foto"]) } as Response
+      if (++intentos > 1) return correcta
+      return new Promise<Response>((_resolver, rechazar) =>
+        opciones?.signal?.addEventListener("abort", () => rechazar(new Error("Cancelada")), {
+          once: true,
+        }),
+      )
+    })
+    const falsa = api([solicitud()])
+    falsa.solicitarSubida.mockResolvedValue({ medio: enviando, subida: SUBIDA })
+    await pantallaCliente(falsa)
+    jest.useFakeTimers()
+    try {
+      await fireEvent.press(elegirDeGaleria("Frente"))
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(30_001)
+      })
+      await fireEvent.press(
+        await screen.findByRole("button", { name: "Reintentar envío de la foto de Frente" }),
+      )
+      await waitFor(() => expect(falsa.confirmar).toHaveBeenCalledTimes(1))
+      expect(falsa.solicitarSubida.mock.calls[1]![0]).toEqual(
+        falsa.solicitarSubida.mock.calls[0]![0],
+      )
+      expect(obtenerFoto).toHaveBeenCalledTimes(1)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it("salir aborta el PUT pendiente y libera la copia sin confirmar la foto", async () => {
+    const foto = fotoSintetica("cancelada")
+    jest.mocked(obtenerFoto).mockResolvedValueOnce({ tipo: "lista", foto })
+    let senal: AbortSignal | null | undefined
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (url, opciones) => {
+      if (String(url).startsWith("file:///"))
+        return { blob: async () => new Blob(["foto"]) } as Response
+      senal = opciones?.signal
+      return new Promise<Response>((_resolver, rechazar) =>
+        senal?.addEventListener("abort", () => rechazar(new Error("Cancelada")), { once: true }),
+      )
+    })
+    const falsa = api([solicitud()])
+    falsa.solicitarSubida.mockResolvedValue({ medio: enviando, subida: SUBIDA })
+    const vista = await pantallaCliente(falsa)
+    await fireEvent.press(elegirDeGaleria("Frente"))
+    await waitFor(() => expect(senal).toBeDefined())
+    await vista.unmount()
+    expect(senal?.aborted).toBe(true)
+    await waitFor(() => expect(liberarFoto).toHaveBeenCalledWith(foto.uri))
+    expect(falsa.confirmar).not.toHaveBeenCalled()
+  })
 
   function fotoSintetica(nombre: string) {
     return {
@@ -496,7 +605,7 @@ describe("copia local de la foto (RI07b)", () => {
   })
 
   it.each([
-    { caso: "termina bien", respuesta: correcta, confirmaciones: 1 },
+    { caso: "termina bien", respuesta: correcta, confirmaciones: 0 },
     { caso: "falla", respuesta: caida, confirmaciones: 0 },
   ])(
     "salir durante la subida no borra la copia en uso; se suelta cuando el envío $caso",

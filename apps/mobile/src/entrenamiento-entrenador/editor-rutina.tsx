@@ -8,6 +8,7 @@ import { cargarRutina } from "./cargar-rutina"
 import { EditorPatron } from "./editor-patron"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { tema } from "../tema"
+import { useSalidaProtegida } from "../componentes/salida-protegida"
 
 export function EditorRutina({
   id,
@@ -30,6 +31,9 @@ export function EditorRutina({
     }
   }, [])
   const [sesiones, setSesiones] = useState(() => [nuevaSesion()])
+  const version = JSON.stringify({ nombre, sesiones })
+  const versionGuardada = useRef(version)
+  const { permitir, proteccion } = useSalidaProtegida(version !== versionGuardada.current)
   const [revision, setRevision] = useState(0),
     [intento, setIntento] = useState(0)
   const [cargando, setCargando] = useState(id !== "nueva"),
@@ -48,6 +52,10 @@ export function EditorRutina({
         setNombre(rutina.nombre)
         setRevision(rutina.revision)
         setSesiones(copia.sesiones)
+        versionGuardada.current = JSON.stringify({
+          nombre: rutina.nombre,
+          sesiones: copia.sesiones,
+        })
         setCargando(false)
         if (copia.retirados.length)
           setError(`Sustituye los ejercicios retirados para guardar: ${copia.retirados.join(", ")}`)
@@ -71,7 +79,7 @@ export function EditorRutina({
       })
       if (id === "nueva") await api.crear(datos)
       else await api.editar(id, { ...datos, revision })
-      if (vigente.current) terminado()
+      if (vigente.current) permitir(terminado)
     } catch {
       if (vigente.current)
         setError(
@@ -86,6 +94,7 @@ export function EditorRutina({
   }
   return (
     <View style={{ gap: 12 }}>
+      {proteccion}
       <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto, fontSize: 28 }}>
         {id === "nueva" ? "Nueva rutina" : "Editar rutina"}
       </Text>

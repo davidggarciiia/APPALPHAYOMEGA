@@ -18,6 +18,7 @@ import {
   PantallaDeFormulario,
 } from "../componentes/formulario"
 import { faltaDe, type Falta } from "../lib/errores"
+import { useSalidaProtegida } from "../componentes/salida-protegida"
 import { degradadoOro, tema } from "../tema"
 
 import { ErrorDeNombreDuplicado, type ApiDeCatalogo } from "./api"
@@ -73,13 +74,17 @@ export function FormularioDeEjercicio({
     reset,
     setError,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<CrearEjercicio>({
     resolver: zodResolver(CrearEjercicioSchema),
     defaultValues: { nombre: "", gruposSecundarios: [], instrucciones: "" },
   })
 
   const principal = useWatch({ control, name: "grupoPrincipal" })
+  const { proteger, permitir, proteccion } = useSalidaProtegida(
+    isDirty ||
+      JSON.stringify(tecnica) !== JSON.stringify(ficha ? tecnicaEnTexto(ficha) : TECNICA_VACIA),
+  )
 
   useEffect(() => {
     if (id === undefined) return
@@ -123,7 +128,8 @@ export function FormularioDeEjercicio({
     const completo = { ...datos, ...tecnicaLista }
 
     try {
-      onGuardado(id === undefined ? await api.crear(completo) : await api.editar(id, completo))
+      const guardado = id === undefined ? await api.crear(completo) : await api.editar(id, completo)
+      permitir(() => onGuardado(guardado))
     } catch (error) {
       if (error instanceof ErrorDeNombreDuplicado) {
         setError("nombre", { type: "duplicado" })
@@ -191,6 +197,7 @@ export function FormularioDeEjercicio({
 
   return (
     <PantallaDeFormulario>
+      {proteccion}
       <Text style={estilos.titulo}>{titulo}</Text>
       {estado === "retirado" && (
         <Text style={estilos.avisoRetirado}>
@@ -335,7 +342,7 @@ export function FormularioDeEjercicio({
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
       <BotonPrincipal texto="GUARDAR" onPress={() => void enviar()} ocupado={isSubmitting} />
-      <BotonSecundario texto="CANCELAR" onPress={onCancelar} />
+      <BotonSecundario texto="CANCELAR" onPress={() => proteger(onCancelar)} />
 
       {estado === "retirado" ? (
         <BotonSecundario
@@ -401,6 +408,7 @@ function Opcion({
       accessibilityRole={rol}
       accessibilityLabel={etiqueta}
       accessibilityState={{ checked: marcada, disabled: desactivada }}
+      aria-checked={marcada}
       hitSlop={4}
     >
       <Text style={[estilos.textoOpcion, marcada && estilos.textoOpcionMarcada]}>{etiqueta}</Text>

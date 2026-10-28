@@ -72,6 +72,7 @@ function PuntoPliegue({
           </View>
           <Pressable
             accessibilityRole="checkbox"
+            aria-checked={campo.noRealizado}
             accessibilityLabel={`No realizado — ${quien}`}
             accessibilityState={{ checked: campo.noRealizado, disabled: bloqueado }}
             disabled={bloqueado}

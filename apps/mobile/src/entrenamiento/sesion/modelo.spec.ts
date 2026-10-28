@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@jest/globals"
-import { PrescripcionSchema, type Prescripcion } from "@alpha-omega/shared"
+import { PrescripcionSchema, type Prescripcion, type SeriePrescrita } from "@alpha-omega/shared"
 
 import {
   desdePrescripcion,
@@ -211,6 +211,69 @@ describe("Lógica de la sesión en curso", () => {
     )
     expect(resultado.map((r) => r.texto)).toEqual(["67,5 kg, igual", "26 kg, igual"])
   })
+
+  it.each<{ serie: SeriePrescrita; valor: string }>([
+    {
+      serie: { id: u(81), tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 },
+      valor: "8",
+    },
+    { serie: { id: u(81), tipoMedicion: "tiempo", pesoKg: null, segundos: 20 }, valor: "20" },
+    { serie: { id: u(81), tipoMedicion: "distancia", pesoKg: null, metros: 20 }, valor: "20" },
+  ])(
+    "revisa la pauta sin recomendar kilos en una serie sin carga de $serie.tipoMedicion",
+    ({ serie, valor }) => {
+      const ejercicio: EjercicioConDistancia = {
+        id: u(80),
+        ejercicioId: u(180),
+        nombre: "Ejercicio sin carga",
+        indicaciones: null,
+        tipoCarga: "sinCarga",
+        series: [serie],
+      }
+      const pauta: PrescripcionConDistancia = { nombre: "Sesión", ejercicios: [ejercicio] }
+      const registro = desdePrescripcion(pauta)
+      registro.series[0] = { ...registro.series[0]!, hecha: true, valor }
+
+      expect(proximaVez(pauta, registro, new Set())).toEqual([
+        {
+          ejercicioId: ejercicio.id,
+          nombre: ejercicio.nombre,
+          texto: "Revisar pauta",
+          tipo: "revision",
+        },
+      ])
+      expect(proximaVez(pauta, registro, new Set([ejercicio.id]))[0]).toMatchObject({
+        texto: "En revisión",
+        tipo: "revision",
+      })
+      expect(
+        proximaVez(
+          pauta,
+          { ...registro, series: [{ ...registro.series[0]!, valor: "1" }] },
+          new Set(),
+        )[0],
+      ).toMatchObject({ texto: "Igual", tipo: "igual" })
+
+      const conCarga: PrescripcionConDistancia = {
+        ...pauta,
+        ejercicios: [
+          {
+            ...ejercicio,
+            tipoCarga: "conCargaExterna",
+            subidaKg: 2.5,
+            series: [{ ...serie, pesoKg: 20 }],
+          },
+        ],
+      }
+      expect(
+        proximaVez(
+          conCarga,
+          { ...registro, series: [{ ...registro.series[0]!, peso: "20" }] },
+          new Set(),
+        )[0],
+      ).toMatchObject({ texto: "Sube a 22,5 kg", tipo: "sube" })
+    },
+  )
 })
 
 describe("Distancia en metros (D01, aún sin publicar)", () => {

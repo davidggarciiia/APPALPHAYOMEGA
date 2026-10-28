@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import type { MedioFoto, SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
+import type { CrearSolicitudFotos, MedioFoto, SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { fechaLegible, hoyAgenda } from "../entrenamiento/fechas"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { faltaDe } from "../lib/errores"
+import { ErrorDePeticion, ErrorDePermiso } from "../lib/http"
 import { tema } from "../tema"
 import type { ApiMedios } from "./medios-api"
 import { liberarFoto, obtenerFoto, type FotoPreparada, type OrigenFoto } from "./preparar-foto"
@@ -75,9 +76,11 @@ function soltarCopia(uri: string, porLiberar: Set<string>): void {
 function PedirFotos({
   pedir,
   ocupado,
+  pendiente,
 }: {
   pedir: (vistas: VistaPedible[], fechaLimite: string | null, mensaje: string | null) => void
   ocupado: boolean
+  pendiente: boolean
 }): React.JSX.Element {
   const [vistas, setVistas] = useState<VistaPedible[]>(["frente"])
   const [fecha, setFecha] = useState("")
@@ -100,9 +103,10 @@ function PedirFotos({
             <Pressable
               key={v.valor}
               accessibilityRole="checkbox"
+              aria-checked={elegida}
               accessibilityLabel={v.texto}
-              accessibilityState={{ checked: elegida, disabled: ocupado }}
-              disabled={ocupado}
+              accessibilityState={{ checked: elegida, disabled: ocupado || pendiente }}
+              disabled={ocupado || pendiente}
               onPress={() =>
                 setVistas(elegida ? vistas.filter((x) => x !== v.valor) : [...vistas, v.valor])
               }
@@ -116,18 +120,23 @@ function PedirFotos({
       <Campo
         etiqueta="Fecha límite (AAAA-MM-DD, opcional)"
         value={fecha}
-        editable={!ocupado}
+        editable={!ocupado && !pendiente}
         maxLength={10}
         onChangeText={setFecha}
       />
       <Campo
         etiqueta="Indicación para el cliente (opcional)"
         value={mensaje}
-        editable={!ocupado}
+        editable={!ocupado && !pendiente}
         maxLength={200}
         onChangeText={setMensaje}
       />
       {error !== "" && <AvisoDeError mensaje={error} />}
+      {pendiente && (
+        <Text style={s.tenue}>
+          Reintenta para confirmar esta solicitud antes de pedir otras fotos.
+        </Text>
+      )}
       <BotonPrincipal
         texto={ocupado ? "Enviando…" : "Pedir fotos"}
         ocupado={ocupado}
@@ -166,6 +175,8 @@ export function SolicitudesFotos({
 }): React.JSX.Element {
   const [solicitudes, setSolicitudes] = useState<SolicitudFotos[] | null>(null)
   const [pidiendo, setPidiendo] = useState(false)
+  const [solicitudPendiente, setSolicitudPendiente] = useState<CrearSolicitudFotos | null>(null)
+  const solicitudPendienteRef = useRef<CrearSolicitudFotos | null>(null)
   const [error, setError] = useState("")
   const [ocupado, setOcupado] = useState(false)
   const [intento, setIntento] = useState(0)
@@ -178,6 +189,7 @@ export function SolicitudesFotos({
   const montado = useRef(true)
   // Síncrono: dos toques antes de repintar no arrancan dos envíos de la misma copia.
   const enviandoFoto = useRef(false)
+  const subidaActiva = useRef<AbortController | null>(null)
   const porLiberar = useRef(new Set<string>())
   // Última lista leída del servidor: dice si una foto que falló aún se puede reintentar.
   const listaServidor = useRef<SolicitudFotos[] | null>(null)
@@ -206,6 +218,7 @@ export function SolicitudesFotos({
     const copias = porLiberar.current
     return () => {
       montado.current = false
+      subidaActiva.current?.abort()
       for (const uri of [...copias]) soltarCopia(uri, copias)
       // Un envío en curso usa su copia y la suelta al terminar; aquí solo se
       // suelta la que esperaba un reintento que ya nadie puede pedir.
@@ -271,6 +284,9 @@ export function SolicitudesFotos({
     guardarFotoPendiente({ ...pendiente, fase: "subiendo" })
     if (montado.current) setError("")
     let confirmada: MedioFoto
+    const cancelacion = new AbortController()
+    subidaActiva.current = cancelacion
+    const limite = setTimeout(() => cancelacion.abort(), 30_000)
     try {
       const intencion = await api.solicitarSubida({
         operacionId: pendiente.operacionId,
@@ -282,19 +298,24 @@ export function SolicitudesFotos({
         tipoMime: pendiente.foto.tipoMime,
         bytes: pendiente.foto.bytes,
       })
+      if (cancelacion.signal.aborted) throw new Error("Subida cancelada")
       if (intencion.subida) {
-        const archivo = await (await fetch(pendiente.foto.uri)).blob()
+        const archivo = await (
+          await fetch(pendiente.foto.uri, { signal: cancelacion.signal })
+        ).blob()
         try {
           const subida = await fetch(intencion.subida.url, {
             method: intencion.subida.metodo,
             headers: intencion.subida.cabeceras,
             body: archivo,
+            signal: cancelacion.signal,
           })
           if (!subida.ok) throw new Error("No se pudo subir el archivo")
         } finally {
           ;(archivo as Blob & { close?: () => void }).close?.()
         }
       }
+      if (cancelacion.signal.aborted) throw new Error("Subida cancelada")
       guardarFotoPendiente({ ...pendiente, fase: "confirmando" })
       confirmada = await api.confirmar(intencion.medio.id)
     } catch {
@@ -310,6 +331,9 @@ export function SolicitudesFotos({
         soltarCopia(pendiente.foto.uri, porLiberar.current)
       }
       return
+    } finally {
+      clearTimeout(limite)
+      if (subidaActiva.current === cancelacion) subidaActiva.current = null
     }
     // El servidor ya tiene la foto: la copia local sobra.
     guardarFotoPendiente(null)
@@ -572,16 +596,34 @@ export function SolicitudesFotos({
         (pidiendo ? (
           <PedirFotos
             ocupado={ocupado}
+            pendiente={solicitudPendiente !== null}
             pedir={(vistas, fechaLimite, mensaje) =>
               void accion(
                 "pedir",
                 async () => {
-                  await api.pedirFotos(clienteId, {
+                  const datos = solicitudPendienteRef.current ?? {
                     operacionId: operacion("pedir"),
-                    vistas,
+                    vistas: [...vistas],
                     fechaLimite,
                     mensaje,
-                  })
+                  }
+                  solicitudPendienteRef.current = datos
+                  setSolicitudPendiente(datos)
+                  try {
+                    await api.pedirFotos(clienteId, datos)
+                  } catch (fallo) {
+                    if (
+                      (fallo instanceof ErrorDePeticion && fallo.detalle.statusCode === 400) ||
+                      fallo instanceof ErrorDePermiso
+                    ) {
+                      solicitudPendienteRef.current = null
+                      setSolicitudPendiente(null)
+                      operaciones.current.delete("pedir")
+                    }
+                    throw fallo
+                  }
+                  solicitudPendienteRef.current = null
+                  setSolicitudPendiente(null)
                   setPidiendo(false)
                 },
                 "No se pudo enviar la solicitud. Vuelve a intentarlo: no se duplicará.",

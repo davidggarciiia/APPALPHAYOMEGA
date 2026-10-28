@@ -36,7 +36,7 @@ const SIN_FALTA: Falta = { texto: "", reintentable: true, sesionCaducada: false 
  * cerrarle la sesion ni esperar a que caduque nada.
  */
 export default function Nutricionista(): React.JSX.Element {
-  const { estado: sesion } = useSesion()
+  const { estado: sesion, pedir } = useSesion()
   const router = useRouter()
 
   const [fase, setFase] = useState<Fase>("cargando")
@@ -59,7 +59,7 @@ export default function Nutricionista(): React.JSX.Element {
       setFalta(SIN_FALTA)
 
       const cargar = async (): Promise<void> => {
-        const nutricionistas = await listarUsuarios(tokenAcceso, {
+        const nutricionistas = await listarUsuarios(pedir, {
           rol: "nutricionista",
           limite: LIMITE,
           desde: 0,
@@ -76,8 +76,8 @@ export default function Nutricionista(): React.JSX.Element {
         // elegir; mientras tanto, inventar un selector para una lista de uno seria
         // un paso de mas en cada uso.
         const [cartera, reparto] = await Promise.all([
-          listarUsuarios(tokenAcceso, { rol: "cliente", limite: LIMITE, desde: 0 }),
-          leerAsignaciones(tokenAcceso, primero.id),
+          listarUsuarios(pedir, { rol: "cliente", limite: LIMITE, desde: 0 }),
+          leerAsignaciones(pedir, primero.id),
         ])
 
         // El reparto permite administrar toda la cartera, tambien las paginas
@@ -85,7 +85,7 @@ export default function Nutricionista(): React.JSX.Element {
         const todos = [...cartera.usuarios]
         while (todos.length < cartera.total) {
           if (!vigente) return
-          const pagina = await listarUsuarios(tokenAcceso, {
+          const pagina = await listarUsuarios(pedir, {
             rol: "cliente",
             limite: LIMITE,
             desde: todos.length,
@@ -112,7 +112,7 @@ export default function Nutricionista(): React.JSX.Element {
       return () => {
         vigente = false
       }
-    }, [tokenAcceso, intento]),
+    }, [tokenAcceso, pedir, intento]),
   )
 
   /**
@@ -132,9 +132,9 @@ export default function Nutricionista(): React.JSX.Element {
 
     try {
       if (dar) {
-        await asignarCliente(tokenAcceso, nutri.id, cliente.id)
+        await asignarCliente(pedir, nutri.id, cliente.id)
       } else {
-        await retirarCliente(tokenAcceso, nutri.id, cliente.id)
+        await retirarCliente(pedir, nutri.id, cliente.id)
       }
     } catch (error) {
       setFalta(faltaDe(error, "No hemos podido cambiar el acceso."))

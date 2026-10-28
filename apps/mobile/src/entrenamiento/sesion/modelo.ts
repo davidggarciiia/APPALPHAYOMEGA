@@ -98,16 +98,11 @@ export function porSecciones(prescripcion: Prescripcion): Seccion[] {
   })).filter((grupo) => grupo.ejercicios.length > 0)
 }
 
-/** Las series que cuentan en «9 de 20 series»: las de la parte principal y el circuito. */
-function seriesDe(prescripcion: Prescripcion, seccion: SeccionDeSesion): string[] {
-  return prescripcion.ejercicios
-    .filter((e) => (e.seccion ?? "principal") === seccion)
-    .flatMap((e) => e.series.map((s) => s.id))
-}
-
 /** Las series que cuenta el progreso («9 de 20 series»): las de la parte principal. */
 export function seriesDeTrabajo(prescripcion: Prescripcion): string[] {
-  return seriesDe(prescripcion, "principal")
+  return prescripcion.ejercicios
+    .filter((e) => (e.seccion ?? "principal") === "principal")
+    .flatMap((e) => e.series.map((s) => s.id))
 }
 
 /** El recorrido conserva el orden de calentamiento, principal, circuito y vuelta a la calma. */
@@ -215,6 +210,8 @@ export function proximaVez(
           return valor === null || valor >= rirMin
         })
       if (hechas.length === ejercicio.series.length && alTope && dentroDelRir && !duro) {
+        if (ejercicio.tipoCarga === "sinCarga")
+          return [{ ...base, texto: "Revisar pauta", tipo: "revision" }]
         if (carga !== null && ejercicio.subidaKg !== undefined)
           return [{ ...base, texto: `Sube a ${kg(carga + ejercicio.subidaKg)}`, tipo: "sube" }]
         return [{ ...base, texto: "Sube la carga", tipo: "sube" }]

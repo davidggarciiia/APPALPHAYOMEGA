@@ -33,7 +33,7 @@ export function faltaDe(error: unknown, respaldo: string): Falta {
 
   if (error instanceof ErrorDePermiso) {
     return {
-      texto: "Esta pantalla es solo para el entrenador.",
+      texto: "No tienes permiso para acceder a estos datos.",
       reintentable: false,
       sesionCaducada: false,
     }

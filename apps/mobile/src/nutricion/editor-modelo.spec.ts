@@ -1,4 +1,4 @@
-import { DocumentoDietaSchema } from "@alpha-omega/shared"
+import { DocumentoDietaSchema, GuardarBorradorDietaSchema } from "@alpha-omega/shared"
 import {
   convertir,
   desdeDocumento,
@@ -22,6 +22,104 @@ function conObjetivo(ids: GeneradorDeIds, kcal: string): DietaEditable {
   dieta.tipos[0]!.objetivo.kcal = kcal
   return dieta
 }
+
+it("lee una dieta antigua con columnas homónimas y exige renombrarlas para guardar", () => {
+  const ids = generador()
+  const tipo = ids()
+  const legado = {
+    formato: 1,
+    nombre: "Anterior",
+    indicaciones: [],
+    semana: Array(7).fill(tipo),
+    tiposDeDia: [
+      {
+        id: tipo,
+        nombre: "Todos",
+        objetivo: null,
+        comidas: [
+          {
+            id: ids(),
+            nombre: "Comida",
+            hora: null,
+            indicacion: null,
+            forma: "intercambio",
+            columnas: [
+              { nombre: "Proteína", alimentos: [{ nombre: "Pollo", cantidad: null }] },
+              { nombre: " Proteína ", alimentos: [{ nombre: "Tofu", cantidad: null }] },
+            ],
+          },
+        ],
+      },
+    ],
+  }
+  const lectura = DocumentoDietaSchema.parse(legado)
+  expect(GuardarBorradorDietaSchema.safeParse({ revision: 0, documento: lectura }).success).toBe(
+    false,
+  )
+  const editable = desdeDocumento(lectura, ids)
+  expect(convertir(editable).documento).toBeNull()
+  editable.tipos[0]!.comidas[0]!.columnas[1]!.nombre = "Vegetal"
+  const corregido = convertir(editable)
+  expect(corregido.errores).toEqual([])
+  expect(
+    GuardarBorradorDietaSchema.safeParse({ revision: 1, documento: corregido.documento }).success,
+  ).toBe(true)
+})
+
+it("el editor explica qué comida tiene columnas con el mismo nombre", () => {
+  const ids = generador()
+  const dieta = conObjetivo(ids, "2000")
+  const comida = nuevaComida(ids, "intercambio", "Cena")
+  comida.columnas = comida.columnas.slice(0, 2).map((columna) => ({
+    ...columna,
+    nombre: "Proteína",
+    alimentos: [{ clave: ids(), nombre: "Pollo", cantidad: "100 g" }],
+  }))
+  dieta.tipos[0]!.comidas = [comida]
+  const conversion = convertir(dieta)
+  expect(conversion.documento).toBeNull()
+  expect(conversion.errores).toContain(
+    "Todos los días · Cena: cada columna debe tener un nombre distinto.",
+  )
+})
+
+it("conserva toda la pauta al cambiar solo el nombre de una dieta existente", () => {
+  const ids = generador()
+  const tipoId = ids()
+  const original = DocumentoDietaSchema.parse({
+    formato: 1,
+    nombre: "Original",
+    tiposDeDia: [
+      {
+        id: tipoId,
+        nombre: "Todos",
+        objetivo: { kcal: 2100, proteinaG: null, hidratosG: null, grasaG: null },
+        margenKcal: 150,
+        comidas: [],
+      },
+    ],
+    semana: Array(7).fill(tipoId),
+    indicaciones: [],
+    nota: "Pauta especial",
+    registroComidas: false,
+    suplementos: [{ nombre: "Magnesio", dosis: "200 mg al día" }],
+    calculo: {
+      pesoKg: 70,
+      alturaCm: 170,
+      edad: 30,
+      sexo: "hombre",
+      grasaPct: null,
+      factorActividad: 1.4,
+      nota: "Turnos de noche",
+    },
+  })
+  const editable = desdeDocumento(original, ids)
+  editable.nombre = "Renombrada"
+  expect(convertir(editable)).toEqual({
+    documento: { ...original, nombre: "Renombrada" },
+    errores: [],
+  })
+})
 
 it("sugiere comidas y cena con intercambio y las demás con platos completos", () => {
   const ids = generador()

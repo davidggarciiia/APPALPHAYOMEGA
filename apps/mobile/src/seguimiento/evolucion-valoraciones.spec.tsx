@@ -140,6 +140,22 @@ describe("EvolucionValoraciones", () => {
     expect(card.queryByRole("button", { name: /Elegir otras fechas/ })).toBeNull()
   })
 
+  it("una serie válida sin puntos muestra su ausencia sin calcular una diferencia", async () => {
+    await render(
+      <EvolucionValoraciones
+        clienteId={CLIENTE}
+        api={api({ series: [cintura([])] })}
+        modo="cliente"
+      />,
+    )
+    await waitFor(() => expect(screen.getByText("Cintura")).toBeTruthy())
+    const card = within(tarjeta("Cintura"))
+    expect(card.getByText("No hay datos en este periodo.")).toBeTruthy()
+    expect(card.queryByText("Diferencia")).toBeNull()
+    expect(card.queryByRole("button", { name: /Elegir otras fechas/ })).toBeNull()
+    expect(card.queryByText("0 cm")).toBeNull()
+  })
+
   it("una valoración parcial no rellena lo que no se tomó y un protocolo incompleto va aparte", async () => {
     const definicion = "50000000-0000-4000-8000-000000000001"
     await render(

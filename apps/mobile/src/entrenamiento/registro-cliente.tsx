@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
+import { NavigationContext, usePreventRemove } from "expo-router/react-navigation"
 import { randomUUID } from "expo-crypto"
 import { AppState, Image, Pressable, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
 import type { Checkin, Ejercicio, EjercicioPrescrito, ValoresEjecutados } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
+import { ErrorDeCopiaLocal } from "./almacen-local"
 import { RegistroControl } from "./registro-control"
 import {
   registroParaEnviar,
@@ -49,6 +51,51 @@ const TITULOS_DE_SECCION = {
   final: "Vuelta a la calma",
 } as const
 
+const MENSAJES_DE_COPIA_LOCAL = {
+  leer: "No se pudo leer la copia guardada en este dispositivo. La copia se conserva; reintenta para recuperarla.",
+  guardar: "No se pudo guardar la sesión en este dispositivo. Reintenta antes de salir.",
+} as const
+
+function GuardarAntesDeNavegar({
+  guardar,
+  fallar,
+  solicitar,
+}: {
+  guardar: () => Promise<void>
+  fallar: (error: unknown) => void
+  solicitar: (seguir: () => void) => void
+}): null {
+  const navigation = useContext(NavigationContext)!
+  const ocupada = useRef(false)
+  const [salida, setSalida] = useState<(() => void) | null>(null)
+  usePreventRemove(salida === null, ({ data }) => {
+    if (ocupada.current) return
+    solicitar(() => {
+      ocupada.current = true
+      void guardar()
+        .then(() => setSalida(() => () => navigation.dispatch(data.action)))
+        .catch(fallar)
+        .finally(() => {
+          ocupada.current = false
+        })
+    })
+  })
+  useEffect(() => {
+    if (!salida) return
+    salida()
+    setSalida(null)
+  }, [salida])
+  return null
+}
+
+function PausaDeNavegacion(props: {
+  guardar: () => Promise<void>
+  fallar: (error: unknown) => void
+  solicitar: (seguir: () => void) => void
+}): React.JSX.Element | null {
+  return useContext(NavigationContext) ? <GuardarAntesDeNavegar {...props} /> : null
+}
+
 /** Lo que se cuenta en enteros; los metros solo se nombran si la sesión los pauta. */
 function magnitudes(prescripcion: PrescripcionConDistancia | undefined): string {
   const metros = prescripcion?.ejercicios.some((e) =>
@@ -87,6 +134,10 @@ export function RegistroCliente({
   const [fichas, setFichas] = useState<Map<string, Ejercicio>>(new Map())
   const [nota, setNota] = useState(false)
   const [listaAbierta, setListaAbierta] = useState(false)
+  const antesDeSalir = useRef<((salir: () => void) => void) | null>(null)
+  const registrarSalida = useCallback((preparar: ((salir: () => void) => void) | null) => {
+    antesDeSalir.current = preparar
+  }, [])
   const catalogo = useCatalogo()
   const acceso = useAccesoAFiguras()
 
@@ -99,10 +150,12 @@ export function RegistroCliente({
       })
       setControl(c)
       setError("")
-      void c.abrir().catch(() => {
+      void c.abrir().catch((fallo: unknown) => {
         if (vigente)
           setError(
-            "No se pudo abrir la sesión. Necesitas conexión para descargarla por primera vez; si ya la tenías, reintenta para recuperar su copia local.",
+            fallo instanceof ErrorDeCopiaLocal
+              ? MENSAJES_DE_COPIA_LOCAL[fallo.operacion]
+              : "No se pudo abrir la sesión. Necesitas conexión para descargarla por primera vez; si ya la tenías, reintenta para recuperar su copia local.",
           )
       })
       const comprobar = async (): Promise<void> => {
@@ -201,7 +254,9 @@ export function RegistroCliente({
       setError(
         e instanceof ZodError
           ? `Revisa los valores: ${magnitudes(documento?.sesion.prescripcion)} deben ser enteros positivos; completa el peso requerido antes de marcar la serie.`
-          : "No se pudo confirmar la operación. Tu copia local se conserva. Reintenta cuando tengas conexión.",
+          : e instanceof ErrorDeCopiaLocal
+            ? MENSAJES_DE_COPIA_LOCAL[e.operacion]
+            : "No se pudo confirmar la operación. Tu copia local se conserva. Reintenta cuando tengas conexión.",
       )
     } finally {
       setOcupado(false)
@@ -234,7 +289,14 @@ export function RegistroCliente({
         <RespuestasDelEntrenador cuenta={cuenta} sesionId={id} api={api} />
         {documento.respaldo && (
           <View>
-            <AvisoDeError mensaje="La sesión se envió desde otro dispositivo. Conservamos aquí tu copia no enviada; el resultado del entrenador ya está cerrado." />
+            <AvisoDeError mensaje="La sesión ya está enviada. Conservamos aquí otra copia no enviada; el resultado del entrenador ya está cerrado." />
+            {(documento.respaldosLocales ?? []).map((copia, indice) => (
+              <BotonSecundario
+                key={indice}
+                texto={`Ver otra copia ${indice + 1}${copia.edicion.notas ? `: ${copia.edicion.notas.slice(0, 40)}` : ""}`}
+                onPress={() => void accion(() => control.elegirCopiaLocal(indice))}
+              />
+            ))}
             {documento.respaldo.edicion.series.map((s, i) => (
               <Text key={s.serieId} style={e.texto}>
                 Copia · serie {i + 1}: {s.peso || "—"} kg · {s.valor || "—"}
@@ -248,10 +310,27 @@ export function RegistroCliente({
           </View>
         )}
         {error !== "" && <AvisoDeError mensaje={error} />}
+        {salir && <BotonPrincipal texto="Volver al plan" onPress={salir} />}
       </View>
     )
 
   const { prescripcion } = documento.sesion
+  const pausaDeNavegacion = (
+    <PausaDeNavegacion
+      solicitar={(seguir) => (antesDeSalir.current ? antesDeSalir.current(seguir) : seguir())}
+      guardar={async () => {
+        await control.pausar(new Date().toISOString())
+        await control.reintentarGuardado()
+      }}
+      fallar={(fallo) =>
+        setError(
+          fallo instanceof ErrorDeCopiaLocal
+            ? MENSAJES_DE_COPIA_LOCAL[fallo.operacion]
+            : "No se pudo guardar la sesión antes de salir. Reintenta.",
+        )
+      }
+    />
+  )
   const edicion = documento.edicion
   const pausado = edicion.tiempoActivoSegundos !== undefined && !edicion.tramoActivoDesde
   const bloqueadoPorEnvio =
@@ -341,56 +420,68 @@ export function RegistroCliente({
       serie: numero > 0 ? numero : null,
     }
     return (
-      <RegistrarMolestiaPantalla
-        lugar={lugar}
-        reloj={segundos === null ? null : reloj(segundos)}
-        uuid={randomUUID}
-        avisar={async (datos) => {
-          await api.avisarMolestia(id, datos)
-        }}
-        volver={() => setFase("sesion")}
-      />
+      <>
+        {pausaDeNavegacion}
+        <RegistrarMolestiaPantalla
+          registrarSalida={registrarSalida}
+          lugar={lugar}
+          reloj={segundos === null ? null : reloj(segundos)}
+          uuid={randomUUID}
+          avisar={async (datos) => {
+            await api.avisarMolestia(id, datos)
+          }}
+          volver={() => setFase("sesion")}
+        />
+      </>
     )
   }
 
   if (fase === "cierre") {
     // Con un envío guardado se enseña exactamente su contenido: la edición ya no viajaría.
     const comprometido = documento.envioPendiente?.registro ?? documento.intencionEnvio?.registro
-    const series: ReadonlyArray<{ hecha: boolean; omitida?: true }> =
-      comprometido?.series ?? edicion.series
+    const series = (comprometido?.series ?? edicion.series).filter((s) =>
+      trabajo.includes(s.serieId),
+    )
     return (
-      <CierreDeSesion
-        subtitulo={[
-          prescripcion.nombre,
-          segundos === null
-            ? null
-            : duracion.legado && edicion.inicio
-              ? `Tiempo transcurrido: ${duracionLegible(edicion.inicio, new Date(ahora))}`
-              : `Tiempo activo: ${reloj(segundos)}`,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-        resumen={{
-          hechas: series.filter((s) => s.hecha).length,
-          omitidas: series.filter((s) => s.omitida).length,
-          pendientes: series.filter((s) => !s.hecha && !s.omitida).length,
-        }}
-        cierreInicial={comprometido ? (comprometido.cierre ?? null) : (edicion.cierre ?? null)}
-        notas={comprometido ? (comprometido.notas ?? "") : edicion.notas}
-        enviando={ocupado}
-        pendiente={comprometido !== undefined}
-        error={error}
-        volver={() => setFase("sesion")}
-        enviar={(cierre, notas) =>
-          void accion(async () => {
-            if (!control.documento?.intencionEnvio && !control.documento?.envioPendiente)
-              await control.editar({ ...edicion, cierre, notas })
-            await control.enviar()
-          })
-        }
-        // Mismo UUID y mismo contenido: el controlador reenvía la intención guardada.
-        reintentar={() => void accion(() => control.enviar())}
-      />
+      <>
+        {pausaDeNavegacion}
+        <CierreDeSesion
+          registrarSalida={registrarSalida}
+          guardar={async (cierre, notas) => {
+            await control.editar({ ...edicion, cierre, notas })
+          }}
+          subtitulo={[
+            prescripcion.nombre,
+            segundos === null
+              ? null
+              : duracion.legado && edicion.inicio
+                ? `Tiempo transcurrido: ${duracionLegible(edicion.inicio, new Date(ahora))}`
+                : `Tiempo activo: ${reloj(segundos)}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          resumen={{
+            hechas: series.filter((s) => s.hecha).length,
+            omitidas: series.filter((s) => s.omitida).length,
+            pendientes: series.filter((s) => !s.hecha && !s.omitida).length,
+          }}
+          cierreInicial={comprometido ? (comprometido.cierre ?? null) : (edicion.cierre ?? null)}
+          notas={comprometido ? (comprometido.notas ?? "") : edicion.notas}
+          enviando={ocupado}
+          pendiente={comprometido !== undefined}
+          error={error}
+          volver={() => setFase("sesion")}
+          enviar={(cierre, notas) =>
+            void accion(async () => {
+              if (!control.documento?.intencionEnvio && !control.documento?.envioPendiente)
+                await control.editar({ ...edicion, cierre, notas })
+              await control.enviar()
+            })
+          }
+          // Mismo UUID y mismo contenido: el controlador reenvía la intención guardada.
+          reintentar={() => void accion(() => control.enviar())}
+        />
+      </>
     )
   }
 
@@ -411,6 +502,7 @@ export function RegistroCliente({
 
   return (
     <View style={e.contenedor}>
+      {pausaDeNavegacion}
       <CabeceraSesion
         nombre={prescripcion.nombre}
         hechas={hechasTrabajo}
@@ -452,16 +544,39 @@ export function RegistroCliente({
       )}
       {control.conflicto && (
         <View>
-          <AvisoDeError mensaje="Hay otra versión de esta sesión. Puedes cargarla conservando una copia de lo que has escrito." />
+          <AvisoDeError
+            mensaje={
+              documento.conflictoLocal
+                ? "Otra pestaña editó esta sesión. Ambas ediciones siguen guardadas: puedes continuar con la actual o recuperar la copia."
+                : "Hay otra versión de esta sesión. Puedes cargarla conservando una copia de lo que has escrito."
+            }
+          />
           <BotonPrincipal
-            texto="Recuperar versión del servidor"
-            onPress={() => void accion(() => control.recuperarServidor())}
+            texto={
+              documento.conflictoLocal
+                ? "Continuar con esta edición"
+                : "Recuperar versión del servidor"
+            }
+            onPress={() =>
+              void accion(() =>
+                documento.conflictoLocal
+                  ? control.continuarEdicionLocal()
+                  : control.recuperarServidor(),
+              )
+            }
             ocupado={ocupado}
           />
         </View>
       )}
       {documento.respaldo && (
         <View>
+          {(documento.respaldosLocales ?? []).map((copia, indice) => (
+            <BotonSecundario
+              key={indice}
+              texto={`Ver otra copia ${indice + 1}${copia.edicion.notas ? `: ${copia.edicion.notas.slice(0, 40)}` : ""}`}
+              onPress={() => void accion(() => control.elegirCopiaLocal(indice))}
+            />
+          ))}
           <Text style={e.nota}>
             Tu copia anterior sigue guardada. Al recuperarla se aplican las series que aún conservan
             la misma unidad y admiten la carga registrada. Las demás quedan pendientes.
@@ -484,12 +599,17 @@ export function RegistroCliente({
               alto={184}
             />
           ) : (
-            <Image source={fotoDeEntrenamiento} style={e.foto} accessible={false} />
+            <Image
+              source={fotoDeEntrenamiento}
+              style={e.foto}
+              resizeMode="cover"
+              accessible={false}
+            />
           )}
-          <Text style={e.nombreActual} numberOfLines={1}>
-            {ejercicioActual.nombre}
-          </Text>
-          <View style={e.verTecnica}>
+          <View style={e.detalleActual}>
+            <Text style={e.nombreActual} numberOfLines={2}>
+              {ejercicioActual.nombre}
+            </Text>
             <Enlace
               texto="Ver técnica"
               etiqueta={`Ver técnica de ${ejercicioActual.nombre}`}
@@ -605,13 +725,16 @@ export function RegistroCliente({
       <Dialogo
         visible={dialogo === "terminar"}
         titulo="¿Terminar la sesión?"
-        texto={`Llevas ${hechasTrabajo} de ${trabajo.length} series. Las que faltan quedarán sin hacer.`}
+        texto={`Llevas ${hechasTrabajo} de ${trabajo.length} series de la parte principal. Las que faltan quedarán sin hacer.`}
         confirmar="Terminar sesión"
         cancelar="Seguir entrenando"
+        ocupado={ocupado}
         alConfirmar={() => {
           setDialogo(null)
-          void control.pausar(new Date().toISOString())
-          setFase("cierre")
+          void accion(async () => {
+            await control.pausar(new Date().toISOString())
+            setFase("cierre")
+          })
         }}
         alCancelar={() => setDialogo(null)}
       />
@@ -621,9 +744,14 @@ export function RegistroCliente({
         texto="Lo que has registrado se guarda y puedes seguir después."
         confirmar="Salir"
         cancelar="Seguir entrenando"
+        ocupado={ocupado}
         alConfirmar={() => {
           setDialogo(null)
-          void control.pausar(new Date().toISOString()).finally(() => salir?.())
+          void accion(async () => {
+            await control.pausar(new Date().toISOString())
+            await control.reintentarGuardado()
+            salir?.()
+          })
         }}
         alCancelar={() => setDialogo(null)}
       />
@@ -654,16 +782,21 @@ const e = StyleSheet.create({
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
   nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14, lineHeight: 20 },
   medio: { height: 184, borderRadius: 20, overflow: "hidden", backgroundColor: tema.hundido },
-  foto: { width: "100%", height: "100%", resizeMode: "cover" },
+  foto: { width: "100%", height: "100%" },
   nombreActual: {
-    position: "absolute",
-    left: 14,
-    right: 120,
-    bottom: 14,
+    flex: 1,
     color: tema.textoSecundario,
     fontFamily: tema.fuenteTexto,
     fontSize: 13,
   },
-  verTecnica: { position: "absolute", right: 14, bottom: 2 },
+  detalleActual: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
   acciones: { flexDirection: "row", gap: 24 },
 })

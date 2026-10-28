@@ -8,10 +8,12 @@ import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import { fechaLegible } from "../../entrenamiento/fechas"
 import { BotonDorado } from "../../entrenamiento/sesion/controles"
 import { faltaDe } from "../../lib/errores"
+import { ErrorDePermiso, ErrorDelServidor } from "../../lib/http"
 import { tema } from "../../tema"
 import { filasDeSesion, resumenDeResultado, type FilaDeSesion } from "../ficha-modelo"
 
 type Resultado = ListadoResultados["resultados"][number]
+type SolicitudComentario = Parameters<ApiEntrenamiento["comentar"]>[1]
 
 const COLUMNAS = ["Ejercicio", "Prescrito", "Sugerido", "Hecho (kg × reps)", "RIR", "Próxima vez"]
 
@@ -47,12 +49,17 @@ export function SesionesDelCliente({
   const { width } = useWindowDimensions()
   const [indice, setIndice] = useState(0)
   const [comentarios, setComentarios] = useState<ComentarioSesion[]>([])
-  const [texto, setTexto] = useState("")
+  const [borradores, setBorradores] = useState<Record<string, string>>({})
+  const [pendientes, setPendientes] = useState<Record<string, SolicitudComentario>>({})
+  const solicitudes = useRef<Record<string, SolicitudComentario>>({})
   const [error, setError] = useState("")
   const [enviando, setEnviando] = useState(false)
-  const operacion = useRef(nuevoId())
+  const enCurso = useRef(false)
   const actual = resultados[indice]
   const sesionId = actual?.agenda.id
+  const texto = sesionId ? (borradores[sesionId] ?? "") : ""
+  const sesionVisible = useRef(sesionId)
+  sesionVisible.current = sesionId
 
   useEffect(() => {
     if (!sesionId) return
@@ -77,21 +84,40 @@ export function SesionesDelCliente({
   const filas = filasDeSesion(actual.resultado, conMolestia)
   const ancho = width >= 900
   const enviar = async (): Promise<void> => {
+    if (enCurso.current) return
     if (texto.trim() === "") return setError("Escribe el comentario.")
+    const origen = actual.agenda.id
+    const solicitud = solicitudes.current[origen] ?? {
+      operacionId: nuevoId(),
+      ejercicioPrescritoId: null,
+      texto: texto.trim(),
+    }
+    solicitudes.current[origen] = solicitud
+    setPendientes({ ...solicitudes.current })
+    const liberar = (): void => {
+      delete solicitudes.current[origen]
+      setPendientes({ ...solicitudes.current })
+    }
+    enCurso.current = true
     setError("")
     setEnviando(true)
     try {
-      const nuevo = await api.comentar(actual.agenda.id, {
-        operacionId: operacion.current,
-        ejercicioPrescritoId: null,
-        texto: texto.trim(),
-      })
-      operacion.current = nuevoId()
-      setComentarios((lista) => [...lista, nuevo])
-      setTexto("")
+      const nuevo = await api.comentar(origen, solicitud)
+      liberar()
+      setBorradores((anteriores) => ({ ...anteriores, [origen]: "" }))
+      if (sesionVisible.current === actual.agenda.id) {
+        setComentarios((lista) => [...lista, nuevo])
+      }
     } catch (e) {
-      setError(faltaDe(e, "No se pudo enviar el comentario.").texto)
+      if (
+        e instanceof ErrorDePermiso ||
+        (e instanceof ErrorDelServidor && e.codigo >= 400 && e.codigo < 500 && e.codigo !== 401)
+      )
+        liberar()
+      if (sesionVisible.current === actual.agenda.id)
+        setError(faltaDe(e, "No se pudo enviar el comentario.").texto)
     } finally {
+      enCurso.current = false
       setEnviando(false)
     }
   }
@@ -110,18 +136,18 @@ export function SesionesDelCliente({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Sesión anterior"
-            disabled={indice >= resultados.length - 1}
+            disabled={enviando || indice >= resultados.length - 1}
             onPress={() => setIndice(indice + 1)}
-            style={[s.flecha, indice >= resultados.length - 1 && s.apagada]}
+            style={[s.flecha, (enviando || indice >= resultados.length - 1) && s.apagada]}
           >
             <Icono nombre="atras" color={tema.texto} tamano={18} />
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Sesión siguiente"
-            disabled={indice === 0}
+            disabled={enviando || indice === 0}
             onPress={() => setIndice(indice - 1)}
-            style={[s.flecha, indice === 0 && s.apagada]}
+            style={[s.flecha, (enviando || indice === 0) && s.apagada]}
           >
             <Icono nombre="adelante" color={tema.texto} tamano={18} />
           </Pressable>
@@ -188,7 +214,11 @@ export function SesionesDelCliente({
         <TextInput
           accessibilityLabel="Comentario sobre la sesión"
           value={texto}
-          onChangeText={setTexto}
+          editable={!enviando && !pendientes[actual.agenda.id]}
+          onChangeText={(nuevoTexto) => {
+            if (!enCurso.current && !solicitudes.current[actual.agenda.id])
+              setBorradores((anteriores) => ({ ...anteriores, [actual.agenda.id]: nuevoTexto }))
+          }}
           placeholder="Comenta la sesión o una serie…"
           placeholderTextColor={tema.marcador}
           multiline
@@ -196,6 +226,9 @@ export function SesionesDelCliente({
           style={s.campo}
         />
         {error !== "" && <AvisoDeError mensaje={error} />}
+        {pendientes[actual.agenda.id] && !enviando && (
+          <Text style={s.tenue}>Reintenta para confirmar este comentario antes de cambiarlo.</Text>
+        )}
         <BotonDorado texto="Enviar comentario" ocupado={enviando} onPress={() => void enviar()} />
       </View>
     </View>

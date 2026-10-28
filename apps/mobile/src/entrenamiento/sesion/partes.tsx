@@ -57,7 +57,7 @@ export function CabeceraSesion({
           {nombre}
         </Text>
         <Text style={s.tenue}>
-          {hechas} de {total} series
+          {hechas} de {total} series de la parte principal
         </Text>
       </View>
       <View
@@ -182,6 +182,7 @@ export function ListaMarcable({
               <Pressable
                 style={s.elemento}
                 accessibilityRole="checkbox"
+                aria-checked={listo}
                 accessibilityState={{
                   checked: listo,
                   disabled: bloqueado || (!listo && faltaPeso),

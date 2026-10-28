@@ -473,76 +473,80 @@ it("una pestaña atrasada no adopta ni borra la cuenta nueva aunque no reciba el
   }
 })
 
-it("un segundo 401 tardío no limpia la cuenta abierta por otra pestaña", async () => {
-  const plataformaAnterior = Platform.OS
-  const almacenamientoAnterior = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
-  const valores = new Map<string, string>()
-  Object.defineProperty(Platform, "OS", { value: "web", configurable: true })
-  Object.defineProperty(globalThis, "localStorage", {
-    configurable: true,
-    value: {
-      getItem: (clave: string) => valores.get(clave) ?? null,
-      setItem: (clave: string, valor: string) => {
-        valores.set(clave, valor)
+it.each([local.id, "20000000-0000-4000-8000-000000000000"])(
+  "un segundo 401 tardío conserva la credencial rotada de la cuenta %s",
+  async (cuentaCompartida) => {
+    const plataformaAnterior = Platform.OS
+    const almacenamientoAnterior = Object.getOwnPropertyDescriptor(globalThis, "localStorage")
+    const valores = new Map<string, string>()
+    Object.defineProperty(Platform, "OS", { value: "web", configurable: true })
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (clave: string) => valores.get(clave) ?? null,
+        setItem: (clave: string, valor: string) => {
+          valores.set(clave, valor)
+        },
+        removeItem: (clave: string) => {
+          valores.delete(clave)
+        },
       },
-      removeItem: (clave: string) => {
-        valores.delete(clave)
-      },
-    },
-  })
-  Object.defineProperty(globalThis.navigator, "locks", {
-    configurable: true,
-    value: {
-      request: (_nombre: string, _opciones: unknown, accion: () => Promise<unknown>) => accion(),
-    },
-  })
-  let guardado = "refresco-viejo"
-  jest.mocked(leerTokenRefresco).mockImplementation(async () => guardado)
-  jest.mocked(guardarTokenRefresco).mockImplementation(async (token) => {
-    guardado = token
-  })
-  jest.mocked(refrescarSesion).mockResolvedValue({
-    usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
-    tokenAcceso: "acceso",
-    tokenRefresco: "refresco-vigente",
-  })
-  let resolverRespuesta: (respuesta: Response) => void = () => undefined
-  const fetchMock = jest.spyOn(globalThis, "fetch")
-  fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 })).mockImplementationOnce(
-    () =>
-      new Promise((resolve) => {
-        resolverRespuesta = resolve
-      }),
-  )
-  let terminar: () => void = () => undefined
-  const terminada = new Promise<void>((resolve) => {
-    terminar = resolve
-  })
-  try {
-    await render(
-      <ProveedorDeSesion>
-        <VisorPeticion alTerminar={terminar} />
-      </ProveedorDeSesion>,
-    )
-    await screen.findByText("dentro")
-    expect(valores.get("alpha_omega_cuenta")).toBe(local.id)
-    await fireEvent.press(screen.getByRole("button", { name: "Pedir" }))
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-    valores.set("alpha_omega_cuenta", "20000000-0000-4000-8000-000000000000")
-    guardado = "refresco-otro"
-    await act(async () => {
-      resolverRespuesta(new Response(null, { status: 401 }))
-      await terminada
     })
-    expect(borrarTokenRefresco).not.toHaveBeenCalled()
-    expect(guardado).toBe("refresco-otro")
-  } finally {
-    cleanup()
-    fetchMock.mockRestore()
-    Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
-    Reflect.deleteProperty(globalThis.navigator, "locks")
-    if (almacenamientoAnterior)
-      Object.defineProperty(globalThis, "localStorage", almacenamientoAnterior)
-    else Reflect.deleteProperty(globalThis, "localStorage")
-  }
-})
+    Object.defineProperty(globalThis.navigator, "locks", {
+      configurable: true,
+      value: {
+        request: (_nombre: string, _opciones: unknown, accion: () => Promise<unknown>) => accion(),
+      },
+    })
+    let guardado = "refresco-viejo"
+    jest.mocked(leerTokenRefresco).mockImplementation(async () => guardado)
+    jest.mocked(guardarTokenRefresco).mockImplementation(async (token) => {
+      guardado = token
+    })
+    jest.mocked(refrescarSesion).mockResolvedValue({
+      usuario: { ...local, email: "cliente@example.test", apellidos: null, estado: "activo" },
+      tokenAcceso: "acceso",
+      tokenRefresco: "refresco-vigente",
+    })
+    let resolverRespuesta: (respuesta: Response) => void = () => undefined
+    const fetchMock = jest.spyOn(globalThis, "fetch")
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 })).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolverRespuesta = resolve
+        }),
+    )
+    let terminar: () => void = () => undefined
+    const terminada = new Promise<void>((resolve) => {
+      terminar = resolve
+    })
+    try {
+      await render(
+        <ProveedorDeSesion>
+          <VisorPeticion alTerminar={terminar} />
+        </ProveedorDeSesion>,
+      )
+      await screen.findByText("dentro")
+      expect(valores.get("alpha_omega_cuenta")).toBe(local.id)
+      await fireEvent.press(screen.getByRole("button", { name: "Pedir" }))
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+      valores.set("alpha_omega_cuenta", cuentaCompartida)
+      guardado = "refresco-otro"
+      await act(async () => {
+        resolverRespuesta(new Response(null, { status: 401 }))
+        await terminada
+      })
+      expect(borrarTokenRefresco).not.toHaveBeenCalled()
+      expect(almacenDispositivo.limpiar).not.toHaveBeenCalled()
+      expect(guardado).toBe("refresco-otro")
+    } finally {
+      cleanup()
+      fetchMock.mockRestore()
+      Object.defineProperty(Platform, "OS", { value: plataformaAnterior, configurable: true })
+      Reflect.deleteProperty(globalThis.navigator, "locks")
+      if (almacenamientoAnterior)
+        Object.defineProperty(globalThis, "localStorage", almacenamientoAnterior)
+      else Reflect.deleteProperty(globalThis, "localStorage")
+    }
+  },
+)

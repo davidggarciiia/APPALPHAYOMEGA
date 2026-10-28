@@ -1,10 +1,19 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native"
 import type { Cierre } from "@alpha-omega/shared"
 
 import { AvisoDeError } from "../../componentes/formulario"
 import { tema } from "../../tema"
-import { BotonAtras, BotonDorado, Chips, Deslizador, Enlace, Opciones, Pregunta } from "./controles"
+import {
+  BotonAtras,
+  BotonDorado,
+  Chips,
+  Deslizador,
+  Dialogo,
+  Enlace,
+  Opciones,
+  Pregunta,
+} from "./controles"
 
 const ENERGIA = [1, 2, 3, 4, 5].map((valor) => ({ valor, texto: String(valor) }))
 const CONTAR = [
@@ -28,6 +37,8 @@ export function CierreDeSesion({
   enviar,
   reintentar,
   volver,
+  guardar,
+  registrarSalida,
 }: {
   /** «Empuje · 1 h 38 min». */
   subtitulo: string
@@ -43,6 +54,8 @@ export function CierreDeSesion({
   /** Reintenta el envío pendiente con su contenido original. */
   reintentar: () => void
   volver: () => void
+  guardar?: (cierre: Cierre | null, notas: string) => Promise<void>
+  registrarSalida?: (preparar: ((salir: () => void) => void) | null) => void
 }): React.JSX.Element {
   const [esfuerzo, setEsfuerzo] = useState(cierreInicial?.esfuerzo ?? 5)
   const [energia, setEnergia] = useState<number | null>(cierreInicial?.energia ?? null)
@@ -52,6 +65,9 @@ export function CierreDeSesion({
   const [nota, setNota] = useState(notas)
   const [escribiendo, setEscribiendo] = useState(notas !== "")
   const [aviso, setAviso] = useState("")
+  const [descartando, setDescartando] = useState(false)
+  const [guardandoSalida, setGuardandoSalida] = useState(false)
+  const salida = useRef<(() => void) | null>(null)
   // Lo que se pulsó al enviar. Sin pulsar, una operación ajena no congela nada.
   const [enviado, setEnviado] = useState<{ cierre: Cierre; nota: string } | null>(null)
   const elegido: Cierre | null =
@@ -64,10 +80,37 @@ export function CierreDeSesion({
     : enviando
       ? enviado
       : null
+  const guardarYSalir = (accion: () => void, cierre: Cierre | null): void => {
+    if (!guardar || pendiente) return accion()
+    if (guardandoSalida || enviando) return
+    setGuardandoSalida(true)
+    setAviso("")
+    void guardar(cierre, nota)
+      .then(accion)
+      .catch(() => {
+        setAviso("No se pudo guardar el cierre en este dispositivo. Reintenta antes de salir.")
+      })
+      .finally(() => setGuardandoSalida(false))
+  }
+  const prepararSalida = (accion: () => void): void => {
+    const parcial =
+      elegido === null &&
+      (esfuerzo !== (cierreInicial?.esfuerzo ?? 5) ||
+        energia !== (cierreInicial?.energia ?? null) ||
+        contar !== (cierreInicial === null ? null : cierreInicial.incomodo ? "incomodo" : "bien"))
+    if (!pendiente && parcial) {
+      salida.current = accion
+      setDescartando(true)
+    } else guardarYSalir(accion, elegido)
+  }
+  useEffect(() => {
+    registrarSalida?.(prepararSalida)
+    return () => registrarSalida?.(null)
+  })
 
   return (
     <ScrollView contentContainerStyle={s.contenido} keyboardShouldPersistTaps="handled">
-      <BotonAtras etiqueta="Volver a la sesión" onPress={volver} />
+      <BotonAtras etiqueta="Volver a la sesión" onPress={() => prepararSalida(volver)} />
       <View style={s.titulos}>
         <Text style={s.titulo} accessibilityRole="header">
           ¿Cómo ha ido?
@@ -76,7 +119,7 @@ export function CierreDeSesion({
       </View>
       <View style={s.grupo}>
         <Text style={s.seccion} accessibilityRole="header">
-          Series registradas
+          Series de la parte principal
         </Text>
         <Text style={s.resumen}>
           {resumen.hechas} hechas · {resumen.omitidas} omitidas · {resumen.pendientes} pendientes
@@ -137,7 +180,7 @@ export function CierreDeSesion({
       {(aviso !== "" || error !== "") && <AvisoDeError mensaje={aviso || error} />}
       <BotonDorado
         texto={pendiente ? "Reintentar envío pendiente" : "Enviar a tu entrenador"}
-        ocupado={enviando}
+        ocupado={enviando || guardandoSalida}
         onPress={() => {
           setAviso("")
           // El reintento repite la intención guardada: no vuelve a preguntar.
@@ -151,6 +194,24 @@ export function CierreDeSesion({
           }
           setEnviado({ cierre: elegido, nota })
           enviar(elegido, nota)
+        }}
+      />
+      <Dialogo
+        visible={descartando}
+        titulo="¿Descartar las respuestas incompletas?"
+        texto="Las respuestas que aún no has completado se perderán. La nota se guarda con la sesión."
+        confirmar="Descartar respuestas"
+        cancelar="Seguir editando"
+        ocupado={guardandoSalida || enviando}
+        alCancelar={() => {
+          setDescartando(false)
+          salida.current = null
+        }}
+        alConfirmar={() => {
+          setDescartando(false)
+          const continuar = salida.current
+          salida.current = null
+          if (continuar) guardarYSalir(continuar, cierreInicial)
         }}
       />
     </ScrollView>

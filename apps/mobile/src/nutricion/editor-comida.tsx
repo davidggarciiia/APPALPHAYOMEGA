@@ -277,6 +277,7 @@ export function EditorComida({
               <Pressable
                 key={forma}
                 accessibilityRole="radio"
+                aria-checked={valor.forma === forma}
                 accessibilityState={{ checked: valor.forma === forma }}
                 onPress={() => setFormaPendiente(forma === valor.forma ? null : forma)}
                 style={[s.forma, valor.forma === forma && s.formaActiva]}

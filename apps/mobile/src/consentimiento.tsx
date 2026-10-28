@@ -76,7 +76,7 @@ export function PantallaConsentimiento({
     }
   }
   return (
-    <ScrollView contentContainerStyle={s.contenido}>
+    <ScrollView style={s.pantalla} contentContainerStyle={s.contenido}>
       <Text style={s.titulo} accessibilityRole="header">
         {TEXTO_CONSENTIMIENTO.titulo}
       </Text>
@@ -87,6 +87,7 @@ export function PantallaConsentimiento({
       ))}
       <Pressable
         accessibilityRole="checkbox"
+        aria-checked={marcado}
         accessibilityLabel={TEXTO_CONSENTIMIENTO.aceptar}
         accessibilityState={{ checked: marcado, disabled: ocupado }}
         disabled={ocupado}
@@ -220,6 +221,7 @@ export function TarjetaConsentimiento(): React.JSX.Element | null {
 }
 
 const s = StyleSheet.create({
+  pantalla: { flex: 1, backgroundColor: tema.fondo },
   contenido: { padding: 24, gap: 16, maxWidth: 560, width: "100%", alignSelf: "center" },
   vacio: { flex: 1 },
   titulo: {

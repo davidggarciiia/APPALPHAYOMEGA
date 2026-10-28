@@ -40,6 +40,8 @@ export type EjercicioDelConstructor = {
    * y 20 m). La fila no puede representarlo: no se publica hasta revisarlo.
    */
   mezclaUnidades?: true
+  /** La fila no representa cargas u objetivos diferentes dentro de una unidad. */
+  seriesDistintas?: true
 }
 
 const AVISO_MEZCLA = "Este ejercicio mezcla unidades: revísalo en el editor de sesión"
@@ -177,6 +179,14 @@ export function desdeSesionEnRutina(
         ...(e.series.some((s) => s.tipoMedicion !== primera?.tipoMedicion) && {
           mezclaUnidades: true as const,
         }),
+        ...(primera &&
+          e.series.some(
+            (s) =>
+              s.tipoMedicion === primera.tipoMedicion &&
+              (s.pesoKg !== primera.pesoKg || objetivoDeFila(s) !== objetivoDeFila(primera)),
+          ) && {
+            seriesDistintas: true as const,
+          }),
       }
     }),
   }
@@ -189,6 +199,8 @@ export function faltaEnDia(dia: DiaDelConstructor): string | null {
   if (dia.ejercicios.length === 0) return `${nombre}: añade al menos un ejercicio.`
   for (const e of dia.ejercicios) {
     if (e.mezclaUnidades) return `${e.nombre}. ${AVISO_MEZCLA}.`
+    if (e.seriesDistintas)
+      return `${e.nombre}: tiene series distintas. Revísalas en el editor de sesión o decide pautarlas todas por igual.`
     const series = Number(e.series)
     if (e.seccion !== "circuito" && (!Number.isInteger(series) || series < 1 || series > 30))
       return `${e.nombre}: de 1 a 30 series.`

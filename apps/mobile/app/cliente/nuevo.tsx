@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { Pressable, StyleSheet, Text } from "react-native"
-import { CrearUsuarioSchema, type CrearUsuario, type Rol } from "@alpha-omega/shared"
+import { CrearUsuarioSchema, type CrearUsuario } from "@alpha-omega/shared"
 
 import {
   AvisoDeError,
@@ -26,7 +26,7 @@ import { tema } from "../../src/tema"
  * No hay selector libre de rol. Un desplegable con "entrenador" dentro seria una
  * via comoda para crear un segundo administrador sin querer.
  */
-const PERFILES: Partial<Record<Rol, { titulo: string; explicacion: string }>> = {
+const PERFILES = {
   cliente: {
     titulo: "Nuevo cliente",
     explicacion:
@@ -46,7 +46,7 @@ const PERFILES: Partial<Record<Rol, { titulo: string; explicacion: string }>> = 
  * entrenador puede seguir trabajando sin esperar a que nadie abra su correo.
  */
 export default function NuevoCliente(): React.JSX.Element {
-  const { estado } = useSesion()
+  const { estado, pedir } = useSesion()
   const router = useRouter()
   const parametros = useLocalSearchParams<{ rol?: string | string[] }>()
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
@@ -54,8 +54,8 @@ export default function NuevoCliente(): React.JSX.Element {
   // El parametro llega de fuera: solo se acepta si es uno de los dos perfiles
   // que esta pantalla sabe crear. Cualquier otra cosa da de alta a un cliente.
   const pedido = Array.isArray(parametros.rol) ? parametros.rol[0] : parametros.rol
-  const rol: Rol = pedido === "nutricionista" ? "nutricionista" : "cliente"
-  const perfil = PERFILES[rol] ?? PERFILES.cliente
+  const rol = pedido === "nutricionista" ? "nutricionista" : "cliente"
+  const perfil = PERFILES[rol]
 
   const {
     control,
@@ -74,7 +74,7 @@ export default function NuevoCliente(): React.JSX.Element {
     setErrorGeneral(null)
 
     try {
-      const creado = await crearUsuario(tokenAcceso, { ...datos, rol })
+      const creado = await crearUsuario(pedir, { ...datos, rol })
 
       // Se va a la ficha y no a la lista. Lo siguiente en la vida real es
       // "¿te ha llegado?", y el boton de reenviar esta ahi.
@@ -94,8 +94,8 @@ export default function NuevoCliente(): React.JSX.Element {
 
   return (
     <PantallaDeFormulario>
-      <Text style={estilos.titulo}>{perfil?.titulo}</Text>
-      <Text style={estilos.detalle}>{perfil?.explicacion}</Text>
+      <Text style={estilos.titulo}>{perfil.titulo}</Text>
+      <Text style={estilos.detalle}>{perfil.explicacion}</Text>
 
       <Controller
         control={control}

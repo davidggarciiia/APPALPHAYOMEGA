@@ -10,7 +10,7 @@ export type PeticionAutenticada = <T>(
 type Renovacion = {
   renovar: () => Promise<string>
   epoca: () => number
-  revocada?: () => Promise<void>
+  revocada?: (tokenRechazado: string) => Promise<void>
 }
 
 function permiteReintento(opciones: RequestInit): boolean {
@@ -65,7 +65,7 @@ export function crearPeticionAutenticada(
         return await intentar(nuevo)
       } catch (reintento) {
         comprobar()
-        if (reintento instanceof ErrorDeSesion) await renovacion.revocada?.()
+        if (reintento instanceof ErrorDeSesion) await renovacion.revocada?.(nuevo)
         throw reintento
       }
     }

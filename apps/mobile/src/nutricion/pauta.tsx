@@ -21,6 +21,7 @@ import { hoyAgenda } from "../entrenamiento/fechas"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { degradadoOro, tema } from "../tema"
 import { deficit, gastoTotal, gramosDeMacros, porcentajesDe, type Pauta } from "./calculo"
+import { esCreatina } from "./hoy-modelo"
 
 const CREATINA: Suplemento = { nombre: "Creatina monohidrato", dosis: "3–5 g al día" }
 
@@ -52,21 +53,42 @@ export function textosIniciales(
     [...(medidas?.medidas ?? [])].reverse().find((m) => m[clave] !== null)?.[clave] ?? null
   const nacimiento = medidas?.fechaNacimiento ?? null
   const pct = objetivo ? porcentajesDe(objetivo) : null
+  const repartoInicial = {
+    kcal: coma(objetivo?.kcal ?? null),
+    hidratos: coma(pct?.hidratos ?? 45),
+    proteina: coma(pct?.proteina ?? 25),
+    grasas: coma(pct?.grasas ?? 30),
+  }
   return {
+    suplementosIniciales: documento?.suplementos ?? [],
+    notaCalculo: calculo?.nota ?? null,
+    objetivoInicial:
+      objetivo &&
+      objetivo.kcal !== null &&
+      objetivo.hidratosG !== null &&
+      objetivo.proteinaG !== null &&
+      objetivo.grasaG !== null
+        ? {
+            kcal: objetivo.kcal,
+            hidratosG: objetivo.hidratosG,
+            proteinaG: objetivo.proteinaG,
+            grasaG: objetivo.grasaG,
+          }
+        : null,
+    repartoInicial,
+    otrasIndicaciones: (documento?.indicaciones ?? []).filter((i) => i.titulo !== "Peso en ayunas")
+      .length,
     textos: {
       peso: coma(calculo?.pesoKg ?? ultima("pesoKg")),
       altura: coma(calculo?.alturaCm ?? ultima("alturaCm")),
       edad: coma(calculo?.edad ?? (nacimiento ? edadEn(nacimiento, hoyAgenda()) : null)),
-      grasa: coma(calculo?.grasaPct ?? ultima("grasaPct")),
+      grasa: coma(calculo ? calculo.grasaPct : ultima("grasaPct")),
       factor: coma(calculo?.factorActividad ?? 1.55),
-      kcal: coma(objetivo?.kcal ?? null),
+      ...repartoInicial,
       margen: coma(documento?.tiposDeDia[0]?.margenKcal ?? 100),
-      hidratos: coma(pct?.hidratos ?? 45),
-      proteina: coma(pct?.proteina ?? 25),
-      grasas: coma(pct?.grasas ?? 30),
     },
     sexo: calculo?.sexo ?? "hombre",
-    creatina: (documento?.suplementos ?? []).some((s) => /creatina/i.test(s.nombre)),
+    creatina: (documento?.suplementos ?? []).some(esCreatina),
     pesoDiario: (documento?.indicaciones ?? []).some((i) => i.titulo === "Peso en ayunas"),
     registroComidas: documento?.registroComidas ?? true,
     nota: documento?.nota ?? "",
@@ -80,6 +102,11 @@ type Formulario = {
   pesoDiario: boolean
   registroComidas: boolean
   nota: string
+  suplementosIniciales: Suplemento[]
+  notaCalculo: string | null
+  objetivoInicial: Pauta["objetivo"] | null
+  repartoInicial: Pick<Textos, "kcal" | "hidratos" | "proteina" | "grasas">
+  otrasIndicaciones: number
 }
 
 const numero = (texto: string): number | null => {
@@ -107,23 +134,33 @@ export function pautaDesde(f: Formulario): Pauta | string {
   if (k === null || k < 800 || k > 10000) return "Escribe las calorías del objetivo."
   if (reparto.hidratos + reparto.proteina + reparto.grasas !== 100)
     return "Los porcentajes de macros tienen que sumar 100."
+  if (f.pesoDiario && f.otrasIndicaciones >= 10)
+    return "La dieta ya tiene diez indicaciones. Edita las indicaciones antes de añadir el peso diario."
   const grasa = numero(t.grasa)
   const nota = f.nota.trim()
+  const sinCambiarObjetivo = (
+    Object.keys(f.repartoInicial) as Array<keyof typeof f.repartoInicial>
+  ).every((clave) => t[clave] === f.repartoInicial[clave])
+  const suplementos = f.suplementosIniciales.filter((s) => f.creatina || !esCreatina(s))
+  if (f.creatina && !f.suplementosIniciales.some(esCreatina)) suplementos.push(CREATINA)
   return {
-    objetivo: { kcal: Math.round(k), ...gramosDeMacros(k, reparto) },
+    objetivo:
+      sinCambiarObjetivo && f.objetivoInicial
+        ? { ...f.objetivoInicial }
+        : { kcal: Math.round(k), ...gramosDeMacros(k, reparto) },
     margenKcal: Math.min(1000, Math.round(numero(t.margen) ?? 0)),
-    suplementos: f.creatina ? [CREATINA] : [],
+    suplementos,
     registroComidas: f.registroComidas,
     pesoDiario: f.pesoDiario,
     nota: nota === "" ? null : nota,
     calculo: {
-      pesoKg: Math.round(p * 10) / 10,
+      pesoKg: p,
       alturaCm: Math.round(al),
       edad: Math.round(ed),
       sexo: f.sexo,
-      grasaPct: grasa === null ? null : Math.round(grasa * 10) / 10,
-      factorActividad: Math.round(fa * 100) / 100,
-      nota: null,
+      grasaPct: grasa,
+      factorActividad: fa,
+      nota: f.notaCalculo,
     },
   }
 }
@@ -134,18 +171,21 @@ function Campo({
   cambiar,
   unidad,
   ancho = 72,
+  bloqueado = false,
 }: {
   etiqueta: string
   valor: string
   cambiar: (texto: string) => void
   unidad?: string
   ancho?: number
+  bloqueado?: boolean
 }): React.JSX.Element {
   return (
     <View style={s.campoFila}>
       <TextInput
         accessibilityLabel={etiqueta}
         value={valor}
+        editable={!bloqueado}
         onChangeText={cambiar}
         keyboardType="decimal-pad"
         selectionColor={tema.acento}
@@ -168,6 +208,7 @@ export function PautaNutricion({
   medidas,
   resumen,
   alCambiar,
+  bloqueado = false,
 }: {
   nombre: string
   /** Borrador o, si no hay, la dieta vigente: de ahí se parte. */
@@ -176,6 +217,7 @@ export function PautaNutricion({
   /** «Últimos 7 días», ya calculado. */
   resumen: React.ReactNode
   alCambiar: (pauta: Pauta | string) => void
+  bloqueado?: boolean
 }): React.JSX.Element {
   const { width } = useWindowDimensions()
   const [formulario, setFormulario] = useState<Formulario>(() =>
@@ -185,10 +227,15 @@ export function PautaNutricion({
   useEffect(() => {
     alCambiar(pautaDesde(formulario))
   }, [formulario, alCambiar])
-  const cambiarFormulario = (cambio: Partial<Formulario>): void =>
-    setFormulario((actual) => ({ ...actual, ...cambio }))
-  const cambiar = (clave: keyof Textos) => (texto: string) =>
-    setFormulario((actual) => ({ ...actual, textos: { ...actual.textos, [clave]: texto } }))
+  const cambiarFormulario = (cambio: Partial<Formulario>): void => {
+    if (!bloqueado) setFormulario((actual) => ({ ...actual, ...cambio }))
+  }
+  const cambiar =
+    (clave: keyof Textos) =>
+    (texto: string): void => {
+      if (!bloqueado)
+        setFormulario((actual) => ({ ...actual, textos: { ...actual.textos, [clave]: texto } }))
+    }
 
   const peso = numero(textos.peso)
   const altura = numero(textos.altura)
@@ -211,11 +258,24 @@ export function PautaNutricion({
         })
       : null
   const gasto = basal !== null && factor !== null ? gastoTotal(basal, factor) : null
-  const gramos = kcal !== null ? gramosDeMacros(kcal, pct) : null
+  const sinCambiarObjetivo = (
+    Object.keys(formulario.repartoInicial) as Array<keyof typeof formulario.repartoInicial>
+  ).every((clave) => textos[clave] === formulario.repartoInicial[clave])
+  const gramos =
+    sinCambiarObjetivo && formulario.objetivoInicial
+      ? formulario.objetivoInicial
+      : kcal !== null
+        ? gramosDeMacros(kcal, pct)
+        : null
   const suma = pct.hidratos + pct.proteina + pct.grasas
 
   const dosColumnas = width >= 900
   const primerNombre = nombre.split(" ")[0] ?? nombre
+  const etiquetaCreatina =
+    formulario.suplementosIniciales
+      .filter(esCreatina)
+      .map((s) => (s.dosis === null ? s.nombre : `${s.nombre}, ${s.dosis}`))
+      .join("; ") || `${CREATINA.nombre}, ${CREATINA.dosis}`
 
   const conmutador = (
     texto: string,
@@ -227,6 +287,7 @@ export function PautaNutricion({
       <Switch
         accessibilityLabel={texto}
         value={valor}
+        disabled={bloqueado}
         onValueChange={cambio}
         trackColor={{ true: tema.acento, false: tema.superficieAlta }}
         thumbColor={tema.texto}
@@ -244,6 +305,7 @@ export function PautaNutricion({
             <Fila primera>
               <Text style={[s.texto, s.flex]}>Peso</Text>
               <Campo
+                bloqueado={bloqueado}
                 etiqueta="Peso en kg"
                 valor={textos.peso}
                 cambiar={cambiar("peso")}
@@ -253,6 +315,7 @@ export function PautaNutricion({
             <Fila>
               <Text style={[s.texto, s.flex]}>Altura y edad</Text>
               <Campo
+                bloqueado={bloqueado}
                 etiqueta="Altura en cm"
                 valor={textos.altura}
                 cambiar={cambiar("altura")}
@@ -260,6 +323,7 @@ export function PautaNutricion({
                 ancho={60}
               />
               <Campo
+                bloqueado={bloqueado}
                 etiqueta="Edad"
                 valor={textos.edad}
                 cambiar={cambiar("edad")}
@@ -274,6 +338,8 @@ export function PautaNutricion({
                   <Pressable
                     key={valor}
                     accessibilityRole="radio"
+                    aria-checked={sexo === valor}
+                    disabled={bloqueado}
                     accessibilityState={{ checked: sexo === valor }}
                     onPress={() => cambiarFormulario({ sexo: valor })}
                     style={[s.sexo, sexo === valor && degradadoOro]}
@@ -288,6 +354,7 @@ export function PautaNutricion({
             <Fila>
               <Text style={[s.texto, s.flex]}>Grasa corporal</Text>
               <Campo
+                bloqueado={bloqueado}
                 etiqueta="Grasa corporal en %"
                 valor={textos.grasa}
                 cambiar={cambiar("grasa")}
@@ -303,6 +370,7 @@ export function PautaNutricion({
             <Fila>
               <Text style={[s.texto, s.flex]}>Factor de actividad</Text>
               <Campo
+                bloqueado={bloqueado}
                 etiqueta="Factor de actividad"
                 valor={textos.factor}
                 cambiar={cambiar("factor")}
@@ -326,6 +394,7 @@ export function PautaNutricion({
               <View style={s.flex}>
                 <Text style={s.tenue}>Calorías</Text>
                 <Campo
+                  bloqueado={bloqueado}
                   etiqueta="Calorías del objetivo"
                   valor={textos.kcal}
                   cambiar={cambiar("kcal")}
@@ -337,6 +406,7 @@ export function PautaNutricion({
                 <View style={s.campoFila}>
                   <Text style={s.tenue}>Rango ±</Text>
                   <Campo
+                    bloqueado={bloqueado}
                     etiqueta="Margen del rango en kcal"
                     valor={textos.margen}
                     cambiar={cambiar("margen")}
@@ -387,6 +457,7 @@ export function PautaNutricion({
                     <View style={[s.punto, { backgroundColor: color }]} />
                     <Text style={s.tenue}>{texto} ·</Text>
                     <Campo
+                      bloqueado={bloqueado}
                       etiqueta={`Porcentaje de ${texto.toLowerCase()}`}
                       valor={textos[clave]}
                       cambiar={cambiar(clave)}
@@ -403,9 +474,7 @@ export function PautaNutricion({
             </View>
             {suma !== 100 && <Text style={s.error}>Los porcentajes suman {suma} %, no 100.</Text>}
             <View style={s.separador} />
-            {conmutador(`${CREATINA.nombre}, ${CREATINA.dosis}`, creatina, (v) =>
-              cambiarFormulario({ creatina: v }),
-            )}
+            {conmutador(etiquetaCreatina, creatina, (v) => cambiarFormulario({ creatina: v }))}
             {conmutador("Peso en ayunas cada día", pesoDiario, (v) =>
               cambiarFormulario({ pesoDiario: v }),
             )}
@@ -421,6 +490,7 @@ export function PautaNutricion({
         <TextInput
           accessibilityLabel={`Nota para ${primerNombre}`}
           value={nota}
+          editable={!bloqueado}
           onChangeText={(texto) => cambiarFormulario({ nota: texto })}
           placeholder="Lo que verá en su pestaña Nutrición…"
           placeholderTextColor={tema.marcador}

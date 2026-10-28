@@ -284,7 +284,7 @@ function TarjetaSerie({
     const indice = Number(valor)
     setEleccion(hueco === 0 ? [indice, otro] : [uno, indice])
   }
-  const cambio = diferencia(puntos[hasta]!.valor - puntos[desde]!.valor, unidad)
+  const cambio = total > 1 ? diferencia(puntos[hasta]!.valor - puntos[desde]!.valor, unidad) : null
   const primero = puntos[0]
   const ultimo = puntos[total - 1]
 
@@ -329,7 +329,7 @@ function TarjetaSerie({
             Elige dos fechas distintas para ver la diferencia.
           </Text>
         </>
-      ) : (
+      ) : cambio !== null ? (
         <View>
           {fila(desde, true)}
           {fila(hasta, false)}
@@ -344,7 +344,7 @@ function TarjetaSerie({
             </Fila>
           </View>
         </View>
-      )}
+      ) : null}
 
       {total > 2 && (
         <Enlace

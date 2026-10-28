@@ -87,6 +87,32 @@ it("publicar pide confirmación y reintenta con la misma operación", async () =
   expect(await screen.findByText("Dieta publicada. El cliente ya la ve.")).toBeOnTheScreen()
 })
 
+it("permite recuperar dietas del histórico posteriores a la primera página", async () => {
+  const dietas = Array.from({ length: 21 }, (_, n) => ({
+    id: `60000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+    nombre: `Dieta histórica ${n + 1}`,
+    estado: "archivada" as const,
+    publicadaEn: "2026-09-01T10:00:00.000Z",
+    archivadaEn: "2026-09-24T10:00:00.000Z",
+    publicadaPor: { id: CLIENTE, nombre: "Profesional" },
+  }))
+  const historico = jest.fn(async (_cliente, desplazamiento) => ({
+    dietas: dietas.slice(desplazamiento, desplazamiento + 20),
+    total: 21,
+  }))
+  await render(
+    <PanelDieta
+      clienteId={CLIENTE}
+      api={api({ historico })}
+      editar={jest.fn()}
+      nuevoId={() => CLIENTE}
+    />,
+  )
+  await fireEvent.press(await screen.findByRole("button", { name: "Ver más dietas" }))
+  expect(await screen.findByText("Dieta histórica 21")).toBeOnTheScreen()
+  expect(historico).toHaveBeenLastCalledWith(CLIENTE, 20)
+})
+
 it("sin borrador ofrece editar la vigente o empezar de cero, y abre el histórico en lectura", async () => {
   const editar = jest.fn()
   const delHistorico = jest.fn().mockResolvedValue({

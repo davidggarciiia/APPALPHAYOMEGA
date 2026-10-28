@@ -1,6 +1,6 @@
 import { EnviarEntrenamientoSchema, type ResultadoEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
-import type { AlmacenLocal } from "./almacen-local"
+import { ConflictoDeEdicionLocal, ErrorDeCopiaLocal, type AlmacenLocal } from "./almacen-local"
 import {
   DocumentoSesionSchema,
   claveSesion,
@@ -17,6 +17,21 @@ import { pausarTramo } from "./sesion/tiempo"
 import { ErrorDelServidor } from "../lib/http"
 
 type VistaSesion = Pick<DocumentoSesion, "ejercicioElegidoId" | "descansoHasta" | "descansoTotal">
+type CopiaLocal = NonNullable<DocumentoSesion["respaldo"]>
+
+function copiasUnicas(copias: CopiaLocal[], excluir: CopiaLocal[]): CopiaLocal[] {
+  const vistas = new Set(excluir.map((copia) => JSON.stringify(copia)))
+  return copias.filter((copia) => {
+    const firma = JSON.stringify(copia)
+    if (vistas.has(firma)) return false
+    vistas.add(firma)
+    return true
+  })
+}
+const copiaDe = (documento: DocumentoSesion): CopiaLocal => ({
+  edicion: documento.edicion,
+  prescripcion: documento.sesion.prescripcion,
+})
 
 /** Una instancia por pantalla; al cerrarla ninguna respuesta puede escribir detrás de la siguiente. */
 export class RegistroControl {
@@ -29,6 +44,8 @@ export class RegistroControl {
   private enCurso: Promise<void> | null = null
   private enviando = false
   private lectura = 0
+  private versionLocal: unknown | null = null
+  private colaLocal: Promise<void> = Promise.resolve()
   constructor(
     private cuenta: string,
     private id: string,
@@ -49,30 +66,95 @@ export class RegistroControl {
     const datos = this.exigir()
     this.guardando++
     this.cambio()
-    try {
-      await this.almacen.guardar(this.cuenta, claveSesion(this.id), datos)
-      this.errorLocal = false
-    } catch (error) {
-      this.errorLocal = true
-      throw error
-    } finally {
-      this.guardando--
-      if (this.vigente) this.cambio()
+    const guardar = async (): Promise<void> => {
+      const superadaPorConflicto =
+        this.conflicto && this.documento?.conflictoLocal && datos !== this.documento
+      try {
+        if (superadaPorConflicto) throw new ConflictoDeEdicionLocal()
+        await this.almacen.guardar(this.cuenta, claveSesion(this.id), datos, {
+          anterior: this.versionLocal,
+        })
+        this.versionLocal = JSON.parse(JSON.stringify(datos)) as unknown
+        this.errorLocal = false
+      } catch (error) {
+        if (superadaPorConflicto) {
+          // Una operación anterior ya rescató la edición más reciente y las
+          // copias concurrentes. Una escritura vieja de esta cola no las reemplaza.
+          this.errorLocal = false
+          throw error
+        }
+        if (error instanceof ConflictoDeEdicionLocal) {
+          this.conflicto = true
+          try {
+            await this.conservarEdicionesLocales()
+            this.errorLocal = false
+          } catch (fallo) {
+            this.errorLocal = true
+            throw fallo instanceof ErrorDeCopiaLocal
+              ? fallo
+              : new ErrorDeCopiaLocal("guardar", fallo)
+          }
+        } else {
+          this.errorLocal = true
+          throw error instanceof ErrorDeCopiaLocal ? error : new ErrorDeCopiaLocal("guardar", error)
+        }
+        throw error
+      } finally {
+        this.guardando--
+        if (this.vigente) this.cambio()
+      }
+    }
+    const siguiente = this.colaLocal.then(guardar)
+    this.colaLocal = siguiente.catch(() => undefined)
+    await siguiente
+  }
+  private async conservarEdicionesLocales(): Promise<void> {
+    // Cada intento vuelve a leer la versión a comparar. El candado y el CAS del
+    // almacén impiden que una tercera pestaña desaparezca durante la recuperación.
+    while (this.vigente) {
+      const otra = await this.almacen.leer(this.cuenta, claveSesion(this.id), DocumentoSesionSchema)
+      const local = this.exigir()
+      const respaldo = otra ? copiaDe(otra) : local.respaldo
+      const anteriores = [
+        ...(local.respaldosLocales ?? []),
+        ...(otra?.respaldosLocales ?? []),
+        ...(local.respaldo ? [local.respaldo] : []),
+        ...(otra?.respaldo ? [otra.respaldo] : []),
+      ]
+      this.documento = {
+        ...local,
+        respaldo,
+        conflictoLocal: true,
+        respaldosLocales: copiasUnicas(anteriores, [
+          copiaDe(local),
+          ...(respaldo ? [respaldo] : []),
+        ]),
+      }
+      try {
+        await this.almacen.guardar(this.cuenta, claveSesion(this.id), this.documento, {
+          anterior: otra,
+        })
+        this.versionLocal = JSON.parse(JSON.stringify(this.documento)) as unknown
+        return
+      } catch (error) {
+        if (!(error instanceof ConflictoDeEdicionLocal)) throw error
+      }
     }
   }
   async abrir(): Promise<void> {
     const local = await this.almacen.leer(this.cuenta, claveSesion(this.id), DocumentoSesionSchema)
     if (!this.vigente) return
+    this.versionLocal = local
     if (local) {
       this.documento = local
+      this.conflicto = local.conflictoLocal ?? false
       this.cambio()
     }
     try {
       await this.actualizar()
     } catch (error) {
       if (!local) throw error
-      this.sinRed = true
-      this.cambio()
+      this.falloRemoto(error)
     }
   }
   async actualizar(): Promise<void> {
@@ -152,6 +234,8 @@ export class RegistroControl {
             }
           : nuevo.edicion,
         respaldo: local?.respaldo ?? null,
+        ...(local?.respaldosLocales && { respaldosLocales: local.respaldosLocales }),
+        ...(local?.conflictoLocal && { conflictoLocal: true }),
         ejercicioElegidoId: local?.ejercicioElegidoId ?? null,
         descansoHasta: local?.descansoHasta ?? null,
         descansoTotal: local?.descansoTotal ?? null,
@@ -248,6 +332,7 @@ export class RegistroControl {
   }
   private falloRemoto(error: unknown): void {
     if (!this.vigente) return
+    if (error instanceof ErrorDeCopiaLocal || error instanceof ConflictoDeEdicionLocal) return
     if (error instanceof ErrorDelServidor && error.codigo === 409) this.conflicto = true
     else this.sinRed = true
     this.cambio()
@@ -259,9 +344,18 @@ export class RegistroControl {
       await this.actualizar()
       return
     }
+    const local = this.exigir()
     this.documento = {
       ...nuevoDocumento(remoto),
-      respaldo: { edicion: this.exigir().edicion, prescripcion: this.exigir().sesion.prescripcion },
+      respaldo: copiaDe(local),
+      ...(local.respaldosLocales || local.respaldo
+        ? {
+            respaldosLocales: copiasUnicas(
+              [...(local.respaldosLocales ?? []), ...(local.respaldo ? [local.respaldo] : [])],
+              [copiaDe(local)],
+            ),
+          }
+        : {}),
     }
     this.conflicto = false
     this.sinRed = false
@@ -270,8 +364,39 @@ export class RegistroControl {
   async recuperarCopia(): Promise<void> {
     const local = this.exigir()
     if (!local.respaldo) return
+    if (local.conflictoLocal) throw new Error("Elige la edición local antes de recuperar una copia")
+    if (local.respaldosLocales) {
+      this.documento = {
+        ...local,
+        respaldosLocales: copiasUnicas(
+          [...local.respaldosLocales, copiaDe(local)],
+          [local.respaldo],
+        ),
+      }
+    }
     // Una serie cuya unidad cambió queda pendiente; el respaldo se conserva.
     await this.editar(edicionRecuperada(local.respaldo, local.sesion.prescripcion))
+  }
+  async continuarEdicionLocal(): Promise<void> {
+    const local = this.exigir()
+    if (!local.conflictoLocal) return
+    this.documento = { ...local, conflictoLocal: false }
+    this.conflicto = false
+    await this.persistir()
+  }
+  async elegirCopiaLocal(indice: number): Promise<void> {
+    const local = this.exigir()
+    const elegida = local.respaldosLocales?.[indice]
+    if (!elegida) return
+    this.documento = {
+      ...local,
+      respaldo: elegida,
+      respaldosLocales: [
+        ...(local.respaldo ? [local.respaldo] : []),
+        ...(local.respaldosLocales ?? []).filter((_, n) => n !== indice),
+      ],
+    }
+    await this.persistir()
   }
   async enviar(): Promise<void> {
     if (this.enviando) return
@@ -314,15 +439,19 @@ export class RegistroControl {
       }
       await this.confirmarResultado(await this.api.enviar(this.id, local.envioPendiente!))
     } catch (error) {
-      if (!this.errorLocal && (this.documento?.intencionEnvio || this.documento?.envioPendiente))
-        this.falloRemoto(error)
+      if (this.documento?.intencionEnvio || this.documento?.envioPendiente) this.falloRemoto(error)
       throw error
     } finally {
       this.enviando = false
     }
   }
   async descartarCopia(): Promise<void> {
-    this.documento = { ...this.exigir(), respaldo: null }
+    const local = this.exigir()
+    this.documento = {
+      ...local,
+      respaldo: local.respaldosLocales?.[0] ?? null,
+      ...(local.respaldosLocales && { respaldosLocales: local.respaldosLocales.slice(1) }),
+    }
     await this.persistir()
   }
   private async confirmarResultado(
@@ -330,7 +459,8 @@ export class RegistroControl {
     cierreRemoto = false,
   ): Promise<void> {
     if (!this.vigente) return
-    // No quedan valores omitidos ni copias privadas tras la confirmación del servidor.
+    // La confirmación sustituye la edición enviada, pero conserva las copias
+    // alternativas que se rescataron de otros editores locales.
     let local = this.documento
     if (!local) {
       local = nuevoDocumento(await this.api.leerCliente(this.id))
@@ -349,7 +479,17 @@ export class RegistroControl {
           local.envioPendiente
           ? { edicion: local.edicion, prescripcion: local.sesion.prescripcion }
           : local.respaldo
-        : null,
+        : local.respaldosLocales !== undefined
+          ? local.respaldo
+          : null,
+      ...(cierreRemoto && local.respaldosLocales
+        ? {
+            respaldosLocales: copiasUnicas(
+              [...local.respaldosLocales, ...(local.respaldo ? [local.respaldo] : [])],
+              [copiaDe(local)],
+            ),
+          }
+        : {}),
       sincronizada: local.secuencia,
       edicion: desdePrescripcion(resultado.prescripcion),
       sesion: {

@@ -104,6 +104,36 @@ describe("RegistrarMolestiaPantalla", () => {
 })
 
 describe("CierreDeSesion", () => {
+  it("pregunta antes de descartar respuestas parciales y guarda la nota sin inventar energía", async () => {
+    const guardar = jest.fn(async () => undefined)
+    const volver = jest.fn()
+    await render(
+      <CierreDeSesion
+        subtitulo="Fuerza"
+        resumen={{ hechas: 1, omitidas: 0, pendientes: 0 }}
+        cierreInicial={null}
+        notas=""
+        enviando={false}
+        error=""
+        enviar={jest.fn()}
+        reintentar={jest.fn()}
+        guardar={guardar}
+        volver={volver}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("radio", { name: "Algo incómodo" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
+    await fireEvent.changeText(screen.getByLabelText("Nota para tu entrenador"), "Nota parcial")
+    await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
+    expect(volver).not.toHaveBeenCalled()
+    await fireEvent.press(screen.getByRole("button", { name: "Seguir editando" }))
+    expect(screen.getByRole("radio", { name: "Algo incómodo", checked: true })).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Descartar respuestas" }))
+    await waitFor(() => expect(volver).toHaveBeenCalledTimes(1))
+    expect(guardar).toHaveBeenCalledWith(null, "Nota parcial")
+  })
+
   it("envía el esfuerzo, la energía, si hubo algo incómodo y la nota", async () => {
     const enviar = jest.fn<(c: Cierre, notas: string) => void>()
     await render(

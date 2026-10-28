@@ -109,6 +109,7 @@ function ElegirAlternativa({
             <Pressable
               key={alternativa.id}
               accessibilityRole="radio"
+              aria-checked={activa}
               accessibilityState={{ checked: activa }}
               accessibilityLabel={`${alternativa.titulo}: ${alternativa.alimentos
                 .map((a) => `${a.nombre}${a.cantidad ? ` ${a.cantidad}` : ""}`)
@@ -228,6 +229,7 @@ function ArmarPlato({
               <Pressable
                 key={alimento.nombre}
                 accessibilityRole="radio"
+                aria-checked={activo}
                 accessibilityState={{ checked: activo }}
                 accessibilityLabel={`${alimento.nombre}${alimento.cantidad ? `, ${alimento.cantidad}` : ""}`}
                 onPress={() => {
@@ -278,13 +280,11 @@ export function ComidaDelDia({
   const [confirmada, setConfirmada] = useState<EleccionDeComida | null>(
     registrada?.eleccion ?? null,
   )
-  const [mensaje, setMensaje] = useState(registrada ? "Comida registrada" : "")
   // Al recuperar la conexión puede llegar lo que el servidor ya tenía registrado.
   const [registradaVista, setRegistradaVista] = useState(registrada)
   if (registrada && registrada !== registradaVista) {
     setRegistradaVista(registrada)
     setConfirmada(registrada.eleccion)
-    setMensaje("Comida registrada")
   }
   const volverAConectar = async (): Promise<void> => {
     if (!reintentar || reintentando) return
@@ -314,10 +314,7 @@ export function ComidaDelDia({
   const guardar = (eleccion: EleccionDeComida): void =>
     void ejecutar(
       () => registrar(eleccion),
-      () => {
-        setConfirmada(eleccion)
-        setMensaje("Comida registrada")
-      },
+      () => setConfirmada(eleccion),
     )
   const resumenConfirmado =
     confirmada?.tipo === "alternativa" && comida.forma === "alternativas"
@@ -370,7 +367,7 @@ export function ComidaDelDia({
       )}
       {confirmada && (
         <View style={s.confirmacion} accessibilityLiveRegion="polite">
-          <Text style={s.confirmacionTitulo}>{mensaje}</Text>
+          <Text style={s.confirmacionTitulo}>Comida registrada</Text>
           {resumenConfirmado && <Text style={s.subtitulo}>{resumenConfirmado}</Text>}
         </View>
       )}
@@ -378,12 +375,7 @@ export function ComidaDelDia({
       {confirmada && !motivoSoloLectura && (
         <Enlace
           texto="Quitar de hechas"
-          onPress={() =>
-            void ejecutar(quitar, () => {
-              setConfirmada(null)
-              setMensaje("")
-            })
-          }
+          onPress={() => void ejecutar(quitar, () => setConfirmada(null))}
         />
       )}
     </View>

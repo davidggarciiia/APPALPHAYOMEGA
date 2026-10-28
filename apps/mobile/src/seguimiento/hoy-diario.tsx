@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import type { CambiarDia, DiaDeSeguimiento } from "@alpha-omega/shared"
@@ -82,6 +82,8 @@ export function HoyDiario({
   const [editando, setEditando] = useState<Dato | null>(null)
   const [texto, setTexto] = useState("")
   const [error, setError] = useState("")
+  const [guardando, setGuardando] = useState(false)
+  const enCurso = useRef(false)
   const hoy = hoyAgenda()
 
   useFocusEffect(
@@ -100,6 +102,9 @@ export function HoyDiario({
   )
 
   const guardar = async (cambio: CambiarDia): Promise<boolean> => {
+    if (enCurso.current) return false
+    enCurso.current = true
+    setGuardando(true)
     setError("")
     try {
       setDia(await api.cambiarDia(clienteId, hoy, cambio))
@@ -107,9 +112,13 @@ export function HoyDiario({
     } catch (fallo) {
       setError(faltaDe(fallo, "No se pudo guardar. Revisa la conexión.").texto)
       return false
+    } finally {
+      enCurso.current = false
+      setGuardando(false)
     }
   }
   const abrir = (dato: Dato): void => {
+    if (enCurso.current) return
     setTexto(textoInicial(dato, dia))
     setError("")
     setEditando(dato)
@@ -148,8 +157,10 @@ export function HoyDiario({
         <Pressable
           style={[s.fila, s.separada]}
           accessibilityRole="checkbox"
+          aria-checked={creatina}
           accessibilityLabel="Creatina tomada"
           accessibilityState={{ checked: creatina }}
+          disabled={guardando}
           onPress={() => void guardar({ creatina: !creatina })}
         >
           <Text style={s.nombre}>Creatina tomada</Text>
@@ -165,6 +176,7 @@ export function HoyDiario({
         texto={edicion?.texto ?? ""}
         confirmar="Guardar"
         cancelar="Cancelar"
+        ocupado={guardando}
         alCancelar={() => setEditando(null)}
         alConfirmar={() => {
           if (!editando) return
@@ -182,6 +194,7 @@ export function HoyDiario({
           <Campo
             etiqueta={edicion.etiqueta}
             value={texto}
+            editable={!guardando}
             onChangeText={setTexto}
             keyboardType={edicion.teclado}
             autoFocus

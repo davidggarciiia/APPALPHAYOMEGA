@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react"
+import { useNavigation } from "expo-router"
+import { usePreventRemove } from "expo-router/react-navigation"
 import {
   Modal,
   Platform,
@@ -13,6 +15,7 @@ import {
 import { z } from "zod"
 import {
   AsignarPlanSchema,
+  FechaAgendaSchema,
   type AsignarPlan,
   type Bloque,
   type PatronRutina,
@@ -34,6 +37,7 @@ import { RutinaDeLaSemana, type DiaDelPlan } from "../../entrenamiento/plan/ruti
 import { BotonAtras, Dialogo, Enlace } from "../../entrenamiento/sesion/controles"
 import { VerTecnica } from "../../entrenamiento/ver-tecnica"
 import { ErrorDePeticion, ErrorDePermiso, ErrorDelServidor } from "../../lib/http"
+import { conRecursoLocalExclusivo } from "../../lib/candado-local"
 import { degradadoOro, tema } from "../../tema"
 import type { ApiRutinas } from "../api-rutinas"
 import { ListadoDeRutinas } from "../listado-rutinas"
@@ -142,20 +146,38 @@ function escapar(texto: string): string {
 
 /** «Exportar PDF» en la web: una página limpia que el navegador imprime o guarda como PDF. */
 function exportarPdf(nombre: string, cliente: string, dias: DiaDelConstructor[]): void {
-  const filas = (dia: DiaDelConstructor): string =>
-    dia.ejercicios
+  const filas = (ejercicios: EjercicioDelConstructor[]): string =>
+    ejercicios
       .map(
         (e) =>
           `<tr><td>${escapar(e.nombre)}</td><td>${escapar(pautaDeFila(e))}</td><td>${escapar(e.rir)}</td><td>${escapar(e.descanso)}</td><td>${e.calibrar ? "Calibrar" : escapar(e.carga ? `${e.carga} kg` : "")}</td><td>${escapar(e.subida ? `${e.subida} kg` : "")}</td></tr>`,
       )
       .join("")
+  const secciones = (dia: DiaDelConstructor): string => {
+    const tiempos: Record<SeccionDeSesion, string> = {
+      calentamiento: dia.partes.calentamiento,
+      principal: dia.partes.fuerza,
+      circuito: dia.partes.cardio,
+      final: dia.partes.calma,
+    }
+    return SECCIONES.map(({ seccion, titulo }) => {
+      const ejercicios = dia.ejercicios.filter((e) => e.seccion === seccion)
+      const tiempo = tiempos[seccion].trim()
+      if (ejercicios.length === 0 && tiempo === "") return ""
+      const nombre =
+        seccion === "circuito" && dia.circuito.nombre
+          ? `${titulo} · ${dia.circuito.nombre}`
+          : titulo
+      return `<h3>${escapar(nombre)}</h3>${tiempo ? `<p>Duración: ${escapar(tiempo)} min</p>` : ""}${seccion === "circuito" ? `<p>${escapar(resumenDeSeccion(dia, seccion))}</p>` : ""}<table><tr><th>Ejercicio</th><th>Pauta</th><th>RIR</th><th>Descanso</th><th>Carga inicial</th><th>Subida</th></tr>${filas(ejercicios)}</table>`
+    }).join("")
+  }
   const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escapar(nombre)}</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{margin:0 0 4px}h2{margin:28px 0 8px}p{color:#555;margin:0}table{border-collapse:collapse;width:100%;margin-top:8px}td,th{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;font-size:13px}th{color:#666}</style></head><body><h1>${escapar(nombre)}</h1><p>${escapar(cliente)}</p>${[
     ...dias,
   ]
     .sort((a, b) => a.diaSemana - b.diaSemana)
     .map(
       (d) =>
-        `<h2>${escapar(`${NOMBRES_DE_DIA[d.diaSemana - 1]} · ${d.nombre}`)}</h2>${d.duracion ? `<p>Duración estimada ${escapar(d.duracion)}</p>` : ""}<table><tr><th>Ejercicio</th><th>Series × reps</th><th>RIR</th><th>Descanso</th><th>Carga inicial</th><th>Subida</th></tr>${filas(d)}</table>`,
+        `<h2>${escapar(`${NOMBRES_DE_DIA[d.diaSemana - 1]} · ${d.nombre}`)}</h2>${d.duracion ? `<p>Duración estimada ${escapar(d.duracion)}</p>` : ""}${secciones(d)}`,
     )
     .join("")}</body></html>`
   const ventana = window.open("", "_blank")
@@ -213,16 +235,58 @@ export function ConstructorPlan({
   const [aviso, setAviso] = useState("")
   const [ocupado, setOcupado] = useState(false)
   const [pendiente, setPendiente] = useState<AsignarPlan | null>(null)
+  const [recuperado, setRecuperado] = useState(false)
+  const [errorRecuperacion, setErrorRecuperacion] = useState("")
+  const [intentoRecuperacion, setIntentoRecuperacion] = useState(0)
+  const [saliendo, setSaliendo] = useState(false)
+  const [salidaAutorizada, setSalidaAutorizada] = useState(false)
+  const salida = useRef<(() => void) | null>(null)
+  const navigation = useNavigation()
+  const versionDelEditor = JSON.stringify({ nombre, semanaInicial, semanas, dias, bloque })
+  const versionInicial = useRef(versionDelEditor)
   const enCurso = useRef(false)
   const clave = `plan-${clienteId}`
+  const sinGuardar =
+    pendiente === null && versionDelEditor !== versionInicial.current && !salidaAutorizada
+
+  usePreventRemove(sinGuardar, ({ data }) => {
+    salida.current = () => navigation.dispatch(data.action)
+    setSaliendo(true)
+  })
+  useEffect(() => {
+    if (Platform.OS !== "web" || !sinGuardar) return
+    const impedir = (evento: BeforeUnloadEvent): void => {
+      evento.preventDefault()
+      evento.returnValue = ""
+    }
+    globalThis.addEventListener("beforeunload", impedir)
+    return () => globalThis.removeEventListener("beforeunload", impedir)
+  }, [sinGuardar])
+  useEffect(() => {
+    if (!salidaAutorizada) return
+    const continuar = salida.current
+    salida.current = null
+    continuar?.()
+  }, [salidaAutorizada])
+  const pedirSalida = (): void => {
+    if (versionDelEditor === versionInicial.current) volver()
+    else {
+      salida.current = volver
+      setSaliendo(true)
+    }
+  }
 
   // Una asignación que no llegó a confirmarse se recupera con su misma operación.
   useEffect(() => {
     let vigente = true
+    setRecuperado(false)
+    setErrorRecuperacion("")
     void almacen
       .leer(cuentaId, clave, PendienteSchema)
       .then((guardado) => {
-        if (!vigente || !guardado) return
+        if (!vigente) return
+        setRecuperado(true)
+        if (!guardado) return
         const { solicitud, nombres } = guardado
         const recuperados = solicitud.patron.sesiones.map((s) => desdeSesionEnRutina(s, nombres))
         setNombre(solicitud.nombre)
@@ -234,11 +298,16 @@ export function ConstructorPlan({
         setPendiente(solicitud)
         setAviso("Hay una publicación sin confirmar: reintenta y no se duplicará.")
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (vigente)
+          setErrorRecuperacion(
+            "No se pudo recuperar la publicación pendiente. Reintenta antes de crear otro plan.",
+          )
+      })
     return () => {
       vigente = false
     }
-  }, [almacen, cuentaId, clave])
+  }, [almacen, cuentaId, clave, intentoRecuperacion])
 
   const dia = dias.find((d) => d.id === activo) ?? dias[0]!
   const cambiarDia = (cambio: Partial<DiaDelConstructor>): void =>
@@ -279,7 +348,7 @@ export function ConstructorPlan({
   const preparar = (): void => {
     setError("")
     try {
-      setConfirmando(construir(pendiente?.operacionId ?? nuevoId()))
+      setConfirmando(pendiente ?? construir(nuevoId()))
     } catch (e) {
       setError(
         e instanceof z.ZodError
@@ -291,23 +360,43 @@ export function ConstructorPlan({
     }
   }
 
+  const previsualizar = (): void => {
+    try {
+      construir(nuevoId())
+      setComoCliente(true)
+      setError("")
+    } catch {
+      setError("Revisa el plan antes de previsualizar: el lunes y los objetivos deben ser válidos.")
+    }
+  }
+
   const publicar = async (solicitud: AsignarPlan): Promise<void> => {
     if (enCurso.current) return
     enCurso.current = true
     setOcupado(true)
     setError("")
     try {
-      await almacen.guardar(cuentaId, clave, {
-        solicitud,
-        nombres: Object.fromEntries(
-          dias.flatMap((d) => d.ejercicios.map((e) => [e.ejercicioId, e.nombre])),
-        ),
+      await conRecursoLocalExclusivo(`ao-publicacion-${cuentaId}-${clienteId}`, async () => {
+        const guardado = await almacen.leer(cuentaId, clave, PendienteSchema)
+        if (guardado && guardado.solicitud.operacionId !== solicitud.operacionId) {
+          setPendiente(guardado.solicitud)
+          setConfirmando(null)
+          setError("Hay otra publicación pendiente. Confirma el plan guardado antes de crear otro.")
+          return
+        }
+        await almacen.guardar(cuentaId, clave, {
+          solicitud,
+          nombres: Object.fromEntries(
+            dias.flatMap((d) => d.ejercicios.map((e) => [e.ejercicioId, e.nombre])),
+          ),
+        })
+        setPendiente(solicitud)
+        await api.asignar(clienteId, solicitud)
+        await almacen.borrar(cuentaId, clave)
+        setConfirmando(null)
+        salida.current = terminado
+        setSalidaAutorizada(true)
       })
-      setPendiente(solicitud)
-      await api.asignar(clienteId, solicitud)
-      await almacen.borrar(cuentaId, clave)
-      setConfirmando(null)
-      terminado()
     } catch (fallo) {
       setConfirmando(null)
       setError(
@@ -322,8 +411,12 @@ export function ConstructorPlan({
           fallo.codigo < 500 &&
           fallo.codigo !== 401)
       ) {
-        await almacen.borrar(cuentaId, clave).catch(() => undefined)
-        setPendiente(null)
+        try {
+          await almacen.borrar(cuentaId, clave)
+          setPendiente(null)
+        } catch {
+          setError("No se pudo limpiar la publicación pendiente. Reintenta antes de editar.")
+        }
       }
     } finally {
       enCurso.current = false
@@ -390,9 +483,59 @@ export function ConstructorPlan({
       </View>
     )
 
+  if (!recuperado)
+    return (
+      <View style={s.contenido}>
+        <BotonAtras etiqueta="Volver a la ficha" onPress={volver} />
+        {errorRecuperacion ? (
+          <>
+            <AvisoDeError mensaje={errorRecuperacion} />
+            <BotonSecundario
+              texto="Reintentar recuperación"
+              onPress={() => setIntentoRecuperacion((n) => n + 1)}
+            />
+          </>
+        ) : (
+          <Text style={s.tenue}>Recuperando publicaciones pendientes…</Text>
+        )}
+      </View>
+    )
+
+  if (pendiente !== null) {
+    return (
+      <View style={s.contenido}>
+        <BotonAtras etiqueta="Volver a la ficha" onPress={volver} />
+        <Titulo>{pendiente.nombre}</Titulo>
+        <Text style={s.aviso}>
+          La publicación está pendiente de confirmar. Reintenta el plan guardado antes de editar: se
+          conservan todas sus sesiones y series.
+        </Text>
+        {error !== "" && <AvisoDeError mensaje={error} />}
+        <Pressable
+          accessibilityRole="button"
+          disabled={ocupado}
+          onPress={preparar}
+          style={[s.principal, degradadoOro]}
+        >
+          <Text style={s.textoPrincipal}>Reintentar publicación</Text>
+        </Pressable>
+        <Dialogo
+          visible={confirmando !== null}
+          titulo="¿Publicar el plan?"
+          texto={`${pendiente.patron.sesiones.length * pendiente.semanas} sesiones de ${pendiente.nombre}.`}
+          confirmar={ocupado ? "Publicando…" : "Publicar plan"}
+          cancelar="Cancelar"
+          ocupado={ocupado}
+          alConfirmar={() => confirmando && void publicar(confirmando)}
+          alCancelar={() => setConfirmando(null)}
+        />
+      </View>
+    )
+  }
+
   return (
     <View style={s.contenido}>
-      <BotonAtras etiqueta="Volver a la ficha" onPress={volver} />
+      <BotonAtras etiqueta="Volver a la ficha" onPress={pedirSalida} />
       <View style={s.cabecera}>
         <View style={s.textos}>
           <TextInput
@@ -405,15 +548,15 @@ export function ConstructorPlan({
             style={s.titulo}
           />
           <Text style={s.tenue}>
-            {nombreCliente} · empieza el {fechaCorta(semanaInicial)} · {semanas || "?"} semanas
+            {nombreCliente} ·{" "}
+            {FechaAgendaSchema.safeParse(semanaInicial).success
+              ? `empieza el ${fechaCorta(semanaInicial)}`
+              : "fecha de inicio pendiente"}{" "}
+            · {semanas || "?"} semanas
           </Text>
         </View>
         <View style={s.botones}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setComoCliente(true)}
-            style={s.secundario}
-          >
+          <Pressable accessibilityRole="button" onPress={previsualizar} style={s.secundario}>
             <Text style={s.textoSecundario}>Ver como cliente</Text>
           </Pressable>
           {Platform.OS === "web" && (
@@ -520,6 +663,7 @@ export function ConstructorPlan({
               <Pressable
                 key={inicial}
                 accessibilityRole="radio"
+                aria-checked={elegidoDia}
                 accessibilityState={{ checked: elegidoDia, disabled: ocupadoPorOtro }}
                 accessibilityLabel={NOMBRES_DE_DIA[i]}
                 disabled={ocupadoPorOtro}
@@ -704,21 +848,22 @@ export function ConstructorPlan({
             onPress={() => setComoCliente(false)}
           />
           <Text style={s.tituloModal}>Así lo verá {nombreCliente.split(" ")[0]}</Text>
-          {(() => {
-            const vista = vistaDelCliente(dias, semanaInicial, clienteId, nuevoId)
-            return vista.length === 0 ? (
-              <Text style={s.tenue}>Completa al menos un día para verlo como el cliente.</Text>
-            ) : (
-              <RutinaDeLaSemana
-                dias={vista}
-                elegido={null}
-                elegir={() => undefined}
-                hoy=""
-                verTecnica={() => undefined}
-                abrir={() => undefined}
-              />
-            )
-          })()}
+          {comoCliente &&
+            (() => {
+              const vista = vistaDelCliente(dias, semanaInicial, clienteId, nuevoId)
+              return vista.length === 0 ? (
+                <Text style={s.tenue}>Completa al menos un día para verlo como el cliente.</Text>
+              ) : (
+                <RutinaDeLaSemana
+                  dias={vista}
+                  elegido={null}
+                  elegir={() => undefined}
+                  hoy=""
+                  verTecnica={() => undefined}
+                  abrir={() => undefined}
+                />
+              )
+            })()}
         </ScrollView>
       </Modal>
 
@@ -732,8 +877,25 @@ export function ConstructorPlan({
         }
         confirmar={ocupado ? "Publicando…" : "Publicar plan"}
         cancelar="Cancelar"
+        ocupado={ocupado}
         alConfirmar={() => confirmando && void publicar(confirmando)}
         alCancelar={() => setConfirmando(null)}
+      />
+      <Dialogo
+        visible={saliendo}
+        titulo="¿Salir sin guardar el plan?"
+        texto="Los cambios de este plan todavía no se han publicado. Si sales ahora se perderán."
+        confirmar="Salir sin guardar"
+        cancelar="Seguir editando"
+        ocupado={ocupado}
+        alConfirmar={() => {
+          setSaliendo(false)
+          setSalidaAutorizada(true)
+        }}
+        alCancelar={() => {
+          salida.current = null
+          setSaliendo(false)
+        }}
       />
       {tecnica && (
         <VerTecnica

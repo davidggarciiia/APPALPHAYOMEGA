@@ -41,8 +41,9 @@ export function SelectorEjercicios({
       <Campo
         etiqueta="Buscar ejercicio para añadir"
         value={buscar}
+        maxLength={120}
         onChangeText={(texto) => {
-          setBuscar(texto)
+          setBuscar(texto.slice(0, 120))
           setPagina(0)
         }}
       />

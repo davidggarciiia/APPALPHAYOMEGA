@@ -31,7 +31,10 @@ export function leerSueno(texto: string): number | null {
   const limpio = texto.trim().toLowerCase()
   if (limpio === "") return null
   const partes = limpio.match(/^(\d{1,2})\s*(?::|h)\s*(\d{1,2})$/)
-  if (partes) return Number(partes[1]) * 60 + Number(partes[2])
+  if (partes) {
+    const minutos = Number(partes[2])
+    return minutos < 60 ? Number(partes[1]) * 60 + minutos : Number.NaN
+  }
   const horas = leerDecimal(limpio)
   return horas === null || Number.isNaN(horas) ? Number.NaN : Math.round(horas * 60)
 }

@@ -3,12 +3,17 @@ type ProveedorClave = {
   crear: () => Promise<string>
   guardar: (clave: string) => Promise<void>
   hayDocumentos: () => Promise<boolean>
+  exclusiva?: <T>(accion: () => Promise<T>) => Promise<T>
 }
 
 export async function recuperarClave(
   proveedor: ProveedorClave,
   permitirCrear: boolean,
 ): Promise<string> {
+  if (proveedor.exclusiva)
+    return proveedor.exclusiva(() =>
+      recuperarClave({ ...proveedor, exclusiva: undefined }, permitirCrear),
+    )
   const guardada = await proveedor.leer()
   if (guardada !== null) return guardada
   if (!permitirCrear || (await proveedor.hayDocumentos()))

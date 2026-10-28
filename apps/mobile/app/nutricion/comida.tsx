@@ -3,7 +3,11 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
 import { Text } from "react-native"
 import type { Comida, ComidaRegistrada, DietaPublicada } from "@alpha-omega/shared"
 
-import { AvisoDeError, PantallaDeFormulario } from "../../src/componentes/formulario"
+import {
+  AvisoDeError,
+  BotonSecundario,
+  PantallaDeFormulario,
+} from "../../src/componentes/formulario"
 import { almacenDispositivo } from "../../src/entrenamiento/almacen-dispositivo"
 import { hoyAgenda } from "../../src/entrenamiento/fechas"
 import { useNutricion } from "../../src/nutricion/api"
@@ -84,7 +88,15 @@ export default function ComidaDeHoy(): React.JSX.Element {
       {estado.fase === "cargando" && (
         <Text style={{ color: tema.textoTenue, fontFamily: tema.fuenteTexto }}>Cargando…</Text>
       )}
-      {estado.fase === "error" && <AvisoDeError mensaje={estado.mensaje} />}
+      {estado.fase === "error" && (
+        <>
+          <AvisoDeError mensaje={estado.mensaje} />
+          <BotonSecundario
+            texto="Volver a Nutrición"
+            onPress={() => router.replace("/nutricion")}
+          />
+        </>
+      )}
       {estado.fase === "lista" && clienteId !== null && (
         <ComidaDelDia
           comida={estado.comida}

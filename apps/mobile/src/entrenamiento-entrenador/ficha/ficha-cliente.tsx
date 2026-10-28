@@ -96,6 +96,7 @@ export function FichaCliente({
   abrirNutricion: (nombre: string) => void
 }): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>("resumen")
+  const [editandoProgreso, setEditandoProgreso] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
@@ -198,11 +199,19 @@ export function FichaCliente({
             onPress={editarPlan}
             style={({ pressed }) => [s.principal, degradadoOro, pressed && s.pulsado]}
           >
-            <Text style={s.textoPrincipal}>Editar plan</Text>
+            <Text style={s.textoPrincipal}>Crear plan nuevo</Text>
           </Pressable>
         </View>
       </View>
-      <Pestanas opciones={PESTANAS} activa={pestana} cambiar={setPestana} />
+      <Pestanas
+        opciones={PESTANAS}
+        activa={pestana}
+        cambiar={setPestana}
+        bloquearCambio={editandoProgreso}
+      />
+      {editandoProgreso && (
+        <Text style={s.tenue}>Vuelve al listado de valoraciones antes de cambiar de pestaña.</Text>
+      )}
 
       {pestana === "resumen" && (
         <View style={s.contenido}>
@@ -268,6 +277,7 @@ export function FichaCliente({
             api={valoraciones}
             medios={medios}
             nuevoId={nuevoId}
+            alEditar={setEditandoProgreso}
           />
           <ProgresoCliente
             clienteId={clienteId}
@@ -334,20 +344,18 @@ export function FichaCliente({
             <Titulo>Datos</Titulo>
             <Tarjeta>
               {(() => {
-                const medidas = datos.medidas?.medidas ?? []
-                const ultima = <K extends "pesoKg" | "alturaCm" | "grasaPct">(clave: K) =>
-                  [...medidas].reverse().find((m) => m[clave] !== null)?.[clave] ?? null
+                const medidas = [...(datos.medidas?.medidas ?? [])].reverse()
+                const ultima = (clave: "pesoKg" | "alturaCm" | "grasaPct"): number | null =>
+                  medidas.find((m) => m[clave] !== null)?.[clave] ?? null
+                const altura = ultima("alturaCm")
+                const peso = ultima("pesoKg")
+                const grasa = ultima("grasaPct")
                 const nacimiento = datos.medidas?.fechaNacimiento ?? datos.ficha.fechaNacimiento
                 const filas: Array<[string, string]> = [
                   ["Edad", nacimiento ? `${edadEn(nacimiento, hoyAgenda())} años` : "—"],
-                  ["Altura", ultima("alturaCm") !== null ? `${ultima("alturaCm")} cm` : "—"],
-                  ["Peso", ultima("pesoKg") !== null ? pesoLegible(ultima("pesoKg")!) : "—"],
-                  [
-                    "Grasa corporal",
-                    ultima("grasaPct") !== null
-                      ? `${String(ultima("grasaPct")).replace(".", ",")} %`
-                      : "—",
-                  ],
+                  ["Altura", altura !== null ? `${altura} cm` : "—"],
+                  ["Peso", peso !== null ? pesoLegible(peso) : "—"],
+                  ["Grasa corporal", grasa !== null ? `${String(grasa).replace(".", ",")} %` : "—"],
                   ["Teléfono", datos.ficha.telefono ?? "—"],
                   ["Consentimiento de salud", textoConsentimiento(datos.consentimiento)],
                 ]

@@ -162,7 +162,8 @@ export function Catalogo({
         <TextInput
           style={estilos.campo}
           value={texto}
-          onChangeText={setTexto}
+          onChangeText={(valor) => setTexto(valor.slice(0, 120))}
+          maxLength={120}
           placeholder="Buscar por nombre"
           placeholderTextColor={tema.textoTenue}
           accessibilityLabel="Buscar ejercicio"

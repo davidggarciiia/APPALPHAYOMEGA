@@ -1,3 +1,4 @@
+import { z } from "zod"
 import {
   AsignacionesDeNutricionistaSchema,
   EstadoSaludSchema,
@@ -26,6 +27,8 @@ import { pedir } from "./http"
 import type { PeticionAutenticada } from "./peticion-autenticada"
 
 export { ErrorDeSesion, ErrorDePermiso, ErrorDeRed, ErrorDelServidor } from "./http"
+
+const SinContenidoSchema = z.unknown().transform(() => undefined)
 
 /** Toda respuesta se valida con su contrato antes de llegar a una pantalla. */
 export async function consultarSalud(): Promise<EstadoSalud> {
@@ -73,7 +76,7 @@ export async function guardarPerfil(
  * el servidor rechazara la peticion entera por no tener la forma esperada.
  */
 export async function listarUsuarios(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   filtros: FiltrosDeListado,
 ): Promise<ListadoUsuarios> {
   const consulta = new URLSearchParams()
@@ -84,138 +87,119 @@ export async function listarUsuarios(
   consulta.set("limite", String(filtros.limite))
   consulta.set("desde", String(filtros.desde))
 
-  return ListadoUsuariosSchema.parse(
-    await pedir(`/usuarios?${consulta.toString()}`, {
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
-  )
+  return peticion(`/usuarios?${consulta.toString()}`, ListadoUsuariosSchema, {})
 }
 
 /** Da de alta a alguien. Es la unica via por la que nace una cuenta. */
 export async function crearUsuario(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   datos: CrearUsuario,
 ): Promise<UsuarioCreado> {
-  return UsuarioCreadoSchema.parse(
-    await pedir("/usuarios", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-      body: JSON.stringify(datos),
-    }),
-  )
+  return peticion("/usuarios", UsuarioCreadoSchema, {
+    method: "POST",
+    body: JSON.stringify(datos),
+  })
 }
 
 /** La ficha completa de una persona de la cartera. */
-export async function leerUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
-  return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}`, { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+export async function leerUsuario(
+  peticion: PeticionAutenticada,
+  id: string,
+): Promise<FichaDeUsuario> {
+  return peticion(`/usuarios/${id}`, FichaDeUsuarioSchema)
 }
 
 /** Corrige los datos de contacto. El rol, el estado y el correo no viajan aqui. */
 export async function guardarUsuario(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   id: string,
   cambios: CambiosDeUsuario,
 ): Promise<FichaDeUsuario> {
-  return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-      body: JSON.stringify(cambios),
-    }),
-  )
+  return peticion(`/usuarios/${id}`, FichaDeUsuarioSchema, {
+    method: "PATCH",
+    body: JSON.stringify(cambios),
+  })
 }
 
 /** Corrige un correo mal tecleado. Solo mientras esa persona siga pendiente. */
 export async function corregirCorreo(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   id: string,
   email: string,
 ): Promise<FichaDeUsuario> {
-  return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/correo`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-      body: JSON.stringify({ email }),
-    }),
-  )
+  return peticion(`/usuarios/${id}/correo`, FichaDeUsuarioSchema, {
+    method: "PATCH",
+    body: JSON.stringify({ email }),
+  })
 }
 
 /** Vuelve a mandar el enlace de activacion. El anterior deja de valer. */
 export async function reenviarActivacion(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   id: string,
 ): Promise<ResultadoDeEnvio> {
-  return ResultadoDeEnvioSchema.parse(
-    await pedir(`/usuarios/${id}/reenviar-activacion`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
-  )
+  return peticion(`/usuarios/${id}/reenviar-activacion`, ResultadoDeEnvioSchema, {
+    method: "POST",
+  })
 }
 
 /** Da de baja. No borra: el historico se conserva entero. */
-export async function desactivarUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
-  return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/desactivar`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
-  )
+export async function desactivarUsuario(
+  peticion: PeticionAutenticada,
+  id: string,
+): Promise<FichaDeUsuario> {
+  return peticion(`/usuarios/${id}/desactivar`, FichaDeUsuarioSchema, {
+    method: "POST",
+  })
 }
 
 /** Deshace una baja. Quien nunca activo vuelve a pendiente, no a activo. */
-export async function reactivarUsuario(tokenAcceso: string, id: string): Promise<FichaDeUsuario> {
-  return FichaDeUsuarioSchema.parse(
-    await pedir(`/usuarios/${id}/reactivar`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
-  )
+export async function reactivarUsuario(
+  peticion: PeticionAutenticada,
+  id: string,
+): Promise<FichaDeUsuario> {
+  return peticion(`/usuarios/${id}/reactivar`, FichaDeUsuarioSchema, {
+    method: "POST",
+  })
 }
 
 /** A quien ve un nutricionista. Solo identificadores. */
 export async function leerAsignaciones(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   nutricionistaId: string,
 ): Promise<AsignacionesDeNutricionista> {
-  return AsignacionesDeNutricionistaSchema.parse(
-    await pedir(`/nutricionistas/${nutricionistaId}/clientes`, {
-      headers: { Authorization: `Bearer ${tokenAcceso}` },
-    }),
+  return peticion(
+    `/nutricionistas/${nutricionistaId}/clientes`,
+    AsignacionesDeNutricionistaSchema,
+    {},
   )
 }
 
 /** Da acceso a un cliente. Asignar dos veces no crea dos filas. */
 export async function asignarCliente(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   nutricionistaId: string,
   clienteId: string,
 ): Promise<void> {
-  await pedir(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, {
+  await peticion(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, SinContenidoSchema, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${tokenAcceso}` },
   })
 }
 
 /** Retira el acceso. Surte efecto en la peticion siguiente. */
 export async function retirarCliente(
-  tokenAcceso: string,
+  peticion: PeticionAutenticada,
   nutricionistaId: string,
   clienteId: string,
 ): Promise<void> {
-  await pedir(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, {
+  await peticion(`/nutricionistas/${nutricionistaId}/clientes/${clienteId}`, SinContenidoSchema, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${tokenAcceso}` },
   })
 }
 
 /** La lista del propio nutricionista. Sale del token, no de la ruta. */
-export async function listarMisClientes(tokenAcceso: string): Promise<ListadoUsuarios> {
-  return ListadoUsuariosSchema.parse(
-    await pedir("/mis-clientes", { headers: { Authorization: `Bearer ${tokenAcceso}` } }),
-  )
+export async function listarMisClientes(peticion: PeticionAutenticada): Promise<ListadoUsuarios> {
+  return peticion("/mis-clientes", ListadoUsuariosSchema)
 }
 
 /**

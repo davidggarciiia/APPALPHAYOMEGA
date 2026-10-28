@@ -13,6 +13,7 @@ const CLAVE = "dieta-vigente"
 
 const CopiaSchema = z.strictObject({
   dieta: DietaPublicadaSchema.nullable(),
+  deNutricionista: z.boolean().optional(),
   actualizadaEn: z.iso.datetime(),
 })
 export type CopiaDeDieta = z.infer<typeof CopiaSchema>
@@ -21,9 +22,14 @@ export async function guardarCopia(
   almacen: AlmacenLocal,
   cuenta: string,
   dieta: DietaPublicada | null,
+  deNutricionista: boolean,
   ahora: Date = new Date(),
 ): Promise<void> {
-  await almacen.guardar(cuenta, CLAVE, { dieta, actualizadaEn: ahora.toISOString() })
+  await almacen.guardar(cuenta, CLAVE, {
+    dieta,
+    deNutricionista,
+    actualizadaEn: ahora.toISOString(),
+  })
 }
 
 export async function leerCopia(

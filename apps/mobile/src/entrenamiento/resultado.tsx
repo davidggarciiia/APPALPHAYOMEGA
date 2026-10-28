@@ -1,27 +1,14 @@
 import { StyleSheet, Text, View } from "react-native"
-import type {
-  ResultadoEntrenamiento,
-  ResultadoSerie,
-  ValoresEjecutados,
-  ValoresEjecutadosDistancia,
-} from "@alpha-omega/shared"
+import type { ResultadoEntrenamiento, ValoresEjecutados } from "@alpha-omega/shared"
 import type { PrescripcionConDistancia, SerieConDistancia } from "./registro-modelo"
+import { seriesDeTrabajo } from "./sesion/modelo"
 import { Icono } from "../componentes/iconos"
 import { degradadoExito, tema } from "../tema"
 
-/**
- * D01 · El resumen lee ya series en metros aunque el contrato público no las
- * acepte hasta D01.g; un resultado actual encaja sin cambios.
- */
-export type ResultadoConDistancia = Omit<ResultadoEntrenamiento, "prescripcion" | "series"> & {
-  prescripcion: PrescripcionConDistancia
-  series: (ResultadoSerie | { serieId: string; hecha: true; valores: ValoresEjecutadosDistancia })[]
-}
+export type ResultadoConDistancia = ResultadoEntrenamiento
 
 /** «8 rep · 60 kg», «30 s» o «20 m · 32 kg»: cada cantidad en su unidad. */
-export function valoresLegibles(
-  serie: SerieConDistancia | ValoresEjecutados | ValoresEjecutadosDistancia,
-): string {
+export function valoresLegibles(serie: SerieConDistancia | ValoresEjecutados): string {
   const peso = serie.pesoKg === null ? "" : ` · ${serie.pesoKg} kg`
   switch (serie.tipoMedicion) {
     case "repeticiones":
@@ -39,6 +26,7 @@ export function PrescripcionVisible({
   prescripcion: PrescripcionConDistancia
   resultado?: ResultadoConDistancia
 }): React.JSX.Element {
+  const trabajo = seriesDeTrabajo(resultado?.prescripcion ?? prescripcion)
   return (
     <View style={estilos.contenedor}>
       {resultado && (
@@ -52,9 +40,13 @@ export function PrescripcionVisible({
           <View style={estilos.datos}>
             <View style={estilos.dato}>
               <Text style={estilos.cifra}>
-                {resultado.series.filter((serie) => serie.hecha).length}/{resultado.series.length}
+                {
+                  resultado.series.filter((serie) => serie.hecha && trabajo.includes(serie.serieId))
+                    .length
+                }
+                /{trabajo.length}
               </Text>
-              <Text style={estilos.leyenda}>series completadas</Text>
+              <Text style={estilos.leyenda}>series de la parte principal completadas</Text>
             </View>
             <View style={estilos.dato}>
               <Text style={estilos.cifra}>

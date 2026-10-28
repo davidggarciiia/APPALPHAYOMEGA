@@ -409,6 +409,7 @@ function PanelFoto({
               <Pressable
                 key={f.id}
                 accessibilityRole="radio"
+                aria-checked={marcada}
                 accessibilityLabel={
                   retirada(f) ? `${opcion.accesible}, foto retirada` : opcion.accesible
                 }

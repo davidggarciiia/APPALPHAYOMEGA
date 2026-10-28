@@ -51,7 +51,7 @@ const SIN_FALTA: Falta = { texto: "", reintentable: true, sesionCaducada: false 
  * toque equivocado.
  */
 export default function FichaDeCliente(): React.JSX.Element {
-  const { estado: sesion, salir } = useSesion()
+  const { estado: sesion, salir, pedir } = useSesion()
   const router = useRouter()
   const parametros = useLocalSearchParams<{
     id?: string | string[]
@@ -83,6 +83,7 @@ export default function FichaDeCliente(): React.JSX.Element {
   })
 
   const tokenAcceso = sesion.fase === "dentro" ? sesion.tokenAcceso : null
+  const cuentaId = sesion.fase === "dentro" ? sesion.usuario.id : null
 
   /** Deja la ficha y el formulario en el mismo estado que acaba de devolver la API. */
   function asentar(nueva: FichaDeUsuario): void {
@@ -99,7 +100,7 @@ export default function FichaDeCliente(): React.JSX.Element {
   }
 
   useEffect(() => {
-    if (tokenAcceso === null) return
+    if (cuentaId === null) return
 
     if (id === undefined || id === "") {
       setFalta({
@@ -113,7 +114,7 @@ export default function FichaDeCliente(): React.JSX.Element {
 
     let vigente = true
 
-    leerUsuario(tokenAcceso, id)
+    leerUsuario(pedir, id)
       .then((nueva) => {
         if (vigente) asentar(nueva)
       })
@@ -132,7 +133,7 @@ export default function FichaDeCliente(): React.JSX.Element {
       vigente = false
     }
     // Depende de a quien se mira, no de las funciones que usa por dentro.
-  }, [tokenAcceso, id, intento])
+  }, [cuentaId, pedir, id, intento])
 
   /**
    * Envuelve una accion de la ficha: ocupa el boton, cuenta lo que pasa y repinta.
@@ -172,7 +173,7 @@ export default function FichaDeCliente(): React.JSX.Element {
       () =>
         // Lo que el formulario deja vacio se envia como nulo, que es como el
         // servidor entiende "esto ya no lo quiero".
-        guardarUsuario(tokenAcceso, id, {
+        guardarUsuario(pedir, id, {
           nombre: cambios.nombre,
           apellidos: cambios.apellidos === "" ? null : cambios.apellidos,
           telefono: cambios.telefono === "" ? null : cambios.telefono,
@@ -199,7 +200,7 @@ export default function FichaDeCliente(): React.JSX.Element {
     setOcupado("reenviar")
 
     try {
-      const resultado = await reenviarActivacion(tokenAcceso, id)
+      const resultado = await reenviarActivacion(pedir, id)
       asentar(resultado.usuario)
 
       if (resultado.correoEnviado) {
@@ -235,7 +236,7 @@ export default function FichaDeCliente(): React.JSX.Element {
     setOcupado("correo")
 
     try {
-      asentar(await corregirCorreo(tokenAcceso, id, comprobado.data.email))
+      asentar(await corregirCorreo(pedir, id, comprobado.data.email))
       setCorreoNuevo(null)
       setAviso("Correo corregido. Envíale el enlace otra vez.")
     } catch (error) {
@@ -519,12 +520,7 @@ export default function FichaDeCliente(): React.JSX.Element {
             ocupado={ocupado === "reactivar"}
             onPress={() => {
               if (tokenAcceso === null || id === undefined) return
-              void ejecutar(
-                "reactivar",
-                "acceso",
-                () => reactivarUsuario(tokenAcceso, id),
-                "Reactivado",
-              )
+              void ejecutar("reactivar", "acceso", () => reactivarUsuario(pedir, id), "Reactivado")
             }}
           />
         </>
@@ -539,12 +535,7 @@ export default function FichaDeCliente(): React.JSX.Element {
             onPress={() => {
               if (tokenAcceso === null || id === undefined) return
               setConfirmandoBaja(false)
-              void ejecutar(
-                "baja",
-                "acceso",
-                () => desactivarUsuario(tokenAcceso, id),
-                "Dado de baja",
-              )
+              void ejecutar("baja", "acceso", () => desactivarUsuario(pedir, id), "Dado de baja")
             }}
           />
           <BotonSecundario

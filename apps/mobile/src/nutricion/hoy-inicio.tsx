@@ -300,6 +300,7 @@ export function HoyInicio({
               key={suplemento.nombre}
               style={[s.fila, s.separada]}
               accessibilityRole="checkbox"
+              aria-checked={tomado}
               accessibilityLabel={`${suplemento.nombre} tomada`}
               accessibilityState={{ checked: tomado, disabled: ocupado || !diaCargado }}
               disabled={ocupado || !diaCargado}

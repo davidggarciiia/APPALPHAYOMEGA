@@ -4,8 +4,9 @@ import { ListadoEjerciciosSchema, type ListadoEjercicios } from "@alpha-omega/sh
 
 import { ErrorDeRed } from "../lib/api"
 
-import type { ApiDeCatalogo } from "./api"
+import { crearApiDeCatalogo, type ApiDeCatalogo } from "./api"
 import { Catalogo } from "./catalogo"
+import { SelectorEjercicios } from "../entrenamiento-entrenador/selector-ejercicios"
 import { catalogoEnMemoria, ejercicioDePrueba } from "./pruebas/catalogo-en-memoria"
 
 const PRESS = ejercicioDePrueba("3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b01", "Press de banca", "pecho", [
@@ -42,6 +43,35 @@ function pintar(
 }
 
 describe("Catálogo de ejercicios", () => {
+  it("el selector también limita las búsquedas pegadas antes de validar el contrato", async () => {
+    const rutas: string[] = []
+    const api = crearApiDeCatalogo(async (ruta, esquema) => {
+      rutas.push(ruta)
+      return esquema.parse({ ejercicios: [], total: 0 })
+    })
+    await render(<SelectorEjercicios api={api} elegir={jest.fn()} />)
+    await screen.findByText("No hay ejercicios publicados con esa búsqueda.")
+    await fireEvent.changeText(
+      screen.getByLabelText("Buscar ejercicio para añadir"),
+      "a".repeat(121),
+    )
+    await waitFor(() => expect(rutas).toHaveLength(2))
+    expect(new URL(rutas[1]!, "http://localhost").searchParams.get("buscar")).toBe("a".repeat(120))
+  })
+  it("recorta una búsqueda pegada al límite del contrato sin romper la pantalla", async () => {
+    const rutas: string[] = []
+    const api = crearApiDeCatalogo(async (ruta, esquema) => {
+      rutas.push(ruta)
+      return esquema.parse({ ejercicios: [], total: 0 })
+    })
+    await pintar(api)
+    await screen.findByText(/Todavía no hay ejercicios/)
+    await fireEvent.changeText(screen.getByLabelText("Buscar ejercicio"), "a".repeat(121))
+    await waitFor(() => expect(rutas).toHaveLength(2))
+    expect(new URL(rutas[1]!, "http://localhost").searchParams.get("buscar")).toBe("a".repeat(120))
+    expect(screen.getByLabelText("Buscar ejercicio").props.maxLength).toBe(120)
+  })
+
   it("avisa de que está cargando mientras el servidor no contesta", async () => {
     let contestar: (listado: ListadoEjercicios) => void = () => undefined
     const pendiente = new Promise<ListadoEjercicios>((resolver) => {

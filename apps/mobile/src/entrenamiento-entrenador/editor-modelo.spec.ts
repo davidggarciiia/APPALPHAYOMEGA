@@ -16,7 +16,66 @@ jest.mock("expo-crypto", () => ({
   randomUUID: jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID,
 }))
 
+it("conserva la prescripción completa cuando solo cambia el nombre de la sesión", () => {
+  const original = SesionEnRutinaSchema.parse({
+    id: "50000000-0000-4000-8000-000000000050",
+    nombre: "Original",
+    diaSemana: 1,
+    duracion: "45 min",
+    nota: "Precaución",
+    partes: { calentamiento: "5" },
+    circuito: { nombre: "Core", vueltas: 2, descanso: "60 s" },
+    ejercicios: [
+      {
+        id: "60000000-0000-4000-8000-000000000050",
+        ejercicioId: "10000000-0000-4000-8000-000000000000",
+        indicaciones: "Sin prisa",
+        seccion: "calentamiento",
+        rir: { min: 2, max: 3 },
+        descanso: "60 s",
+        dosis: "3×8",
+        subidaKg: 2.5,
+        alternativas: ["Otro"],
+        compuesto: true,
+        nota: "Despacio",
+        series: [
+          {
+            id: "40000000-0000-4000-8000-000000000050",
+            tipoMedicion: "repeticiones",
+            pesoKg: 20,
+            repeticiones: 8,
+            repeticionesMax: 10,
+          },
+        ],
+      },
+    ],
+  })
+  const editable = desdeSesion(original, {})
+  editable.nombre = "Renombrada"
+  expect(convertirSesion(editable)).toEqual({ ...original, nombre: "Renombrada" })
+})
+
 describe("Preparar una sesión", () => {
+  it("permite pasar a sin carga una prescripción que tenía una subida de kilos", () => {
+    const sesion = agregarEjercicio(nuevaSesion(), {
+      id: "10000000-0000-4000-8000-000000000000",
+      nombre: "Remo",
+    })
+    sesion.nombre = "Fuerza"
+    const ejercicio = sesion.ejercicios[0]!
+    ejercicio.tipoCarga = "conCargaExterna"
+    ejercicio.subidaKg = 2.5
+    ejercicio.series[0]!.objetivo = "12"
+    ejercicio.series[0]!.peso = "30"
+    expect(convertirSesion(sesion).ejercicios[0]!.subidaKg).toBe(2.5)
+    ejercicio.tipoCarga = "sinCarga"
+    ejercicio.calibrar = false
+    ejercicio.series = ejercicio.series.map((serie) => ({ ...serie, peso: "" }))
+    const convertida = convertirSesion(sesion).ejercicios[0]!
+    expect(convertida.subidaKg).toBeUndefined()
+    expect(convertida.series[0]!.pesoKg).toBeNull()
+  })
+
   it("conserva unidades e ids, permite peso vacío y rechaza un objetivo vacío", () => {
     const sesion = agregarEjercicio(nuevaSesion(), {
       id: "10000000-0000-4000-8000-000000000000",

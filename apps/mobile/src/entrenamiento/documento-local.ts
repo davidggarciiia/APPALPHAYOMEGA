@@ -5,10 +5,16 @@ import {
   ResultadoEntrenamientoSchema,
   SesionClienteSchema,
   PrescripcionSchema,
+  AsignarPlanSchema,
   type SesionCliente,
 } from "@alpha-omega/shared"
 import type { AlmacenLocal } from "./almacen-local"
 import { EdicionRegistroSchema, desdePrescripcion } from "./registro-modelo"
+
+const CopiaLocalSchema = z.strictObject({
+  edicion: EdicionRegistroSchema,
+  prescripcion: PrescripcionSchema,
+})
 
 export const DocumentoSesionSchema = z.strictObject({
   sesion: SesionClienteSchema,
@@ -33,9 +39,10 @@ export const DocumentoSesionSchema = z.strictObject({
     .strictObject({ peticion: GuardarBorradorSchema, secuencia: z.number().int().nonnegative() })
     .nullable(),
   envioPendiente: EnviarEntrenamientoSchema.nullable(),
-  respaldo: z
-    .strictObject({ edicion: EdicionRegistroSchema, prescripcion: PrescripcionSchema })
-    .nullable(),
+  respaldo: CopiaLocalSchema.nullable(),
+  /** Copias de ediciones concurrentes, conservadas hasta que el cliente las descarte. */
+  respaldosLocales: z.array(CopiaLocalSchema).optional(),
+  conflictoLocal: z.boolean().optional(),
   resultado: ResultadoEntrenamientoSchema.nullable(),
 })
 export type DocumentoSesion = z.infer<typeof DocumentoSesionSchema>
@@ -61,7 +68,13 @@ export function nuevoDocumento(sesion: SesionCliente): DocumentoSesion {
 
 export async function hayCambiosLocales(almacen: AlmacenLocal, cuenta: string): Promise<boolean> {
   const claves = await almacen.listar(cuenta)
-  if (claves.some((clave) => clave.startsWith("plan-"))) return true
+  // La semana consultada es caché. La solicitud del constructor es una
+  // publicación pendiente que todavía necesita conservar su operación exacta.
+  const planLocal = z.object({ solicitud: AsignarPlanSchema.optional() })
+  for (const clave of claves.filter((clave) => clave.startsWith("plan-"))) {
+    const documento = await almacen.leer(cuenta, clave, planLocal)
+    if (documento?.solicitud) return true
+  }
   for (const clave of claves.filter((clave) => clave.startsWith("sesion-"))) {
     const documento = await almacen.leer(cuenta, clave, DocumentoSesionSchema)
     if (
@@ -70,7 +83,8 @@ export async function hayCambiosLocales(almacen: AlmacenLocal, cuenta: string): 
         documento.pendiente !== null ||
         documento.intencionEnvio != null ||
         documento.envioPendiente !== null ||
-        documento.respaldo !== null)
+        documento.respaldo !== null ||
+        (documento.respaldosLocales?.length ?? 0) > 0)
     )
       return true
   }

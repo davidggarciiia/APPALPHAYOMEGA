@@ -56,6 +56,7 @@ export function Opciones<T extends string | number>({
             <Pressable
               key={String(opcion.valor)}
               accessibilityRole="radio"
+              aria-checked={elegida}
               accessibilityLabel={opcion.accesible ?? opcion.texto}
               accessibilityState={{ checked: elegida, disabled: deshabilitado }}
               disabled={deshabilitado}
@@ -103,6 +104,7 @@ export function Chips<T extends string>({
           <Pressable
             key={opcion.valor}
             accessibilityRole={varias ? "checkbox" : "radio"}
+            aria-checked={elegida}
             accessibilityLabel={opcion.texto}
             accessibilityState={{ checked: elegida }}
             onPress={() =>

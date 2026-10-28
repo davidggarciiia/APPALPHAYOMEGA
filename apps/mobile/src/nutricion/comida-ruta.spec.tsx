@@ -18,10 +18,11 @@ const TIPO = "00000000-0000-4000-8000-000000000001"
 const COMIDA = "00000000-0000-4000-8000-000000000002"
 const DULCE = "00000000-0000-4000-8000-000000000011"
 const SALADA = "00000000-0000-4000-8000-000000000012"
+const mockReemplazar = jest.fn()
 
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "00000000-0000-4000-8000-000000000002" }),
-  useRouter: () => ({ back: jest.fn(), replace: jest.fn(), canGoBack: () => true }),
+  useRouter: () => ({ back: jest.fn(), replace: mockReemplazar, canGoBack: () => true }),
   useFocusEffect: (efecto: () => void) =>
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
 }))
@@ -129,6 +130,23 @@ beforeEach(() => {
 })
 
 describe("ruta de una comida de hoy", () => {
+  it.each(["ausente", "sin copia"] as const)(
+    "ofrece volver a Nutrición si la comida está %s",
+    async (estado) => {
+      if (estado === "ausente") {
+        mockApi.vigente.mockResolvedValue({ dieta: null, deNutricionista: false })
+        mockApi.comidas.mockResolvedValue({ comidas: [] })
+      } else {
+        sinRed(dieta())
+        copia.mockResolvedValue(null)
+      }
+      await render(<ComidaDeHoy />)
+      await fireEvent.press(await screen.findByRole("button", { name: "Volver a Nutrición" }))
+      expect(mockReemplazar).toHaveBeenCalledWith("/nutricion")
+      expect(mockApi.registrarComida).not.toHaveBeenCalled()
+    },
+  )
+
   it("con red y registro desactivado no la presenta como desconexión", async () => {
     conRed(dieta(false))
     await render(<ComidaDeHoy />)

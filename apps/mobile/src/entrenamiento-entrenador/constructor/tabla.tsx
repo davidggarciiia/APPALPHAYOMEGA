@@ -34,10 +34,11 @@ export function objetivoConUnidad(e: Pick<EjercicioDelConstructor, "tipo" | "obj
 export function pautaDeFila(
   e: Pick<
     EjercicioDelConstructor,
-    "seccion" | "series" | "tipo" | "objetivo" | "dosis" | "mezclaUnidades"
+    "seccion" | "series" | "tipo" | "objetivo" | "dosis" | "mezclaUnidades" | "seriesDistintas"
   >,
 ): string {
   if (e.mezclaUnidades) return "Mezcla unidades: revisar"
+  if (e.seriesDistintas) return "Series distintas: revisar"
   return e.seccion === "principal"
     ? `${e.series} × ${objetivoConUnidad(e)}`
     : e.dosis || objetivoConUnidad(e)
@@ -206,6 +207,7 @@ export function TablaPrincipal({
             >
               <Text style={s.nombre}>{e.nombre}</Text>
               {e.mezclaUnidades && <Text style={s.aviso}>Mezcla unidades: revisar</Text>}
+              {e.seriesDistintas && <Text style={s.aviso}>Series distintas: revisar</Text>}
               {/* Las repeticiones son lo habitual; otra unidad se dice en la fila. */}
               {!e.mezclaUnidades && e.tipo !== "repeticiones" && (
                 <Text style={s.tenue}>En {UNIDADES_DE_FILA[e.tipo].nombre.toLowerCase()}</Text>
@@ -273,6 +275,20 @@ export function PanelEjercicio({
   return (
     <View style={s.panel}>
       <Text style={s.tituloPanel}>{ejercicio.nombre}</Text>
+      {ejercicio.seriesDistintas && (
+        <View>
+          <Text style={s.aviso}>
+            La sesión guardada tiene cargas u objetivos distintos entre sus series. Revísala en el
+            editor de sesión o decide pautar todas las series por igual.
+          </Text>
+          <Enlace
+            texto="Pautar todas las series por igual"
+            onPress={() =>
+              cambiar(ejercicio.id, { seriesDistintas: undefined, objetivo: "", carga: "" })
+            }
+          />
+        </View>
+      )}
       <Text style={s.etiquetaPanel}>Preguntar RIR (respuesta opcional)</Text>
       <View style={s.opcionesPanel}>
         {(

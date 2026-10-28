@@ -23,6 +23,7 @@ import {
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
+import { useSalidaProtegida } from "../componentes/salida-protegida"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { Chips } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
@@ -266,6 +267,7 @@ export function EditorPlantilla({
   const [abierto, setAbierto] = useState<Abierto | null>(null)
   /** Qué botón del conflicto está cargando la versión guardada. */
   const [recargando, setRecargando] = useState<"guardada" | "mia" | null>(null)
+  const { proteger, proteccion } = useSalidaProtegida(estado !== "guardado")
   const enCurso = useRef(false)
   // Mientras se guarda o se recarga nada se edita ni se cierra: el resultado
   // puede ser un error y la edición tiene que seguir aquí para verlo.
@@ -369,6 +371,7 @@ export function EditorPlantilla({
     const actual = corporales.find((d) => d.id === abierto.id) ?? null
     return (
       <FormularioCorporal
+        sinGuardar={estado !== "guardado"}
         actual={actual}
         guardada={guardada.corporales.find((d) => d.id === abierto.id) ?? null}
         bloque={abierto.bloque}
@@ -384,6 +387,7 @@ export function EditorPlantilla({
   if (abierto?.tipo === "prueba") {
     return (
       <FormularioPrueba
+        sinGuardar={estado !== "guardado"}
         actual={pruebas.find((p) => p.id === abierto.id) ?? null}
         guardada={guardada.pruebas.find((p) => p.id === abierto.id) ?? null}
         nuevoId={nuevoId}
@@ -398,6 +402,7 @@ export function EditorPlantilla({
 
   return (
     <View style={s.contenido}>
+      {proteccion}
       <View style={s.cabecera}>
         <View style={s.textos}>
           <Text style={s.titulo} accessibilityRole="header">
@@ -410,7 +415,12 @@ export function EditorPlantilla({
             {TEXTO_DE_ESTADO[estado]}
           </Text>
         </View>
-        <Accion texto="Cerrar" etiqueta="Cerrar" deshabilitada={bloqueado} pulsar={cerrar} />
+        <Accion
+          texto="Cerrar"
+          etiqueta="Cerrar"
+          deshabilitada={bloqueado}
+          pulsar={() => proteger(cerrar)}
+        />
       </View>
       <Text style={s.tenue}>Se copia a las visitas nuevas. Las visitas ya creadas no cambian.</Text>
 
@@ -730,6 +740,7 @@ function construirCorporal(
 }
 
 function FormularioCorporal({
+  sinGuardar,
   actual,
   guardada,
   bloque,
@@ -737,6 +748,7 @@ function FormularioCorporal({
   aplicar,
   cancelar,
 }: {
+  sinGuardar: boolean
   actual: DefinicionCorporal | null
   /** La versión guardada, contra la que se decide si hay versión nueva. */
   guardada: DefinicionCorporal | null
@@ -758,6 +770,8 @@ function FormularioCorporal({
     }),
   )
   const [error, setError] = useState("")
+  const inicial = useRef(JSON.stringify(f))
+  const { proteccion } = useSalidaProtegida(sinGuardar || JSON.stringify(f) !== inicial.current)
   const id = useRef(actual?.id ?? null)
   const cambiar = (cambio: Partial<FormCorporal>): void =>
     setF((previo) => ajustar({ ...previo, ...cambio }))
@@ -782,6 +796,7 @@ function FormularioCorporal({
 
   return (
     <View style={s.contenido}>
+      {proteccion}
       <Text style={s.titulo} accessibilityRole="header">
         {actual ? "Editar campo" : "Nuevo campo"}
       </Text>
@@ -939,12 +954,14 @@ function construirPrueba(
 }
 
 function FormularioPrueba({
+  sinGuardar,
   actual,
   guardada,
   nuevoId,
   aplicar,
   cancelar,
 }: {
+  sinGuardar: boolean
   actual: DefinicionPrueba | null
   guardada: DefinicionPrueba | null
   nuevoId: () => string
@@ -953,6 +970,8 @@ function FormularioPrueba({
 }): React.JSX.Element {
   const [f, setF] = useState<FormPrueba>(() => formPrueba(actual))
   const [error, setError] = useState("")
+  const inicial = useRef(JSON.stringify(f))
+  const { proteccion } = useSalidaProtegida(sinGuardar || JSON.stringify(f) !== inicial.current)
   const id = useRef(actual?.id ?? null)
   const cambiar = (cambio: Partial<FormPrueba>): void =>
     setF((previo) => ({ ...previo, ...cambio }))
@@ -987,6 +1006,7 @@ function FormularioPrueba({
 
   return (
     <View style={s.contenido}>
+      {proteccion}
       <Text style={s.titulo} accessibilityRole="header">
         {actual ? "Editar prueba" : "Nueva prueba"}
       </Text>

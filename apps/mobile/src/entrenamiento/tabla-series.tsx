@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
-import type { ValoresEjecutados, ValoresEjecutadosDistancia } from "@alpha-omega/shared"
+import type { ValoresEjecutados } from "@alpha-omega/shared"
 import type { EdicionRegistro, EjercicioConDistancia, SerieConDistancia } from "./registro-modelo"
 import { valoresLegibles } from "./resultado"
 import { Icono } from "../componentes/iconos"
@@ -51,7 +51,7 @@ function cabecera(series: SerieConDistancia[]): string {
     .join(" / ")
 }
 
-type Anterior = ValoresEjecutados | ValoresEjecutadosDistancia
+type Anterior = ValoresEjecutados
 
 function cantidadAnterior(valores: Anterior): string {
   switch (valores.tipoMedicion) {
@@ -109,7 +109,6 @@ export function TablaSeries({
     const real = series.find((r) => r.serieId === s.id)
     return real?.hecha || real?.omitida
   })
-  const haySerieHecha = ejercicio.series.some((s) => series.find((r) => r.serieId === s.id)?.hecha)
   const ultimaHecha = [...ejercicio.series]
     .reverse()
     .find((s) => series.find((r) => r.serieId === s.id)?.hecha)
@@ -239,6 +238,7 @@ export function TablaSeries({
               )}
               <Pressable
                 accessibilityRole="checkbox"
+                aria-checked={real.hecha}
                 accessibilityLabel={`Hecha — ${ejercicio.nombre}, serie ${n + 1}`}
                 accessibilityState={{ checked: real.hecha, disabled: bloqueado }}
                 disabled={bloqueado}
@@ -308,7 +308,7 @@ export function TablaSeries({
           </View>
         )
       })}
-      {modoRir === "alFinalizarEjercicio" && ejercicioResuelto && haySerieHecha && !bloqueado && (
+      {modoRir === "alFinalizarEjercicio" && ejercicioResuelto && ultimaHecha && !bloqueado && (
         <View style={s.pregunta}>
           <Text style={s.textoPregunta}>
             Al terminar este ejercicio, ¿cuántas te quedaban? (opcional)
@@ -316,10 +316,8 @@ export function TablaSeries({
           <Opciones
             etiqueta={`Repeticiones que te quedaban al terminar ${ejercicio.nombre}`}
             opciones={RIRS}
-            valor={series.find((r) => r.serieId === ultimaHecha?.id)?.rir ?? null}
-            cambiar={(valor) => {
-              if (ultimaHecha) cambiar(ultimaHecha.id, { rir: valor })
-            }}
+            valor={series.find((r) => r.serieId === ultimaHecha.id)?.rir ?? null}
+            cambiar={(valor) => cambiar(ultimaHecha.id, { rir: valor })}
           />
         </View>
       )}

@@ -74,6 +74,7 @@ function CampoBascula({
       </View>
       <Pressable
         accessibilityRole="checkbox"
+        aria-checked={campo.noRealizado}
         accessibilityLabel={`No realizado — ${contexto}`}
         accessibilityState={{ checked: campo.noRealizado, disabled: bloqueado }}
         disabled={bloqueado}

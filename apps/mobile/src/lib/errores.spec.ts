@@ -1,5 +1,13 @@
 import { faltaDe } from "./errores"
-import { ErrorDePeticion, ErrorDeRed } from "./http"
+import { ErrorDePermiso, ErrorDePeticion, ErrorDeRed } from "./http"
+
+it("un acceso denegado no atribuye la pantalla a un rol concreto", () => {
+  expect(faltaDe(new ErrorDePermiso(), "No se pudo cargar.")).toEqual({
+    texto: "No tienes permiso para acceder a estos datos.",
+    reintentable: false,
+    sesionCaducada: false,
+  })
+})
 
 it("sin consentimiento enseña el motivo del servidor y no ofrece reintentar", () => {
   const falta = faltaDe(

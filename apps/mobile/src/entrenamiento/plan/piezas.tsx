@@ -8,10 +8,12 @@ export function Pestanas<T extends string>({
   opciones,
   activa,
   cambiar,
+  bloquearCambio = false,
 }: {
   opciones: ReadonlyArray<{ valor: T; texto: string }>
   activa: T
   cambiar: (valor: T) => void
+  bloquearCambio?: boolean
 }): React.JSX.Element {
   return (
     <ScrollView
@@ -27,7 +29,8 @@ export function Pestanas<T extends string>({
           <Pressable
             key={opcion.valor}
             accessibilityRole="tab"
-            accessibilityState={{ selected: elegida }}
+            accessibilityState={{ selected: elegida, disabled: bloquearCambio && !elegida }}
+            disabled={bloquearCambio && !elegida}
             onPress={() => cambiar(opcion.valor)}
             style={[s.pestana, elegida && s.pestanaActiva]}
           >

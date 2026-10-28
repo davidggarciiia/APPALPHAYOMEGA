@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { RegistroControl } from "./registro-control"
-import { crearAlmacenLocal } from "./almacen-local"
+import { crearAlmacenLocal, type Cifrado, type PersistenciaCifrada } from "./almacen-local"
 import { crearApiEntrenamiento } from "./api"
 import { crearPeticionAutenticada } from "../lib/peticion-autenticada"
 import { DocumentoSesionSchema, claveSesion, hayCambiosLocales } from "./documento-local"
@@ -54,29 +54,226 @@ const resultado: ResultadoEntrenamiento = {
 }
 function preparar() {
   const filas = new Map<string, string>()
-  const almacen = crearAlmacenLocal(
-    {
-      leer: async (_c, k) => filas.get(k) ?? null,
-      escribir: async (_c, k, v) => {
-        filas.set(k, v)
-      },
-      borrar: async (_c, k) => {
-        filas.delete(k)
-      },
-      listar: async () => [...filas.keys()],
-      limpiar: async () => filas.clear(),
+  const persistencia: PersistenciaCifrada = {
+    leer: async (_c, k) => filas.get(k) ?? null,
+    escribir: async (_c, k, v) => {
+      filas.set(k, v)
     },
-    {
-      cifrar: async (_c, _k, t) => t,
-      descifrar: async (_c, _k, t) => t,
-      olvidar: async () => undefined,
+    borrar: async (_c, k) => {
+      filas.delete(k)
     },
-  )
+    listar: async () => [...filas.keys()],
+    limpiar: async () => filas.clear(),
+  }
+  const cifrado: Cifrado = {
+    cifrar: async (_c, _k, t) => t,
+    descifrar: async (_c, _k, t) => t,
+    olvidar: async () => undefined,
+  }
+  const almacen = crearAlmacenLocal(persistencia, cifrado)
   const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "acceso"))
   jest.spyOn(api, "leerCliente").mockResolvedValue(sesion)
   const control = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
-  return { control, api, almacen }
+  return { control, api, almacen, persistencia, cifrado }
 }
+
+it("un fallo de disco al reabrir no se confunde con red y una caída posterior sí se reconoce", async () => {
+  const { control, api, almacen, persistencia } = preparar()
+  await control.abrir()
+  control.cerrar()
+  const anterior = await persistencia.leer(cuenta, claveSesion(id))
+  const reabierta = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+  jest.spyOn(persistencia, "escribir").mockRejectedValueOnce(new Error("Disco lleno"))
+  await reabierta.abrir()
+  expect(reabierta.errorLocal).toBe(true)
+  expect(reabierta.sinRed).toBe(false)
+  expect(reabierta.documento?.sesion.prescripcion.nombre).toBe("Fuerza")
+  expect(await persistencia.leer(cuenta, claveSesion(id))).toBe(anterior)
+  jest.mocked(api.leerCliente).mockRejectedValueOnce(new Error("Sin red"))
+  await reabierta.abrir()
+  expect(reabierta.sinRed).toBe(true)
+})
+
+it("un fallo de disco tras confirmar el borrador remoto no marca falta de conexión", async () => {
+  const { control, api, persistencia } = preparar()
+  await control.abrir()
+  await control.editar({ ...control.documento!.edicion, notas: "guardada en servidor" })
+  jest.spyOn(api, "guardar").mockImplementation(async (_id, peticion) => {
+    jest.spyOn(persistencia, "escribir").mockRejectedValueOnce(new Error("Disco lleno"))
+    return {
+      revision: 1,
+      revisionPrescripcion: peticion.revisionPrescripcion,
+      registro: peticion.registro,
+      actualizadoEn: "2026-10-04T10:00:00.000Z",
+    }
+  })
+  await expect(control.sincronizar()).rejects.toThrow()
+  expect(control.errorLocal).toBe(true)
+  expect(control.sinRed).toBe(false)
+  expect(control.documento?.edicion.notas).toBe("guardada en servidor")
+})
+
+it("dos pestañas sin red conservan ambas ediciones y el conflicto al reabrir", async () => {
+  const { control: a, api, persistencia, cifrado } = preparar()
+  await a.abrir()
+  const almacenB = crearAlmacenLocal(persistencia, cifrado)
+  const b = new RegistroControl(cuenta, id, api, almacenB, randomUUID, () => undefined)
+  await b.abrir()
+  await a.editar({ ...a.documento!.edicion, notas: "edición A" })
+  await expect(b.editar({ ...b.documento!.edicion, notas: "edición B" })).rejects.toThrow(
+    /otra edición/i,
+  )
+  expect(b.conflicto).toBe(true)
+  expect(b.documento?.edicion.notas).toBe("edición B")
+  expect(b.documento?.respaldo?.edicion.notas).toBe("edición A")
+  b.cerrar()
+  jest.mocked(api.leerCliente).mockRejectedValue(new Error("sin red"))
+  const reabierta = new RegistroControl(
+    cuenta,
+    id,
+    api,
+    crearAlmacenLocal(persistencia, cifrado),
+    randomUUID,
+    () => undefined,
+  )
+  await reabierta.abrir()
+  expect(reabierta.conflicto).toBe(true)
+  expect(reabierta.documento?.edicion.notas).toBe("edición B")
+  expect(reabierta.documento?.respaldo?.edicion.notas).toBe("edición A")
+})
+
+it("inspeccionar cambios al cancelar el cierre no autoriza sobrescribir la edición de otra pestaña", async () => {
+  const { control: a, api, almacen, persistencia, cifrado } = preparar()
+  await a.abrir()
+  const b = new RegistroControl(
+    cuenta,
+    id,
+    api,
+    crearAlmacenLocal(persistencia, cifrado),
+    randomUUID,
+    () => undefined,
+  )
+  await b.abrir()
+  await a.editar({ ...a.documento!.edicion, notas: "A" })
+  await expect(b.editar({ ...b.documento!.edicion, notas: "B" })).rejects.toThrow(/otra edición/i)
+  expect(await hayCambiosLocales(almacen, cuenta)).toBe(true)
+  await expect(a.editar({ ...a.documento!.edicion, notas: "A2" })).rejects.toThrow(/otra edición/i)
+  const guardado = await almacen.leer(cuenta, claveSesion(id), DocumentoSesionSchema)
+  expect(guardado?.edicion.notas).toBe("A2")
+  expect(guardado?.respaldo?.edicion.notas).toBe("B")
+  expect(guardado?.respaldosLocales?.map((copia) => copia.edicion.notas)).toContain("A")
+})
+
+it("dos cambios locales en cola no borran el respaldo rescatado al detectar otra pestaña", async () => {
+  const { control: a, api, persistencia, cifrado } = preparar()
+  await a.abrir()
+  const almacenB = crearAlmacenLocal(persistencia, cifrado)
+  const b = new RegistroControl(cuenta, id, api, almacenB, randomUUID, () => undefined)
+  await b.abrir()
+  await a.editar({ ...a.documento!.edicion, notas: "A" })
+  await Promise.allSettled([
+    b.editar({ ...b.documento!.edicion, notas: "B1" }),
+    b.editar({ ...b.documento!.edicion, notas: "B2" }),
+  ])
+  const guardado = await almacenB.leer(cuenta, claveSesion(id), DocumentoSesionSchema)
+  expect(guardado?.edicion.notas).toBe("B2")
+  expect(guardado?.respaldo?.edicion.notas).toBe("A")
+  expect(b.errorLocal).toBe(false)
+})
+
+it("un tercer editor conserva también el respaldo que ya había otra pestaña", async () => {
+  const { control: a, api, persistencia, cifrado } = preparar()
+  await a.abrir()
+  const b = new RegistroControl(
+    cuenta,
+    id,
+    api,
+    crearAlmacenLocal(persistencia, cifrado),
+    randomUUID,
+    () => undefined,
+  )
+  const c = new RegistroControl(
+    cuenta,
+    id,
+    api,
+    crearAlmacenLocal(persistencia, cifrado),
+    randomUUID,
+    () => undefined,
+  )
+  await b.abrir()
+  await c.abrir()
+  await a.editar({ ...a.documento!.edicion, notas: "A" })
+  await expect(b.editar({ ...b.documento!.edicion, notas: "B" })).rejects.toThrow(/otra edición/i)
+  await expect(c.editar({ ...c.documento!.edicion, notas: "C" })).rejects.toThrow(/otra edición/i)
+  expect(c.documento?.edicion.notas).toBe("C")
+  expect(c.documento?.respaldo?.edicion.notas).toBe("B")
+  expect(c.documento?.respaldosLocales?.map((copia) => copia.edicion.notas)).toContain("A")
+  await c.continuarEdicionLocal()
+  await c.recuperarCopia()
+  expect(c.documento?.edicion.notas).toBe("B")
+  expect(c.documento?.respaldosLocales?.map((copia) => copia.edicion.notas)).toContain("C")
+})
+
+it("consultar un plan en caché no cuenta como un borrador pendiente al salir", async () => {
+  const { almacen } = preparar()
+  await almacen.guardar(cuenta, "plan-2026-09-14", { plan: null })
+  expect(await hayCambiosLocales(almacen, cuenta)).toBe(false)
+})
+
+it("una publicación de plan pendiente sí avisa antes de borrar su copia al salir", async () => {
+  const { almacen } = preparar()
+  await almacen.guardar(cuenta, `plan-${cuenta}`, {
+    solicitud: {
+      operacionId: randomUUID(),
+      nombre: "Fuerza",
+      semanaInicial: "2026-09-14",
+      semanas: 1,
+      patron: {
+        sesiones: [
+          {
+            id: randomUUID(),
+            nombre: "Fuerza",
+            diaSemana: 1,
+            ejercicios: sesion.prescripcion.ejercicios.map(({ nombre: _nombre, ...ejercicio }) => {
+              void _nombre
+              return ejercicio
+            }),
+          },
+        ],
+      },
+    },
+    nombres: {},
+  })
+  expect(await hayCambiosLocales(almacen, cuenta)).toBe(true)
+})
+
+it("confirmar una de las ediciones locales conserva accesible la otra copia", async () => {
+  const { control: a, api, persistencia, cifrado } = preparar()
+  await a.abrir()
+  const b = new RegistroControl(
+    cuenta,
+    id,
+    api,
+    crearAlmacenLocal(persistencia, cifrado),
+    randomUUID,
+    () => undefined,
+  )
+  await b.abrir()
+  const series = [{ serieId, peso: "20", valor: "10", hecha: true }]
+  await a.editar({ notas: "A no enviada", series })
+  await expect(b.editar({ notas: "B enviada", series })).rejects.toThrow(/otra edición/i)
+  await b.continuarEdicionLocal()
+  jest.spyOn(api, "guardar").mockImplementation(async (_id, datos) => ({
+    revision: 1,
+    revisionPrescripcion: 0,
+    registro: datos.registro,
+    actualizadoEn: new Date().toISOString(),
+  }))
+  jest.spyOn(api, "enviar").mockResolvedValue(resultado)
+  await b.enviar()
+  expect(b.documento?.resultado).toEqual(resultado)
+  expect(b.documento?.respaldo?.edicion.notas).toBe("A no enviada")
+})
 
 it("repite un envío sin respuesta con la misma operación al reabrir", async () => {
   const { control, api, almacen } = preparar()

@@ -3,11 +3,11 @@ import { useState } from "react"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import { BotonDestructivo, BotonPrincipal, BotonSecundario, Campo } from "./formulario"
 
-describe.each([
+describe.each<[string, typeof BotonPrincipal]>([
   ["principal", BotonPrincipal],
   ["secundario", BotonSecundario],
   ["destructivo", BotonDestructivo],
-] as const)("Botón %s", (_nombre, Boton) => {
+])("Botón %s", (_nombre, Boton) => {
   it("impide repetir una operación ocupada y conserva su nombre accesible", async () => {
     const guardar = jest.fn()
     await render(<Boton texto="Guardar" onPress={guardar} ocupado />)

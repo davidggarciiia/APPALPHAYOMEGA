@@ -29,11 +29,23 @@ export function gramosDeMacros(
 export function porcentajesDe(objetivo: Macros): Porcentajes | null {
   const { kcal, hidratosG, proteinaG, grasaG } = objetivo
   if (!kcal || hidratosG === null || proteinaG === null || grasaG === null) return null
-  return {
+  const redondeados = {
     hidratos: Math.round(((hidratosG * 4) / kcal) * 100),
     proteina: Math.round(((proteinaG * 4) / kcal) * 100),
     grasas: Math.round(((grasaG * 9) / kcal) * 100),
   }
+  if (redondeados.hidratos + redondeados.proteina + redondeados.grasas === 100) return redondeados
+  const energia = [hidratosG * 4, proteinaG * 4, grasaG * 9]
+  const total = energia.reduce((suma, valor) => suma + valor, 0)
+  if (total === 0) return null
+  const exactos = energia.map((valor) => (valor / total) * 100)
+  const enteros = exactos.map(Math.floor)
+  const orden = exactos
+    .map((valor, i) => ({ i, fraccion: valor - enteros[i]! }))
+    .sort((a, b) => b.fraccion - a.fraccion || a.i - b.i)
+  const faltan = 100 - enteros.reduce((suma, valor) => suma + valor, 0)
+  for (let i = 0; i < faltan; i++) enteros[orden[i]!.i]!++
+  return { hidratos: enteros[0]!, proteina: enteros[1]!, grasas: enteros[2]! }
 }
 
 /** Lo que decide el profesional en «Pauta». */
@@ -60,19 +72,23 @@ export function aplicarPauta(
   nuevoId: () => string,
 ): DocumentoDieta {
   const objetivo = { ...pauta.objetivo }
-  const base: DocumentoDieta =
-    documento ??
-    (() => {
-      const id = nuevoId()
-      return {
-        formato: 1,
-        nombre: "Objetivo diario",
-        tiposDeDia: [{ id, nombre: "Todos los días", objetivo, comidas: [] }],
-        semana: Array.from({ length: 7 }, () => id),
-        indicaciones: [],
-      }
-    })()
+  let base = documento
+  if (base == null) {
+    const id = nuevoId()
+    base = {
+      formato: 1,
+      nombre: "Objetivo diario",
+      tiposDeDia: [{ id, nombre: "Todos los días", objetivo, comidas: [] }],
+      semana: Array.from({ length: 7 }, () => id),
+      indicaciones: [],
+    }
+  }
   const otras = base.indicaciones.filter((i) => i.titulo !== PESO_DIARIO.titulo)
+  if (pauta.pesoDiario && otras.length >= 10) {
+    throw new Error(
+      "La dieta ya tiene diez indicaciones. Edita las indicaciones antes de añadir el peso diario.",
+    )
+  }
   return {
     ...base,
     tiposDeDia: base.tiposDeDia.map((tipo) => ({
@@ -80,7 +96,7 @@ export function aplicarPauta(
       objetivo,
       margenKcal: pauta.margenKcal,
     })),
-    indicaciones: pauta.pesoDiario ? [...otras, PESO_DIARIO].slice(0, 10) : otras,
+    indicaciones: pauta.pesoDiario ? [...otras, PESO_DIARIO] : otras,
     suplementos: pauta.suplementos,
     registroComidas: pauta.registroComidas,
     nota: pauta.nota,

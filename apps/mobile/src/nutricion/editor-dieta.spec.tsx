@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act } from "react"
 import type { BorradorDieta, DocumentoDieta } from "@alpha-omega/shared"
 import { ErrorDePeticion } from "../lib/http"
 import type { ApiNutricion } from "./api"
@@ -41,6 +42,45 @@ function borrador(documento: DocumentoDieta, revision: number): BorradorDieta {
     actualizadoEn: "2026-09-24T10:00:00.000Z",
   }
 }
+
+it("una respuesta lenta no marca guardada una edición posterior ni permite otro guardado en curso", async () => {
+  let resolver!: (valor: BorradorDieta) => void
+  const guardar = jest.fn(async (_c: string, revision: number, documento: DocumentoDieta) => {
+    if (revision === 0)
+      return new Promise<BorradorDieta>((done) => {
+        resolver = done
+      })
+    return borrador(documento, revision + 1)
+  })
+  const volver = jest.fn()
+  await render(
+    <EditorDieta
+      clienteId={CLIENTE}
+      api={api({ guardar })}
+      origen="nueva"
+      ids={generador()}
+      volver={volver}
+    />,
+  )
+  await fireEvent.changeText(screen.getByLabelText("Nombre de la dieta"), "Versión A")
+  await fireEvent.changeText(screen.getByLabelText("Kcal — objetivo de Todos los días"), "2000")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar borrador" }))
+  await fireEvent.changeText(screen.getByLabelText("Nombre de la dieta"), "Versión B")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar borrador" }))
+  expect(guardar).toHaveBeenCalledTimes(1)
+  await act(async () => {
+    resolver(borrador(guardar.mock.calls[0]![2], 1))
+  })
+  expect(screen.getByDisplayValue("Versión B")).toBeOnTheScreen()
+  expect(screen.getByText("Cambios sin guardar")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Volver a la dieta" }))
+  expect(volver).not.toHaveBeenCalled()
+  await fireEvent.press(screen.getByRole("button", { name: "Seguir editando" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar borrador" }))
+  await waitFor(() => expect(guardar).toHaveBeenCalledTimes(2))
+  expect(guardar.mock.calls[1]![1]).toBe(1)
+  expect(guardar.mock.calls[1]![2].nombre).toBe("Versión B")
+})
 
 it("guarda una dieta solo de objetivos con la revisión 0 y confirma el guardado", async () => {
   const guardar = jest.fn(async (_c: string, _r: number, documento: DocumentoDieta) =>

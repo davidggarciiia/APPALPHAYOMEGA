@@ -40,18 +40,20 @@ export function HoyNutricion({
   hora,
   registradas,
   dia,
+  diaCargado,
   puedeTomar,
   abrirComida,
   tomarSuplemento,
   verSemana,
 }: {
   documento: DocumentoDieta
-  deNutricionista: boolean
+  deNutricionista: boolean | null
   hoy: string
   /** «HH:MM» de ahora, para la comida de «Ahora». */
   hora: string
-  registradas: ComidaRegistrada[]
+  registradas: ComidaRegistrada[] | null
   dia: DiaDeSeguimiento | null
+  diaCargado: boolean
   /** Sin conexión no se apuntan suplementos. */
   puedeTomar: boolean
   abrirComida: (comida: Comida) => void
@@ -60,9 +62,9 @@ export function HoyNutricion({
 }): React.JSX.Element {
   const tipo = tipoDelDia(documento, hoy)
   const comidas = tipo?.comidas ?? []
-  const porComida = new Map(registradas.map((r) => [r.comidaId, r]))
+  const porComida = new Map((registradas ?? []).map((r) => [r.comidaId, r]))
   const hechas = new Set(comidas.filter((c) => porComida.has(c.id)).map((c) => c.id))
-  const ahora = comidaDeAhora(comidas, hechas, hora)
+  const ahora = registradas === null ? null : comidaDeAhora(comidas, hechas, hora)
   const reparto = repartoDeMacros(tipo?.objetivo ?? null)
   const kcal = tipo?.objetivo?.kcal ?? null
   const margen = tipo?.margenKcal
@@ -71,7 +73,11 @@ export function HoyNutricion({
   return (
     <View style={s.contenido}>
       <Text style={s.tenue}>
-        {deNutricionista ? "Dieta de tu nutricionista" : "Dieta de tu entrenador"}
+        {deNutricionista === null
+          ? "Dieta de tu profesional"
+          : deNutricionista
+            ? "Dieta de tu nutricionista"
+            : "Dieta de tu entrenador"}
       </Text>
       {documento.nota && <Text style={s.nota}>{documento.nota}</Text>}
 
@@ -81,24 +87,30 @@ export function HoyNutricion({
             <Text style={s.titulo} accessibilityRole="header">
               Hoy
             </Text>
-            <Text style={s.cuenta}>
-              {hechas.size} de {comidas.length}
-            </Text>
+            {registradas !== null && (
+              <Text style={s.cuenta}>
+                {hechas.size} de {comidas.length}
+              </Text>
+            )}
           </View>
-          <View
-            style={s.pista}
-            accessibilityRole="progressbar"
-            accessibilityLabel="Comidas hechas"
-            accessibilityValue={{ min: 0, max: comidas.length, now: hechas.size }}
-          >
+          {registradas === null ? (
+            <Text style={s.tenue}>Registro de comidas no disponible</Text>
+          ) : (
             <View
-              style={[
-                s.relleno,
-                degradadoOro,
-                { width: `${(hechas.size / comidas.length) * 100}%` },
-              ]}
-            />
-          </View>
+              style={s.pista}
+              accessibilityRole="progressbar"
+              accessibilityLabel="Comidas hechas"
+              accessibilityValue={{ min: 0, max: comidas.length, now: hechas.size }}
+            >
+              <View
+                style={[
+                  s.relleno,
+                  degradadoOro,
+                  { width: `${(hechas.size / comidas.length) * 100}%` },
+                ]}
+              />
+            </View>
+          )}
           <View style={s.lista}>
             {comidas.map((comida, n) => {
               const hecha = hechas.has(comida.id)
@@ -112,7 +124,7 @@ export function HoyNutricion({
                   accessibilityLabel={`${comida.nombre}${esAhora ? ", ahora" : ""}: ${subtitulo}`}
                   onPress={() => abrirComida(comida)}
                 >
-                  <Circulo hecho={hecha} />
+                  {registradas !== null && <Circulo hecho={hecha} />}
                   <View style={s.cuerpoFila}>
                     <View style={s.textos}>
                       <View style={s.nombreFila}>
@@ -187,14 +199,28 @@ export function HoyNutricion({
                 <Pressable
                   key={suplemento.nombre}
                   style={[s.fila, n > 0 && s.separada]}
-                  accessibilityRole="checkbox"
-                  accessibilityLabel={`${suplemento.nombre} tomada`}
-                  accessibilityState={{ checked: tomado, disabled: !puedeTomar }}
+                  accessibilityRole={diaCargado ? "checkbox" : "text"}
+                  aria-checked={diaCargado ? tomado : undefined}
+                  accessibilityLabel={
+                    diaCargado
+                      ? `${suplemento.nombre} tomada`
+                      : `${suplemento.nombre}: registro no disponible`
+                  }
+                  accessibilityState={{
+                    checked: diaCargado ? tomado : undefined,
+                    disabled: !puedeTomar,
+                  }}
                   disabled={!puedeTomar}
                   onPress={() => tomarSuplemento(suplemento, !tomado)}
                 >
-                  <Circulo hecho={tomado} />
-                  <Text style={[s.nombre, s.textos]}>{suplemento.nombre} tomada</Text>
+                  {diaCargado && <Circulo hecho={tomado} />}
+                  <View style={s.textos}>
+                    <Text style={s.nombre}>
+                      {suplemento.nombre}
+                      {diaCargado ? " tomada" : ""}
+                    </Text>
+                    {!diaCargado && <Text style={s.tenue}>Registro no disponible</Text>}
+                  </View>
                   {suplemento.dosis && <Text style={s.tenue}>{suplemento.dosis}</Text>}
                 </Pressable>
               )

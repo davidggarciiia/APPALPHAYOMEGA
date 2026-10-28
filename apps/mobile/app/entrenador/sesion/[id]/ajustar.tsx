@@ -21,6 +21,7 @@ import { useEntrenamiento } from "../../../../src/entrenamiento/use-entrenamient
 import { useCatalogo } from "../../../../src/catalogo-ejercicios/use-catalogo"
 import { ErrorDelServidor } from "../../../../src/lib/http"
 import { tema } from "../../../../src/tema"
+import { useSalidaProtegida } from "../../../../src/componentes/salida-protegida"
 
 export default function AjustarSesion(): React.JSX.Element {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -36,6 +37,10 @@ export default function AjustarSesion(): React.JSX.Element {
     router = useRouter()
   const [original, setOriginal] = useState<SesionEntrenador | null>(null)
   const [edicion, setEdicion] = useState<SesionEditable | null>(null)
+  const versionOriginal = useRef<string | null>(null)
+  const { proteger, permitir, proteccion } = useSalidaProtegida(
+    edicion !== null && JSON.stringify(edicion) !== versionOriginal.current,
+  )
   const [error, setError] = useState(""),
     [ocupado, setOcupado] = useState(false),
     [intento, setIntento] = useState(0)
@@ -46,17 +51,18 @@ export default function AjustarSesion(): React.JSX.Element {
       .then((s) => {
         if (!vigente) return
         setOriginal(s)
-        setEdicion(
-          desdeSesion(
-            {
-              id: randomUUID(),
-              nombre: s.prescripcion.nombre,
-              diaSemana: 1,
-              ejercicios: s.prescripcion.ejercicios.map(({ nombre: _nombre, ...e }) => e),
-            },
-            Object.fromEntries(s.prescripcion.ejercicios.map((e) => [e.ejercicioId, e.nombre])),
-          ),
+        const editable = desdeSesion(
+          {
+            ...s.prescripcion,
+            id: randomUUID(),
+            nombre: s.prescripcion.nombre,
+            diaSemana: 1,
+            ejercicios: s.prescripcion.ejercicios.map(({ nombre: _nombre, ...e }) => e),
+          },
+          Object.fromEntries(s.prescripcion.ejercicios.map((e) => [e.ejercicioId, e.nombre])),
         )
+        versionOriginal.current = JSON.stringify(editable)
+        setEdicion(editable)
         setError("")
       })
       .catch(() => {
@@ -76,8 +82,12 @@ export default function AjustarSesion(): React.JSX.Element {
         revisionPrescripcion: original.revisionPrescripcion,
         nombre: datos.nombre,
         ejercicios: datos.ejercicios,
+        duracion: datos.duracion,
+        nota: datos.nota,
+        partes: datos.partes,
+        circuito: datos.circuito,
       })
-      if (vigente.current) router.back()
+      if (vigente.current) permitir(() => router.back())
     } catch (e) {
       if (vigente.current)
         setError(
@@ -91,6 +101,7 @@ export default function AjustarSesion(): React.JSX.Element {
   }
   return (
     <PantallaDeFormulario>
+      {proteccion}
       <Text style={{ fontFamily: tema.fuenteBoton, color: tema.texto, fontSize: 26 }}>
         Ajustar esta sesión
       </Text>
@@ -128,7 +139,7 @@ export default function AjustarSesion(): React.JSX.Element {
           />
         </>
       )}
-      <BotonSecundario texto="Volver" onPress={() => router.back()} />
+      <BotonSecundario texto="Volver" onPress={() => proteger(() => router.back())} />
     </PantallaDeFormulario>
   )
 }

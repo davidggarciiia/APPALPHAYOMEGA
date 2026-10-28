@@ -11,11 +11,15 @@ type MockJugador = {
   loop: boolean
   muted: boolean
   reproduciendo: boolean
+  liberado: boolean
+  pausas: number
+  release: () => void
   status: string
   emitir: (status: string) => void
 }
 type MockOyente = (evento: { status: string }) => void
 const mockJugadores: MockJugador[] = []
+const mockFocos: Array<{ salir: () => void; entrar: () => void }> = []
 
 jest.mock("expo-video", () => {
   const React = jest.requireActual<typeof import("react")>("react")
@@ -27,11 +31,20 @@ jest.mock("expo-video", () => {
       loop: false,
       muted: false,
       reproduciendo: false,
+      liberado: false,
+      pausas: 0,
       status: "loading",
       play: () => {
+        if (jugador.liberado) throw new Error("Cannot use shared object that was already released")
         jugador.reproduciendo = true
       },
       pause: () => {
+        if (jugador.liberado) throw new Error("Cannot use shared object that was already released")
+        jugador.pausas++
+        jugador.reproduciendo = false
+      },
+      release: () => {
+        jugador.liberado = true
         jugador.reproduciendo = false
       },
       addListener: (_nombre: string, oyente: MockOyente) => {
@@ -47,18 +60,39 @@ jest.mock("expo-video", () => {
     return jugador
   }
   return {
-    useVideoPlayer: (fuente: unknown, preparar?: (jugador: MockJugador) => void) =>
-      React.useState(() => {
+    useVideoPlayer: (fuente: unknown, preparar?: (jugador: MockJugador) => void) => {
+      const jugador = React.useState(() => {
         const jugador = crear(fuente)
         preparar?.(jugador)
         return jugador
-      })[0],
+      })[0]
+      // Expo libera el SharedObject en el cleanup del hook, registrado antes
+      // de los efectos de foco que use el componente consumidor.
+      React.useEffect(() => () => jugador.release(), [jugador])
+      return jugador
+    },
     VideoView: () => React.createElement(View, { testID: "video" }),
   }
 })
 jest.mock("expo-router", () => ({
-  useFocusEffect: (efecto: () => void) =>
-    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
+  useFocusEffect: (efecto: () => (() => void) | void) =>
+    jest.requireActual<typeof import("react")>("react").useEffect(() => {
+      let limpiar = efecto()
+      const foco = {
+        salir: () => {
+          limpiar?.()
+          limpiar = undefined
+        },
+        entrar: () => {
+          limpiar = efecto()
+        },
+      }
+      mockFocos.push(foco)
+      return () => {
+        foco.salir()
+        mockFocos.splice(mockFocos.indexOf(foco), 1)
+      }
+    }, [efecto]),
 }))
 jest.mock("../sesion", () => ({ useSesion: jest.fn() }))
 jest.mock("../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
@@ -97,10 +131,39 @@ async function pintar(datos: AccesoAFiguras, figura: Figura = VITAL) {
 
 afterEach(() => {
   mockJugadores.length = 0
+  mockFocos.length = 0
   jest.restoreAllMocks()
 })
 
 describe("Figura de un ejercicio en el móvil", () => {
+  it("el desmontaje tolera la liberación de Expo anterior al cleanup de foco", async () => {
+    const vista = await pintar(acceso())
+    const jugador = mockJugadores[0]!
+    await expect(vista.unmount()).resolves.toBeUndefined()
+    expect(jugador.liberado).toBe(true)
+    expect(jugador.pausas).toBe(0)
+  })
+
+  it("perder foco sin desmontar pausa y volver reanuda el mismo jugador", async () => {
+    await pintar(acceso())
+    const jugador = mockJugadores[0]!
+    await act(() => mockFocos[0]!.salir())
+    expect(jugador).toMatchObject({ liberado: false, reproduciendo: false, pausas: 1 })
+    await act(() => mockFocos[0]!.entrar())
+    expect(jugador.reproduciendo).toBe(true)
+    expect(mockJugadores).toHaveLength(1)
+  })
+
+  it("volver al foco respeta la pausa elegida por la persona", async () => {
+    await pintar(acceso())
+    await fireEvent.press(screen.getByRole("button", { name: "Pausar la animación" }))
+    await act(() => {
+      mockFocos[0]!.salir()
+      mockFocos[0]!.entrar()
+    })
+    expect(mockJugadores[0]?.reproduciendo).toBe(false)
+  })
+
   it("pide el clip con la sesión, en bucle, sin sonido y con caché si la licencia lo permite", async () => {
     await pintar(acceso())
 

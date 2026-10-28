@@ -23,6 +23,28 @@ const BANCA = { id: "10000000-0000-4000-8000-000000000001", nombre: "Press banca
 const TIJERAS = { id: "10000000-0000-4000-8000-000000000002", nombre: "Tijeras" }
 
 describe("constructor de planes", () => {
+  it("no aplana series con distinta carga y objetivo dentro de la misma unidad", () => {
+    const sesion: SesionConDistancia = {
+      id: nuevoId(),
+      nombre: "Fuerza",
+      diaSemana: 1,
+      ejercicios: [
+        {
+          id: nuevoId(),
+          ejercicioId: BANCA.id,
+          indicaciones: null,
+          series: [
+            { id: nuevoId(), tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 12 },
+            { id: nuevoId(), tipoMedicion: "repeticiones", pesoKg: 40, repeticiones: 8 },
+          ],
+        },
+      ],
+    }
+    const editable = desdeSesionEnRutina(sesion, { [BANCA.id]: BANCA.nombre })
+    expect(faltaEnDia(editable)).toEqual(expect.stringMatching(/series distintas/i))
+    expect(() => aSesionEnRutina(editable, nuevoId)).toThrow(/series distintas/i)
+  })
+
   it("lee rangos como los escribe el entrenador", () => {
     expect(leerRango("8–10")).toEqual({ min: 8, max: 10 })
     expect(leerRango("8-10")).toEqual({ min: 8, max: 10 })

@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { Platform } from "react-native"
+import type { NavigationAction } from "expo-router/react-navigation"
 import {
   AsignarPlanSchema,
   SeriePrescritaDistanciaSchema,
@@ -8,6 +10,7 @@ import {
 import { crearApiEntrenamiento } from "../../entrenamiento/api"
 import type { AlmacenLocal } from "../../entrenamiento/almacen-local"
 import { crearPeticionAutenticada } from "../../lib/peticion-autenticada"
+import { ErrorDePeticion } from "../../lib/http"
 import {
   catalogoEnMemoria,
   ejercicioDePrueba,
@@ -32,7 +35,179 @@ jest.mock("../../catalogo-ejercicios/figura-ejercicio", () => ({
 }))
 jest.mock("../../entrenamiento/almacen-dispositivo", () => ({ almacenDispositivo: {} }))
 
+const mockDispatch = jest.fn()
+const mockPreventRemove = jest.fn<
+  void,
+  [boolean, (evento: { data: { action: NavigationAction } }) => void]
+>()
+jest.mock("expo-router", () => ({ useNavigation: () => ({ dispatch: mockDispatch }) }))
+jest.mock("expo-router/react-navigation", () => ({
+  usePreventRemove: (...args: Parameters<typeof mockPreventRemove>) => mockPreventRemove(...args),
+}))
+
 const { randomUUID } = jest.requireActual<typeof import("node:crypto")>("node:crypto")
+
+async function prepararConstructor(almacen: AlmacenLocal = almacenEnMemoria()) {
+  const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))
+  const asignar = jest.spyOn(api, "asignar").mockRejectedValue(Error("Respuesta perdida"))
+  const vista = await render(
+    <ConstructorPlan
+      clienteId="20000000-0000-4000-8000-000000000000"
+      cuentaId="30000000-0000-4000-8000-000000000000"
+      nombreCliente="Cliente"
+      almacen={almacen}
+      api={api}
+      catalogo={catalogoEnMemoria([
+        ejercicioDePrueba("10000000-0000-4000-8000-000000000000", "Press banca", "pecho"),
+      ])}
+      rutinas={{ listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() }}
+      nuevoId={randomUUID}
+      terminado={jest.fn()}
+      volver={jest.fn()}
+    />,
+  )
+  return { asignar, vista }
+}
+
+async function completarDia(): Promise<void> {
+  await fireEvent.changeText(await screen.findByLabelText("Nombre del día"), "Fuerza")
+  await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
+  await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca" }))
+}
+
+it.each(["guardar", "publicar"] as const)(
+  "no deja cancelar mientras espera %s el mismo plan",
+  async (paso) => {
+    const almacen = almacenEnMemoria()
+    let liberar!: () => void
+    const pausa = new Promise<void>((resolve) => {
+      liberar = resolve
+    })
+    const guardar = almacen.guardar.bind(almacen)
+    if (paso === "guardar")
+      jest.spyOn(almacen, "guardar").mockImplementation(async (...args) => {
+        await pausa
+        await guardar(...args)
+      })
+    const { asignar } = await prepararConstructor(almacen)
+    asignar.mockImplementation(async (_c, datos) => {
+      if (paso === "publicar") await pausa
+      return { id: randomUUID(), operacionId: datos.operacionId, sesiones: [] }
+    })
+    await completarDia()
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+    try {
+      const cancelar = await screen.findByRole("button", { name: "Cancelar" })
+      expect(cancelar.props.accessibilityState?.disabled).toBe(true)
+      await fireEvent.press(cancelar)
+      expect(screen.getByRole("button", { name: "Publicando…" })).toBeTruthy()
+    } finally {
+      await act(async () => {
+        liberar()
+        await pausa
+      })
+    }
+  },
+)
+
+it("pide confirmación del navegador al cerrar o recargar un plan editado sin publicación guardada", async () => {
+  const plataforma = jest.replaceProperty(Platform, "OS", "web")
+  const anteriorAgregar = Object.getOwnPropertyDescriptor(globalThis, "addEventListener")
+  const anteriorQuitar = Object.getOwnPropertyDescriptor(globalThis, "removeEventListener")
+  const oyentes = new Set<(evento: BeforeUnloadEvent) => void>()
+  Object.defineProperty(globalThis, "addEventListener", {
+    configurable: true,
+    value: (tipo: string, listener: (e: BeforeUnloadEvent) => void) => {
+      if (tipo === "beforeunload") oyentes.add(listener)
+    },
+  })
+  Object.defineProperty(globalThis, "removeEventListener", {
+    configurable: true,
+    value: (tipo: string, listener: (e: BeforeUnloadEvent) => void) => {
+      if (tipo === "beforeunload") oyentes.delete(listener)
+    },
+  })
+  const { vista } = await prepararConstructor()
+  const evento = () =>
+    ({ preventDefault: jest.fn(), returnValue: undefined }) as unknown as BeforeUnloadEvent
+  try {
+    const inicial = evento()
+    oyentes.forEach((listener) => listener(inicial))
+    expect(inicial.preventDefault).not.toHaveBeenCalled()
+    await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Plan no publicado")
+    const editado = evento()
+    oyentes.forEach((listener) => listener(editado))
+    expect(editado.preventDefault).toHaveBeenCalledTimes(1)
+    expect(editado.returnValue).toBe("")
+    await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "")
+    const sinCambios = evento()
+    oyentes.forEach((listener) => listener(sinCambios))
+    expect(sinCambios.preventDefault).not.toHaveBeenCalled()
+  } finally {
+    await vista.unmount()
+    plataforma.restore()
+    if (anteriorAgregar) Object.defineProperty(globalThis, "addEventListener", anteriorAgregar)
+    else Reflect.deleteProperty(globalThis, "addEventListener")
+    if (anteriorQuitar) Object.defineProperty(globalThis, "removeEventListener", anteriorQuitar)
+    else Reflect.deleteProperty(globalThis, "removeEventListener")
+  }
+})
+
+it("conserva el editor al escribir un objetivo inválido y explica el fallo al previsualizar", async () => {
+  await prepararConstructor()
+  await completarDia()
+  await fireEvent.changeText(screen.getByLabelText("Repeticiones de Press banca"), "0")
+  expect(screen.getByDisplayValue("0")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
+  expect(screen.getByText(/Revisa el plan antes de previsualizar/)).toBeOnTheScreen()
+})
+
+it("conserva el editor mientras el lunes está incompleto", async () => {
+  await prepararConstructor()
+  await completarDia()
+  await fireEvent.changeText(screen.getByLabelText("Lunes de inicio (AAAA-MM-DD)"), "2026-")
+  expect(screen.getByDisplayValue("2026-")).toBeOnTheScreen()
+  expect(screen.getByText("Cliente · fecha de inicio pendiente · 6 semanas")).toBeOnTheScreen()
+  expect(screen.queryByText(/undefined/)).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
+  expect(screen.getByText(/Revisa el plan antes de previsualizar/)).toBeOnTheScreen()
+  await fireEvent.changeText(screen.getByLabelText("Lunes de inicio (AAAA-MM-DD)"), "2026-10-26")
+  expect(screen.getByText("Cliente · empieza el 26 oct · 6 semanas")).toBeOnTheScreen()
+})
+
+it("bloquea una publicación nueva si no puede recuperar la operación pendiente", async () => {
+  const almacen = almacenEnMemoria()
+  jest.spyOn(almacen, "leer").mockRejectedValue(Error("Clave no disponible"))
+  const { asignar } = await prepararConstructor(almacen)
+  expect(await screen.findByText(/No se pudo recuperar la publicación pendiente/)).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: "Publicar" })).toBeNull()
+  expect(asignar).not.toHaveBeenCalled()
+})
+
+it("conserva la operación pendiente si el servidor la rechaza y falla su borrado local", async () => {
+  const almacen = almacenEnMemoria()
+  jest.spyOn(almacen, "borrar").mockRejectedValue(Error("Disco no disponible"))
+  const { asignar } = await prepararConstructor(almacen)
+  asignar.mockRejectedValue(
+    new ErrorDePeticion({
+      statusCode: 409,
+      codigo: "operacion_incompatible",
+      message: "Cuenta desactivada",
+    }),
+  )
+  await completarDia()
+  await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+  expect(
+    await screen.findByText(
+      "No se pudo limpiar la publicación pendiente. Reintenta antes de editar.",
+    ),
+  ).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Reintentar publicación" })).toBeTruthy()
+  expect(almacen.datos.size).toBe(1)
+  expect(screen.queryByLabelText("Nombre del día")).toBeNull()
+})
 
 function almacenEnMemoria(): AlmacenLocal & { datos: Map<string, unknown> } {
   const datos = new Map<string, unknown>()
@@ -50,6 +225,54 @@ function almacenEnMemoria(): AlmacenLocal & { datos: Map<string, unknown> } {
     limpiar: async () => datos.clear(),
   }
 }
+
+it("reenvía exactamente el plan pendiente tras perder la respuesta, con los mismos ids de series", async () => {
+  const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))
+  const asignar = jest
+    .spyOn(api, "asignar")
+    .mockRejectedValueOnce(Error("Respuesta perdida tras confirmar"))
+    .mockImplementation(async (_c, datos) => ({
+      id: randomUUID(),
+      operacionId: datos.operacionId,
+      sesiones: [],
+    }))
+  const almacen = almacenEnMemoria()
+  const terminado = jest.fn()
+  await render(
+    <ConstructorPlan
+      clienteId="20000000-0000-4000-8000-000000000000"
+      cuentaId="30000000-0000-4000-8000-000000000000"
+      nombreCliente="Cliente"
+      almacen={almacen}
+      api={api}
+      catalogo={catalogoEnMemoria([
+        ejercicioDePrueba(
+          "10000000-0000-4000-8000-000000000000",
+          "Press banca con barra",
+          "pecho",
+          [],
+        ),
+      ])}
+      rutinas={{ listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() }}
+      nuevoId={randomUUID}
+      terminado={terminado}
+      volver={jest.fn()}
+    />,
+  )
+  await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Fuerza")
+  await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
+  await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca con barra" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+  await screen.findByRole("button", { name: "Reintentar publicación" })
+  expect(almacen.datos.size).toBe(1)
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar publicación" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+  await waitFor(() => expect(asignar).toHaveBeenCalledTimes(2))
+  expect(asignar.mock.calls[1]).toEqual(asignar.mock.calls[0])
+  await waitFor(() => expect(terminado).toHaveBeenCalledTimes(1))
+  expect(almacen.datos.size).toBe(0)
+})
 
 it("arma un día con la tabla del diseño y publica el plan con su bloque", async () => {
   const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))
@@ -160,6 +383,62 @@ it("no publica si falta algo y dice qué", async () => {
   expect(asignar).not.toHaveBeenCalled()
 })
 
+it("confirma el descarte de un plan que se ha editado y permite seguir trabajando", async () => {
+  const volver = jest.fn()
+  await render(
+    <ConstructorPlan
+      clienteId="20000000-0000-4000-8000-000000000000"
+      cuentaId="30000000-0000-4000-8000-000000000000"
+      nombreCliente="Cliente"
+      almacen={almacenEnMemoria()}
+      api={crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))}
+      catalogo={catalogoEnMemoria([])}
+      rutinas={{ listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() }}
+      nuevoId={randomUUID}
+      terminado={jest.fn()}
+      volver={volver}
+    />,
+  )
+  await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Mi plan")
+  await fireEvent.press(screen.getByRole("button", { name: "Volver a la ficha" }))
+  expect(volver).not.toHaveBeenCalled()
+  await fireEvent.press(await screen.findByRole("button", { name: "Seguir editando" }))
+  expect(screen.getByDisplayValue("Mi plan")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Volver a la ficha" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Salir sin guardar" }))
+  expect(volver).toHaveBeenCalledTimes(1)
+})
+
+it("protege la retirada de la ruta y solo continúa Atrás tras confirmar el descarte", async () => {
+  await render(
+    <ConstructorPlan
+      clienteId="20000000-0000-4000-8000-000000000000"
+      cuentaId="30000000-0000-4000-8000-000000000000"
+      nombreCliente="Cliente"
+      almacen={almacenEnMemoria()}
+      api={crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))}
+      catalogo={catalogoEnMemoria([])}
+      rutinas={{ listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() }}
+      nuevoId={randomUUID}
+      terminado={jest.fn()}
+      volver={jest.fn()}
+    />,
+  )
+  await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Mi plan")
+  expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(true)
+  const accion: NavigationAction = { type: "GO_BACK" }
+  await act(() => mockPreventRemove.mock.calls.at(-1)![1]({ data: { action: accion } }))
+  expect(mockDispatch).not.toHaveBeenCalled()
+  await fireEvent.press(await screen.findByRole("button", { name: "Seguir editando" }))
+  expect(screen.getByDisplayValue("Mi plan")).toBeOnTheScreen()
+  expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(true)
+  await act(() => mockPreventRemove.mock.calls.at(-1)![1]({ data: { action: accion } }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Salir sin guardar" }))
+  expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(false)
+  expect(mockDispatch).toHaveBeenCalledTimes(1)
+  expect(mockDispatch).toHaveBeenCalledWith(accion)
+})
+
 it("«Qué buscamos» deja escribir la línea siguiente tras un salto", async () => {
   const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))
   await render(
@@ -182,6 +461,104 @@ it("«Qué buscamos» deja escribir la línea siguiente tras un salto", async ()
     "value",
     "Bajar grasa sin perder músculo\n",
   )
+})
+
+it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar HTML", async () => {
+  const plataforma = jest.replaceProperty(Platform, "OS", "web")
+  const anteriorAgregar = Object.getOwnPropertyDescriptor(globalThis, "addEventListener")
+  const anteriorQuitar = Object.getOwnPropertyDescriptor(globalThis, "removeEventListener")
+  const navegador = new EventTarget()
+  Object.defineProperty(globalThis, "addEventListener", {
+    configurable: true,
+    value: navegador.addEventListener.bind(navegador),
+  })
+  Object.defineProperty(globalThis, "removeEventListener", {
+    configurable: true,
+    value: navegador.removeEventListener.bind(navegador),
+  })
+  let vista: Awaited<ReturnType<typeof render>> | undefined
+  const escribir = jest.fn<void, [string]>()
+  const ventana = {
+    document: { write: escribir, close: jest.fn() },
+    focus: jest.fn(),
+    print: jest.fn(),
+  }
+  const abrirAnterior = window.open
+  window.open = jest.fn(() => ventana as unknown as Window)
+  try {
+    const nombres = ["Movilidad", "Fuerza", "Circuito físico", "Estirar"]
+    vista = await render(
+      <ConstructorPlan
+        clienteId="20000000-0000-4000-8000-000000000000"
+        cuentaId="30000000-0000-4000-8000-000000000000"
+        nombreCliente="Cliente <seguro>"
+        almacen={almacenEnMemoria()}
+        api={crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))}
+        catalogo={catalogoEnMemoria(
+          nombres.map((nombre) => ejercicioDePrueba(randomUUID(), nombre, "pecho", [])),
+        )}
+        rutinas={{ listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() }}
+        nuevoId={randomUUID}
+        terminado={jest.fn()}
+        volver={jest.fn()}
+      />,
+    )
+    await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Plan <seguro>")
+    await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Día de prueba")
+    await fireEvent.changeText(screen.getByLabelText("Duración estimada"), "50–60 min")
+    for (const [parte, minutos] of [
+      ["calentamiento", "8–10"],
+      ["fuerza", "30"],
+      ["cardio", "6"],
+      ["calma", "5"],
+    ] as const) {
+      await fireEvent.changeText(screen.getByLabelText(`Minutos de ${parte}`), minutos)
+    }
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir desde la biblioteca" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Añadir Fuerza" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir calentamiento" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Añadir Movilidad" }))
+    await fireEvent.changeText(
+      screen.getByLabelText("Cómo se hace Movilidad"),
+      "1×8 por lado <suave>",
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir circuito" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Añadir Circuito físico" }))
+    await fireEvent.changeText(screen.getByLabelText("Nombre del circuito"), "Core <controlado>")
+    await fireEvent.changeText(screen.getByLabelText("Vueltas del circuito"), "2")
+    await fireEvent.changeText(screen.getByLabelText("Descanso entre vueltas"), "30 s")
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir vuelta a la calma" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Añadir Estirar" }))
+    await fireEvent.changeText(screen.getByLabelText("Cómo se hace Estirar"), "30 s por lado")
+    await fireEvent.press(screen.getByRole("button", { name: "Exportar PDF" }))
+
+    const html = escribir.mock.calls[0]![0]
+    expect(html).toContain("<th>Pauta</th>")
+    expect(html).toContain("<h3>Calentamiento</h3>")
+    expect(html).toContain("<h3>Parte principal</h3>")
+    expect(html).toContain("<h3>Circuito · Core &lt;controlado&gt;</h3>")
+    expect(html).toContain("<h3>Vuelta a la calma</h3>")
+    for (const nombre of nombres) expect(html).toContain(`<td>${nombre}</td>`)
+    expect(html).toContain("3 × 8–10")
+    expect(html).toContain("1×8 por lado &lt;suave&gt;")
+    expect(html).toContain("30 s por lado")
+    expect(html).toContain("2 vueltas · 30 s entre vueltas")
+    for (const minutos of ["8–10", "30", "6", "5"])
+      expect(html).toContain(`Duración: ${minutos} min`)
+    expect(html).toContain("Duración estimada 50–60 min")
+    expect(html).toContain("Plan &lt;seguro&gt;")
+    expect(html).toContain("Cliente &lt;seguro&gt;")
+    expect(html).not.toContain("<controlado>")
+    expect(ventana.print).toHaveBeenCalledTimes(1)
+  } finally {
+    await vista?.unmount()
+    window.open = abrirAnterior
+    plataforma.restore()
+    if (anteriorAgregar) Object.defineProperty(globalThis, "addEventListener", anteriorAgregar)
+    else Reflect.deleteProperty(globalThis, "addEventListener")
+    if (anteriorQuitar) Object.defineProperty(globalThis, "removeEventListener", anteriorQuitar)
+    else Reflect.deleteProperty(globalThis, "removeEventListener")
+  }
 })
 
 describe("unidad de cada fila (D01)", () => {

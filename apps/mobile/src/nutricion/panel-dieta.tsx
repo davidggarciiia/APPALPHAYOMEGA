@@ -44,11 +44,13 @@ export function PanelDieta({
   api,
   editar,
   nuevoId,
+  alCambiar,
 }: {
   clienteId: string
   api: ApiNutricion
   editar: (origen: OrigenDelEditor) => void
   nuevoId: () => string
+  alCambiar?: () => void
 }): React.JSX.Element {
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
@@ -57,11 +59,15 @@ export function PanelDieta({
   const [ocupado, setOcupado] = useState(false)
   const [abierta, setAbierta] = useState<DietaDelHistorico | null>(null)
   const [intento, setIntento] = useState(0)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const consulta = useRef(0)
   const operacion = useRef<{ revision: number; id: string } | null>(null)
 
   useFocusEffect(
     useCallback(() => {
       let vigente = true
+      consulta.current += 1
+      setCargandoMas(false)
       Promise.all([api.vigente(clienteId), api.borrador(clienteId), api.historico(clienteId, 0)])
         .then(([{ dieta }, { borrador }, historico]) => {
           if (!vigente) return
@@ -78,6 +84,7 @@ export function PanelDieta({
         })
       return () => {
         vigente = false
+        consulta.current += 1
       }
     }, [api, clienteId, intento]),
   )
@@ -93,6 +100,7 @@ export function PanelDieta({
   if (datos === null) return <Text style={s.tenue}>Cargando la dieta…</Text>
 
   const { vigente, borrador, historico } = datos
+  const archivadas = historico.dietas.filter((d) => d.estado === "archivada")
 
   const publicar = async (): Promise<void> => {
     if (borrador === null) return
@@ -107,6 +115,7 @@ export function PanelDieta({
       setConfirmando(null)
       setAviso("Dieta publicada. El cliente ya la ve.")
       setIntento((n) => n + 1)
+      alCambiar?.()
     } catch (fallo) {
       setAviso(
         fallo instanceof ErrorDePeticion
@@ -126,6 +135,7 @@ export function PanelDieta({
       setConfirmando(null)
       setAviso("Borrador descartado.")
       setIntento((n) => n + 1)
+      alCambiar?.()
     } catch (fallo) {
       setAviso(
         fallo instanceof ErrorDePeticion
@@ -217,38 +227,76 @@ export function PanelDieta({
       <Text style={s.seccion} accessibilityRole="header">
         Histórico
       </Text>
-      {historico.dietas.filter((d) => d.estado === "archivada").length === 0 ? (
+      {archivadas.length === 0 ? (
         <Text style={s.tenue}>Aún no hay dietas anteriores.</Text>
       ) : (
-        historico.dietas
-          .filter((d) => d.estado === "archivada")
-          .map((d) => (
-            <View key={d.id} style={s.fila}>
-              <View style={s.datosFila}>
-                <Text style={s.nombreFila}>{d.nombre}</Text>
-                <Text style={s.tenue}>
-                  Publicada el {fecha(d.publicadaEn)} por {d.publicadaPor.nombre}
-                </Text>
-              </View>
-              <Accion
-                texto={abierta?.id === d.id ? "Cerrar" : "Ver"}
-                etiqueta={`${abierta?.id === d.id ? "Cerrar" : "Ver"} ${d.nombre}`}
-                onPress={() =>
-                  abierta?.id === d.id
-                    ? setAbierta(null)
-                    : void api
-                        .delHistorico(clienteId, d.id)
-                        .then(setAbierta)
-                        .catch(() => setAviso("No se pudo abrir esa dieta."))
-                }
-              />
+        archivadas.map((d) => (
+          <View key={d.id} style={s.fila}>
+            <View style={s.datosFila}>
+              <Text style={s.nombreFila}>{d.nombre}</Text>
+              <Text style={s.tenue}>
+                Publicada el {fecha(d.publicadaEn)} por {d.publicadaPor.nombre}
+              </Text>
             </View>
-          ))
+            <Accion
+              texto={abierta?.id === d.id ? "Cerrar" : "Ver"}
+              etiqueta={`${abierta?.id === d.id ? "Cerrar" : "Ver"} ${d.nombre}`}
+              onPress={() =>
+                abierta?.id === d.id
+                  ? setAbierta(null)
+                  : void api
+                      .delHistorico(clienteId, d.id)
+                      .then(setAbierta)
+                      .catch(() => setAviso("No se pudo abrir esa dieta."))
+              }
+            />
+          </View>
+        ))
       )}
       {historico.total > historico.dietas.length && (
-        <Text style={s.tenue}>
-          Mostrando {historico.dietas.length} de {historico.total} dietas.
-        </Text>
+        <View>
+          <Text style={s.tenue}>
+            Mostrando {historico.dietas.length} de {historico.total} dietas.
+          </Text>
+          <BotonSecundario
+            texto="Ver más dietas"
+            ocupado={cargandoMas}
+            onPress={() => {
+              if (cargandoMas) return
+              const vigente = consulta.current
+              setCargandoMas(true)
+              void api
+                .historico(clienteId, historico.dietas.length)
+                .then((pagina) => {
+                  if (vigente !== consulta.current) return
+                  setDatos(
+                    (actual) =>
+                      actual && {
+                        ...actual,
+                        historico: {
+                          ...pagina,
+                          dietas: [
+                            ...new Map(
+                              [...actual.historico.dietas, ...pagina.dietas].map((dieta) => [
+                                dieta.id,
+                                dieta,
+                              ]),
+                            ).values(),
+                          ],
+                        },
+                      },
+                  )
+                })
+                .catch(() => {
+                  if (vigente === consulta.current)
+                    setAviso("No se pudieron cargar más dietas. Reintenta.")
+                })
+                .finally(() => {
+                  if (vigente === consulta.current) setCargandoMas(false)
+                })
+            }}
+          />
+        </View>
       )}
       {abierta && (
         <View style={s.tarjeta}>

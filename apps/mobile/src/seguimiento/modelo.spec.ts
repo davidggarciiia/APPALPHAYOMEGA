@@ -55,6 +55,10 @@ describe("formatos del diseño", () => {
   })
 })
 
+it.each(["7:60", "7:99", "0 h 99"])("rechaza minutos fuera de 0..59 en %s", (texto) => {
+  expect(leerSueno(texto)).toBeNaN()
+})
+
 describe("cálculos", () => {
   it("calcula el siguiente registro diario o semanal sin repetir el de hoy", () => {
     const config = {

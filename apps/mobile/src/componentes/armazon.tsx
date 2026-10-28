@@ -116,26 +116,30 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const sinConexion =
     estado.fase === "local" ? <Text style={s.aviso}>Sin conexión · copia guardada</Text> : null
 
-  if (!esCliente && width >= ANCHO_ESCRITORIO) {
-    const lateral: Destino[] = [
-      { ruta: "/", nombre: "Hoy", icono: "inicio" },
-      ...destinos.filter((d) => d.ruta !== "/" && d.ruta !== "/perfil"),
-      ...(usuario.rol === "entrenador"
-        ? [
-            {
-              ruta: "/nutricionista" as const,
-              nombre: "Nutricionista",
-              icono: "nutricion" as const,
-            },
-          ]
-        : []),
-    ]
-    return (
-      <View style={[s.raiz, s.escritorio]}>
+  const escritorio = !esCliente && width >= ANCHO_ESCRITORIO
+  const lateral: Destino[] = [
+    { ruta: "/", nombre: "Hoy", icono: "inicio" },
+    ...destinos.filter((d) => d.ruta !== "/" && d.ruta !== "/perfil"),
+    ...(usuario.rol === "entrenador"
+      ? [
+          {
+            ruta: "/nutricionista" as const,
+            nombre: "Nutricionista",
+            icono: "nutricion" as const,
+          },
+        ]
+      : []),
+  ]
+
+  // El contenido mantiene su padre y posición al cambiar de ancho para conservar los borradores.
+  return (
+    <View style={[s.raiz, escritorio && s.escritorio]}>
+      {escritorio && (
         <SafeAreaView edges={["top", "bottom", "left"]} style={s.lateral}>
           <Image
             source={logotipo}
             style={s.logotipo}
+            resizeMode="contain"
             accessibilityRole="image"
             accessibilityLabel="Alpha & Omega Training"
           />
@@ -167,88 +171,91 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
             </Text>
           </Pressable>
         </SafeAreaView>
-        <SafeAreaView edges={["top", "right"]} style={s.principalEscritorio}>
-          <View style={[s.cabecera, s.cabeceraEscritorio]}>
-            <View style={s.fila}>
-              {atras}
-              <View style={s.titulos}>
-                <Text accessibilityRole="header" style={s.titulo}>
-                  {titulo}
-                </Text>
-              </View>
-            </View>
-          </View>
-          <View style={s.contenido}>{children}</View>
-        </SafeAreaView>
-      </View>
-    )
-  }
-
-  return (
-    <View style={s.raiz}>
-      <SafeAreaView edges={["top", "left", "right"]} style={s.transparente}>
-        {!sesionCompleta &&
-          (principal === "" && esCliente ? (
-            <View style={s.cabecera}>
-              <View style={s.fila}>
-                <Image
-                  source={emblema}
-                  style={s.emblema}
-                  accessibilityRole="image"
-                  accessibilityLabel="Alpha & Omega Training"
-                />
-                {avatar}
-              </View>
-              <Text accessibilityRole="header" style={s.titulo}>
-                {titulo}
-              </Text>
-              {sinConexion}
-            </View>
-          ) : (
-            <View style={s.cabecera}>
+      )}
+      <SafeAreaView edges={escritorio ? ["top", "right"] : []} style={s.principalEscritorio}>
+        <SafeAreaView edges={escritorio ? [] : ["top", "left", "right"]} style={s.transparente}>
+          {escritorio ? (
+            <View style={[s.cabecera, s.cabeceraEscritorio]}>
               <View style={s.fila}>
                 {atras}
                 <View style={s.titulos}>
-                  <Text accessibilityRole="header" style={s.titulo} numberOfLines={2}>
+                  <Text accessibilityRole="header" style={s.titulo}>
                     {titulo}
                   </Text>
-                  {sinConexion}
                 </View>
-                {avatar}
               </View>
             </View>
-          ))}
-      </SafeAreaView>
-      <View style={s.contenido}>{children}</View>
-      <SafeAreaView
-        edges={["bottom", "left", "right"]}
-        style={enPrincipal ? s.pie : s.transparente}
-      >
-        {enPrincipal && (
-          <View style={s.navegacion} accessibilityRole="tablist">
-            {destinos.map((d) => {
-              const activa = ruta === d.ruta
-              const color = activa ? tema.acento : tema.textoTenue
-              return (
-                <Pressable
-                  key={String(d.ruta)}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: activa }}
-                  accessibilityLabel={d.nombre}
-                  onPress={() => router.replace(d.ruta)}
-                  style={s.destino}
-                >
-                  <Icono nombre={d.icono} color={color} />
-                  <Text style={[s.etiqueta, { color }]}>{d.nombre}</Text>
-                </Pressable>
-              )
-            })}
-          </View>
+          ) : (
+            <>
+              {!sesionCompleta &&
+                (principal === "" && esCliente ? (
+                  <View style={s.cabecera}>
+                    <View style={s.fila}>
+                      <Image
+                        source={emblema}
+                        style={s.emblema}
+                        resizeMode="contain"
+                        accessibilityRole="image"
+                        accessibilityLabel="Alpha & Omega Training"
+                      />
+                      {avatar}
+                    </View>
+                    <Text accessibilityRole="header" style={s.titulo}>
+                      {titulo}
+                    </Text>
+                    {sinConexion}
+                  </View>
+                ) : (
+                  <View style={s.cabecera}>
+                    <View style={s.fila}>
+                      {atras}
+                      <View style={s.titulos}>
+                        <Text accessibilityRole="header" style={s.titulo} numberOfLines={2}>
+                          {titulo}
+                        </Text>
+                        {sinConexion}
+                      </View>
+                      {avatar}
+                    </View>
+                  </View>
+                ))}
+            </>
+          )}
+        </SafeAreaView>
+        <View style={s.contenido}>{children}</View>
+        {!escritorio && (
+          <SafeAreaView
+            edges={["bottom", "left", "right"]}
+            style={enPrincipal ? s.pie : s.transparente}
+          >
+            {enPrincipal && (
+              <View style={s.navegacion} accessibilityRole="tablist">
+                {destinos.map((d) => {
+                  const activa = ruta === d.ruta
+                  const color = activa ? tema.acento : tema.textoTenue
+                  return (
+                    <Pressable
+                      key={String(d.ruta)}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: activa }}
+                      accessibilityLabel={d.nombre}
+                      onPress={() => router.replace(d.ruta)}
+                      style={s.destino}
+                    >
+                      <Icono nombre={d.icono} color={color} />
+                      <Text style={[s.etiqueta, { color }]}>{d.nombre}</Text>
+                    </Pressable>
+                  )
+                })}
+              </View>
+            )}
+          </SafeAreaView>
         )}
       </SafeAreaView>
     </View>
   )
 }
+
 const s = StyleSheet.create({
   raiz: { flex: 1, ...fondoDeMarca },
   escritorio: { flexDirection: "row" },
@@ -265,7 +272,7 @@ const s = StyleSheet.create({
   cabeceraEscritorio: { paddingTop: 36 },
   fila: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
   titulos: { flex: 1, gap: 6 },
-  emblema: { width: 31, height: 48, resizeMode: "contain" },
+  emblema: { width: 31, height: 48 },
   titulo: {
     color: tema.texto,
     fontFamily: tema.fuenteTitulo,
@@ -312,7 +319,7 @@ const s = StyleSheet.create({
     paddingBottom: 20,
     gap: 32,
   },
-  logotipo: { width: 168, height: 59, resizeMode: "contain", marginHorizontal: 12 },
+  logotipo: { width: 168, height: 59, marginHorizontal: 12 },
   menu: { gap: 2 },
   opcionMenu: { minHeight: 44, paddingHorizontal: 12, borderRadius: 10, justifyContent: "center" },
   opcionMenuActiva: { backgroundColor: tema.superficieAlta },

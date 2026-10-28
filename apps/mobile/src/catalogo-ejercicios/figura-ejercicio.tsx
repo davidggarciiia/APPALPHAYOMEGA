@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -225,6 +225,13 @@ function Reproductor({
     alto === undefined ? null : { height: alto, aspectRatio: undefined, maxWidth: undefined }
   // La fuente se fija al montar: un token renovado no debe reiniciar el clip.
   const [inicial] = useState(fuente)
+  const montado = useRef(false)
+  useLayoutEffect(() => {
+    montado.current = true
+    return () => {
+      montado.current = false
+    }
+  }, [])
   const jugador = useVideoPlayer(inicial, (nuevo) => {
     nuevo.loop = true
     nuevo.muted = true
@@ -264,9 +271,12 @@ function Reproductor({
   // Salir de la pantalla la para; volver la reanuda si nadie la había pausado.
   useFocusEffect(
     useCallback(() => {
-      if (!pausada.current) jugador.play()
+      if (montado.current && !pausada.current) jugador.play()
       return () => {
-        jugador.pause()
+        // El cleanup pasivo de useVideoPlayer libera el objeto antes de este.
+        // El cleanup de layout ya marcó el desmontaje: Expo se ocupa de pararlo.
+        // Un blur con la pantalla aún montada sí tiene que pausar el jugador.
+        if (montado.current) jugador.pause()
       }
     }, [jugador]),
   )

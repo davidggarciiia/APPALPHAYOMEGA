@@ -22,11 +22,22 @@
     ],
     "ios": {
       "bundleIdentifier": "com.alphaomegatraining.app",
+      "associatedDomains": ["applinks:alphayomegatraining.com"],
       "supportsTablet": false
     },
     "android": {
       "package": "com.alphaomegatraining.app",
-      "edgeToEdgeEnabled": true
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            { "scheme": "https", "host": "alphayomegatraining.com", "pathPrefix": "/activar" },
+            { "scheme": "https", "host": "alphayomegatraining.com", "pathPrefix": "/restablecer" }
+          ]
+        }
+      ]
     },
     "experiments": {
       "typedRoutes": true

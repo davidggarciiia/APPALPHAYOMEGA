@@ -162,6 +162,7 @@ export function SelectorDeFigura({
                       onPress={() => void asignar(medio.id)}
                       disabled={guardando !== null}
                       accessibilityRole="radio"
+                      aria-checked={elegida}
                       accessibilityLabel={medio.nombre}
                       accessibilityHint={medio.sinConexion ? undefined : "Solo con conexión"}
                       accessibilityState={{ checked: elegida, busy: guardando === medio.id }}
