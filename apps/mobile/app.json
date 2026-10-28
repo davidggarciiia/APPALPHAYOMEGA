@@ -18,6 +18,15 @@
           "cameraPermission": "Alpha & Omega usa la cámara solo para las fotos de evolución que te pida tu entrenador. Quedan privadas.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/video/logo-carga.png",
+          "imageWidth": 288,
+          "resizeMode": "contain",
+          "backgroundColor": "#0E0D0B"
+        }
       ]
     ],
     "ios": {

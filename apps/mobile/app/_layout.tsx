@@ -11,6 +11,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { degradadoOro, fondoDeMarca, tema } from "../src/tema"
 import { Armazon } from "../src/componentes/armazon"
+import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
 import { crearApiConsentimiento, PuertaConsentimiento } from "../src/consentimiento"
 
 /** Rutas a las que se llega sin sesion. Activar y recuperar estan aqui porque,
@@ -124,6 +125,12 @@ const TEMA_DE_NAVEGACION = {
   },
 }
 
+/** Dentro del proveedor para leer la fase de sesión sin retrasar su comprobación. */
+function CargaDeArranque({ fuentesListas }: { fuentesListas: boolean }): React.JSX.Element {
+  const { estado } = useSesion()
+  return <PantallaDeCarga lista={fuentesListas && estado.fase !== "comprobando"} />
+}
+
 export default function DisposicionRaiz(): React.JSX.Element {
   const [fuentes, errorFuentes] = useFonts({
     Anton: anton,
@@ -131,17 +138,14 @@ export default function DisposicionRaiz(): React.JSX.Element {
     ArchivoSemiBold: archivoSemi,
     ArchivoBold: archivoBold,
   })
-  if (!fuentes && !errorFuentes)
-    return (
-      <View style={estilos.centrado}>
-        <StatusBar style="light" />
-        <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando aplicación" />
-      </View>
-    )
+  const fuentesListas = fuentes || !!errorFuentes
+  // La sesión se comprueba a la vez que se cargan las fuentes: la pantalla de
+  // carga cubre ambas esperas y solo se retira cuando las dos han acabado.
   return (
     <ProveedorDeSesion>
       <StatusBar style="light" />
-      <Enrutador />
+      {fuentesListas && <Enrutador />}
+      <CargaDeArranque fuentesListas={fuentesListas} />
     </ProveedorDeSesion>
   )
 }
