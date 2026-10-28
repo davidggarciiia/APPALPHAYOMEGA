@@ -548,3 +548,29 @@ describe("cintura desde Inicio", () => {
     expect(apisDePrueba.seguimiento.registrarMedida).toHaveBeenCalledTimes(1)
   })
 })
+
+it("al volver a enfocar recarga sin vaciar la tarjeta de Hoy (N-03)", async () => {
+  const { nutricion, seguimiento } = apis(dieta())
+  const vista = await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={7000}
+    />,
+  )
+  expect(await screen.findByRole("button", { name: "Peso: sin apuntar. Cambiar" })).toBeTruthy()
+
+  // La recarga tarda: mientras llega, lo ya mostrado no debe desaparecer ni parpadear.
+  seguimiento.configuracion.mockImplementationOnce(() => new Promise(() => undefined))
+  await vista.rerender(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={{ ...seguimiento }}
+      objetivoPasos={7000}
+    />,
+  )
+  expect(screen.getByRole("button", { name: "Peso: sin apuntar. Cambiar" })).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Pasos: sin apuntar. Cambiar" })).toBeTruthy()
+})

@@ -144,17 +144,19 @@ export function HoyInicio({
   useFocusEffect(
     useCallback(() => {
       let vigente = true
+      // Sin vaciar lo ya mostrado: al volver a Inicio la tarjeta de Hoy se recarga en
+      // silencio en lugar de quedarse en blanco y rellenarse (parpadeo en el caso más frecuente).
       setError("")
-      setDiaCargado(false)
-      setConfiguracion(null)
-      setCintura(undefined)
       seguimiento
         .configuracion(clienteId)
         .then((configuracion) => {
           if (!vigente) return
           setConfiguracion(configuracion)
           const diaSemana = new Date(`${hoy}T00:00:00Z`).getUTCDay() || 7
-          if (!pedidosDeHoy(configuracion, diaSemana).includes("cintura")) return
+          if (!pedidosDeHoy(configuracion, diaSemana).includes("cintura")) {
+            setCintura(undefined)
+            return
+          }
           seguimiento
             .medidas(clienteId)
             .then(({ medidas }) => {
