@@ -147,11 +147,12 @@ export class ValoracionesController {
   @RequiereConsentimientoDeSalud()
   @Post("valoraciones/:id/fotos")
   vincularFoto(
+    @Req() peticion: PeticionAutenticada,
     @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
     @Param("id", new EntradaApiPipe(IdSchema)) id: string,
     @Body(new EntradaApiPipe(VincularFotoSchema)) datos: VincularFoto,
   ): Promise<MedioFoto> {
-    return this.valoraciones.vincularFoto(clienteId, id, datos.medioId)
+    return this.valoraciones.vincularFoto(clienteId, id, datos.medioId, this.actor(peticion).sub)
   }
 
   /** El nutricionista no recibe fotos en esta entrega. */
@@ -169,10 +170,11 @@ export class ValoracionesController {
   @RequiereConsentimientoDeSalud()
   @Put("valoraciones/:id")
   cambiar(
+    @Req() peticion: PeticionAutenticada,
     @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
     @Param("id", new EntradaApiPipe(IdSchema)) id: string,
     @Body(new EntradaApiPipe(CambiarValoracionSchema)) datos: CambiarValoracion,
   ): Promise<ValoracionProfesional> {
-    return this.valoraciones.cambiar(clienteId, id, datos)
+    return this.valoraciones.cambiar(clienteId, id, datos, this.actor(peticion).sub)
   }
 }

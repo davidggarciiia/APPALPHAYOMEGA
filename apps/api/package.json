@@ -6,8 +6,9 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "nest start --watch",
-    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config jest.config.mjs",
-    "test:e2e": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --config test/jest-e2e.json --runInBand",
+    "test": "node test/ejecutar-jest.mjs --config jest.config.mjs",
+    "test:e2e": "node test/ejecutar-jest.mjs --config test/jest-e2e.json --runInBand",
+    "test:cobertura": "node test/cobertura.mjs",
     "build": "tsc -p tsconfig.build.json",
     "seed": "npm run build && node dist/seed.js"
   },
@@ -20,13 +21,14 @@
     "@nestjs/jwt": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
     "@node-rs/argon2": "^2.2.1",
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.10.0",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "resend": "^6.28.0",
     "rxjs": "^7.8.2",
-    "zod": "^4.6.2"
+    "zod": "^4.6.7",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",

@@ -25,9 +25,14 @@ type UsuarioEnBase = {
  * para los tests, que seria peor diseno que una conversion acotada aqui.
  */
 function prismaCon(usuario: UsuarioEnBase | null): PrismaService {
-  return {
-    usuario: { findUnique: () => Promise.resolve(usuario) },
-  } as unknown as PrismaService
+  const cliente = {
+    usuario: {
+      findUnique: () => Promise.resolve(usuario),
+      updateMany: () => Promise.resolve({ count: usuario === null ? 0 : 1 }),
+    },
+    $transaction: (trabajo: (tx: unknown) => Promise<unknown>) => trabajo(cliente),
+  }
+  return cliente as unknown as PrismaService
 }
 
 const jwtFalso = {
@@ -61,6 +66,39 @@ async function usuarioActivo(cambios: Partial<UsuarioEnBase> = {}): Promise<Usua
 }
 
 describe("AuthService.iniciarSesion", () => {
+  it("limita a seis los intentos en vuelo de una ráfaga antes de leer usuarios", async () => {
+    let lecturas = 0
+    let continuar!: () => void
+    const espera = new Promise<void>((resolve) => {
+      continuar = resolve
+    })
+    const prisma = {
+      usuario: {
+        findUnique: async () => {
+          lecturas += 1
+          await espera
+          return null
+        },
+      },
+    } as unknown as PrismaService
+    const servicio = new AuthService(prisma, jwtFalso, refrescosFalsos, new LimitadorDeIntentos())
+    const intentos = Array.from({ length: 20 }, (_, i) =>
+      servicio
+        .iniciarSesion({ email: `desconocido-${i}@example.test`, contrasena: "equivocada" }, ORIGEN)
+        .then(
+          () => 200,
+          (error: { getStatus(): number }) => error.getStatus(),
+        ),
+    )
+    // El límite debe actuar antes de la primera espera de BD o Argon2.
+    const admitidas = lecturas
+    continuar()
+    const respuestas = await Promise.all(intentos)
+    expect(admitidas).toBeLessThanOrEqual(6)
+    expect(respuestas.filter((estado) => estado === 401)).toHaveLength(6)
+    expect(respuestas.filter((estado) => estado === 429)).toHaveLength(14)
+  })
+
   it("devuelve una sesion con las credenciales correctas", async () => {
     const servicio = servicioCon(await usuarioActivo())
 

@@ -5,6 +5,7 @@ import {
 import { jest } from "@jest/globals"
 import type { PrismaService } from "../prisma/prisma.service.js"
 import { SeguimientoService } from "./seguimiento.service.js"
+import { ConsentimientoService } from "../identity/consentimiento.service.js"
 
 const clienteId = "00000000-0000-4000-8000-000000000001"
 const entrenadorId = "00000000-0000-4000-8000-000000000002"
@@ -49,7 +50,16 @@ function entorno() {
       })),
     },
   }
-  return { servicio: new SeguimientoService(prisma as unknown as PrismaService), prisma }
+  const tx = { ...prisma, $queryRaw: async () => [{ retiradoEn: null }] }
+  const repositorio = {
+    ...tx,
+    $transaction: async <T>(ejecutar: (cliente: typeof tx) => Promise<T>) => ejecutar(tx),
+  }
+  const proveedor = repositorio as unknown as PrismaService
+  return {
+    servicio: new SeguimientoService(proveedor, new ConsentimientoService(proveedor)),
+    prisma,
+  }
 }
 
 describe("SeguimientoService: configuración", () => {

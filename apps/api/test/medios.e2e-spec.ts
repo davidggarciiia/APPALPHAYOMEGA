@@ -21,9 +21,7 @@ import {
 } from "../src/medios/almacen-objetos.js"
 import { LimpiezaMedios } from "../src/medios/limpieza-medios.js"
 import { entornoEntrenamiento } from "./entrenamiento-ayuda.js"
-import { jpegSintetico, rutaDeEnlace } from "./imagenes-ayuda.js"
-
-const pngSintetico = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])
+import { jpegSintetico, pngSintetico, rutaDeEnlace } from "./imagenes-ayuda.js"
 
 describe("Fotos privadas: subida, confirmación y acceso (F02b)", () => {
   let entorno: Awaited<ReturnType<typeof entornoEntrenamiento>>
@@ -138,8 +136,7 @@ describe("Fotos privadas: subida, confirmación y acceso (F02b)", () => {
     expect(limpia.toString("latin1")).not.toContain("GPS")
 
     // La firma sigue vigente, pero solo permite escribir el temporal de subida.
-    const reemplazo = Buffer.from(jpeg)
-    reemplazo[reemplazo.length - 3] = 0x79
+    const reemplazo = jpegSintetico(true)
     await subir(subida!, reemplazo).expect(204)
     const final = await request(http()).get(ruta(lectura)).expect(200)
     expect(Buffer.from(final.body as Buffer)).toEqual(limpia)
@@ -207,8 +204,7 @@ describe("Fotos privadas: subida, confirmación y acceso (F02b)", () => {
     try {
       await escribiendo
       await new Promise((resolve) => setTimeout(resolve, 300))
-      const otraFoto = Buffer.from(jpeg)
-      otraFoto[otraFoto.length - 3] = 0x79
+      const otraFoto = jpegSintetico(true)
       await subir(subida!, otraFoto).expect(204)
       let segunda!: request.Response
       const recibida = new Promise<void>((resolve) => {
@@ -312,7 +308,7 @@ describe("Fotos privadas: subida, confirmación y acceso (F02b)", () => {
     await subir(subida!, jpeg, "image/png").expect(400)
 
     // Un PNG disfrazado de JPEG llega al almacén pero no se confirma.
-    await subir(subida!, pngSintetico).expect(204)
+    await subir(subida!, pngSintetico()).expect(204)
     const falseada = await request(http())
       .post(`/medios/${medio.id}/confirmacion`)
       .set(entorno.como("entrenador"))
@@ -325,6 +321,40 @@ describe("Fotos privadas: subida, confirmación y acceso (F02b)", () => {
       .get(`/medios/${medio.id}/acceso`)
       .set(entorno.como("entrenador"))
       .expect(404)
+  })
+
+  it("rechaza IDAT ilegible pese a sus CRC y sólo publica el PNG con filas válidas", async () => {
+    const ilegible = pngSintetico(Buffer.from([1]))
+    expect(ilegible).toHaveLength(58)
+    const fallida = IntencionSubidaSchema.parse(
+      (await intencion({ tipoMime: "image/png", bytes: ilegible.length }).expect(201)).body,
+    )
+    await subir(fallida.subida!, ilegible, "image/png").expect(204)
+    const respuesta = await request(http())
+      .post(`/medios/${fallida.medio.id}/confirmacion`)
+      .set(entorno.como("entrenador"))
+      .expect(400)
+    expect(ErrorDeApiSchema.parse(respuesta.body).codigo).toBe("solicitud_invalida")
+    expect(
+      (await entorno.prisma.medioFoto.findUniqueOrThrow({ where: { id: fallida.medio.id } }))
+        .estado,
+    ).toBe("pendiente")
+    expect(await entorno.prisma.intentoFoto.count({ where: { medioId: fallida.medio.id } })).toBe(0)
+    await request(http())
+      .get(`/medios/${fallida.medio.id}/acceso`)
+      .set(entorno.como("entrenador"))
+      .expect(404)
+
+    const valido = pngSintetico()
+    const correcta = IntencionSubidaSchema.parse(
+      (await intencion({ tipoMime: "image/png", bytes: valido.length }).expect(201)).body,
+    )
+    await subir(correcta.subida!, valido, "image/png").expect(204)
+    const confirmada = await request(http())
+      .post(`/medios/${correcta.medio.id}/confirmacion`)
+      .set(entorno.como("entrenador"))
+      .expect(200)
+    expect(MedioFotoSchema.parse(confirmada.body).estado).toBe("disponible")
   })
 
   it("una intención de otro cliente o de una visita ajena no se crea", async () => {
@@ -672,7 +702,7 @@ describe("Retirar fotos y limpiar subidas abandonadas (F05a)", () => {
       prisma.medioFoto.count({ where: { estado: "pendiente", subidaCaducaEn: { lt: limite } } })
     const limpieza = entorno.app.get(LimpiezaMedios)
 
-    // Si el almacén falla con una, esa sigue pendiente para el siguiente pase.
+    // Si el almacén falla, la fila ya está reclamada y el borrado queda durable.
     const borrarDeVerdad = almacen().borrar.bind(almacen())
     const espia = jest.spyOn(almacen(), "borrar").mockImplementation(async (objeto: string) => {
       if (objeto === objetoSinLlegar) throw new Error("almacén sin conexión (simulado)")
@@ -681,18 +711,29 @@ describe("Retirar fotos y limpiar subidas abandonadas (F05a)", () => {
     const esperadas = await abandonadas()
     expect(esperadas).toBeGreaterThanOrEqual(2)
     try {
-      expect(await limpieza.limpiar(fechaFutura)).toBe(esperadas - 1)
+      expect(await limpieza.limpiar(fechaFutura)).toBe(esperadas)
     } finally {
       espia.mockRestore()
     }
     expect(await fila(deVisita.medio.id)).toBeNull()
     expect(await almacen().leer(objetoAbandonado)).toBeNull()
-    expect(await fila(deSolicitud.medio.id)).toMatchObject({ estado: "pendiente" })
+    expect(await fila(deSolicitud.medio.id)).toBeNull()
+    expect(
+      await prisma.intentoFoto.findUnique({ where: { clave: objetoSinLlegar } }),
+    ).toMatchObject({
+      descartadoEn: expect.any(Date),
+      reintentarEn: fechaFutura,
+    })
 
     const restantes = await abandonadas()
-    expect(restantes).toBeGreaterThanOrEqual(1)
+    expect(restantes).toBe(0)
     expect(await limpieza.limpiar(fechaFutura)).toBe(restantes)
     expect(await fila(deSolicitud.medio.id)).toBeNull()
+    expect(
+      (
+        await prisma.intentoFoto.findUniqueOrThrow({ where: { clave: objetoSinLlegar } })
+      ).reintentarEn.getTime(),
+    ).toBeGreaterThan(fechaFutura.getTime())
     expect(await limpieza.limpiar(fechaFutura)).toBe(0)
 
     // Lo que no estaba abandonado sigue igual.
@@ -766,19 +807,22 @@ describe("Retirar fotos y limpiar subidas abandonadas (F05a)", () => {
     expect((await confirmar(primera.medio.id, "cliente")).estado).toBe("disponible")
   })
 
-  it("si el reintento llega mientras la limpieza la borra, la intención renovada se conserva", async () => {
+  it("un reintento subido durante un DELETE lento usa una clave nueva y se conserva", async () => {
     const operacionId = randomUUID()
     const destino: DestinoMedio = { tipo: "valoracion", valoracionId }
     const primera = await intencion("entrenador", clienteId(), destino, operacionId)
     await caducadaHaceDosHoras(primera.medio.id)
     const objeto = await clave(primera.medio.id)
 
-    // La limpieza ya la dio por abandonada y el reintento entra antes de borrar la fila.
+    // La limpieza reclama la fila antes del I/O. Se sube el reintento antes de
+    // que termine el DELETE antiguo, no solo después de terminar la limpieza.
     let reintento: IntencionSubida | undefined
     const borrarDeVerdad = almacen().borrar.bind(almacen())
     const espia = jest.spyOn(almacen(), "borrar").mockImplementation(async (c: string) => {
-      if (c === objeto && !reintento)
+      if (c === objeto && !reintento) {
         reintento = await intencion("entrenador", clienteId(), destino, operacionId)
+        await subir(reintento.subida!)
+      }
       return borrarDeVerdad(c)
     })
     try {
@@ -786,11 +830,11 @@ describe("Retirar fotos y limpiar subidas abandonadas (F05a)", () => {
     } finally {
       espia.mockRestore()
     }
-    expect(reintento?.medio.id).toBe(primera.medio.id)
-    expect(await fila(primera.medio.id)).toMatchObject({ estado: "pendiente" })
+    expect(reintento?.medio.id).not.toBe(primera.medio.id)
+    expect(await fila(primera.medio.id)).toBeNull()
+    expect(await fila(reintento!.medio.id)).toMatchObject({ estado: "pendiente" })
 
-    await subir(reintento!.subida!)
-    expect((await confirmar(primera.medio.id, "entrenador")).estado).toBe("disponible")
+    expect((await confirmar(reintento!.medio.id, "entrenador")).estado).toBe("disponible")
   })
 
   it("si la limpieza se la lleva justo antes del reintento, este abre una intención nueva", async () => {

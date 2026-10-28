@@ -37,15 +37,14 @@ import {
 } from "@prisma/client"
 
 import { fechaSql } from "../agenda/fechas.js"
-import { conflicto, hashPeticion, invalida } from "../entrenamiento/documentos.js"
+import { conflicto, esCodigoPrisma, hashPeticion, invalida } from "../entrenamiento/documentos.js"
+import { ConsentimientoService } from "../identity/consentimiento.service.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { medioPublico } from "../medios/medios.service.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { PlantillasValoracionService } from "./plantillas-valoracion.service.js"
 
 const fecha = (valor: Date): string => valor.toISOString().slice(0, 10)
-const esCodigo = (error: unknown, codigo: string): boolean =>
-  typeof error === "object" && error !== null && "code" in error && error.code === codigo
 
 type Autor = Pick<Usuario, "id" | "nombre" | "apellidos">
 type FilaPublicacionCompleta = FilaPublicacion & {
@@ -177,6 +176,20 @@ function definicionesPara(
   cambio: CambiarValoracion["contenido"],
 ): DefinicionesValoracion {
   const nuevos = cambio.bloques.filter((b) => !actual.bloques.includes(b))
+  const anadidas = copiaDePlantilla(plantilla, nuevos)
+  // Validar antes de retirar pendientes de bloques quitados: un UUID ajeno
+  // nunca puede convertirse silenciosamente en un resultado pendiente.
+  const corporalesDisponibles = new Set(
+    [...actual.definiciones.corporales, ...anadidas.corporales].map((d) => d.id),
+  )
+  const pruebasDisponibles = new Set(
+    [...actual.definiciones.pruebas, ...anadidas.pruebas].map((d) => d.id),
+  )
+  if (
+    cambio.corporales.some((r) => !corporalesDisponibles.has(r.definicionId)) ||
+    cambio.pruebas.some((r) => !pruebasDisponibles.has(r.definicionId))
+  )
+    throw invalida("Resultado sin definición")
   const quitados = actual.bloques.filter((b) => !cambio.bloques.includes(b))
   const quitadas = new Set([
     ...actual.definiciones.corporales.filter((d) => quitados.includes(d.bloque)).map((d) => d.id),
@@ -187,7 +200,6 @@ function definicionesPara(
     .some((r) => r.estado !== "pendiente")
   if (anotado || (quitados.includes("pliegues") && actual.grasaPorPliegues))
     throw invalida("Ese bloque ya tiene resultados: quítalos antes de retirarlo")
-  const anadidas = copiaDePlantilla(plantilla, nuevos)
   const presentes = new Set([
     ...actual.definiciones.corporales.map((d) => d.id),
     ...actual.definiciones.pruebas.map((d) => d.id),
@@ -242,6 +254,7 @@ export class ValoracionesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly plantillas: PlantillasValoracionService,
+    private readonly consentimiento: ConsentimientoService,
   ) {}
 
   private async clienteActivo(clienteId: string): Promise<void> {
@@ -262,6 +275,16 @@ export class ValoracionesService {
     const fila = await cliente.valoracion.findFirst({ where: { id, clienteId }, include: INCLUIR })
     if (!fila) throw new NotFoundException("Valoración no disponible")
     return fila
+  }
+
+  private async bloquearFila(
+    clienteId: string,
+    id: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<FilaCompleta> {
+    await this.fila(clienteId, id, tx)
+    await tx.$queryRaw`SELECT "id" FROM "valoraciones" WHERE "id" = ${id} AND "clienteId" = ${clienteId} FOR UPDATE`
+    return this.fila(clienteId, id, tx)
   }
 
   async crear(
@@ -286,6 +309,7 @@ export class ValoracionesService {
     if (antes) return antes
     try {
       const id = await this.prisma.$transaction(async (tx) => {
+        await this.consentimiento.exigirVigente(clienteId, actor.sub, tx)
         if (peticion.tipo === "revision") {
           const anterior = await tx.valoracion.findFirst({
             where: { id: peticion.anteriorId, clienteId },
@@ -332,7 +356,7 @@ export class ValoracionesService {
       return profesional(await this.fila(clienteId, id))
     } catch (error) {
       // Dos peticiones con la misma operación a la vez: la segunda lee la primera.
-      if (esCodigo(error, "P2002")) {
+      if (esCodigoPrisma(error, "P2002")) {
         const ganadora = await repetida()
         if (ganadora) return ganadora
       }
@@ -379,6 +403,7 @@ export class ValoracionesService {
         })
         if (abierto)
           throw conflicto("estado_incompatible", "Esta valoración ya tiene un borrador abierto")
+        await this.consentimiento.exigirVigente(clienteId, actor.sub, tx)
         const borrador = await tx.borradorValoracion.create({
           data: {
             valoracionId: vigente.valoracionId,
@@ -404,7 +429,7 @@ export class ValoracionesService {
       })
       return profesional(await this.fila(clienteId, id))
     } catch (error) {
-      if (esCodigo(error, "P2002")) {
+      if (esCodigoPrisma(error, "P2002")) {
         const ganadora = await repetida()
         if (ganadora) return ganadora
         throw conflicto("estado_incompatible", "Esta valoración ya tiene un borrador abierto")
@@ -428,27 +453,34 @@ export class ValoracionesService {
     const huella = hashPeticion({ clienteId, valoracionId: id, ...peticion })
     const obsoleta = () =>
       conflicto("revision_obsoleta", "La valoración ha cambiado. Recarga antes de publicar.")
-    const leerPublicacion = async (publicacionId: string): Promise<PublicacionValoracion> =>
+    const leerPublicacion = async (
+      publicacionId: string,
+      tx: Prisma.TransactionClient | PrismaService = this.prisma,
+    ): Promise<PublicacionValoracion> =>
       publicacion(
-        await this.prisma.publicacionValoracion.findUniqueOrThrow({
+        await tx.publicacionValoracion.findUniqueOrThrow({
           where: { id: publicacionId },
           include: INCLUIR.publicaciones.include,
         }),
       )
-    const repetida = async (): Promise<PublicacionValoracion | null> => {
-      const previa = await this.prisma.operacionValoracion.findUnique({
+    const repetida = async (
+      tx: Prisma.TransactionClient | PrismaService = this.prisma,
+    ): Promise<PublicacionValoracion | null> => {
+      const previa = await tx.operacionValoracion.findUnique({
         where: { autorId_operacionId: { autorId: actor.sub, operacionId } },
       })
       if (!previa) return null
       if (previa.hashPeticion !== huella || !previa.publicacionId)
         throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
-      return leerPublicacion(previa.publicacionId)
+      return leerPublicacion(previa.publicacionId, tx)
     }
     const antes = await repetida()
     if (antes) return antes
     try {
       const publicacionId = await this.prisma.$transaction(async (tx) => {
-        const fila = await this.fila(clienteId, id, tx)
+        const fila = await this.bloquearFila(clienteId, id, tx)
+        const yaPublicada = await repetida(tx)
+        if (yaPublicada) return yaPublicada.id
         const borrador = fila.borradores[0]
         if (!borrador)
           throw conflicto("estado_incompatible", "Esta valoración no tiene un borrador abierto")
@@ -465,8 +497,13 @@ export class ValoracionesService {
               : "Esta valoración ya se publicó: corrígela",
           )
         const publico = proyeccionPublica(DocumentoValoracionSchema.parse(borrador.documento))
-        if (publico.corporales.length + publico.pruebas.length === 0 && !publico.conclusion)
+        if (
+          publico.corporales.length + publico.pruebas.length === 0 &&
+          !publico.grasaPorPliegues &&
+          !publico.conclusion
+        )
           throw invalida("Anota algún resultado o una conclusión antes de publicar")
+        await this.consentimiento.exigirVigente(clienteId, actor.sub, tx)
         const cerrado = await tx.borradorValoracion.updateMany({
           where: { id: borrador.id, revision: datos.revision, valoracionAbiertaId: id },
           data: { valoracionAbiertaId: null },
@@ -503,7 +540,7 @@ export class ValoracionesService {
       return leerPublicacion(publicacionId)
     } catch (error) {
       // Otra publicación del mismo borrador ganó la carrera.
-      if (esCodigo(error, "P2002")) {
+      if (esCodigoPrisma(error, "P2002")) {
         const ganadora = await repetida()
         if (ganadora) return ganadora
         throw obsoleta()
@@ -560,7 +597,7 @@ export class ValoracionesService {
             })
       return proxima(fila)
     } catch (error) {
-      if (esCodigo(error, "P2002") || esCodigo(error, "P2025")) throw obsoleta()
+      if (esCodigoPrisma(error, "P2002") || esCodigoPrisma(error, "P2025")) throw obsoleta()
       throw error
     }
   }
@@ -570,31 +607,42 @@ export class ValoracionesService {
    * entrenador subida para ella o una aportación del cliente, sin volver a
    * subirla ni cambiar su autor. Queda privada hasta la próxima publicación.
    */
-  async vincularFoto(clienteId: string, id: string, medioId: string): Promise<MedioFoto> {
+  async vincularFoto(
+    clienteId: string,
+    id: string,
+    medioId: string,
+    autorId = clienteId,
+  ): Promise<MedioFoto> {
     await this.clienteActivo(clienteId)
-    const fila = await this.fila(clienteId, id)
-    if (!fila.borradores[0])
-      throw conflicto("estado_incompatible", "Abre una corrección para añadir fotos a esta visita")
-    const medio = await this.prisma.medioFoto.findFirst({
-      where: { id: medioId, clienteId },
-      include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
-    })
-    if (!medio) throw new NotFoundException("Foto no disponible")
-    if (medio.estado !== "disponible")
-      throw conflicto("estado_incompatible", "Solo se incorporan fotos confirmadas")
-    if (medio.valoracionId === id) return medioPublico(medio)
-    if (medio.valoracionId !== null)
-      throw conflicto("estado_incompatible", "Esa foto ya pertenece a otra visita")
-    const vinculada = await this.prisma.medioFoto.updateMany({
-      where: { id: medioId, valoracionId: null, estado: "disponible" },
-      data: { valoracionId: id },
-    })
-    if (vinculada.count !== 1) {
-      const actual = await this.prisma.medioFoto.findUniqueOrThrow({ where: { id: medioId } })
-      if (actual.valoracionId !== id)
+    return this.prisma.$transaction(async (tx) => {
+      const fila = await this.bloquearFila(clienteId, id, tx)
+      if (!fila.borradores[0])
+        throw conflicto(
+          "estado_incompatible",
+          "Abre una corrección para añadir fotos a esta visita",
+        )
+      const medio = await tx.medioFoto.findFirst({
+        where: { id: medioId, clienteId },
+        include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
+      })
+      if (!medio) throw new NotFoundException("Foto no disponible")
+      if (medio.estado !== "disponible")
+        throw conflicto("estado_incompatible", "Solo se incorporan fotos confirmadas")
+      if (medio.valoracionId === id) return medioPublico(medio)
+      if (medio.valoracionId !== null)
         throw conflicto("estado_incompatible", "Esa foto ya pertenece a otra visita")
-    }
-    return medioPublico({ ...medio, valoracionId: id })
+      await this.consentimiento.exigirVigente(clienteId, autorId, tx)
+      const vinculada = await tx.medioFoto.updateMany({
+        where: { id: medioId, valoracionId: null, estado: "disponible" },
+        data: { valoracionId: id },
+      })
+      if (vinculada.count !== 1) {
+        const actual = await tx.medioFoto.findUniqueOrThrow({ where: { id: medioId } })
+        if (actual.valoracionId !== id)
+          throw conflicto("estado_incompatible", "Esa foto ya pertenece a otra visita")
+      }
+      return medioPublico({ ...medio, valoracionId: id })
+    })
   }
 
   /**
@@ -624,6 +672,7 @@ export class ValoracionesService {
     clienteId: string,
     id: string,
     datos: CambiarValoracion,
+    autorId = clienteId,
   ): Promise<ValoracionProfesional> {
     await this.clienteActivo(clienteId)
     const obsoleta = () =>
@@ -642,6 +691,7 @@ export class ValoracionesService {
         definicionesPara(actual, plantilla, datos.contenido),
         datos.contenido,
       )
+      await this.consentimiento.exigirVigente(clienteId, autorId, tx)
       const cambiadas = await tx.borradorValoracion.updateMany({
         where: { id: borrador.id, revision: datos.revision, valoracionAbiertaId: id },
         data: {

@@ -86,9 +86,10 @@ export class LimpiezaMedios implements OnApplicationBootstrap, OnApplicationShut
   }
 
   /**
-   * Borra primero el objeto y después la fila, y solo si sigue «pendiente» y
-   * caducada: si el almacén falla, la intención queda para el siguiente pase;
-   * si se confirmó o se renovó con un reintento entretanto, se conserva.
+   * Reclama la fila caducada y registra su borrado antes de tocar el almacén.
+   * Si una renovación gana primero, no se borra nada. Si gana la limpieza,
+   * el reintento crea otra intención y clave: un DELETE lento no la alcanza.
+   * La intención de limpieza conserva los fallos externos para otro pase.
    * Devuelve cuántas se limpiaron.
    */
   async limpiar(ahora = new Date()): Promise<number> {
@@ -110,13 +111,19 @@ export class LimpiezaMedios implements OnApplicationBootstrap, OnApplicationShut
       })
       for (const { id, clave } of tanda) {
         try {
-          // La clave leída mientras está pendiente es solo el temporal, nunca
-          // una copia confirmada. No se retiene una transacción durante el I/O.
-          await this.almacen.borrar(clave)
-          const borradas = await this.prisma.medioFoto.deleteMany({
-            where: { id, estado: "pendiente", subidaCaducaEn: { lt: limite } },
+          const borradas = await this.prisma.$transaction(async (tx) => {
+            const reclamadas = await tx.medioFoto.deleteMany({
+              where: { id, clave, estado: "pendiente", subidaCaducaEn: { lt: limite } },
+            })
+            if (reclamadas.count === 1)
+              await tx.intentoFoto.create({
+                data: { clave, medioId: id, descartadoEn: ahora, reintentarEn: ahora },
+              })
+            return reclamadas
           })
           limpiadas += borradas.count
+          if (borradas.count === 1)
+            await limpiarIntentoFoto(this.prisma, this.almacen, clave, ahora)
         } catch (error) {
           this.registro.warn(
             `No se pudo borrar la subida abandonada ${id}; se reintentará: ${error instanceof Error ? error.message : "error desconocido"}`,

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto"
+import { jest } from "@jest/globals"
 import request from "supertest"
+import type { Prisma } from "@prisma/client"
 import {
   ErrorDeApiSchema,
   ListadoValoracionesPublicadasSchema,
@@ -10,12 +12,16 @@ import {
   ValoracionClienteSchema,
   ValoracionCorporalSchema,
   ValoracionProfesionalSchema,
+  VERSION_CONSENTIMIENTO,
   type ContenidoValoracion,
   type DefinicionCorporal,
   type DefinicionPrueba,
   type ValoracionProfesional,
 } from "@alpha-omega/shared"
 import { entornoEntrenamiento } from "./entrenamiento-ayuda.js"
+import { ValoracionesService } from "../src/seguimiento/valoraciones.service.js"
+import { esperarPausa } from "./concurrencia-ayuda.js"
+import { ConsentimientoService } from "../src/identity/consentimiento.service.js"
 
 // Datos sintéticos: definiciones y valores inventados para la prueba.
 const peso: DefinicionCorporal = {
@@ -682,6 +688,346 @@ describe("Valoraciones: publicar y corregir (V05)", () => {
     expect(lista.valoraciones.filter((f) => f.id === v.id)).toEqual([
       expect.objectContaining({ numeroPublicacion: 2 }),
     ])
+  })
+})
+
+describe("Valoraciones: integridad y operaciones concurrentes", () => {
+  let entorno: Awaited<ReturnType<typeof entornoEntrenamiento>>
+  beforeAll(async () => {
+    entorno = await entornoEntrenamiento("valoraciones-integridad")
+    await request(entorno.app.getHttpServer())
+      .put(`/seguimiento/clientes/${entorno.ids.cliente!}/plantilla-valoracion`)
+      .set(entorno.como("entrenador"))
+      .send({ revision: 0, corporales: [peso], pruebas: [] })
+      .expect(200)
+  })
+  afterAll(async () => {
+    await entorno?.cerrar()
+  })
+  const ruta = (resto: string) =>
+    `/seguimiento/clientes/${entorno.ids.cliente!}/valoraciones${resto}`
+  async function guardar(contenido: ContenidoValoracion): Promise<ValoracionProfesional> {
+    const http = entorno.app.getHttpServer()
+    const creada = ValoracionProfesionalSchema.parse(
+      (
+        await request(http)
+          .post(ruta(""))
+          .set(entorno.como("entrenador"))
+          .send({
+            operacionId: randomUUID(),
+            tipo: "inicial",
+            fechaToma: "2026-09-24",
+            bloques: contenido.bloques,
+          })
+          .expect(201)
+      ).body,
+    )
+    return ValoracionProfesionalSchema.parse(
+      (
+        await request(http)
+          .put(ruta(`/${creada.id}`))
+          .set(entorno.como("entrenador"))
+          .send({
+            borradorId: creada.borrador!.id,
+            revision: creada.borrador!.revision,
+            fechaToma: "2026-09-24",
+            contenido,
+          })
+          .expect(200)
+      ).body,
+    )
+  }
+  const contenido: ContenidoValoracion = {
+    bloques: ["medidas", "fotos"],
+    corporales: [{ definicionId: peso.id, estado: "registrado", valor: 80 }],
+    pruebas: [],
+    grasaPorPliegues: null,
+    destacados: [],
+    conclusion: null,
+    notasInternas: null,
+  }
+  const publicar = (v: ValoracionProfesional, operacionId = randomUUID()) =>
+    request(entorno.app.getHttpServer())
+      .post(ruta(`/${v.id}/publicaciones`))
+      .set(entorno.como("entrenador"))
+      .send({
+        operacionId,
+        borradorId: v.borrador!.id,
+        revision: v.borrador!.revision,
+        sustituyePublicacionId: null,
+      })
+
+  it.each(["crear", "corregir", "cambiar", "publicar", "vincular"] as const)(
+    "una retirada posterior al guard impide %s sin nuevas escrituras de salud",
+    async (accion) => {
+      const { app, prisma, ids, como } = entorno
+      const v = await guardar(contenido)
+      let publicacionId: string | undefined
+      if (accion === "corregir")
+        publicacionId = PublicacionValoracionSchema.parse((await publicar(v).expect(201)).body).id
+      let medioId: string | undefined
+      if (accion === "vincular") {
+        const solicitud = await prisma.solicitudFotos.create({
+          data: {
+            clienteId: ids.cliente!,
+            autorId: ids.entrenador!,
+            operacionId: randomUUID(),
+            vistas: ["frente"],
+          },
+        })
+        const medio = await prisma.medioFoto.create({
+          data: {
+            clienteId: ids.cliente!,
+            autorId: ids.cliente!,
+            operacionId: randomUUID(),
+            origen: "cliente",
+            solicitudId: solicitud.id,
+            vista: "frente",
+            fechaToma: new Date("2026-09-24"),
+            estado: "disponible",
+            confirmadoEn: new Date(),
+            tipoMime: "image/jpeg",
+            bytes: 100,
+            clave: `clientes/${ids.cliente!}/sintetica-${randomUUID()}`,
+            subidaCaducaEn: new Date(Date.now() + 60000),
+          },
+        })
+        medioId = medio.id
+      }
+      const estadoSalud = () =>
+        Promise.all([
+          prisma.valoracion.findMany({
+            where: { clienteId: ids.cliente! },
+            orderBy: { id: "asc" },
+          }),
+          prisma.borradorValoracion.findMany({
+            where: { valoracion: { clienteId: ids.cliente! } },
+            orderBy: { id: "asc" },
+          }),
+          prisma.publicacionValoracion.findMany({
+            where: { valoracion: { clienteId: ids.cliente! } },
+            orderBy: { id: "asc" },
+          }),
+          prisma.operacionValoracion.findMany({
+            where: { valoracion: { clienteId: ids.cliente! } },
+            orderBy: { operacionId: "asc" },
+          }),
+          prisma.medioFoto.findMany({
+            where: { clienteId: ids.cliente! },
+            orderBy: { id: "asc" },
+          }),
+        ])
+      const anterior = await estadoSalud()
+      const servicio = app.get(ConsentimientoService)
+      const original = servicio.exigirVigente.bind(servicio)
+      let avisar!: () => void
+      let continuar!: () => void
+      const dentro = new Promise<void>((resolve) => {
+        avisar = resolve
+      })
+      const pausa = new Promise<void>((resolve) => {
+        continuar = resolve
+      })
+      const espia = jest
+        .spyOn(servicio, "exigirVigente")
+        .mockImplementationOnce(async (...args) => {
+          avisar()
+          await pausa
+          return original(...args)
+        })
+      const http = request(app.getHttpServer())
+      const pendiente = (
+        accion === "crear"
+          ? http.post(ruta("")).send({
+              operacionId: randomUUID(),
+              tipo: "inicial",
+              fechaToma: "2026-09-24",
+              bloques: ["medidas"],
+            })
+          : accion === "corregir"
+            ? http.post(ruta("")).send({
+                operacionId: randomUUID(),
+                corrigePublicacionId: publicacionId,
+              })
+            : accion === "cambiar"
+              ? http.put(ruta(`/${v.id}`)).send({
+                  borradorId: v.borrador!.id,
+                  revision: v.borrador!.revision,
+                  fechaToma: "2026-09-24",
+                  contenido: {
+                    ...contenido,
+                    corporales: [{ definicionId: peso.id, estado: "registrado", valor: 91 }],
+                  },
+                })
+              : accion === "publicar"
+                ? http.post(ruta(`/${v.id}/publicaciones`)).send({
+                    operacionId: randomUUID(),
+                    borradorId: v.borrador!.id,
+                    revision: v.borrador!.revision,
+                    sustituyePublicacionId: null,
+                  })
+                : http.post(ruta(`/${v.id}/fotos`)).send({ medioId })
+      )
+        .set(como("entrenador"))
+        .then((respuesta) => respuesta)
+      try {
+        await esperarPausa(dentro, pendiente)
+        await request(app.getHttpServer())
+          .delete("/consentimiento")
+          .set(como("cliente"))
+          .expect(200)
+        continuar()
+        const respuesta = await pendiente
+        expect(respuesta.status).toBe(409)
+        expect(ErrorDeApiSchema.parse(respuesta.body).codigo).toBe("consentimiento_pendiente")
+        expect(await estadoSalud()).toEqual(anterior)
+      } finally {
+        continuar()
+        await Promise.allSettled([pendiente])
+        espia.mockRestore()
+        await request(app.getHttpServer())
+          .post("/consentimiento")
+          .set(como("cliente"))
+          .send({ version: VERSION_CONSENTIMIENTO, acepto: true })
+          .expect(201)
+      }
+    },
+  )
+
+  it("un resultado desconocido rechaza todo el guardado y conserva la revisión anterior", async () => {
+    const v = await guardar(contenido)
+    await request(entorno.app.getHttpServer())
+      .put(ruta(`/${v.id}`))
+      .set(entorno.como("entrenador"))
+      .send({
+        borradorId: v.borrador!.id,
+        revision: v.borrador!.revision,
+        fechaToma: "2026-09-24",
+        contenido: {
+          ...contenido,
+          corporales: [{ definicionId: randomUUID(), estado: "registrado", valor: 90 }],
+        },
+      })
+      .expect(400)
+    const actual = ValoracionProfesionalSchema.parse(
+      (
+        await request(entorno.app.getHttpServer())
+          .get(ruta(`/${v.id}`))
+          .set(entorno.como("entrenador"))
+          .expect(200)
+      ).body,
+    )
+    expect(actual.borrador).toEqual(v.borrador)
+  })
+
+  it("publica grasa por pliegues sin otros resultados ni conclusión", async () => {
+    const grasaPorPliegues = { valorPct: 18.5, metodo: "Método sintético", fecha: "2026-09-24" }
+    const v = await guardar({
+      ...contenido,
+      bloques: ["pliegues"],
+      corporales: [],
+      grasaPorPliegues,
+    })
+    const publicada = PublicacionValoracionSchema.parse((await publicar(v).expect(201)).body)
+    expect(publicada.documento.grasaPorPliegues).toEqual(grasaPorPliegues)
+  })
+
+  it("publicar simultáneamente con el mismo UUID devuelve la misma publicación", async () => {
+    const v = await guardar(contenido)
+    const operacionId = randomUUID()
+    const respuestas = await Promise.all([publicar(v, operacionId), publicar(v, operacionId)])
+    expect(respuestas.map((r) => r.status)).toEqual([201, 201])
+    expect(respuestas[0]!.body).toEqual(respuestas[1]!.body)
+    expect(
+      await entorno.prisma.publicacionValoracion.count({ where: { valoracionId: v.id } }),
+    ).toBe(1)
+  })
+
+  it("una foto vinculada mientras se publica queda visible en la publicación", async () => {
+    const v = await guardar(contenido)
+    const { app, prisma, ids, como } = entorno
+    const solicitud = await prisma.solicitudFotos.create({
+      data: {
+        clienteId: ids.cliente!,
+        autorId: ids.entrenador!,
+        operacionId: randomUUID(),
+        vistas: ["frente"],
+      },
+    })
+    const foto = await prisma.medioFoto.create({
+      data: {
+        clienteId: ids.cliente!,
+        autorId: ids.cliente!,
+        operacionId: randomUUID(),
+        origen: "cliente",
+        solicitudId: solicitud.id,
+        vista: "frente",
+        fechaToma: new Date("2026-09-24"),
+        estado: "disponible",
+        confirmadoEn: new Date(),
+        tipoMime: "image/jpeg",
+        bytes: 100,
+        clave: `clientes/${ids.cliente!}/sintetica-${randomUUID()}`,
+        subidaCaducaEn: new Date(Date.now() + 60000),
+      },
+    })
+    const servicio = app.get(ValoracionesService) as unknown as {
+      bloquearFila(clienteId: string, id: string, tx: Prisma.TransactionClient): Promise<unknown>
+    }
+    const original = servicio.bloquearFila.bind(servicio)
+    let avisar!: () => void
+    let continuar!: () => void
+    let entrandoPublicacion!: () => void
+    const dentro = new Promise<void>((resolve) => {
+      avisar = resolve
+    })
+    const pausa = new Promise<void>((resolve) => {
+      continuar = resolve
+    })
+    const publicando = new Promise<void>((resolve) => {
+      entrandoPublicacion = resolve
+    })
+    const espia = jest
+      .spyOn(servicio, "bloquearFila")
+      .mockImplementationOnce(async (...args) => {
+        const fila = await original(...args)
+        avisar()
+        await pausa
+        return fila
+      })
+      .mockImplementationOnce(async (...args) => {
+        entrandoPublicacion()
+        return original(...args)
+      })
+    const vinculo = request(app.getHttpServer())
+      .post(ruta(`/${v.id}/fotos`))
+      .set(como("entrenador"))
+      .send({ medioId: foto.id })
+      .then((r) => r)
+    let publicacion: ReturnType<typeof publicar> | undefined
+    let respuestaPublicacion: Promise<request.Response> | undefined
+    try {
+      await esperarPausa(dentro, vinculo)
+      publicacion = publicar(v)
+      respuestaPublicacion = publicacion.then((r) => r)
+      await esperarPausa(publicando, respuestaPublicacion)
+      continuar()
+      const [vinculada, publicada] = await Promise.all([vinculo, respuestaPublicacion])
+      expect(vinculada.status).toBe(201)
+      expect(publicada.status).toBe(201)
+      expect(
+        (await prisma.medioFoto.findUniqueOrThrow({ where: { id: foto.id } })).publicadaEn,
+      ).not.toBeNull()
+      const visibles = await request(app.getHttpServer())
+        .get(ruta(`/${v.id}/fotos`))
+        .set(como("cliente"))
+        .expect(200)
+      expect(visibles.body.fotos.map((f: { id: string }) => f.id)).toContain(foto.id)
+    } finally {
+      continuar()
+      await Promise.allSettled([vinculo, respuestaPublicacion])
+      espia.mockRestore()
+    }
   })
 })
 

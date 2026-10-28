@@ -2,11 +2,11 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
 
 import { BadRequestException, Injectable, Logger } from "@nestjs/common"
 
-import { leerVariableOpcional } from "../config/entorno.js"
 import { ServicioDeCorreo } from "../correo/correo.service.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 
 import { cifrarContrasena } from "./contrasenas.js"
+import { enlaceDeCuenta } from "./enlaces-cuenta.js"
 
 const DIAS_DE_VALIDEZ = 7
 const BYTES_DE_SECRETO = 32
@@ -67,7 +67,7 @@ export class ActivacionService {
       return { usuario, fila }
     })
 
-    const enlace = this.componerEnlace(`${fila.id}.${secreto}`)
+    const enlace = enlaceDeCuenta("activacion", `${fila.id}.${secreto}`)
     await this.correo.enviar(mensajeDeActivacion(usuario.email, usuario.nombre, enlace))
 
     this.registro.log(`Enlace de activacion enviado para el usuario ${usuarioId}`)
@@ -134,18 +134,6 @@ export class ActivacionService {
     }
 
     return { id: fila.id, usuarioId: fila.usuarioId }
-  }
-
-  /**
-   * El enlace apunta a la app por su esquema propio.
-   *
-   * En un movil con la app instalada, tocarlo la abre en la pantalla de
-   * activacion. Configurable porque el dia que exista una pagina web de
-   * activacion cambiara sin tocar codigo.
-   */
-  private componerEnlace(token: string): string {
-    const base = leerVariableOpcional("ACTIVACION_URL_BASE", "alphaomega://activar")
-    return `${base}?token=${encodeURIComponent(token)}`
   }
 }
 

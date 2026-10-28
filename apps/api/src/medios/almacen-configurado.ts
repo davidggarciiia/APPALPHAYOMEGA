@@ -8,14 +8,18 @@ import { crearAlmacenS3 } from "./almacen-s3.js"
  * - `local`: disco del servidor; solo para desarrollo y pruebas.
  *
  * Sin `ALMACEN`, en desarrollo se usa el local. En producción
- * (`NODE_ENV=production`) la API no arranca sin elegirlo: guardar fotos
+ * (`NODE_ENV=production`) la API exige s3 y rechaza el local: guardar fotos
  * corporales en el disco del servidor sin darse cuenta es justo lo que no
  * puede pasar.
  */
 export function crearAlmacen(): AlmacenObjetos {
   const tipo = leerVariableOpcional("ALMACEN", "")
   if (tipo === "s3") return crearAlmacenS3()
-  if (tipo === "local") return crearAlmacenLocal()
+  if (tipo === "local") {
+    if (leerVariableOpcional("NODE_ENV", "") === "production")
+      throw new Error("En producción usa ALMACEN=s3; el almacén local es solo para desarrollo")
+    return crearAlmacenLocal()
+  }
   if (tipo !== "")
     throw new Error(`ALMACEN no válido: «${tipo}». Usa s3 (producción) o local (desarrollo).`)
   if (leerVariableOpcional("NODE_ENV", "") === "production")

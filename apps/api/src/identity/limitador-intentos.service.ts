@@ -35,6 +35,39 @@ type Registro = {
 export class LimitadorDeIntentos {
   private readonly registro = new Logger(LimitadorDeIntentos.name)
   private readonly intentos = new Map<string, Registro>()
+  private readonly enCurso = new Map<string, number>()
+
+  /** Reserva antes de BD/Argon2; los fallos terminados y en vuelo comparten cupo. */
+  reservar(claves: string[]): () => void {
+    const unicas = [...new Set(claves)]
+    for (const clave of unicas) {
+      this.comprobar(clave)
+      const pendientes = this.enCurso.get(clave) ?? 0
+      const fallos = this.intentos.get(clave)?.fallos ?? 0
+      // Tras la espera se admite un intento para avanzar el backoff.
+      const cupo = Math.max(1, INTENTOS_LIBRES + 1 - fallos)
+      if (pendientes >= cupo) {
+        throw new HttpException(
+          {
+            mensaje: "Demasiados intentos. Espera antes de volver a probar.",
+            reintentarEnSegundos: 1,
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        )
+      }
+    }
+    unicas.forEach((clave) => this.enCurso.set(clave, (this.enCurso.get(clave) ?? 0) + 1))
+    let liberada = false
+    return () => {
+      if (liberada) return
+      liberada = true
+      for (const clave of unicas) {
+        const restantes = (this.enCurso.get(clave) ?? 1) - 1
+        if (restantes === 0) this.enCurso.delete(clave)
+        else this.enCurso.set(clave, restantes)
+      }
+    }
+  }
 
   /**
    * Lanza si la clave esta bloqueada ahora mismo.
@@ -51,7 +84,13 @@ export class LimitadorDeIntentos {
       return
     }
 
-    const restante = registro.bloqueadoHasta - Date.now()
+    const ahora = Date.now()
+    if (registro.ultimoIntento < ahora - OLVIDO_MINUTOS * 60 * 1000) {
+      this.intentos.delete(clave)
+      return
+    }
+
+    const restante = registro.bloqueadoHasta - ahora
     if (restante > 0) {
       const segundos = Math.ceil(restante / 1000)
 
@@ -84,7 +123,8 @@ export class LimitadorDeIntentos {
       bloqueadoHasta = ahora + segundos * 1000
 
       if (fallos === INTENTOS_LIBRES + 1) {
-        this.registro.warn(`Limitando intentos de login para ${clave}`)
+        // La clave puede contener un correo: no trasladar datos personales a logs.
+        this.registro.warn("Limitando intentos de autenticación")
       }
     }
 

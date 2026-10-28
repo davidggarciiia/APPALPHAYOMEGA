@@ -10,7 +10,7 @@ import {
 } from "@alpha-omega/shared"
 import type { Prisma } from "@prisma/client"
 
-import { conflicto, invalida } from "../entrenamiento/documentos.js"
+import { conflicto, esCodigoPrisma, invalida } from "../entrenamiento/documentos.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 
 type Cliente = Prisma.TransactionClient | PrismaService
@@ -94,13 +94,7 @@ export class PlantillasValoracionService {
         return leerFila(fila)
       })
     } catch (error) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error.code === "P2002" || error.code === "P2025")
-      )
-        throw obsoleta()
+      if (esCodigoPrisma(error, "P2002") || esCodigoPrisma(error, "P2025")) throw obsoleta()
       throw error
     }
   }

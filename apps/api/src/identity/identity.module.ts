@@ -2,7 +2,7 @@ import { Global, Module } from "@nestjs/common"
 import { APP_GUARD } from "@nestjs/core"
 import { JwtModule } from "@nestjs/jwt"
 
-import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
+import { leerSecretoJwt, leerVariableOpcional } from "../config/entorno.js"
 
 import { ActivacionService } from "./activacion.service.js"
 import { AlcanceClienteGuard } from "./alcance-cliente.guard.js"
@@ -23,6 +23,7 @@ import { RecuperacionService } from "./recuperacion.service.js"
 import { UsuariosController } from "./usuarios.controller.js"
 import { UsuariosService } from "./usuarios.service.js"
 import { TokensRefrescoService } from "./tokens-refresco.service.js"
+import { validarEnlacesDeCuenta } from "./enlaces-cuenta.js"
 
 const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
 
@@ -38,20 +39,23 @@ const EXPIRACION_POR_DEFECTO_SEGUNDOS = 900
     JwtModule.registerAsync({
       // Perezoso a proposito: leer el secreto al construir el modulo y no al
       // importar el fichero permite que los tests preparen el entorno antes.
-      useFactory: () => ({
-        secret: leerVariable("JWT_SECRET"),
-        signOptions: {
-          // En segundos y no en texto tipo "15m": el tipo de la libreria solo
-          // admite un punado de formatos de texto concretos, y un numero no deja
-          // lugar a interpretacion.
-          expiresIn: Number(
-            leerVariableOpcional(
-              "JWT_EXPIRACION_ACCESO_SEGUNDOS",
-              String(EXPIRACION_POR_DEFECTO_SEGUNDOS),
+      useFactory: () => {
+        validarEnlacesDeCuenta()
+        return {
+          secret: leerSecretoJwt(),
+          signOptions: {
+            // En segundos y no en texto tipo "15m": el tipo de la libreria solo
+            // admite un punado de formatos de texto concretos, y un numero no deja
+            // lugar a interpretacion.
+            expiresIn: Number(
+              leerVariableOpcional(
+                "JWT_EXPIRACION_ACCESO_SEGUNDOS",
+                String(EXPIRACION_POR_DEFECTO_SEGUNDOS),
+              ),
             ),
-          ),
-        },
-      }),
+          },
+        }
+      },
     }),
   ],
   controllers: [

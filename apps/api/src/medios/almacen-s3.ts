@@ -124,12 +124,34 @@ function noExiste(error: unknown): boolean {
  */
 export function crearAlmacenS3(): AlmacenS3 {
   const endpoint = leerVariableOpcional("S3_ENDPOINT", "")
+  if (endpoint !== "") {
+    let url: URL
+    try {
+      url = new URL(endpoint)
+    } catch {
+      throw new Error("S3_ENDPOINT debe ser una URL HTTP(S) válida")
+    }
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.search !== "" ||
+      url.hash !== ""
+    )
+      throw new Error(
+        "S3_ENDPOINT debe ser una URL HTTP(S) sin credenciales, consulta ni fragmento",
+      )
+    if (leerVariableOpcional("NODE_ENV", "") === "production" && url.protocol !== "https:")
+      throw new Error("S3_ENDPOINT debe usar HTTPS en producción")
+  }
   const idClave = leerVariableOpcional("S3_ACCESS_KEY_ID", "")
   const secreto = leerVariableOpcional("S3_SECRET_ACCESS_KEY", "")
   if ((idClave === "") !== (secreto === ""))
     throw new Error("S3_ACCESS_KEY_ID y S3_SECRET_ACCESS_KEY van juntas: define las dos o ninguna.")
   const cliente = new S3Client({
     region: leerVariable("S3_REGION"),
+    // Evita que AWS_ENDPOINT_URL o un perfil eludan la validación de S3_ENDPOINT.
+    ignoreConfiguredEndpointUrls: leerVariableOpcional("NODE_ENV", "") === "production",
     ...(endpoint === "" ? {} : { endpoint }),
     forcePathStyle: leerVariableOpcional("S3_FORZAR_RUTA", "false") === "true",
     ...(idClave === "" ? {} : { credentials: { accessKeyId: idClave, secretAccessKey: secreto } }),

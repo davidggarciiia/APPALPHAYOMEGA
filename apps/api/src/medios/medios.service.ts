@@ -32,6 +32,7 @@ import {
   type AlmacenObjetos,
 } from "./almacen-objetos.js"
 import { formatoReal, sinMetadatos } from "./imagenes.js"
+import { validarImagen } from "./validar-imagen.js"
 import { MARGEN_LIMPIEZA_MS } from "./limpieza-medios.js"
 import { limpiarIntentoFoto, VIDA_INTENTO_FOTO_MS } from "./intentos-foto.js"
 
@@ -268,6 +269,7 @@ export class MediosService {
     let limpio: Uint8Array
     try {
       limpio = sinMetadatos(contenido, fila.tipoMime as FormatoFoto)
+      await validarImagen(limpio)
     } catch {
       await this.almacen.borrar(fila.clave)
       throw invalida("La imagen está dañada: vuelve a subirla")
@@ -299,6 +301,14 @@ export class MediosService {
             include: { autor: { select: { id: true, nombre: true, apellidos: true } } },
           })
         await this.consentimiento.exigirVigente(fila.clienteId, actor.sub, tx)
+        if (fila.solicitudId) {
+          // Confirmar y revisar compiten por la solicitud, en ese orden antes
+          // de tocar la foto. El dato idéntico solo toma el candado de fila.
+          await tx.solicitudFotos.updateMany({
+            where: { id: fila.solicitudId, clienteId: fila.clienteId },
+            data: { clienteId: fila.clienteId },
+          })
+        }
         // Una intención que la limpieza ya puede descartar no pasa a disponible.
         const cambiadas = await tx.medioFoto.updateMany({
           where: {
@@ -315,8 +325,10 @@ export class MediosService {
         })
         if (cambiadas.count === 1 && fila.solicitudId)
           await tx.solicitudFotos.updateMany({
-            where: { id: fila.solicitudId, estado: "pendiente" },
-            data: { estado: "recibida", recibidaEn: ahora },
+            where: { id: fila.solicitudId },
+            // Se conserva la operación anterior para que su reintento no
+            // marque como revisada una foto que aún no ha visto el entrenador.
+            data: { estado: "recibida", recibidaEn: ahora, revisadaEn: null },
           })
         if (cambiadas.count === 1) await tx.intentoFoto.delete({ where: { clave: claveFinal } })
         return tx.medioFoto.findUnique({

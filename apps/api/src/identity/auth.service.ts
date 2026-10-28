@@ -46,33 +46,43 @@ export class AuthService {
     // correos desde la misma maquina deja cada contador a uno y pasa entero.
     // El de origen a secas es el que corta eso.
     const claves = [`login:${credenciales.email}|${origen}`, `login:origen:${origen}`]
-    claves.forEach((clave) => {
-      this.limitador.comprobar(clave)
-    })
+    const liberar = this.limitador.reservar(claves)
+    try {
+      const inicial = await this.prisma.usuario.findUnique({ where: { email: credenciales.email } })
+      const resultado =
+        inicial === null
+          ? (await verificarContrasena(HASH_SENUELO, credenciales.contrasena), null)
+          : await this.prisma.$transaction(async (tx) => {
+              // Mismo candado que restablecer, dar de baja y rotar: leer las
+              // credenciales actuales y emitir la sesión es una única decisión.
+              await tx.usuario.updateMany({
+                where: { id: inicial.id },
+                data: { actualizadoEn: new Date() },
+              })
+              const usuario = await tx.usuario.findUnique({ where: { id: inicial.id } })
+              const coincide = await verificarContrasena(
+                usuario?.passwordHash ?? HASH_SENUELO,
+                credenciales.contrasena,
+              )
+              if (
+                usuario === null ||
+                usuario.email !== credenciales.email ||
+                !coincide ||
+                usuario.estado !== "activo"
+              )
+                return null
+              return { usuario, refresco: await this.refrescos.emitir(usuario.id, tx) }
+            })
 
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { email: credenciales.email },
-    })
-
-    const coincide = await verificarContrasena(
-      usuario?.passwordHash ?? HASH_SENUELO,
-      credenciales.contrasena,
-    )
-
-    // Un usuario en estado pendiente existe y todavia no tiene contrasena
-    // (requisito 2). Uno desactivado conserva la suya y aun asi no entra.
-    if (usuario === null || !coincide || usuario.estado !== "activo") {
-      claves.forEach((clave) => {
-        this.limitador.registrarFallo(clave)
-      })
-      throw new UnauthorizedException("Credenciales incorrectas")
+      if (resultado === null) {
+        claves.forEach((clave) => this.limitador.registrarFallo(clave))
+        throw new UnauthorizedException("Credenciales incorrectas")
+      }
+      claves.forEach((clave) => this.limitador.registrarExito(clave))
+      return await this.componerSesion(resultado.usuario, resultado.refresco)
+    } finally {
+      liberar()
     }
-
-    claves.forEach((clave) => {
-      this.limitador.registrarExito(clave)
-    })
-
-    return this.componerSesion(usuario, await this.refrescos.emitir(usuario.id))
   }
 
   /**

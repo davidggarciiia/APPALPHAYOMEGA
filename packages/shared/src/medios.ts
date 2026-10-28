@@ -85,7 +85,8 @@ export const EnlaceTemporalSchema = z.strictObject({
 })
 export type EnlaceTemporal = z.infer<typeof EnlaceTemporalSchema>
 
-const AutorSchema = z.strictObject({ id: z.uuid(), nombre: z.string().min(1).max(200) })
+// Perfil: nombre 80 + espacio + apellidos 120.
+const AutorSchema = z.strictObject({ id: z.uuid(), nombre: z.string().min(1).max(201) })
 
 /** Lo que cualquier rol autorizado ve de una foto: sin clave de objeto ni enlaces. */
 export const MedioFotoSchema = z

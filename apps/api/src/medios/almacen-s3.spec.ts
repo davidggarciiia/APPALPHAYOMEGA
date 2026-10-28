@@ -3,6 +3,77 @@ import { S3Client } from "@aws-sdk/client-s3"
 
 import { AlmacenS3 } from "./almacen-s3.js"
 
+/** Configuración inventada: evita leer .env y no abre conexiones. */
+async function configurado(modo: string, endpoint: string): Promise<AlmacenS3> {
+  let almacen!: AlmacenS3
+  const variables: Record<string, string> = {
+    NODE_ENV: modo,
+    S3_ENDPOINT: endpoint,
+    S3_REGION: "eu-west-3",
+    S3_BUCKET: "fotos-privadas",
+    S3_ACCESS_KEY_ID: "AKIAEJEMPLO",
+    S3_SECRET_ACCESS_KEY: "secreto-de-prueba",
+    S3_FORZAR_RUTA: "true",
+  }
+  await jest.isolateModulesAsync(async () => {
+    jest.unstable_mockModule("../config/entorno.js", () => ({
+      leerVariableOpcional: (nombre: string, porDefecto: string) => variables[nombre] || porDefecto,
+      leerVariable: (nombre: string) => variables[nombre]!,
+    }))
+    const modulo = await import("./almacen-s3.js")
+    almacen = modulo.crearAlmacenS3()
+  })
+  return almacen
+}
+
+describe("endpoint S3 de producción", () => {
+  it("el endpoint automático del SDK no elude HTTPS de producción", async () => {
+    const anterior = process.env.AWS_ENDPOINT_URL_S3
+    const ignorar = process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS
+    process.env.AWS_ENDPOINT_URL_S3 = "http://storage-inseguro.example.test"
+    process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = "false"
+    try {
+      const almacen = await configurado("production", "")
+      const enlace = await almacen.enlaceDeSubida(
+        CLAVE,
+        "image/jpeg",
+        123,
+        new Date(Date.now() + 60_000),
+      )
+      expect(new URL(enlace.url).protocol).toBe("https:")
+    } finally {
+      if (anterior === undefined) delete process.env.AWS_ENDPOINT_URL_S3
+      else process.env.AWS_ENDPOINT_URL_S3 = anterior
+      if (ignorar === undefined) delete process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS
+      else process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = ignorar
+    }
+  })
+  it.each([
+    "http://s3.ejemplo.test",
+    "https://usuario:secreto@s3.ejemplo.test",
+    "https://s3.ejemplo.test/?token=no",
+    "https://s3.ejemplo.test/#fragmento",
+    "no-es-una-url",
+  ])("rechaza %s antes de crear el almacén", async (endpoint) => {
+    await expect(configurado("production", endpoint)).rejects.toThrow(/S3_ENDPOINT/)
+  })
+  it("firma enlaces HTTPS en producción y conserva HTTP explícito de desarrollo", async () => {
+    for (const [modo, endpoint] of [
+      ["production", "https://s3.ejemplo.test"],
+      ["development", "http://localhost:9000"],
+    ]) {
+      const almacen = await configurado(modo!, endpoint!)
+      const enlace = await almacen.enlaceDeSubida(
+        CLAVE,
+        "image/jpeg",
+        123,
+        new Date(Date.now() + 60_000),
+      )
+      expect(new URL(enlace.url).origin).toBe(endpoint)
+    }
+  })
+})
+
 // Credenciales y bucket inventados: firmar una URL no llama a ningún servicio.
 const AHORA = Date.parse("2026-09-24T10:00:00.000Z")
 const CLAVE =

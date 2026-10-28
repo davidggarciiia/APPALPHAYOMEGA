@@ -9,7 +9,7 @@ import type { ComentarioSesion as FilaComentario, Usuario } from "@prisma/client
 
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
-import { conflicto, invalida, leerDocumento } from "./documentos.js"
+import { conflicto, esCodigoPrisma, invalida, leerDocumento } from "./documentos.js"
 import { SesionesService } from "./sesiones.service.js"
 import { registrarNovedad } from "./novedades.js"
 
@@ -59,42 +59,59 @@ export class ComentariosService {
         : resultado.prescripcion.ejercicios.find((e) => e.id === datos.ejercicioPrescritoId)
     if (datos.ejercicioPrescritoId !== null && !ejercicio)
       throw invalida("Ese ejercicio no está en esta sesión")
-    const anterior = await this.prisma.comentarioSesion.findUnique({
-      where: { autorId_operacionId: { autorId: identidad.sub, operacionId: datos.operacionId } },
-      include: CON_AUTOR,
-    })
-    if (anterior) {
-      if (
-        anterior.sesionId !== sesionId ||
-        anterior.texto !== datos.texto ||
-        anterior.ejercicioPrescritoId !== datos.ejercicioPrescritoId
-      )
-        throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
-      return aComentario(anterior)
+    const recuperar = async (): Promise<ComentarioSesion | null> => {
+      const anterior = await this.prisma.comentarioSesion.findUnique({
+        where: { autorId_operacionId: { autorId: identidad.sub, operacionId: datos.operacionId } },
+        include: CON_AUTOR,
+      })
+      if (anterior) {
+        if (
+          anterior.sesionId !== sesionId ||
+          anterior.texto !== datos.texto ||
+          anterior.ejercicioPrescritoId !== datos.ejercicioPrescritoId
+        )
+          throw conflicto(
+            "operacion_incompatible",
+            "Esta operación ya se utilizó con otro contenido",
+          )
+        return aComentario(anterior)
+      }
+      return null
     }
-    const creado = await this.prisma.$transaction(async (tx) => {
-      const comentario = await tx.comentarioSesion.create({
-        data: {
+    const anterior = await recuperar()
+    if (anterior) return anterior
+    try {
+      const creado = await this.prisma.$transaction(async (tx) => {
+        const comentario = await tx.comentarioSesion.create({
+          data: {
+            sesionId,
+            clienteId: fila.clienteId,
+            autorId: identidad.sub,
+            operacionId: datos.operacionId,
+            ejercicioPrescritoId: datos.ejercicioPrescritoId,
+            ejercicio: ejercicio?.nombre ?? null,
+            texto: datos.texto,
+          },
+          include: CON_AUTOR,
+        })
+        await registrarNovedad(tx, {
           sesionId,
           clienteId: fila.clienteId,
           autorId: identidad.sub,
-          operacionId: datos.operacionId,
-          ejercicioPrescritoId: datos.ejercicioPrescritoId,
-          ejercicio: ejercicio?.nombre ?? null,
-          texto: datos.texto,
-        },
-        include: CON_AUTOR,
+          audiencia: identidad.rol === "cliente" ? "entrenador" : "cliente",
+          tipo: "comentario",
+        })
+        return comentario
       })
-      await registrarNovedad(tx, {
-        sesionId,
-        clienteId: fila.clienteId,
-        autorId: identidad.sub,
-        audiencia: identidad.rol === "cliente" ? "entrenador" : "cliente",
-        tipo: "comentario",
-      })
-      return comentario
-    })
-    return aComentario(creado)
+      return aComentario(creado)
+    } catch (error) {
+      if (esCodigoPrisma(error, "P2002")) {
+        const ganadora = await recuperar()
+        if (ganadora) return ganadora
+        throw conflicto("operacion_incompatible", "Esta operación ya se utilizó con otro contenido")
+      }
+      throw error
+    }
   }
 
   async listar(identidad: IdentidadVerificada, sesionId: string): Promise<ListadoComentarios> {

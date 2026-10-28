@@ -109,3 +109,23 @@ export function leerVariableOpcional(nombre: string, porDefecto: string): string
   const valor = process.env[nombre]
   return valor === undefined || valor === "" ? porDefecto : valor
 }
+
+/**
+ * Lee un entero positivo del entorno (plazos, tamanos). Un valor mal escrito
+ * falla al arrancar: convertirlo en un plazo de 0 o en NaN dejaria la
+ * proteccion desactivada sin que nadie lo notara.
+ */
+export function leerEnteroPositivo(nombre: string, porDefecto: number): number {
+  const texto = leerVariableOpcional(nombre, String(porDefecto)).trim()
+  const valor = Number(texto)
+  if (!/^[1-9]\d*$/.test(texto) || !Number.isSafeInteger(valor))
+    throw new Error(`${nombre} debe ser un entero positivo`)
+  return valor
+}
+
+export function leerSecretoJwt(): string {
+  const secreto = leerVariable("JWT_SECRET")
+  if (leerVariableOpcional("NODE_ENV", "") === "production" && secreto.trim().length < 32)
+    throw new Error("JWT_SECRET debe tener al menos 32 caracteres aleatorios en producción")
+  return secreto
+}

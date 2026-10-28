@@ -47,7 +47,8 @@ export class PlanesService {
               "operacion_incompatible",
               "Esta operación ya se utilizó con otro contenido",
             )
-          return leerDocumento(anterior.respuesta, PlanAsignadoSchema, anterior.version)
+          // La revisión editable del bloque no cambia el formato de esta respuesta.
+          return leerDocumento(anterior.respuesta, PlanAsignadoSchema, 1)
         }
         await tx.$queryRaw`SELECT "id" FROM "usuarios" WHERE "id" = ${clienteId} FOR UPDATE`
         const cliente = await tx.usuario.findUnique({ where: { id: clienteId } })

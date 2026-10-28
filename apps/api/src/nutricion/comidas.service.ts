@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common"
+import { Injectable, NotFoundException } from "@nestjs/common"
 import {
   DocumentoDietaSchema,
   EleccionDeComidaSchema,
@@ -12,16 +12,13 @@ import {
 import type { ComidaRegistrada as FilaComida } from "@prisma/client"
 
 import { fechaSql } from "../agenda/fechas.js"
-import { conflicto } from "../entrenamiento/documentos.js"
+import { conflicto, invalida } from "../entrenamiento/documentos.js"
 import { PrismaService } from "../prisma/prisma.service.js"
+import { ConsentimientoService } from "../identity/consentimiento.service.js"
 
 const fecha = (valor: Date): string => valor.toISOString().slice(0, 10)
 const hoy = (): string =>
   new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_AGENDA }).format(new Date())
-
-function invalida(message: string): BadRequestException {
-  return new BadRequestException({ statusCode: 400, codigo: "solicitud_invalida", message })
-}
 
 /** Comprueba que lo elegido existe en esa comida de la dieta. */
 function comprobarEleccion(comida: Comida, datos: RegistrarComida): void {
@@ -36,7 +33,8 @@ function comprobarEleccion(comida: Comida, datos: RegistrarComida): void {
   }
   if (comida.forma !== "intercambio") throw invalida("Esta comida no se arma por intercambios")
   const columnas = eleccion.elegidos.map((e) => e.columna)
-  if (new Set(columnas).size !== columnas.length) throw invalida("Elige un alimento por columna")
+  if (new Set(columnas).size !== columnas.length || columnas.length !== comida.columnas.length)
+    throw invalida("Elige un alimento por cada columna")
   const valido = eleccion.elegidos.every((elegido) =>
     comida.columnas.some(
       (columna) =>
@@ -53,7 +51,10 @@ function comprobarEleccion(comida: Comida, datos: RegistrarComida): void {
  */
 @Injectable()
 export class ComidasService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly consentimiento: ConsentimientoService,
+  ) {}
 
   async registrar(
     clienteId: string,
@@ -62,28 +63,35 @@ export class ComidasService {
     datos: RegistrarComida,
   ): Promise<ComidaRegistrada> {
     if (dia > hoy()) throw invalida("No puedes marcar una comida de un día que aún no ha llegado")
-    const dieta = await this.prisma.dieta.findFirst({ where: { clienteId, estado: "publicada" } })
-    if (!dieta) throw new NotFoundException("No tienes una dieta publicada")
-    if (dieta.id !== datos.dietaId)
-      throw conflicto("revision_obsoleta", "Tu dieta ha cambiado. Vuelve a abrirla.")
-    const documento = DocumentoDietaSchema.parse(dieta.documento)
-    const indice = (new Date(`${dia}T00:00:00Z`).getUTCDay() + 6) % 7
-    const tipo = documento.tiposDeDia.find((t) => t.id === documento.semana[indice])
-    const comida = tipo?.comidas.find((c) => c.id === comidaId)
-    if (!comida) throw invalida("Esa comida no toca ese día")
-    comprobarEleccion(comida, datos)
-    const fila = await this.prisma.comidaRegistrada.upsert({
-      where: { clienteId_fecha_comidaId: { clienteId, fecha: fechaSql(dia), comidaId } },
-      create: {
-        clienteId,
-        fecha: fechaSql(dia),
-        comidaId,
-        dietaId: dieta.id,
-        eleccion: datos.eleccion,
-      },
-      update: { dietaId: dieta.id, eleccion: datos.eleccion },
+    return this.prisma.$transaction(async (tx) => {
+      // Publicar una dieta bloquea esta misma fila antes de archivar la vigente.
+      await tx.$queryRaw`SELECT "id" FROM "usuarios" WHERE "id" = ${clienteId} FOR UPDATE`
+      await this.consentimiento.exigirVigente(clienteId, clienteId, tx)
+      const dieta = await tx.dieta.findFirst({ where: { clienteId, estado: "publicada" } })
+      if (!dieta) throw new NotFoundException("No tienes una dieta publicada")
+      if (dieta.id !== datos.dietaId)
+        throw conflicto("revision_obsoleta", "Tu dieta ha cambiado. Vuelve a abrirla.")
+      const documento = DocumentoDietaSchema.parse(dieta.documento)
+      if (documento.registroComidas === false)
+        throw conflicto("operacion_incompatible", "Tu pauta no permite registrar comidas")
+      const indice = (new Date(`${dia}T00:00:00Z`).getUTCDay() + 6) % 7
+      const tipo = documento.tiposDeDia.find((t) => t.id === documento.semana[indice])
+      const comida = tipo?.comidas.find((c) => c.id === comidaId)
+      if (!comida) throw invalida("Esa comida no toca ese día")
+      comprobarEleccion(comida, datos)
+      const fila = await tx.comidaRegistrada.upsert({
+        where: { clienteId_fecha_comidaId: { clienteId, fecha: fechaSql(dia), comidaId } },
+        create: {
+          clienteId,
+          fecha: fechaSql(dia),
+          comidaId,
+          dietaId: dieta.id,
+          eleccion: datos.eleccion,
+        },
+        update: { dietaId: dieta.id, eleccion: datos.eleccion },
+      })
+      return registrada(fila)
     })
-    return registrada(fila)
   }
 
   async quitar(clienteId: string, dia: string, comidaId: string): Promise<void> {

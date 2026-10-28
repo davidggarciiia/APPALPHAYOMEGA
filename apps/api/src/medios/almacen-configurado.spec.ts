@@ -34,7 +34,7 @@ describe("crearAlmacen", () => {
     process.env.NODE_ENV = "production"
     expect(() => crearAlmacen()).toThrow(/Falta ALMACEN/)
     process.env.ALMACEN = "local"
-    expect(crearAlmacen()).toBeInstanceOf(AlmacenLocal)
+    expect(() => crearAlmacen()).toThrow(/ALMACEN=s3/)
   })
 
   it("con ALMACEN=s3 usa S3 y exige bucket, región y las dos claves juntas", () => {

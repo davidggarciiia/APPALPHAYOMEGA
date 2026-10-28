@@ -15,7 +15,8 @@ import { z } from "zod"
 
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
-import { conflicto, invalida, leerDocumento } from "./documentos.js"
+import { conflicto, esCodigoPrisma, invalida, leerDocumento } from "./documentos.js"
+import { ConsentimientoService } from "../identity/consentimiento.service.js"
 import { SesionesService } from "./sesiones.service.js"
 import { registrarNovedad } from "./novedades.js"
 
@@ -52,6 +53,7 @@ export class MolestiasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly sesiones: SesionesService,
+    private readonly consentimiento: ConsentimientoService,
   ) {}
 
   async registrar(
@@ -60,16 +62,29 @@ export class MolestiasService {
     datos: RegistrarMolestia,
   ): Promise<Molestia> {
     const fila = await this.sesiones.fila(this.prisma, identidad, sesionId, true)
-    const repetida = await this.prisma.molestia.findUnique({
-      where: {
-        clienteId_operacionId: { clienteId: fila.clienteId, operacionId: datos.operacionId },
-      },
-    })
-    if (repetida) {
-      if (repetida.sesionId !== sesionId || repetida.intensidad !== datos.intensidad)
-        throw conflicto("operacion_incompatible", "La operación ya se utilizó con otro contenido")
-      return aMolestia(repetida)
+    const recuperar = async (): Promise<Molestia | null> => {
+      const repetida = await this.prisma.molestia.findUnique({
+        where: {
+          clienteId_operacionId: { clienteId: fila.clienteId, operacionId: datos.operacionId },
+        },
+      })
+      if (repetida) {
+        if (
+          repetida.sesionId !== sesionId ||
+          repetida.intensidad !== datos.intensidad ||
+          repetida.ejercicioPrescritoId !== datos.ejercicioPrescritoId ||
+          repetida.serie !== datos.serie ||
+          repetida.zona !== datos.zona ||
+          repetida.nota !== datos.nota ||
+          JSON.stringify(Sintomas.parse(repetida.sintomas)) !== JSON.stringify(datos.sintomas)
+        )
+          throw conflicto("operacion_incompatible", "La operación ya se utilizó con otro contenido")
+        return aMolestia(repetida)
+      }
+      return null
     }
+    const repetida = await recuperar()
+    if (repetida) return repetida
     const prescripcion = leerDocumento(fila.prescripcion, PrescripcionSchema, fila.version)
     const ejercicio =
       datos.ejercicioPrescritoId === null
@@ -78,31 +93,41 @@ export class MolestiasService {
     if (ejercicio === undefined) throw invalida("Ese ejercicio no está en la sesión")
     if (datos.serie !== null && (ejercicio === null || datos.serie > ejercicio.series.length))
       throw invalida("Esa serie no está en el ejercicio")
-    const creada = await this.prisma.$transaction(async (tx) => {
-      const molestia = await tx.molestia.create({
-        data: {
-          clienteId: fila.clienteId,
+    try {
+      const creada = await this.prisma.$transaction(async (tx) => {
+        await this.consentimiento.exigirVigente(fila.clienteId, identidad.sub, tx)
+        const molestia = await tx.molestia.create({
+          data: {
+            clienteId: fila.clienteId,
+            sesionId,
+            operacionId: datos.operacionId,
+            ejercicioPrescritoId: datos.ejercicioPrescritoId,
+            ejercicio: ejercicio?.nombre ?? null,
+            serie: datos.serie,
+            zona: datos.zona,
+            intensidad: datos.intensidad,
+            sintomas: datos.sintomas,
+            nota: datos.nota,
+          },
+        })
+        await registrarNovedad(tx, {
           sesionId,
-          operacionId: datos.operacionId,
-          ejercicioPrescritoId: datos.ejercicioPrescritoId,
-          ejercicio: ejercicio?.nombre ?? null,
-          serie: datos.serie,
-          zona: datos.zona,
-          intensidad: datos.intensidad,
-          sintomas: datos.sintomas,
-          nota: datos.nota,
-        },
+          clienteId: fila.clienteId,
+          autorId: identidad.sub,
+          audiencia: "entrenador",
+          tipo: "molestia",
+        })
+        return molestia
       })
-      await registrarNovedad(tx, {
-        sesionId,
-        clienteId: fila.clienteId,
-        autorId: identidad.sub,
-        audiencia: "entrenador",
-        tipo: "molestia",
-      })
-      return molestia
-    })
-    return aMolestia(creada)
+      return aMolestia(creada)
+    } catch (error) {
+      if (esCodigoPrisma(error, "P2002")) {
+        const ganadora = await recuperar()
+        if (ganadora) return ganadora
+        throw conflicto("operacion_incompatible", "La operación ya se utilizó con otro contenido")
+      }
+      throw error
+    }
   }
 
   async listar(

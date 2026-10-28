@@ -8,6 +8,7 @@ import { PrismaService } from "../prisma/prisma.service.js"
 import { LimitadorDeIntentos } from "./limitador-intentos.service.js"
 import { cifrarContrasena } from "./contrasenas.js"
 import { TokensRefrescoService } from "./tokens-refresco.service.js"
+import { enlaceDeCuenta } from "./enlaces-cuenta.js"
 
 const VALIDEZ_MS = 60 * 60 * 1000
 
@@ -68,7 +69,7 @@ export class RecuperacionService {
     })
     if (fila === null) return
 
-    const enlace = `alphaomega://restablecer?token=${encodeURIComponent(`${fila.id}.${secreto}`)}`
+    const enlace = enlaceDeCuenta("recuperacion", `${fila.id}.${secreto}`)
 
     // El envio NO se espera dentro de la peticion, y no es por velocidad.
     //

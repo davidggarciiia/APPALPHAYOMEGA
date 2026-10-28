@@ -170,7 +170,30 @@ describe("Revocacion efectiva del token de acceso", () => {
       .expect(401)
   })
 
-  it("un reuso detectado apaga la gracia de toda la familia", async () => {
+  it("un tercer canje durante la gracia se rechaza sin revocar al ganador", async () => {
+    const sesion = await entrar()
+    await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: sesion.tokenRefresco })
+      .expect(200)
+    const recuperada = await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: sesion.tokenRefresco })
+      .expect(200)
+    await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: sesion.tokenRefresco })
+      .expect(401)
+    await conToken(recuperada.body.tokenAcceso).expect(200)
+    const fila = await prisma.tokenRefresco.findUniqueOrThrow({
+      where: { id: sesion.tokenRefresco.split(".")[0]! },
+    })
+    expect(
+      await prisma.tokenRefresco.count({ where: { familiaId: fila.familiaId, revocadoEn: null } }),
+    ).toBe(1)
+  })
+
+  it("un reuso fuera de la gracia apaga la familia y sus accesos", async () => {
     const sesion = await entrar()
 
     const renovada = await request(app.getHttpServer())
@@ -180,12 +203,18 @@ describe("Revocacion efectiva del token de acceso", () => {
 
     // Segundo canje del viejo: entra por la gracia y se consume. Es el
     // reintento legitimo de un movil que perdio la respuesta.
-    await request(app.getHttpServer())
+    const recuperada = await request(app.getHttpServer())
       .post("/auth/refresh")
       .send({ tokenRefresco: sesion.tokenRefresco })
       .expect(200)
 
-    // Tercero: ya no hay gracia que valga, y la familia entera queda cortada.
+    await conToken(recuperada.body.tokenAcceso).expect(200)
+    // Una tercera petición inmediata también puede pertenecer a la ráfaga.
+    // El robo se distingue fuera de la ventana, sin esperas ni temporizadores.
+    const inicial = await prisma.tokenRefresco.update({
+      where: { id: sesion.tokenRefresco.split(".")[0]! },
+      data: { revocadoEn: new Date(0) },
+    })
     await request(app.getHttpServer())
       .post("/auth/refresh")
       .send({ tokenRefresco: sesion.tokenRefresco })
@@ -195,5 +224,15 @@ describe("Revocacion efectiva del token de acceso", () => {
       .post("/auth/refresh")
       .send({ tokenRefresco: renovada.body.tokenRefresco })
       .expect(401)
+    await request(app.getHttpServer())
+      .post("/auth/refresh")
+      .send({ tokenRefresco: recuperada.body.tokenRefresco })
+      .expect(401)
+    expect(
+      await prisma.tokenRefresco.count({
+        where: { familiaId: inicial.familiaId, revocadoEn: null },
+      }),
+    ).toBe(0)
+    await conToken(recuperada.body.tokenAcceso).expect(401)
   })
 })

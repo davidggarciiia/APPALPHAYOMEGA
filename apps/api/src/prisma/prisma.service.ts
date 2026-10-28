@@ -2,7 +2,7 @@ import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/com
 import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "@prisma/client"
 
-import { urlDeConexion } from "../config/postgres.js"
+import { opcionesDelPool } from "../config/postgres.js"
 
 /**
  * El cliente de Prisma, envuelto como proveedor de Nest para que se inyecte por
@@ -14,7 +14,7 @@ import { urlDeConexion } from "../config/postgres.js"
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
-    super({ adapter: new PrismaPg(urlDeConexion()) })
+    super({ adapter: new PrismaPg(opcionesDelPool()) })
   }
 
   async onModuleInit(): Promise<void> {

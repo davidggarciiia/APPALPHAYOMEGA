@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common"
 import { Resend } from "resend"
 
-import { leerVariable, leerVariableOpcional } from "../config/entorno.js"
+import { leerEnteroPositivo, leerVariable, leerVariableOpcional } from "../config/entorno.js"
 
 export type Correo = {
   para: string
@@ -37,17 +37,34 @@ const REMITENTE_DE_PRUEBAS = "Alpha & Omega <onboarding@resend.dev>"
 export class CorreoConResend extends ServicioDeCorreo {
   private readonly registro = new Logger(CorreoConResend.name)
   private clienteCacheado: Resend | null = null
+  // Sin plazo, un proveedor lento dejaria colgada la activacion o la recuperacion.
+  private readonly plazoMs = leerEnteroPositivo("CORREO_PLAZO_MS", 15_000)
+
+  constructor() {
+    super()
+    if (leerVariableOpcional("NODE_ENV", "") === "production") {
+      const remitente = leerVariable("CORREO_REMITENTE").trim()
+      if (remitente === "" || /@resend\.dev(?:[>\s]|$)/i.test(remitente))
+        throw new Error("CORREO_REMITENTE debe usar tu dominio verificado en producción")
+      leerVariable("RESEND_API_KEY")
+    }
+  }
 
   async enviar(correo: Correo): Promise<void> {
     const remitente = leerVariableOpcional("CORREO_REMITENTE", REMITENTE_DE_PRUEBAS)
 
-    const respuesta = await this.cliente().emails.send({
-      from: remitente,
-      to: correo.para,
-      subject: correo.asunto,
-      html: correo.html,
-      text: correo.texto,
-    })
+    // Al vencer el plazo la SDK devuelve su error habitual en lugar de lanzar,
+    // asi que el camino de abajo lo trata igual que un rechazo del proveedor.
+    const respuesta = await this.cliente().emails.send(
+      {
+        from: remitente,
+        to: correo.para,
+        subject: correo.asunto,
+        html: correo.html,
+        text: correo.texto,
+      },
+      { signal: AbortSignal.timeout(this.plazoMs) },
+    )
 
     if (respuesta.error !== null) {
       // El mensaje del proveedor se registra, pero no se propaga hacia el

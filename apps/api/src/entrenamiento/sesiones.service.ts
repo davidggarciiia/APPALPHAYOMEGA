@@ -143,36 +143,54 @@ export class SesionesService {
         (e) => e.ejercicioId,
       ),
     )
-    const enviadas = await this.prisma.sesionEntrenamiento.findMany({
-      where: { clienteId: fila.clienteId, id: { not: id }, resultado: { not: DbNull } },
-      orderBy: { enviadoEn: "desc" },
-      take: 60,
-      select: { resultado: true, version: true },
-    })
     const anteriores: ListadoAnteriores["anteriores"] = []
-    for (const enviada of enviadas) {
-      const resultado = leerDocumento(
-        enviada.resultado,
-        ResultadoEntrenamientoSchema,
-        enviada.version,
-      )
-      const hechas = new Map(
-        resultado.series.flatMap((s) => (s.hecha ? [[s.serieId, s.valores] as const] : [])),
-      )
-      for (const ejercicio of resultado.prescripcion.ejercicios) {
-        if (!buscados.has(ejercicio.ejercicioId)) continue
-        const valores = ejercicio.series
-          .map((serie) => hechas.get(serie.id))
-          .filter((v): v is ValoresEjecutados => v !== undefined)
-        if (valores.length === 0) continue
-        buscados.delete(ejercicio.ejercicioId)
-        anteriores.push({
-          ejercicioId: ejercicio.ejercicioId,
-          fecha: resultado.enviadoEn,
-          valores: valores.reduce(mejorSerie),
-        })
+    const ejerciciosBuscados = [...buscados]
+    let cursor: string | undefined
+    while (buscados.size > 0) {
+      const enviadas = await this.prisma.sesionEntrenamiento.findMany({
+        where: {
+          clienteId: fila.clienteId,
+          id: { not: id },
+          resultado: { not: DbNull },
+          referencias: { some: { ejercicioId: { in: ejerciciosBuscados } } },
+        },
+        orderBy: [{ enviadoEn: "desc" }, { id: "desc" }],
+        take: 60,
+        ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+        select: { id: true, resultado: true, version: true },
+      })
+      for (const enviada of enviadas) {
+        const resultado = leerDocumento(
+          enviada.resultado,
+          ResultadoEntrenamientoSchema,
+          enviada.version,
+        )
+        const hechas = new Map(
+          resultado.series.flatMap((s) => (s.hecha ? [[s.serieId, s.valores] as const] : [])),
+        )
+        const mejores = new Map<string, ValoresEjecutados>()
+        for (const ejercicio of resultado.prescripcion.ejercicios) {
+          if (!buscados.has(ejercicio.ejercicioId)) continue
+          const valores = ejercicio.series
+            .map((serie) => hechas.get(serie.id))
+            .filter((v): v is ValoresEjecutados => v !== undefined)
+          if (valores.length === 0) continue
+          const mejor = valores.reduce(mejorSerie)
+          const anterior = mejores.get(ejercicio.ejercicioId)
+          mejores.set(ejercicio.ejercicioId, anterior ? mejorSerie(anterior, mejor) : mejor)
+        }
+        for (const [ejercicioId, valores] of mejores) {
+          buscados.delete(ejercicioId)
+          anteriores.push({
+            ejercicioId,
+            fecha: resultado.enviadoEn,
+            valores,
+          })
+        }
+        if (buscados.size === 0) break
       }
-      if (buscados.size === 0) break
+      if (enviadas.length < 60) break
+      cursor = enviadas.at(-1)!.id
     }
     return { anteriores }
   }
@@ -233,6 +251,15 @@ export class SesionesService {
       const hechas = new Map(
         resultado.series.flatMap((s) => (s.hecha ? [[s.serieId, s.valores] as const] : [])),
       )
+      const mejoresEnSesion = new Map<
+        string,
+        {
+          nombre: string
+          pesoKg: number
+          repeticiones: number
+          estimado: number
+        }
+      >()
       for (const ejercicio of resultado.prescripcion.ejercicios) {
         let mejor: { pesoKg: number; repeticiones: number; estimado: number } | null = null
         for (const serie of ejercicio.series) {
@@ -240,13 +267,18 @@ export class SesionesService {
           if (estimada && (!mejor || estimada.estimado > mejor.estimado)) mejor = estimada
         }
         if (!mejor) continue
-        const entrada = porEjercicio.get(ejercicio.ejercicioId) ?? {
-          nombre: ejercicio.nombre,
+        const anterior = mejoresEnSesion.get(ejercicio.ejercicioId)
+        if (!anterior || mejor.estimado > anterior.estimado)
+          mejoresEnSesion.set(ejercicio.ejercicioId, { nombre: ejercicio.nombre, ...mejor })
+      }
+      for (const [ejercicioId, { nombre, ...mejor }] of mejoresEnSesion) {
+        const entrada = porEjercicio.get(ejercicioId) ?? {
+          nombre,
           puntos: [],
         }
-        entrada.nombre = ejercicio.nombre
+        entrada.nombre = nombre
         entrada.puntos.push({ fecha: agendaPublica(enviada.agenda).fechaActual, ...mejor })
-        porEjercicio.set(ejercicio.ejercicioId, entrada)
+        porEjercicio.set(ejercicioId, entrada)
       }
     }
     const ejercicios = [...porEjercicio.entries()]

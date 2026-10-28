@@ -57,8 +57,8 @@ export class TokensRefrescoService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** Abre una familia nueva. Se usa al iniciar sesion con credenciales. */
-  async emitir(usuarioId: string): Promise<SesionEmitida> {
-    return this.crearFila(usuarioId, randomUUID(), new Date())
+  async emitir(usuarioId: string, cliente: ClientePrisma = this.prisma): Promise<SesionEmitida> {
+    return this.crearFila(usuarioId, randomUUID(), new Date(), cliente)
   }
 
   /**
@@ -77,17 +77,21 @@ export class TokensRefrescoService {
   async canjear(token: string): Promise<{ usuarioId: string; nuevo: SesionEmitida }> {
     const fila = await this.buscarFila(token)
 
-    const resultado = await this.prisma.$transaction(async (tx) =>
-      this.canjearDentroDeLaTransaccion(fila, tx),
-    )
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      await tx.usuario.updateMany({
+        where: { id: fila.usuarioId },
+        data: { actualizadoEn: new Date() },
+      })
+      // La lectura anterior solo identifica el usuario. Otro canje o un cierre
+      // puede haber terminado mientras esperábamos el candado.
+      const actual = await this.buscarFila(token, tx)
+      const canje = await this.canjearDentroDeLaTransaccion(actual, tx)
+      if (canje.tipo === "reuso") await this.revocarFamilia(actual.familiaId, "reuso", tx)
+      return canje
+    })
 
-    // El corte por reuso se hace FUERA de la transaccion, y no es un detalle de
-    // estilo: la peticion termina en error, y si la revocacion viviera dentro se
-    // desharia con el rollback. La familia seguiria viva justo en el caso en el
-    // que hay que matarla. Lo cazaron los tests de rotacion al meter el canje en
-    // una transaccion.
+    // El rechazo se lanza tras el commit: conserva la revocación por reuso.
     if (resultado.tipo === "reuso") {
-      await this.revocarFamilia(fila.familiaId, "reuso")
       this.registro.warn(
         `Token de refresco reutilizado. Familia ${fila.familiaId} revocada por completo.`,
       )
@@ -125,17 +129,14 @@ export class TokensRefrescoService {
     },
     tx: ClientePrisma & Pick<PrismaService, "usuario">,
   ): Promise<ResultadoDeCanje> {
-    await tx.usuario.updateMany({
-      where: { id: fila.usuarioId },
-      data: { actualizadoEn: new Date() },
-    })
-
     const { count } = await tx.tokenRefresco.updateMany({
       where: { id: fila.id, revocadoEn: null },
       data: { revocadoEn: new Date(), motivoRevocacion: "rotacion" },
     })
 
     if (count !== 1) {
+      if (fila.motivoRevocacion === "reintento" && this.dentroDeLaVentanaDeGracia(fila.revocadoEn))
+        return { tipo: "rechazo" }
       // El token ya estaba revocado. Hay dos explicaciones muy distintas.
       //
       // Una: alguien esta usando una copia robada. Es lo que la rotacion existe
@@ -199,7 +200,14 @@ export class TokensRefrescoService {
   /** Cierra la sesion revocando la familia entera. Borrarlo del movil no basta. */
   async revocar(token: string): Promise<void> {
     const fila = await this.buscarFila(token)
-    await this.revocarFamilia(fila.familiaId, "cierre")
+    await this.prisma.$transaction(async (tx) => {
+      await tx.usuario.updateMany({
+        where: { id: fila.usuarioId },
+        data: { actualizadoEn: new Date() },
+      })
+      const actual = await this.buscarFila(token, tx)
+      await this.revocarFamilia(actual.familiaId, "cierre", tx)
+    })
   }
 
   /**
@@ -261,7 +269,10 @@ export class TokensRefrescoService {
     return { token: `${fila.id}.${secreto}`, id: fila.id }
   }
 
-  private async buscarFila(token: string): Promise<{
+  private async buscarFila(
+    token: string,
+    cliente: ClientePrisma = this.prisma,
+  ): Promise<{
     id: string
     usuarioId: string
     familiaId: string
@@ -277,7 +288,7 @@ export class TokensRefrescoService {
     const id = token.slice(0, separador)
     const secreto = token.slice(separador + 1)
 
-    const fila = await this.prisma.tokenRefresco.findUnique({ where: { id } })
+    const fila = await cliente.tokenRefresco.findUnique({ where: { id } })
 
     // Un token inexistente, uno caducado, uno con el secreto equivocado y uno
     // cuya cadena supero la vida maxima dan el mismo error. Distinguirlos diria

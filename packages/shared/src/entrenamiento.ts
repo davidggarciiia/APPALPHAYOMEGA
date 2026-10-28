@@ -424,8 +424,8 @@ function cargaEjecutadaValida(
 
 /** Lo registrado conserva la unidad pautada y la carga que pide el ejercicio. */
 export function mantieneUnidadYCarga(
-  serie: Pick<SerieRegistrada | SerieRegistradaDistancia, "tipoMedicion" | "hecha" | "pesoKg">,
-  objetivo: Pick<SeriePrescrita | SeriePrescritaDistancia, "tipoMedicion" | "pesoKg">,
+  serie: Pick<SerieRegistrada, "tipoMedicion" | "hecha" | "pesoKg">,
+  objetivo: Pick<SeriePrescrita, "tipoMedicion" | "pesoKg">,
   tipoCarga: "conCargaExterna" | "sinCarga" | undefined,
 ): boolean {
   return (

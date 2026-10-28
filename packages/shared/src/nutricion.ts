@@ -179,10 +179,29 @@ export const DocumentoDietaSchema = z
   .refine(idsUnicos, "Hay identificadores repetidos en la dieta")
 export type DocumentoDieta = z.infer<typeof DocumentoDietaSchema>
 
+/** La lectura conserva documentos antiguos; las escrituras evitan selecciones ambiguas. */
+export const DocumentoDietaParaGuardarSchema = DocumentoDietaSchema.superRefine(
+  (dieta, contexto) => {
+    dieta.tiposDeDia.forEach((tipo, t) =>
+      tipo.comidas.forEach((comida, c) => {
+        if (comida.forma !== "intercambio") return
+        if (
+          new Set(comida.columnas.map((columna) => columna.nombre)).size !== comida.columnas.length
+        )
+          contexto.addIssue({
+            code: "custom",
+            path: ["tiposDeDia", t, "comidas", c, "columnas"],
+            message: "Cada columna de intercambio debe tener un nombre distinto",
+          })
+      }),
+    )
+  },
+)
+
 /** La revisión 0 crea el borrador; cualquier otra actualiza el existente si coincide. */
 export const GuardarBorradorDietaSchema = z.strictObject({
   revision: RevisionSchema,
-  documento: DocumentoDietaSchema,
+  documento: DocumentoDietaParaGuardarSchema,
 })
 export type GuardarBorradorDieta = z.infer<typeof GuardarBorradorDietaSchema>
 

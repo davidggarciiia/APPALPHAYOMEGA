@@ -128,6 +128,57 @@ function servicioCon(
 }
 
 describe("UsuariosService: reglas de gestion", () => {
+  it("una reactivación retrasada conserva la activación posterior", async () => {
+    const actual = fila({ estado: "desactivado" })
+    let lecturas = 0
+    let leida!: () => void, continuar!: () => void
+    const lectura = new Promise<void>((resolve) => {
+      leida = resolve
+    })
+    const espera = new Promise<void>((resolve) => {
+      continuar = resolve
+    })
+    const cliente = {
+      usuario: {
+        findUnique: async () => {
+          const copia = { ...actual }
+          if (++lecturas === 1) {
+            leida()
+            await espera
+          }
+          return copia
+        },
+        findUniqueOrThrow: async () => ({ ...actual }),
+        update: async ({ data }: { data: Partial<Fila> }) => {
+          Object.assign(actual, data)
+          return { ...actual }
+        },
+        updateMany: async ({ where, data }: { where: Partial<Fila>; data: Partial<Fila> }) => {
+          if (Object.entries(where).some(([clave, valor]) => actual[clave as keyof Fila] !== valor))
+            return { count: 0 }
+          Object.assign(actual, data)
+          return { count: 1 }
+        },
+      },
+    }
+    const servicio = new UsuariosService(
+      cliente as unknown as PrismaService,
+      {} as ActivacionService,
+      {} as TokensRefrescoService,
+    )
+    const primera = servicio.reactivar(ENTRENADOR, CLIENTE)
+    await lectura
+    await servicio.reactivar(ENTRENADOR, CLIENTE)
+    // La activación publica estado y hash en la misma escritura condicional.
+    await cliente.usuario.updateMany({
+      where: { estado: "pendiente" },
+      data: { estado: "activo", passwordHash: "hash-activado" },
+    })
+    continuar()
+    expect(await primera).toMatchObject({ estado: "activo", tieneContrasena: true })
+    expect(actual.estado).toBe("activo")
+  })
+
   it("dar de baja revoca las sesiones y quema los enlaces vivos", async () => {
     const { servicio, escrituras, sesionesRevocadas, enlacesQuemados } = servicioCon(
       fila({ estado: "activo", passwordHash: "$argon2id$..." }),

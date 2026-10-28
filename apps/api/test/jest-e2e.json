@@ -7,7 +7,7 @@
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
-  "setupFiles": ["<rootDir>/test/setup-entorno.ts"],
+  "setupFiles": ["<rootDir>/test/setup-entorno.ts", "<rootDir>/test/setup-e2e.ts"],
   "transform": {
     "^.+\\.ts$": [
       "ts-jest",

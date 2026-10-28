@@ -425,14 +425,13 @@ export function problemasDelDocumento(doc: DocumentoComprobable): string[] {
     if (r.estado === "noRealizado") continue
     const { min: minimo, max, ceroValido } = limitesDeDefinicion(d)
     const fuera = (v: number) => !valorAdmisible(d, v)
-    const rango = { max }
     if (r.lecturas && d.bloque !== "pliegues")
       problemas.push(`«${d.nombre}»: las lecturas solo se anotan en pliegues`)
     if (r.lecturas?.some(fuera))
-      problemas.push(`«${d.nombre}»: lectura fuera de ${minimo}–${rango.max} ${d.unidad}`)
+      problemas.push(`«${d.nombre}»: lectura fuera de ${minimo}–${max} ${d.unidad}`)
     if (r.estado === "registrado" && fuera(r.valor))
       problemas.push(
-        `«${d.nombre}»: ${!ceroValido && minimo === 0 ? "mayor que 0" : `desde ${minimo}`} y hasta ${rango.max} ${d.unidad}`,
+        `«${d.nombre}»: ${!ceroValido && minimo === 0 ? "mayor que 0" : `desde ${minimo}`} y hasta ${max} ${d.unidad}`,
       )
   }
   for (const r of doc.pruebas) {
@@ -528,7 +527,8 @@ export type TipoValoracion = z.infer<typeof TipoValoracionSchema>
 export const EstadoValoracionSchema = z.enum(["borrador", "publicada", "corrigiendo"])
 export type EstadoValoracion = z.infer<typeof EstadoValoracionSchema>
 
-const AutorSchema = z.strictObject({ id: z.uuid(), nombre: z.string().min(1).max(200) })
+// Perfil: nombre 80 + espacio + apellidos 120.
+const AutorSchema = z.strictObject({ id: z.uuid(), nombre: z.string().min(1).max(201) })
 
 /** Versión publicada e inmutable. Una corrección apunta a la que sustituye. */
 export const PublicacionValoracionSchema = z.strictObject({
@@ -596,9 +596,7 @@ export const ValoracionCorporalSchema = z
     fechaToma: FechaAgendaSchema,
     publicadaEn: z.iso.datetime(),
     definiciones: z.array(DefinicionCorporalSchema),
-    corporales: z.array(
-      ResultadoCorporalSchema.refine((r) => r.estado !== "pendiente", "Sin datos pendientes"),
-    ),
+    corporales: DocumentoPublicoSchema.shape.corporales,
     grasaPorPliegues: GrasaPorPlieguesSchema.nullable(),
   })
   .refine(

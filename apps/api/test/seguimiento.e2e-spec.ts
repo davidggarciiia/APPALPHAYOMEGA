@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { jest } from "@jest/globals"
 import request from "supertest"
 import {
   CONFIGURACION_SEGUIMIENTO_INICIAL,
@@ -12,8 +13,11 @@ import {
   PlanAsignadoSchema,
   ProgresionFuerzaSchema,
   ZONA_AGENDA,
+  VERSION_CONSENTIMIENTO,
 } from "@alpha-omega/shared"
 import { entornoEntrenamiento } from "./entrenamiento-ayuda.js"
+import { ConsentimientoService } from "../src/identity/consentimiento.service.js"
+import { esperarPausa } from "./concurrencia-ayuda.js"
 
 function dia(desplazamiento: number): string {
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_AGENDA }).format(new Date())
@@ -290,6 +294,142 @@ describe("Seguimiento del cliente", () => {
       ]),
     )
   })
+
+  it("dos medidas simultáneas del mismo UUID devuelven la misma fila", async () => {
+    const { app, como, ids, prisma } = entorno
+    const datos = {
+      operacionId: randomUUID(),
+      fecha: dia(0),
+      pesoKg: 81.2,
+      cinturaCm: null,
+      grasaPct: null,
+      alturaCm: null,
+    }
+    const guardar = () =>
+      request(app.getHttpServer())
+        .post(ruta(ids.cliente!, "medidas"))
+        .set(como("cliente"))
+        .send(datos)
+    const respuestas = await Promise.all([guardar(), guardar()])
+    expect(respuestas.map((r) => r.status)).toEqual([201, 201])
+    expect(respuestas[0]!.body).toEqual(respuestas[1]!.body)
+    expect(
+      await prisma.medidaCorporal.count({
+        where: { clienteId: ids.cliente!, operacionId: datos.operacionId },
+      }),
+    ).toBe(1)
+  })
+
+  it("normaliza dos decimales antes de guardar y repetir pruebas simultáneas", async () => {
+    const { app, como, ids, prisma } = entorno
+    const datos = {
+      operacionId: randomUUID(),
+      fecha: dia(0),
+      nombre: "Prueba sintética de precisión",
+      unidad: "s",
+      valor: 1.234,
+    }
+    const guardar = (valor = datos.valor) =>
+      request(app.getHttpServer())
+        .post(ruta(ids.cliente!, "pruebas"))
+        .set(como("entrenador"))
+        .send({ ...datos, valor })
+    const respuestas = await Promise.all([guardar(), guardar()])
+    expect(respuestas.map((r) => r.status)).toEqual([201, 201])
+    expect(respuestas[0]!.body).toEqual(respuestas[1]!.body)
+    expect(respuestas[0]!.body.valor).toBe(1.23)
+    expect((await guardar().expect(201)).body).toEqual(respuestas[0]!.body)
+    expect(ErrorDeApiSchema.parse((await guardar(2.34).expect(409)).body).codigo).toBe(
+      "operacion_incompatible",
+    )
+    expect(
+      await prisma.pruebaFisica.count({
+        where: { clienteId: ids.cliente!, operacionId: datos.operacionId },
+      }),
+    ).toBe(1)
+  })
+
+  it.each(["diario", "medida", "prueba"])(
+    "una retirada posterior al guard impide guardar %s",
+    async (accion) => {
+      const { app, como, ids, prisma } = entorno
+      const servicio = app.get(ConsentimientoService)
+      const original = servicio.exigirVigente.bind(servicio)
+      let avisar!: () => void
+      let continuar!: () => void
+      const dentro = new Promise<void>((resolve) => {
+        avisar = resolve
+      })
+      const pausa = new Promise<void>((resolve) => {
+        continuar = resolve
+      })
+      const espia = jest
+        .spyOn(servicio, "exigirVigente")
+        .mockImplementationOnce(async (...args) => {
+          avisar()
+          await pausa
+          return original(...args)
+        })
+      const operacionId = randomUUID()
+      const peticion = request(app.getHttpServer())
+      const pendiente = (
+        accion === "diario"
+          ? peticion.put(ruta(ids.cliente!, `dias/${dia(-20)}`)).send({ pasos: 321 })
+          : accion === "medida"
+            ? peticion.post(ruta(ids.cliente!, "medidas")).send({
+                operacionId,
+                fecha: dia(0),
+                pesoKg: 84,
+                cinturaCm: null,
+                grasaPct: null,
+                alturaCm: null,
+              })
+            : peticion.post(ruta(ids.cliente!, "pruebas")).send({
+                operacionId,
+                fecha: dia(0),
+                nombre: "Prueba tras retirada",
+                unidad: "s",
+                valor: 3,
+              })
+      )
+        .set(como(accion === "prueba" ? "entrenador" : "cliente"))
+        .then((respuesta) => respuesta)
+      try {
+        await esperarPausa(dentro, pendiente)
+        await request(app.getHttpServer())
+          .delete("/consentimiento")
+          .set(como("cliente"))
+          .expect(200)
+        continuar()
+        const respuesta = await pendiente
+        expect(respuesta.status).toBe(409)
+        expect(ErrorDeApiSchema.parse(respuesta.body).codigo).toBe("consentimiento_pendiente")
+        if (accion === "diario")
+          expect(
+            await prisma.diaSeguimiento.count({
+              where: { clienteId: ids.cliente!, fecha: new Date(`${dia(-20)}T00:00:00Z`) },
+            }),
+          ).toBe(0)
+        else if (accion === "medida")
+          expect(
+            await prisma.medidaCorporal.count({ where: { clienteId: ids.cliente!, operacionId } }),
+          ).toBe(0)
+        else
+          expect(
+            await prisma.pruebaFisica.count({ where: { clienteId: ids.cliente!, operacionId } }),
+          ).toBe(0)
+      } finally {
+        continuar()
+        await Promise.allSettled([pendiente])
+        espia.mockRestore()
+        await request(app.getHttpServer())
+          .post("/consentimiento")
+          .set(como("cliente"))
+          .send({ version: VERSION_CONSENTIMIENTO, acepto: true })
+          .expect(201)
+      }
+    },
+  )
 
   it("«Fuerza» sale de las series con carga de las sesiones enviadas", async () => {
     const { app, como, ids } = entorno

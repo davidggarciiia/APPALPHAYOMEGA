@@ -2,6 +2,7 @@ import { jest } from "@jest/globals"
 import type { PrismaService } from "../prisma/prisma.service.js"
 import type { SesionesService } from "./sesiones.service.js"
 import { MolestiasService } from "./molestias.service.js"
+import { ConsentimientoService } from "../identity/consentimiento.service.js"
 
 const id = "00000000-0000-4000-8000-000000000001"
 const clienteId = "00000000-0000-4000-8000-000000000002"
@@ -62,7 +63,11 @@ function entornoConcurrente() {
       ejecutar(tx),
   }
   return {
-    servicio: new MolestiasService(prisma as unknown as PrismaService, {} as SesionesService),
+    servicio: new MolestiasService(
+      prisma as unknown as PrismaService,
+      {} as SesionesService,
+      new ConsentimientoService(prisma as unknown as PrismaService),
+    ),
     molestia,
     novedadEntrenamiento,
     respuestaActual: () => fila.respuesta,

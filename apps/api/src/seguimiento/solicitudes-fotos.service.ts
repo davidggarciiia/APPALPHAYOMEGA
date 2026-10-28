@@ -8,7 +8,7 @@ import {
 import type { Prisma } from "@prisma/client"
 
 import { fechaSql } from "../agenda/fechas.js"
-import { conflicto } from "../entrenamiento/documentos.js"
+import { conflicto, esCodigoPrisma } from "../entrenamiento/documentos.js"
 import type { IdentidadVerificada } from "../identity/peticion.js"
 import { medioPublico } from "../medios/medios.service.js"
 import { PrismaService } from "../prisma/prisma.service.js"
@@ -101,12 +101,7 @@ export class SolicitudesFotosService {
         }),
       )
     } catch (error) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "P2002"
-      ) {
+      if (esCodigoPrisma(error, "P2002")) {
         const ganadora = await repetida()
         if (ganadora) return ganadora
       }
@@ -126,27 +121,23 @@ export class SolicitudesFotosService {
 
   /** «Revisada» solo por acción explícita, y solo si hay algo recibido. */
   async revisar(clienteId: string, id: string, operacionId: string): Promise<SolicitudFotos> {
-    const fila = await this.prisma.solicitudFotos.findFirst({
-      where: { id, clienteId },
-      include: INCLUIR,
-    })
-    if (!fila) throw new NotFoundException("Solicitud no disponible")
-    if (fila.estado === "revisada") {
+    return this.prisma.$transaction(async (tx) => {
+      // Mismo candado que la confirmación, antes de leer fotos o decidir estado.
+      await tx.solicitudFotos.updateMany({ where: { id, clienteId }, data: { clienteId } })
+      const fila = await tx.solicitudFotos.findFirst({ where: { id, clienteId }, include: INCLUIR })
+      if (!fila) throw new NotFoundException("Solicitud no disponible")
       if (fila.revisionOperacionId === operacionId) return solicitud(fila)
-      throw conflicto("estado_incompatible", "Esta solicitud ya está revisada")
-    }
-    if (fila.estado !== "recibida")
-      throw conflicto("estado_incompatible", "Aún no ha llegado ninguna foto de esta solicitud")
-    const revisada = await this.prisma.solicitudFotos.updateMany({
-      where: { id, estado: "recibida" },
-      data: { estado: "revisada", revisadaEn: new Date(), revisionOperacionId: operacionId },
+      if (fila.estado === "revisada")
+        throw conflicto("estado_incompatible", "Esta solicitud ya está revisada")
+      if (fila.estado !== "recibida")
+        throw conflicto("estado_incompatible", "Aún no ha llegado ninguna foto de esta solicitud")
+      await tx.solicitudFotos.updateMany({
+        where: { id, estado: "recibida" },
+        data: { estado: "revisada", revisadaEn: new Date(), revisionOperacionId: operacionId },
+      })
+      return solicitud(
+        await tx.solicitudFotos.findUniqueOrThrow({ where: { id }, include: INCLUIR }),
+      )
     })
-    const actual = await this.prisma.solicitudFotos.findUniqueOrThrow({
-      where: { id },
-      include: INCLUIR,
-    })
-    if (revisada.count !== 1 && actual.revisionOperacionId !== operacionId)
-      throw conflicto("estado_incompatible", "Esta solicitud ya está revisada")
-    return solicitud(actual)
   }
 }

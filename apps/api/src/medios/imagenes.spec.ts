@@ -1,8 +1,8 @@
-import { crc32 } from "node:zlib"
+import { crc32, deflateSync } from "node:zlib"
 import { formatoReal, sinMetadatos } from "./imagenes.js"
 
 // Imágenes sintéticas mínimas, construidas byte a byte: ninguna foto ni persona
-// real. Los píxeles son bytes ficticios porque la función nunca los decodifica.
+// real. PNG contiene filas comprimidas válidas; no hace falta reconstruir píxeles.
 
 const texto = (s: string): Uint8Array => Uint8Array.from(Buffer.from(s, "latin1"))
 const unir = (...partes: Uint8Array[]): Uint8Array => Uint8Array.from(Buffer.concat(partes))
@@ -220,8 +220,36 @@ const exifPng = bloquePng("eXIf", exifFicticio)
 const tiempo = bloquePng("tIME", bytes(0x07, 0xea, 9, 24, 10, 30, 0))
 const caBX = bloquePng("caBX", c2paFicticio)
 const privado = bloquePng("prVt", texto("bloque privado GPS"))
-const idat = bloquePng("IDAT", bytes(0x78, 0x9c, 0x63, 0xf8, 0xff, 0xff, 0x3f, 0x00))
+const filaRgb = bytes(0, 255, 255, 255)
+const rgbComprimido = Uint8Array.from(deflateSync(filaRgb))
+const idat = bloquePng("IDAT", rgbComprimido)
 const iend = bloquePng("IEND", bytes())
+
+function cabeceraPng(ancho: number, alto: number, profundidad = 8, color = 2, entrelazado = 0) {
+  return bloquePng(
+    "IHDR",
+    unir(entero(ancho, 4), entero(alto, 4), bytes(profundidad, color, 0, 0, entrelazado)),
+  )
+}
+
+function pngComprimido(cabecera: Uint8Array, comprimido: Uint8Array): Uint8Array {
+  return unir(FIRMA_PNG, cabecera, bloquePng("IDAT", comprimido), iend)
+}
+
+const filasAdam7 = unir(
+  bytes(0, 0, 0, 0), // 1: 1 fila de 1 píxel RGB
+  bytes(1, 0, 0, 0), // 2: 1 fila de 1 píxel
+  bytes(2, 0, 0, 0, 0, 0, 0), // 3: 1 fila de 2 píxeles
+  ...[3, 4].map((filtro) => unir(bytes(filtro), new Uint8Array(6))), // 4: 2 filas de 2
+  ...[0, 1].map((filtro) => unir(bytes(filtro), new Uint8Array(12))), // 5: 2 filas de 4
+  ...[2, 3, 4, 0].map((filtro) => unir(bytes(filtro), new Uint8Array(12))), // 6: 4 filas de 4
+  ...[1, 2, 3, 4].map((filtro) => unir(bytes(filtro), new Uint8Array(24))), // 7: 4 filas de 8
+)
+
+const adlerIncorrecto = rgbComprimido.slice()
+adlerIncorrecto[adlerIncorrecto.length - 1] = adlerIncorrecto[adlerIncorrecto.length - 1]! ^ 1
+const filtroAdam7Incorrecto = filasAdam7.slice()
+filtroAdam7Incorrecto[107] = 5 // Primera fila de la última pasada.
 
 const pngConMetadatos = unir(
   FIRMA_PNG,
@@ -256,6 +284,171 @@ function bloquesPng(png: Uint8Array): string[] {
 }
 
 describe("sinMetadatos · PNG (lista blanca)", () => {
+  it("rechaza el PNG de 58 bytes con IHDR y CRC válidos pero IDAT 01 ilegible", () => {
+    const entrada = pngComprimido(ihdr, bytes(1))
+    expect(entrada).toHaveLength(58)
+    expect(bloquesPng(entrada)).toEqual(["IHDR", "IDAT", "IEND"])
+    expect(() => sinMetadatos(entrada, "image/png")).toThrow("La imagen no es un PNG válido")
+  })
+
+  it.each([
+    ["zlib truncado", pngComprimido(ihdr, rgbComprimido.subarray(0, rgbComprimido.length - 1))],
+    ["Adler incorrecto", pngComprimido(ihdr, adlerIncorrecto)],
+    ["bytes tras el flujo zlib", pngComprimido(ihdr, unir(rgbComprimido, bytes(1)))],
+    ["dos flujos zlib", pngComprimido(ihdr, unir(rgbComprimido, rgbComprimido))],
+    ["fila incompleta", pngComprimido(ihdr, deflateSync(bytes(0, 1, 2)))],
+    ["fila demasiado larga", pngComprimido(ihdr, deflateSync(bytes(0, 1, 2, 3, 4)))],
+    ["filtro 5", pngComprimido(ihdr, deflateSync(bytes(5, 1, 2, 3)))],
+    ["filtro 255", pngComprimido(ihdr, deflateSync(bytes(255, 1, 2, 3)))],
+    [
+      "filtro inválido en la segunda fila",
+      pngComprimido(cabeceraPng(1, 2), deflateSync(bytes(0, 0, 0, 0, 5, 0, 0, 0))),
+    ],
+    ["expansión excesiva para IHDR", pngComprimido(ihdr, deflateSync(new Uint8Array(100_000)))],
+    [
+      "Adam7 con una fila incompleta",
+      pngComprimido(cabeceraPng(8, 8, 8, 2, 1), deflateSync(filasAdam7.subarray(0, 206))),
+    ],
+    [
+      "Adam7 con filtro inválido en la última pasada",
+      pngComprimido(cabeceraPng(8, 8, 8, 2, 1), deflateSync(filtroAdam7Incorrecto)),
+    ],
+    [
+      "dimensiones que exigen más de 64 MiB",
+      pngComprimido(cabeceraPng(1, 40_000_000), rgbComprimido),
+    ],
+    [
+      "dimensiones cuyo producto no es un entero seguro",
+      pngComprimido(cabeceraPng(0x7fffffff, 0x7fffffff, 16, 6), rgbComprimido),
+    ],
+  ])("rechaza datos PNG comprimidos inválidos o excesivos: %s", (_caso, entrada) => {
+    expect(() => sinMetadatos(entrada, "image/png")).toThrow("La imagen no es un PNG válido")
+  })
+
+  it("admite el flujo zlib partido incluso dentro de su cabecera y checksum, con IDAT vacíos", () => {
+    const entrada = unir(
+      FIRMA_PNG,
+      ihdr,
+      bloquePng("IDAT", bytes()),
+      ...Array.from(rgbComprimido, (byte) => bloquePng("IDAT", bytes(byte))),
+      bloquePng("IDAT", bytes()),
+      iend,
+    )
+    expect(sinMetadatos(entrada, "image/png")).toEqual(entrada)
+  })
+
+  it("admite los cinco filtros de PNG sin cambiar la imagen comprimida", () => {
+    const filas = unir(...[0, 1, 2, 3, 4].map((filtro) => bytes(filtro, 0, 0, 0)))
+    const entrada = pngComprimido(cabeceraPng(1, 5), deflateSync(filas))
+    expect(sinMetadatos(entrada, "image/png")).toEqual(entrada)
+  })
+
+  it.each([
+    [1, 0, 1],
+    [2, 0, 1],
+    [4, 0, 2],
+    [8, 0, 3],
+    [16, 0, 6],
+    [8, 2, 9],
+    [16, 2, 18],
+    [1, 3, 1],
+    [2, 3, 1],
+    [4, 3, 2],
+    [8, 3, 3],
+    [8, 4, 6],
+    [16, 4, 12],
+    [8, 6, 12],
+    [16, 6, 24],
+  ])("admite 3×2 píxeles con profundidad %i y color %i", (profundidad, color, bytesFila) => {
+    const fila = new Uint8Array(bytesFila + 1)
+    const entrada = unir(
+      FIRMA_PNG,
+      cabeceraPng(3, 2, profundidad, color),
+      ...(color === 3 ? [bloquePng("PLTE", bytes(0, 0, 0))] : []),
+      bloquePng("IDAT", deflateSync(unir(fila, fila))),
+      iend,
+    )
+    expect(sinMetadatos(entrada, "image/png")).toEqual(entrada)
+  })
+
+  it("admite las siete pasadas Adam7 de 8×8 RGB con sus filtros", () => {
+    expect(filasAdam7).toHaveLength(207)
+    const entrada = pngComprimido(cabeceraPng(8, 8, 8, 2, 1), deflateSync(filasAdam7))
+    expect(sinMetadatos(entrada, "image/png")).toEqual(entrada)
+  })
+
+  it.each([
+    [1, 1, bytes(0, 0, 0, 0)],
+    [2, 3, new Uint8Array(23)],
+  ])("admite Adam7 %i×%i omitiendo las pasadas vacías", (ancho, alto, filas) => {
+    const entrada = pngComprimido(cabeceraPng(ancho, alto, 8, 2, 1), deflateSync(filas))
+    expect(sinMetadatos(entrada, "image/png")).toEqual(entrada)
+  })
+
+  it.each([
+    ["IHDR vacío", unir(FIRMA_PNG, bloquePng("IHDR", bytes()), iend)],
+    ["sin IDAT", unir(FIRMA_PNG, ihdr, iend)],
+    ["IDAT vacío", unir(FIRMA_PNG, ihdr, bloquePng("IDAT", bytes()), iend)],
+    [
+      "IDAT vacío seguido de IDAT separado",
+      unir(FIRMA_PNG, ihdr, bloquePng("IDAT", bytes()), textoPng, idat, iend),
+    ],
+    [
+      "PLTE tras IDAT vacío",
+      unir(
+        FIRMA_PNG,
+        ihdr,
+        bloquePng("IDAT", bytes()),
+        bloquePng("PLTE", bytes(1, 2, 3)),
+        idat,
+        iend,
+      ),
+    ],
+    ["IHDR duplicado", unir(FIRMA_PNG, ihdr, ihdr, idat, iend)],
+    [
+      "dimensión cero",
+      unir(
+        FIRMA_PNG,
+        bloquePng("IHDR", unir(entero(0, 4), entero(1, 4), bytes(8, 2, 0, 0, 0))),
+        idat,
+        iend,
+      ),
+    ],
+    [
+      "profundidad incompatible",
+      unir(
+        FIRMA_PNG,
+        bloquePng("IHDR", unir(entero(1, 4), entero(1, 4), bytes(1, 2, 0, 0, 0))),
+        idat,
+        iend,
+      ),
+    ],
+    [
+      "paleta indexada ausente",
+      unir(
+        FIRMA_PNG,
+        bloquePng("IHDR", unir(entero(1, 4), entero(1, 4), bytes(8, 3, 0, 0, 0))),
+        idat,
+        iend,
+      ),
+    ],
+    ["IDAT no consecutivos", unir(FIRMA_PNG, ihdr, idat, textoPng, idat, iend)],
+    ["IEND con datos", unir(FIRMA_PNG, ihdr, idat, bloquePng("IEND", bytes(1)))],
+    [
+      "CRC incorrecto",
+      unir(
+        FIRMA_PNG,
+        ihdr,
+        idat.subarray(0, idat.length - 1),
+        bytes(idat[idat.length - 1]! ^ 1),
+        iend,
+      ),
+    ],
+    ["bloque crítico desconocido", unir(FIRMA_PNG, ihdr, bloquePng("ABCD", bytes(1)), idat, iend)],
+  ])("rechaza PNG sin estructura de imagen válida: %s", (_caso, entrada) => {
+    expect(() => sinMetadatos(entrada, "image/png")).toThrow("La imagen no es un PNG válido")
+  })
+
   it("conserva solo los bloques de imagen y color, con su CRC, y quita todo lo demás", () => {
     const salida = sinMetadatos(pngConMetadatos, "image/png")
 

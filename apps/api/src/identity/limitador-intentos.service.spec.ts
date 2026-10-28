@@ -1,4 +1,5 @@
-import { HttpException } from "@nestjs/common"
+import { HttpException, Logger } from "@nestjs/common"
+import { jest } from "@jest/globals"
 
 import { LimitadorDeIntentos } from "./limitador-intentos.service.js"
 
@@ -11,6 +12,32 @@ function fallar(limitador: LimitadorDeIntentos, veces: number): void {
 }
 
 describe("LimitadorDeIntentos", () => {
+  it("olvida los fallos tras una hora también cuando hay pocas claves", () => {
+    const ahora = jest.spyOn(Date, "now").mockReturnValue(1_000_000)
+    try {
+      const limitador = new LimitadorDeIntentos()
+      fallar(limitador, 15)
+      ahora.mockReturnValue(1_000_000 + 61 * 60_000)
+      limitador.comprobar(CLAVE)
+      fallar(limitador, 1)
+      expect(() => limitador.comprobar(CLAVE)).not.toThrow()
+    } finally {
+      ahora.mockRestore()
+    }
+  })
+  it("el aviso de bloqueo no registra el correo de la persona", () => {
+    const aviso = jest.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined)
+    try {
+      const limitador = new LimitadorDeIntentos()
+      for (let i = 0; i < 6; i++)
+        limitador.registrarFallo("login:ana.privada@example.test|127.0.0.1")
+      expect(aviso).toHaveBeenCalled()
+      expect(JSON.stringify(aviso.mock.calls)).not.toContain("ana.privada@example.test")
+    } finally {
+      aviso.mockRestore()
+    }
+  })
+
   it("no molesta durante los primeros intentos", () => {
     const limitador = new LimitadorDeIntentos()
 

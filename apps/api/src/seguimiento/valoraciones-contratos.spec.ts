@@ -107,6 +107,21 @@ function documento(cambios: Partial<DocumentoValoracion> = {}): DocumentoValorac
 }
 
 describe("contratos de valoración", () => {
+  it("admite un autor con nombre y apellidos máximos del perfil", () => {
+    const publicacion = {
+      id: id(10),
+      valoracionId: id(11),
+      numero: 1,
+      sustituyeId: null,
+      tipo: "inicial",
+      fechaToma: "2026-09-24",
+      autor: { id: id(12), nombre: `${"n".repeat(80)} ${"a".repeat(120)}` },
+      publicadaEn: "2026-09-24T10:00:00.000Z",
+      documento: proyeccionPublica(DocumentoValoracionSchema.parse(documento())),
+    }
+    expect(PublicacionValoracionSchema.safeParse(publicacion).success).toBe(true)
+  })
+
   it("un documento parcial distingue pendiente, registrado, no realizado y cero", () => {
     const leido = DocumentoValoracionSchema.parse(documento())
     expect(leido.corporales[1]).toEqual({ definicionId: pliegue.id, estado: "pendiente" })

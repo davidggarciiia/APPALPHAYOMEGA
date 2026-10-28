@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "@prisma/client"
+import { ContrasenaNuevaSchema, CrearUsuarioSchema } from "@alpha-omega/shared"
 
 import { leerVariable } from "./config/entorno.js"
 import { urlDeConexion } from "./config/postgres.js"
@@ -18,10 +19,12 @@ async function sembrar(): Promise<void> {
   const prisma = new PrismaClient({ adapter: new PrismaPg(urlDeConexion()) })
 
   try {
-    const email = leerVariable("SEED_ENTRENADOR_EMAIL").trim().toLowerCase()
+    const email = CrearUsuarioSchema.shape.email.parse(leerVariable("SEED_ENTRENADOR_EMAIL"))
     const existente = await prisma.usuario.findUnique({ where: { email } })
 
     if (existente !== null) {
+      if (existente.rol !== "entrenador")
+        throw new Error("Ese correo ya existe y no pertenece a un entrenador")
       console.log(`El entrenador ${email} ya existe. No se toca.`)
       return
     }
@@ -30,7 +33,9 @@ async function sembrar(): Promise<void> {
       data: {
         email,
         nombre: "Entrenador",
-        passwordHash: await cifrarContrasena(leerVariable("SEED_ENTRENADOR_PASSWORD")),
+        passwordHash: await cifrarContrasena(
+          ContrasenaNuevaSchema.parse(leerVariable("SEED_ENTRENADOR_PASSWORD")),
+        ),
         rol: "entrenador",
         estado: "activo",
       },

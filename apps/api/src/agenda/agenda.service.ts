@@ -1,10 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common"
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common"
 import type { Prisma } from "@prisma/client"
 import {
   CambioDeFechaSchema,
@@ -17,6 +11,7 @@ import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { agendaPublica, fechaSql, lunesDeSemana } from "./fechas.js"
 import { registrarNovedad } from "../entrenamiento/novedades.js"
+import { conflicto, invalida } from "../entrenamiento/documentos.js"
 
 @Injectable()
 export class AgendaService {
@@ -38,28 +33,25 @@ export class AgendaService {
   ): Promise<SesionProgramada> {
     return this.prisma.$transaction(async (tx) => {
       await this.fila(tx, actor, id)
+      // Enviar ya toma entrenamiento antes de cerrar agenda. Compartir ese orden
+      // evita el ciclo con el FK de la novedad que se crea al mover.
+      await tx.$queryRaw`SELECT "id" FROM "sesiones_entrenamiento" WHERE "id" = ${id} FOR UPDATE`
       await tx.$queryRaw`SELECT "id" FROM "sesiones_programadas" WHERE "id" = ${id} FOR UPDATE`
       const fila = await this.fila(tx, actor, id)
       if (fila.estado !== "abierta")
-        throw new ConflictException({
-          statusCode: 409,
-          codigo: "operacion_incompatible",
-          message: "El entrenamiento ya está enviado y no puede cambiarse de día",
-        })
+        throw conflicto(
+          "operacion_incompatible",
+          "El entrenamiento ya está enviado y no puede cambiarse de día",
+        )
       if (fila.revision !== datos.revision)
-        throw new ConflictException({
-          statusCode: 409,
-          codigo: "revision_obsoleta",
-          message: "La fecha ha cambiado. Actualiza la sesión antes de moverla.",
-        })
+        throw conflicto(
+          "revision_obsoleta",
+          "La fecha ha cambiado. Actualiza la sesión antes de moverla.",
+        )
       if (
         lunesDeSemana(datos.fecha) !== lunesDeSemana(fila.fechaOriginal.toISOString().slice(0, 10))
       )
-        throw new BadRequestException({
-          statusCode: 400,
-          codigo: "solicitud_invalida",
-          message: "Elige un día de la misma semana que la fecha original",
-        })
+        throw invalida("Elige un día de la misma semana que la fecha original")
       if (fila.fechaActual.toISOString().slice(0, 10) === datos.fecha) return agendaPublica(fila)
       const nueva = await tx.sesionProgramada.update({
         where: { id },
@@ -118,11 +110,6 @@ export class AgendaService {
       where: { id, estado: "abierta" },
       data: { estado: "cerrada", revision: { increment: 1 } },
     })
-    if (cambio.count !== 1)
-      throw new ConflictException({
-        statusCode: 409,
-        codigo: "operacion_incompatible",
-        message: "Esta sesión ya está cerrada",
-      })
+    if (cambio.count !== 1) throw conflicto("operacion_incompatible", "Esta sesión ya está cerrada")
   }
 }

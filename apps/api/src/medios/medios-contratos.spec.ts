@@ -45,6 +45,15 @@ const enlace = {
 }
 
 describe("contratos de fotos privadas", () => {
+  it("admite el nombre y apellidos máximos del perfil unidos con un espacio", () => {
+    const autor = { id: medio.autor.id, nombre: `${"n".repeat(80)} ${"a".repeat(120)}` }
+    expect(MedioFotoSchema.safeParse({ ...medio, autor }).success).toBe(true)
+    expect(
+      MedioFotoSchema.safeParse({ ...medio, autor: { ...autor, nombre: autor.nombre + "a" } })
+        .success,
+    ).toBe(false)
+  })
+
   it("acepta una subida a una visita o a una solicitud sin valoración", () => {
     expect(SolicitarSubidaSchema.safeParse(subida).success).toBe(true)
     expect(

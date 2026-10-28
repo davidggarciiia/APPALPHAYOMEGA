@@ -1,19 +1,13 @@
-import {
-  ConflictException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-} from "@nestjs/common"
-import { createHash } from "node:crypto"
+import { Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common"
 import type { Dieta, Prisma } from "@prisma/client"
 import {
   DocumentoDietaSchema,
+  DocumentoDietaParaGuardarSchema,
   type BorradorDieta,
   type ConsultarHistoricoDietas,
   type DietaDelHistorico,
   type DietaPublicada,
   type DocumentoDieta,
-  type ErrorDeApi,
   type GuardarBorradorDieta,
   type LecturaBorradorDieta,
   type LecturaDietaVigente,
@@ -23,16 +17,11 @@ import {
 } from "@alpha-omega/shared"
 
 import type { IdentidadVerificada } from "../identity/peticion.js"
+import { ConsentimientoService } from "../identity/consentimiento.service.js"
 import { PrismaService } from "../prisma/prisma.service.js"
+import { conflicto, hashPeticion } from "../entrenamiento/documentos.js"
 
 type Cliente = Prisma.TransactionClient | PrismaService
-
-function conflicto(
-  codigo: Extract<ErrorDeApi, { statusCode: 409 }>["codigo"],
-  message: string,
-): ConflictException {
-  return new ConflictException({ statusCode: 409, codigo, message } satisfies ErrorDeApi)
-}
 
 /** Lo que sale de la base se vuelve a validar: la versión decide cómo leerlo. */
 export function leerDocumento(fila: Pick<Dieta, "documento" | "version">): DocumentoDieta {
@@ -89,9 +78,7 @@ function aResumen(fila: FilaConAutor): ResumenDieta {
 
 /** Huella de lo que se pidió publicar: el mismo id con otra revisión es otra operación. */
 function huella(datos: PublicarDieta): string {
-  return createHash("sha256")
-    .update(JSON.stringify({ revision: datos.revision }))
-    .digest("hex")
+  return hashPeticion({ revision: datos.revision })
 }
 
 function aBorrador(fila: Dieta): BorradorDieta {
@@ -113,7 +100,10 @@ function aBorrador(fila: Dieta): BorradorDieta {
  */
 @Injectable()
 export class DietasService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly consentimiento: ConsentimientoService,
+  ) {}
 
   /**
    * Comprueba que existe un cliente con ese id. Dentro de una escritura bloquea
@@ -161,6 +151,9 @@ export class DietasService {
   ): Promise<BorradorDieta> {
     return this.prisma.$transaction(async (tx) => {
       await this.clienteQueAdmiteCambios(tx, clienteId)
+      if (datos.documento.calculo !== undefined) {
+        await this.consentimiento.exigirVigente(clienteId, actor.sub, tx)
+      }
       const actual = await tx.dieta.findFirst({ where: { clienteId, estado: "borrador" } })
       const obsoleta = conflicto(
         "revision_obsoleta",
@@ -229,6 +222,16 @@ export class DietasService {
           "revision_obsoleta",
           "El borrador ha cambiado o ya no existe. Recarga antes de publicar.",
         )
+      }
+      const documento = leerDocumento(borrador)
+      if (!DocumentoDietaParaGuardarSchema.safeParse(documento).success) {
+        throw conflicto(
+          "operacion_incompatible",
+          "Revisa los nombres de las columnas de intercambio antes de publicar.",
+        )
+      }
+      if (documento.calculo !== undefined) {
+        await this.consentimiento.exigirVigente(clienteId, actor.sub, tx)
       }
       const ahora = new Date()
       await tx.dieta.updateMany({

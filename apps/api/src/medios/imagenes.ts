@@ -8,10 +8,13 @@
  * imagen. Añadir algo a una lista blanca exige comprobar que no puede llevar
  * datos personales.
  *
- * Solo recorre la estructura del contenedor: nunca decodifica ni recomprime
- * píxeles, no escribe en disco y no registra el contenido. Los errores dicen qué
- * falla en la estructura, nunca qué bytes había.
+ * Recorre la estructura del contenedor y en PNG comprueba el flujo zlib y las
+ * filas filtradas con memoria acotada. Nunca reconstruye ni recomprime píxeles,
+ * no escribe en disco y no registra el contenido. Los errores dicen qué falla
+ * en la estructura, nunca qué bytes había.
  */
+
+import { inflateSync } from "node:zlib"
 
 export type FormatoImagen = "image/jpeg" | "image/png" | "image/webp"
 
@@ -191,12 +194,37 @@ const BLOQUES_PNG_ADMITIDOS = new Set([
   "pHYs",
 ])
 const TIPO_PNG = /^[A-Za-z]{4}$/
+/** Límite de trabajo, independiente de los 8 MiB del archivo comprimido. */
+const BYTES_MAXIMOS_FILAS_PNG = 64 * 1024 * 1024
+const CANALES_PNG: Readonly<Record<number, number>> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }
+/** Inicio x/y e incremento x/y de las siete pasadas (PNG §8.1). */
+const PASADAS_ADAM7 = [
+  [0, 0, 8, 8],
+  [4, 0, 8, 8],
+  [0, 4, 4, 8],
+  [2, 0, 4, 4],
+  [0, 2, 2, 4],
+  [1, 0, 2, 2],
+  [0, 1, 1, 2],
+] as const
+type FilasPng = {
+  longitud: number
+  pasadas: { filas: number; longitudFila: number }[]
+}
 
 function pngSinMetadatos(bytes: Uint8Array): Uint8Array {
   if (!empiezaPor(bytes, FIRMA_PNG)) throw noValida("PNG", "no tiene la firma PNG")
   const vista = vistaDe(bytes)
   const partes: Uint8Array[] = [bytes.subarray(0, FIRMA_PNG.length)]
   let pos: number = FIRMA_PNG.length
+  let color = -1
+  let profundidad = 0
+  let paleta = false
+  let datosImagen = 0
+  let vistoIdat = false
+  let idatTerminado = false
+  let filas: FilasPng | null = null
+  const datosIdat: Uint8Array[] = []
 
   // Cada bloque: longitud (4, big-endian), tipo (4), datos y CRC (4).
   while (pos < bytes.length) {
@@ -211,15 +239,137 @@ function pngSinMetadatos(bytes: Uint8Array): Uint8Array {
     if (pos === FIRMA_PNG.length && tipo !== "IHDR") {
       throw noValida("PNG", "no empieza por la cabecera IHDR")
     }
+    const datos = bytes.subarray(pos + 8, pos + 8 + longitud)
+    if (crcPng(bytes.subarray(pos + 4, pos + 8 + longitud)) !== vista.getUint32(pos + 8 + longitud))
+      throw noValida("PNG", "el CRC de un bloque no coincide")
+    if (tipo === "IHDR") {
+      if (pos !== FIRMA_PNG.length || longitud !== 13)
+        throw noValida("PNG", "la cabecera IHDR no es válida")
+      const ancho = vista.getUint32(pos + 8),
+        alto = vista.getUint32(pos + 12)
+      profundidad = datos[8]!
+      color = datos[9]!
+      const profundidades: Record<number, number[]> = {
+        0: [1, 2, 4, 8, 16],
+        2: [8, 16],
+        3: [1, 2, 4, 8],
+        4: [8, 16],
+        6: [8, 16],
+      }
+      if (
+        ancho === 0 ||
+        alto === 0 ||
+        ancho > 0x7fffffff ||
+        alto > 0x7fffffff ||
+        !profundidades[color]?.includes(profundidad) ||
+        datos[10] !== 0 ||
+        datos[11] !== 0 ||
+        (datos[12] !== 0 && datos[12] !== 1)
+      )
+        throw noValida("PNG", "las dimensiones u opciones de IHDR no son válidas")
+      filas = filasPng(ancho, alto, profundidad, color, datos[12]!)
+    } else if (tipo === "PLTE") {
+      if (
+        paleta ||
+        vistoIdat ||
+        color === 0 ||
+        color === 4 ||
+        longitud < 3 ||
+        longitud % 3 !== 0 ||
+        longitud > 768 ||
+        (color === 3 && longitud / 3 > 2 ** profundidad)
+      )
+        throw noValida("PNG", "la paleta no es válida")
+      paleta = true
+    } else if (tipo === "IDAT") {
+      if (idatTerminado || (color === 3 && !paleta))
+        throw noValida("PNG", "los datos IDAT o su paleta no son válidos")
+      datosImagen += longitud
+      vistoIdat = true
+      datosIdat.push(datos)
+    } else {
+      if (vistoIdat) idatTerminado = true
+      if (tipo === "IEND" && (longitud !== 0 || datosImagen === 0))
+        throw noValida("PNG", "falta la imagen IDAT o el final IEND no es válido")
+      if (!BLOQUES_PNG_ADMITIDOS.has(tipo) && tipo[0] === tipo[0]!.toUpperCase())
+        throw noValida("PNG", "hay un bloque crítico desconocido")
+    }
 
     // Los bloques conservados no cambian, así que su CRC original sigue valiendo.
     if (BLOQUES_PNG_ADMITIDOS.has(tipo)) partes.push(bytes.subarray(pos, fin))
     pos = fin
     // Lo que venga detrás de IEND no forma parte de la imagen.
-    if (tipo === "IEND") return unir(partes)
+    if (tipo === "IEND") {
+      validarDatosPng(datosIdat, filas!)
+      return unir(partes)
+    }
   }
 
   throw noValida("PNG", "falta el bloque final IEND")
+}
+
+/** Calcula el tamaño exacto antes de reservar memoria o descomprimir. */
+function filasPng(
+  ancho: number,
+  alto: number,
+  profundidad: number,
+  color: number,
+  entrelazado: number,
+): FilasPng {
+  const bitsPorPixel = profundidad * CANALES_PNG[color]!
+  const recorridos = entrelazado === 0 ? [[0, 0, 1, 1] as const] : PASADAS_ADAM7
+  const salida: FilasPng = { longitud: 0, pasadas: [] }
+  for (const [inicioX, inicioY, pasoX, pasoY] of recorridos) {
+    const columnas = ancho <= inicioX ? 0 : Math.ceil((ancho - inicioX) / pasoX)
+    const filas = alto <= inicioY ? 0 : Math.ceil((alto - inicioY) / pasoY)
+    // Una pasada vacía no contiene siquiera un byte de filtro.
+    if (columnas === 0 || filas === 0) continue
+    const longitudFila = 1 + Math.ceil((columnas * bitsPorPixel) / 8)
+    // Comparar antes de multiplicar evita productos inseguros de dimensiones.
+    if (filas > Math.floor((BYTES_MAXIMOS_FILAS_PNG - salida.longitud) / longitudFila))
+      throw noValida("PNG", "las filas descomprimidas superan el límite de 64 MiB")
+    salida.longitud += filas * longitudFila
+    salida.pasadas.push({ filas, longitudFila })
+  }
+  return salida
+}
+
+function validarDatosPng(partes: readonly Uint8Array[], filas: FilasPng): void {
+  // Los límites IDAT pueden caer incluso dentro de la cabecera o el Adler de
+  // zlib. PNG usa un único flujo completo, no uno por bloque (PNG §10.2).
+  const comprimido = unir(partes)
+  let resultado: { buffer: Uint8Array; engine: { bytesWritten: number } }
+  try {
+    // Node devuelve buffer + engine con info:true; sus tipos no modelan esa
+    // variante. Z_FINISH por defecto exige final y checksum, y maxOutputLength
+    // corta la expansión aunque el archivo declare una imagen muy pequeña.
+    resultado = inflateSync(comprimido, {
+      info: true,
+      maxOutputLength: filas.longitud,
+    }) as unknown as typeof resultado
+  } catch {
+    throw noValida("PNG", "el flujo comprimido IDAT está incompleto o no es válido")
+  }
+  if (resultado.engine.bytesWritten !== comprimido.length)
+    throw noValida("PNG", "hay datos tras el final del flujo comprimido IDAT")
+  if (resultado.buffer.length !== filas.longitud)
+    throw noValida("PNG", "el tamaño de las filas no coincide con IHDR")
+  let pos = 0
+  for (const pasada of filas.pasadas) {
+    for (let fila = 0; fila < pasada.filas; fila++) {
+      if (resultado.buffer[pos]! > 4) throw noValida("PNG", "una fila contiene un filtro no válido")
+      pos += pasada.longitudFila
+    }
+  }
+}
+
+function crcPng(bytes: Uint8Array): number {
+  let crc = 0xffffffff
+  for (const byte of bytes) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) === 1 ? 0xedb88320 : 0)
+  }
+  return (crc ^ 0xffffffff) >>> 0
 }
 
 // ---------------------------------------------------------------- WebP

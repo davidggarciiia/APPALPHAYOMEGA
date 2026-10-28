@@ -340,10 +340,11 @@ export class UsuariosService {
       return aFicha(usuario)
     }
 
-    const reactivado = await this.prisma.usuario.update({
-      where: { id },
+    await this.prisma.usuario.updateMany({
+      where: { id, estado: "desactivado", passwordHash: usuario.passwordHash },
       data: { estado: usuario.passwordHash === null ? "pendiente" : "activo" },
     })
+    const reactivado = await this.buscar(id)
 
     this.registro.log(`Alta de nuevo: ${quienPregunta} reactiva a ${id}`)
 

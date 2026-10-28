@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { jest } from "@jest/globals"
 import { SesionesService } from "../src/entrenamiento/sesiones.service.js"
+import { ConsentimientoService } from "../src/identity/consentimiento.service.js"
 import request from "supertest"
 import {
   BorradorSchema,
@@ -8,8 +9,11 @@ import {
   PlanAsignadoSchema,
   ResultadoEntrenamientoSchema,
   type GuardarBorrador,
+  VERSION_CONSENTIMIENTO,
+  ErrorDeApiSchema,
 } from "@alpha-omega/shared"
 import { entornoEntrenamiento } from "./entrenamiento-ayuda.js"
+import { esperarPausa } from "./concurrencia-ayuda.js"
 
 describe("Borrador privado y envío atómico", () => {
   let entorno: Awaited<ReturnType<typeof entornoEntrenamiento>>
@@ -316,6 +320,141 @@ describe("Borrador privado y envío atómico", () => {
       "abierta",
     )
   })
+  it("molestias simultáneas del mismo UUID devuelven el aviso y rechazan otro contenido", async () => {
+    const { base, id } = await preparar()
+    const { app, como, prisma, ids } = entorno
+    const datos = {
+      operacionId: randomUUID(),
+      ejercicioPrescritoId: null,
+      serie: null,
+      zona: "hombro",
+      intensidad: 3,
+      sintomas: [],
+      nota: "Aviso sintético",
+    }
+    const avisar = (nota = datos.nota) =>
+      request(app.getHttpServer())
+        .post(`${base}/molestias`)
+        .set(como("cliente"))
+        .send({ ...datos, nota })
+    const respuestas = await Promise.all([avisar(), avisar()])
+    expect(respuestas.map((r) => r.status)).toEqual([201, 201])
+    expect(respuestas[0]!.body).toEqual(respuestas[1]!.body)
+    expect(ErrorDeApiSchema.parse((await avisar("Otro aviso").expect(409)).body).codigo).toBe(
+      "operacion_incompatible",
+    )
+    expect(
+      await prisma.molestia.count({
+        where: { clienteId: ids.cliente!, sesionId: id, operacionId: datos.operacionId },
+      }),
+    ).toBe(1)
+  })
+
+  it("comentarios simultáneos del mismo UUID dejan un comentario y una novedad", async () => {
+    const { base, id, borrador } = await preparar()
+    const { app, como, prisma, ids } = entorno
+    await request(app.getHttpServer())
+      .post(`${base}/enviar`)
+      .set(como("cliente"))
+      .send(borrador)
+      .expect(200)
+    const datos = {
+      operacionId: randomUUID(),
+      ejercicioPrescritoId: null,
+      texto: "Comentario sintético",
+    }
+    const comentar = () =>
+      request(app.getHttpServer()).post(`${base}/comentarios`).set(como("entrenador")).send(datos)
+    const respuestas = await Promise.all([comentar(), comentar()])
+    expect(respuestas.map((r) => r.status)).toEqual([201, 201])
+    expect(respuestas[0]!.body).toEqual(respuestas[1]!.body)
+    expect(
+      await prisma.comentarioSesion.count({
+        where: { autorId: ids.entrenador!, operacionId: datos.operacionId },
+      }),
+    ).toBe(1)
+    expect(
+      await prisma.novedadEntrenamiento.count({ where: { sesionId: id, tipo: "comentario" } }),
+    ).toBe(1)
+  })
+
+  it("mover y enviar simultáneamente terminan con una sesión cerrada y sin bloqueo circular", async () => {
+    const { base, id, borrador } = await preparar()
+    const { app, como, prisma } = entorno
+    const [mover, enviar] = await Promise.all([
+      request(app.getHttpServer())
+        .patch(`/agenda/sesiones/${id}/fecha`)
+        .set(como("cliente"))
+        .send({ fecha: "2026-09-15", revision: 0 }),
+      request(app.getHttpServer()).post(`${base}/enviar`).set(como("cliente")).send(borrador),
+    ])
+    expect(enviar.status).toBe(200)
+    expect([200, 409]).toContain(mover.status)
+    const fila = await prisma.sesionEntrenamiento.findUniqueOrThrow({
+      where: { id },
+      include: { agenda: true },
+    })
+    expect(fila.resultado).not.toBeNull()
+    expect(fila.agenda.estado).toBe("cerrada")
+  })
+
+  it("una retirada posterior al guard impide crear la molestia y su novedad", async () => {
+    const { base, id } = await preparar()
+    const { app, como, prisma, ids } = entorno
+    const servicio = app.get(ConsentimientoService)
+    const original = servicio.exigirVigente.bind(servicio)
+    let avisar!: () => void
+    let continuar!: () => void
+    const dentro = new Promise<void>((resolve) => {
+      avisar = resolve
+    })
+    const pausa = new Promise<void>((resolve) => {
+      continuar = resolve
+    })
+    const espia = jest.spyOn(servicio, "exigirVigente").mockImplementationOnce(async (...args) => {
+      avisar()
+      await pausa
+      return original(...args)
+    })
+    const operacionId = randomUUID()
+    const pendiente = request(app.getHttpServer())
+      .post(`${base}/molestias`)
+      .set(como("cliente"))
+      .send({
+        operacionId,
+        ejercicioPrescritoId: null,
+        serie: null,
+        zona: "hombro",
+        intensidad: 3,
+        sintomas: [],
+        nota: null,
+      })
+      .then((respuesta) => respuesta)
+    try {
+      await esperarPausa(dentro, pendiente)
+      await request(app.getHttpServer()).delete("/consentimiento").set(como("cliente")).expect(200)
+      continuar()
+      const respuesta = await pendiente
+      expect(respuesta.status).toBe(409)
+      expect(ErrorDeApiSchema.parse(respuesta.body).codigo).toBe("consentimiento_pendiente")
+      expect(await prisma.molestia.count({ where: { clienteId: ids.cliente!, operacionId } })).toBe(
+        0,
+      )
+      expect(
+        await prisma.novedadEntrenamiento.count({ where: { sesionId: id, tipo: "molestia" } }),
+      ).toBe(0)
+    } finally {
+      continuar()
+      await Promise.allSettled([pendiente])
+      espia.mockRestore()
+      await request(app.getHttpServer())
+        .post("/consentimiento")
+        .set(como("cliente"))
+        .send({ version: VERSION_CONSENTIMIENTO, acepto: true })
+        .expect(201)
+    }
+  })
+
   it.each(["borrador", "enviar"])(
     "si la baja gana después del guard, %s no persiste",
     async (accion) => {
@@ -345,7 +484,7 @@ describe("Borrador privado y envío atómico", () => {
         .send(borrador)
         .then((respuesta) => respuesta)
       try {
-        await dentro
+        await esperarPausa(dentro, pendiente)
         await prisma.usuario.update({ where: { id: ids.cliente }, data: { estado: "desactivado" } })
         continuar()
         expect((await pendiente).status).toBe(401)

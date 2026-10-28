@@ -37,6 +37,10 @@ export function hashPeticion(valor: unknown): string {
   return createHash("sha256").update(JSON.stringify(valor)).digest("hex")
 }
 
+export function esCodigoPrisma(error: unknown, codigo: string): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === codigo
+}
+
 export async function catalogoParaPrescribir(
   tx: Prisma.TransactionClient,
   ejercicios: EjercicioEnRutina[],

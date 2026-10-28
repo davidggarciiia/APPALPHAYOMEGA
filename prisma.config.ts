@@ -28,7 +28,7 @@ cargarEntornoLocal()
  */
 function urlSiEsPosible(): string | undefined {
   try {
-    return urlDeConexion()
+    return urlDeConexion("migraciones")
   } catch {
     console.warn(
       "[prisma] Sin variables de conexion. `generate` funciona igual; " +

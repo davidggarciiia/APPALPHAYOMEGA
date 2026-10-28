@@ -8,39 +8,50 @@
     "packages/*"
   ],
   "scripts": {
-    "prepare": "npm run build:shared && prisma generate",
+    "prepare": "patch-package --error-on-fail && npm run build:shared && prisma generate",
     "build:shared": "npm run build --workspace packages/shared",
     "typecheck": "npm run build:shared && tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "npm run build:shared && npm run test --workspaces --if-present",
     "test:e2e": "npm run build:shared && npm run test:e2e --workspaces --if-present",
+    "test:cobertura": "npm run build:shared && npm run test:cobertura --workspace apps/api",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
-    "db:seed": "npm run seed --workspace apps/api"
+    "db:seed": "npm run seed --workspace apps/api",
+    "db:catalogo:ampliar": "npm run build --workspace apps/api && node apps/api/dist/catalogo-ejercicios/preparar-ampliacion.js"
   },
   "overrides": {
-    "multer": "^2.3.0",
+    "multer": "^2.5.0",
     "test-renderer": "1.2.0",
     "react-native": "0.86.3",
     "@react-native/virtualized-lists": "0.86.3",
     "@react-native/community-cli-plugin": "0.86.3",
-    "@react-native/metro-config": "0.86.3"
+    "@react-native/metro-config": "0.86.3",
+    "@expo/cli": {
+      "zod": "^4.6.7"
+    },
+    "expo-router": {
+      "query-string": "9.5.1"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/node": "^22.10.2",
     "eslint": "^9.17.0",
+    "patch-package": "8.0.1",
     "prettier": "^3.4.2",
-    "prisma": "^7.10.0",
+    "prisma": "^7.10.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0"
   },
   "engines": {
-    "node": ">=22"
-  }
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0",
+    "npm": "10.9.4"
+  },
+  "packageManager": "npm@10.9.4"
 }
