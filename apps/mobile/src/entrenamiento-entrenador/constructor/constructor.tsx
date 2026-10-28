@@ -26,7 +26,7 @@ import {
 
 import type { ApiDeCatalogo } from "../../catalogo-ejercicios/api"
 import { useAccesoAFiguras } from "../../catalogo-ejercicios/figura-ejercicio"
-import { AvisoDeError, BotonSecundario } from "../../componentes/formulario"
+import { AvisoDeError, BotonPrincipal, BotonSecundario } from "../../componentes/formulario"
 import type { AlmacenLocal } from "../../entrenamiento/almacen-local"
 import { almacenDispositivo } from "../../entrenamiento/almacen-dispositivo"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
@@ -60,6 +60,27 @@ const PendienteSchema = z.strictObject({
   solicitud: AsignarPlanSchema,
   nombres: z.record(z.string(), z.string()),
 })
+
+const esDia = (d: unknown): boolean =>
+  typeof d === "object" &&
+  d !== null &&
+  typeof (d as DiaDelConstructor).id === "string" &&
+  Array.isArray((d as DiaDelConstructor).ejercicios)
+
+/**
+ * El plan a medias, copiado al dispositivo mientras se edita: Android mata el
+ * proceso en segundo plano y lo montado vivía solo en memoria. La versión permite
+ * descartar una copia de otra forma de la app en lugar de romper al recuperarla.
+ */
+const BorradorSchema = z.object({
+  v: z.literal(1),
+  nombre: z.string(),
+  semanaInicial: z.string(),
+  semanas: z.string(),
+  dias: z.array(z.custom<DiaDelConstructor>(esDia)).min(1),
+  bloque: z.custom<Bloque>((b) => typeof b === "object" && b !== null),
+})
+type Borrador = z.infer<typeof BorradorSchema>
 
 const SECCIONES: Array<{ seccion: SeccionDeSesion; titulo: string }> = [
   { seccion: "calentamiento", titulo: "Calentamiento" },
@@ -246,6 +267,9 @@ export function ConstructorPlan({
   const versionInicial = useRef(versionDelEditor)
   const enCurso = useRef(false)
   const clave = `plan-${clienteId}`
+  const claveBorrador = `borrador-plan-${clienteId}`
+  /** Copia de una sesión anterior pendiente de decidir: recuperarla o empezar de cero. */
+  const [borrador, setBorrador] = useState<Borrador | null>(null)
   const sinGuardar =
     pendiente === null && versionDelEditor !== versionInicial.current && !salidaAutorizada
 
@@ -286,7 +310,16 @@ export function ConstructorPlan({
       .then((guardado) => {
         if (!vigente) return
         setRecuperado(true)
-        if (!guardado) return
+        if (!guardado) {
+          // Sin publicación pendiente: puede haber un plan a medias de antes de que se cerrase la app.
+          void almacen
+            .leer(cuentaId, claveBorrador, BorradorSchema)
+            .then((copia) => {
+              if (vigente && copia) setBorrador(copia)
+            })
+            .catch(() => undefined)
+          return
+        }
         const { solicitud, nombres } = guardado
         const recuperados = solicitud.patron.sesiones.map((s) => desdeSesionEnRutina(s, nombres))
         setNombre(solicitud.nombre)
@@ -307,7 +340,43 @@ export function ConstructorPlan({
     return () => {
       vigente = false
     }
-  }, [almacen, cuentaId, clave, intentoRecuperacion])
+  }, [almacen, cuentaId, clave, claveBorrador, intentoRecuperacion])
+
+  // Autoguardado: sin esperar a «Publicar». Mientras haya una copia anterior sin decidir
+  // no se pisa, para que no se pierda si el entrenador cierra sin recuperarla.
+  useEffect(() => {
+    if (
+      !recuperado ||
+      pendiente !== null ||
+      salidaAutorizada ||
+      borrador !== null ||
+      versionDelEditor === versionInicial.current
+    )
+      return
+    const id = setTimeout(() => {
+      void almacen
+        .guardar(cuentaId, claveBorrador, { v: 1, nombre, semanaInicial, semanas, dias, bloque })
+        .catch(() => undefined)
+    }, 800)
+    return () => clearTimeout(id)
+  }, [versionDelEditor, recuperado, pendiente, salidaAutorizada, borrador])
+  // Se publique o se descarte, el borrador ya no tiene objeto.
+  useEffect(() => {
+    if (salidaAutorizada) void almacen.borrar(cuentaId, claveBorrador).catch(() => undefined)
+  }, [salidaAutorizada])
+  const recuperarBorrador = (copia: Borrador): void => {
+    setNombre(copia.nombre)
+    setSemanaInicial(copia.semanaInicial)
+    setSemanas(copia.semanas)
+    setDias(copia.dias)
+    setActivo(copia.dias[0]!.id)
+    setBloque(copia.bloque)
+    setBorrador(null)
+  }
+  const descartarBorrador = (): void => {
+    void almacen.borrar(cuentaId, claveBorrador).catch(() => undefined)
+    setBorrador(null)
+  }
 
   const dia = dias.find((d) => d.id === activo) ?? dias[0]!
   const cambiarDia = (cambio: Partial<DiaDelConstructor>): void =>
@@ -580,6 +649,15 @@ export function ConstructorPlan({
         </View>
       </View>
       {aviso !== "" && <Text style={s.aviso}>{aviso}</Text>}
+      {borrador && (
+        <View style={s.recuperacion}>
+          <Text style={s.aviso}>
+            Tienes un plan sin publicar guardado en este dispositivo. ¿Quieres seguir con él?
+          </Text>
+          <BotonPrincipal texto="Recuperar mi plan" onPress={() => recuperarBorrador(borrador)} />
+          <BotonSecundario texto="Empezar de cero" onPress={descartarBorrador} />
+        </View>
+      )}
       {error !== "" && <AvisoDeError mensaje={error} />}
 
       <View style={s.datos}>
@@ -938,6 +1016,7 @@ const s = StyleSheet.create({
   textoSecundario: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
   principal: { minHeight: 42, paddingHorizontal: 16, borderRadius: 12, justifyContent: "center" },
   textoPrincipal: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  recuperacion: { gap: 8 },
   aviso: {
     backgroundColor: tema.exitoSuave,
     color: tema.texto,

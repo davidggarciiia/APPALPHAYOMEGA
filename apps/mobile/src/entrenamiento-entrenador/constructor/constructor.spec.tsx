@@ -795,3 +795,61 @@ describe("unidad de cada fila (D01)", () => {
     expect(objetivoConUnidad({ ...plancha(), objetivo: "" })).toBe("")
   })
 })
+
+describe("autoguardado del borrador (T-01)", () => {
+  const CLAVE_BORRADOR = "borrador-plan-20000000-0000-4000-8000-000000000000"
+  // Android puede matar el proceso en segundo plano: lo montado no puede vivir solo en memoria.
+  const hastaGuardar = { timeout: 3000 }
+
+  it("autoguarda lo montado y lo ofrece al reabrir; recuperarlo lo devuelve tal cual", async () => {
+    const almacen = almacenEnMemoria()
+    const { vista } = await prepararConstructor(almacen)
+    await completarDia()
+    await waitFor(() => expect(almacen.datos.has(CLAVE_BORRADOR)).toBe(true), hastaGuardar)
+
+    await vista.unmount()
+    await prepararConstructor(almacen)
+    expect(await screen.findByText(/Tienes un plan sin publicar guardado/)).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Recuperar mi plan" }))
+    expect(await screen.findByDisplayValue("Fuerza")).toBeTruthy()
+    expect(screen.queryByText(/Tienes un plan sin publicar guardado/)).toBeNull()
+  })
+
+  it("«Empezar de cero» descarta el borrador guardado", async () => {
+    const almacen = almacenEnMemoria()
+    const { vista } = await prepararConstructor(almacen)
+    await completarDia()
+    await waitFor(() => expect(almacen.datos.has(CLAVE_BORRADOR)).toBe(true), hastaGuardar)
+
+    await vista.unmount()
+    await prepararConstructor(almacen)
+    await fireEvent.press(await screen.findByRole("button", { name: "Empezar de cero" }))
+    expect(almacen.datos.has(CLAVE_BORRADOR)).toBe(false)
+    expect(screen.queryByText(/Tienes un plan sin publicar guardado/)).toBeNull()
+  })
+
+  it("sin cambios no guarda nada y no molesta con el aviso", async () => {
+    const almacen = almacenEnMemoria()
+    await prepararConstructor(almacen)
+    await screen.findByLabelText("Nombre del día")
+    await new Promise((resolver) => setTimeout(resolver, 1100))
+    expect(almacen.datos.has(CLAVE_BORRADOR)).toBe(false)
+    expect(screen.queryByText(/Tienes un plan sin publicar guardado/)).toBeNull()
+  })
+
+  it("al publicar con éxito el borrador se borra", async () => {
+    const almacen = almacenEnMemoria()
+    const { asignar } = await prepararConstructor(almacen)
+    asignar.mockImplementation(async (_c, datos) => ({
+      id: randomUUID(),
+      operacionId: datos.operacionId,
+      sesiones: [],
+    }))
+    await completarDia()
+    await waitFor(() => expect(almacen.datos.has(CLAVE_BORRADOR)).toBe(true), hastaGuardar)
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+    await waitFor(() => expect(asignar).toHaveBeenCalledTimes(1), hastaGuardar)
+    await waitFor(() => expect(almacen.datos.has(CLAVE_BORRADOR)).toBe(false), hastaGuardar)
+  })
+})
