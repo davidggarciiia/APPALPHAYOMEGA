@@ -7,6 +7,42 @@ compra ni selección definitiva de proveedor.
 Actualización: David pidió una búsqueda gratuita con un agente mientras Codex
 seguía el plan. Se contrastaron las opciones siguientes con fuentes del proveedor.
 
+## Instalación comprobada el 30-09-2026
+
+La base local `alpha_omega` contiene **130 ejercicios publicados**: las 56 fichas
+previas y 74 nuevas. La ampliación añade 36 fichas de fuerza/core de la rutina y
+variantes explícitas, 2 alternativas, 8 básicos, 20 de movilidad/activación y
+8 estiramientos. Incluye instrucciones propias, tres pasos y un error a evitar;
+no modifica ni prescribe series, cargas o repeticiones de la rutina.
+
+Se importaron y comprobaron **52 MP4 y 52 pósteres JPG** en el `MEDIOS_DIR` local.
+Los vídeos usan H.264 sin audio, miden 720×720 o 720×398 y suman 11.147.183 bytes.
+Las 52 figuras siguen asociadas al catálogo inicial. Las fichas nuevas son
+textuales: no se les ha asignado un clip de otro movimiento.
+
+La repetición de la simulación del cargador dio cero altas. Se compararon las
+56 fichas anteriores, incluidas sus relaciones y fechas, sin diferencias.
+El cargador tiene simulación por defecto, validación de nombres y alias,
+transacción y protección ante cargas simultáneas.
+
+La exportación MP4 de [flexiones de Miraj Studios en LottieFiles](https://lottiefiles.com/free-animation/push-ups-X6F71qOwYF)
+solicita crear una cuenta. No se instaló esa pieza. La prensa inclinada reutiliza
+la ficha previa «Prensa de piernas», cuyo clip `vital-0074` muestra esa máquina.
+Las indicaciones ambiguas sobre tríceps por encima de la cabeza tienen variantes
+con material concreto; no se han vinculado automáticamente a la rutina.
+
+Quedan fuera los ejercicios que requieren representar psoas o aductores como
+grupo principal, porque esos grupos no existen en el contrato muscular actual.
+También queda la discrepancia previa de `vital-0080`: su clip muestra mancuernas,
+mientras la ficha se llama «Press de hombros sentado en máquina». La ampliación
+conserva esa ficha y su asociación; no debe tomarse como demostración exacta de
+la variante en máquina.
+
+La compilación y la comprobación de tipos fueron correctas. Pasaron 140 pruebas
+del catálogo y medios, y posteriormente las 9 pruebas de la ampliación final,
+incluidos rechazo de alias iniciales y unicidad de cargas simultáneas. Astra
+revisó el contenido y el cargador, y se corrigieron sus hallazgos antes de cargar.
+
 ## Decisión vigente (2026-09-24, iteración 3)
 
 David fijó tres criterios: **solo material gratuito**, prima la calidad visual y

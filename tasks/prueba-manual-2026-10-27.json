@@ -1,0 +1,3024 @@
+{
+  "fecha": "2026-10-27",
+  "generadoEn": "2026-10-27T18:49:25.687Z",
+  "proyecto": "C:\\Users\\david\\Desktop\\DAVID\\APP-ALPHA_OMEGA",
+  "metodo": "Exploración guiada mediante Playwright en Chromium real; controles UI, capturas/DOM y API/Postgres reales; no ejecución nativa.",
+  "entorno": {
+    "web": "http://localhost:8181",
+    "api": "http://127.0.0.1:3101",
+    "base": "alpha_omega_manual_20261027",
+    "migraciones": 26,
+    "datos": "sintéticos",
+    "correo": "capturado localmente",
+    "medios": "almacén local y clips sintéticos",
+    "anchos": [320, 390, 430, 1280, 1440]
+  },
+  "resumen": {
+    "incidenciasCorregidas": 9,
+    "fallosPendientesEnRecorridosEjecutados": 0,
+    "registros": 183,
+    "registrosIncluyenPreparacionYRepeticiones": true,
+    "noEjecutados": 2
+  },
+  "verificacion": {
+    "unitarios": {
+      "estado": "correcto",
+      "api": 302,
+      "mobile": 694,
+      "total": 996,
+      "suites": 110,
+      "registro": "build/manual-20261027/unit-current.log",
+      "terminadoEn": "2026-10-27T18:37:04.110Z"
+    },
+    "typecheck": {
+      "estado": "correcto",
+      "alcance": "raíz y todos los workspaces",
+      "registro": "build/manual-20261027/typecheck-current.log",
+      "terminadoEn": "2026-10-27T18:35:30.565Z"
+    },
+    "e2e": {
+      "estado": "correcto",
+      "total": 500,
+      "suites": 45,
+      "base": "alpha_omega_e2e_codex",
+      "registro": "C:/Users/david/AppData/Local/Temp/ponytail-alpha-e2e-20261027/e2e.log",
+      "nota": "Ejecutados durante la tarea antes de las correcciones de cliente; backend sin cambios posteriores."
+    },
+    "lint": {
+      "estado": "correcto",
+      "comando": "npm run lint",
+      "registro": "build/manual-20261027/lint-current.log"
+    },
+    "diffCheck": {
+      "estado": "correcto",
+      "comando": "git diff --check"
+    }
+  },
+  "incidencias": [
+    {
+      "id": "M01",
+      "descripcion": "Fondo del consentimiento",
+      "estado": "corregido_y_revalidado",
+      "archivos": ["apps/mobile/src/consentimiento.tsx"],
+      "evidencias": [
+        "build/manual-20261027/07-consentimiento-antes.png",
+        "build/manual-20261027/08-consentimiento-corregido.png"
+      ]
+    },
+    {
+      "id": "M02",
+      "descripcion": "Estado accesible de casillas y radios en web",
+      "estado": "corregido_y_revalidado",
+      "archivos": [
+        "apps/mobile/src/consentimiento.tsx",
+        "apps/mobile/src/entrenamiento/sesion/controles.tsx"
+      ],
+      "evidencias": [
+        "build/manual-20261027/valuation/consent-attributes.json",
+        "build/manual-20261027/valuation/result.json"
+      ]
+    },
+    {
+      "id": "M03",
+      "descripcion": "Pérdida de edición al cambiar de ancho",
+      "estado": "corregido_y_revalidado",
+      "archivos": [
+        "apps/mobile/src/componentes/armazon.tsx",
+        "apps/mobile/src/componentes/armazon.spec.tsx"
+      ],
+      "evidencias": [
+        "build/manual-20261027/15-vista-cliente-desktop.png",
+        "build/manual-20261027/44-cambio-ancho-conserva-desktop.png"
+      ]
+    },
+    {
+      "id": "M04",
+      "descripcion": "Estado padre obsoleto tras publicar o descartar dieta",
+      "estado": "corregido_y_revalidado",
+      "archivos": [
+        "apps/mobile/src/nutricion/ficha-nutricion.tsx",
+        "apps/mobile/src/nutricion/panel-dieta.tsx"
+      ],
+      "evidencias": ["build/manual-20261027/nutrition/report.json"]
+    },
+    {
+      "id": "M05",
+      "descripcion": "Mensaje incorrecto de acceso denegado",
+      "estado": "corregido_y_revalidado",
+      "archivos": ["apps/mobile/src/lib/errores.ts", "apps/mobile/src/lib/errores.spec.ts"],
+      "evidencias": ["build/manual-20261027/identity/result.json"]
+    },
+    {
+      "id": "M06",
+      "descripcion": "Autor y registros desconocidos en copia offline de dieta",
+      "estado": "corregido_y_revalidado",
+      "archivos": [
+        "apps/mobile/src/nutricion/copia-local.ts",
+        "apps/mobile/src/nutricion/vista-dieta.tsx",
+        "apps/mobile/src/nutricion/hoy-nutricion.tsx"
+      ],
+      "evidencias": ["build/manual-20261027/nutrition/report.json"]
+    },
+    {
+      "id": "M07",
+      "descripcion": "PDF omite secciones y metadatos del circuito",
+      "estado": "corregido_y_revalidado",
+      "archivos": [
+        "apps/mobile/src/entrenamiento-entrenador/constructor/constructor.tsx",
+        "apps/mobile/src/entrenamiento-entrenador/constructor/constructor.spec.tsx"
+      ],
+      "evidencias": ["build/manual-20261027/identity/result.json"]
+    },
+    {
+      "id": "M08",
+      "descripcion": "Propuesta de subir carga externa en ejercicio sin carga",
+      "estado": "corregido_y_revalidado",
+      "archivos": [
+        "apps/mobile/src/entrenamiento/sesion/modelo.ts",
+        "apps/mobile/src/entrenamiento/sesion/modelo.spec.ts"
+      ],
+      "evidencias": [
+        "build/manual-20261027/progresion-retest.json",
+        "build/manual-20261027/90-progresion-sin-carga-corregida.png"
+      ]
+    },
+    {
+      "id": "M09",
+      "descripcion": "Comida ausente sin salida en interfaz",
+      "estado": "corregido_y_revalidado",
+      "archivos": [
+        "apps/mobile/app/nutricion/comida.tsx",
+        "apps/mobile/src/nutricion/comida-ruta.spec.tsx"
+      ],
+      "evidencias": ["build/manual-20261027/nutrition/report.json"]
+    }
+  ],
+  "informesPorArea": [
+    {
+      "area": "entrenamiento_diario",
+      "informe": "build/manual-20261027/root-result.json",
+      "registros": 36
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "informe": "build/manual-20261027/identity/result.json",
+      "registros": 45
+    },
+    {
+      "area": "nutricion",
+      "informe": "build/manual-20261027/nutrition/report.json",
+      "registros": 41
+    },
+    {
+      "area": "valoraciones_fotos",
+      "informe": "build/manual-20261027/valuation/result.json",
+      "registros": 20
+    },
+    {
+      "area": "videos",
+      "informe": "build/manual-20261027/media-animations/result.json",
+      "registros": 8
+    },
+    {
+      "area": "variantes_valoracion",
+      "informe": "build/manual-20261027/identity/valuation-extra/report.json",
+      "registros": 33
+    }
+  ],
+  "casos": [
+    {
+      "area": "entrenamiento_diario",
+      "id": "T01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Acceso inválido y válido",
+      "observado": "Credenciales erróneas rechazadas; el entrenador entra con las válidas.",
+      "evidencias": [
+        "build/manual-20261027/02-acceso-invalido.png",
+        "build/manual-20261027/03-entrenador-inicio.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T02",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Consentimiento explícito",
+      "observado": "Sin marcar no continúa; fondo oscuro y aria-checked false/true comprobados tras la corrección.",
+      "evidencias": [
+        "build/manual-20261027/07-consentimiento-antes.png",
+        "build/manual-20261027/08-consentimiento-corregido.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T03",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Cliente sin entrenamiento",
+      "observado": "El inicio presenta descanso y diario sin inventar sesiones.",
+      "evidencias": ["build/manual-20261027/09-cliente-sin-plan.png"]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T04",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Constructor con tres unidades",
+      "observado": "Plan de dos semanas con repeticiones, segundos y metros, con carga externa y sin ella.",
+      "evidencias": [
+        "build/manual-20261027/12-plan-ejercicio.png",
+        "build/manual-20261027/14-guardar-plantilla.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T05",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Guardar y cargar plantilla",
+      "observado": "La plantilla se guarda en Rutinas y permite recuperar los ejercicios con sus unidades.",
+      "evidencias": [
+        "build/manual-20261027/14-guardar-plantilla.png",
+        "build/manual-20261027/16-cargar-plantilla.png",
+        "build/manual-20261027/17-fases-deporte.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T06",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Bloque y vista del cliente",
+      "observado": "Día martes, fase Técnica, Caminar, pasos y objetivos presentes; la vista previa conserva las unidades.",
+      "evidencias": [
+        "build/manual-20261027/18-vista-cliente-con-plan.png",
+        "build/manual-20261027/20-plan-publicado.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T07",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Publicación de plan",
+      "observado": "Confirmación de dos sesiones en dos semanas; el cliente recibe la sesión del día.",
+      "evidencias": [
+        "build/manual-20261027/19-publicar-plan.png",
+        "build/manual-20261027/20-plan-publicado.png",
+        "build/manual-20261027/21-cliente-plan.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T08",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Check-in",
+      "observado": "Exige las dos respuestas y muestra el aviso de dolor; se inicia con sensación 4 y Nada.",
+      "evidencias": [
+        "build/manual-20261027/22-empezar-entreno.png",
+        "build/manual-20261027/23-checkin-dolor.png",
+        "build/manual-20261027/24-sesion-registro.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T09",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Validación de serie",
+      "observado": "Peso negativo no permite completar la serie; 20 kg y 8 repeticiones sí.",
+      "evidencias": [
+        "build/manual-20261027/26-peso-invalido.png",
+        "build/manual-20261027/27-serie-hecha.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T10",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Nota y persistencia del borrador",
+      "observado": "La nota y la primera serie hecha permanecen tras recargar la página.",
+      "evidencias": [
+        "build/manual-20261027/25-nota-sesion.png",
+        "build/manual-20261027/28-borrador-recuperado.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T11",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Descanso, omitir y recuperar",
+      "observado": "Marcar activa el descanso; se puede saltar, omitir la segunda serie y recuperarla desde la lista de ejercicios sin red.",
+      "evidencias": [
+        "build/manual-20261027/27-serie-hecha.png",
+        "build/manual-20261027/29-serie-omitida-sin-red.png",
+        "build/manual-20261027/30-segunda-serie-offline.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T12",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Registro de las tres unidades",
+      "observado": "Llegan al resultado dos series de 8 repeticiones, una de 20 segundos y una de 20 metros con 10 kg.",
+      "evidencias": [
+        "build/manual-20261027/30-segunda-serie-offline.png",
+        "build/manual-20261027/31-segundos-offline.png",
+        "build/manual-20261027/35-metros-completado.png",
+        "build/manual-20261027/40-entreno-enviado.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T13",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Molestia y reintento",
+      "observado": "Rechaza zona vacía; conserva Hombro/Rigidez tras fallo de red y confirma el aviso al reintentar con conexión.",
+      "evidencias": [
+        "build/manual-20261027/32-molestia.png",
+        "build/manual-20261027/33-molestia-reintento-offline.png",
+        "build/manual-20261027/34-molestia-enviada.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T14",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Cierre de sesión",
+      "observado": "Confirma terminar; exige energía y feedback; registra esfuerzo 7, energía 4 y la nota original.",
+      "evidencias": [
+        "build/manual-20261027/36-cierre-entreno.png",
+        "build/manual-20261027/37-cierre-validacion.png",
+        "build/manual-20261027/38-envio-pendiente-offline.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T15",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Envío pendiente inmutable",
+      "observado": "Sin red conserva el contenido sin campos editables; tras recargar permite confirmar el mismo envío.",
+      "evidencias": [
+        "build/manual-20261027/38-envio-pendiente-offline.png",
+        "build/manual-20261027/39-envio-pendiente-recuperado.png",
+        "build/manual-20261027/40-entreno-enviado.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T16",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Resultado enviado",
+      "observado": "Resultado de 4/4 series, sin campos de registro y con sus unidades originales.",
+      "evidencias": [
+        "build/manual-20261027/40-entreno-enviado.png",
+        "build/manual-20261027/41-plan-cliente.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T17",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Recepción del entrenador",
+      "observado": "Aparecen sesión y molestia en novedades, check-in 4 y cierre RPE 7/energía 4.",
+      "evidencias": [
+        "build/manual-20261027/42-entrenador-recibe-resultados.png",
+        "build/manual-20261027/48-seguimiento-molestias.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T18",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Respuesta a la molestia",
+      "observado": "Rechaza respuesta vacía, marca Atendida y el cliente lee el texto recibido.",
+      "evidencias": [
+        "build/manual-20261027/47-respuesta-vacia-validacion.png",
+        "build/manual-20261027/48-seguimiento-molestias.png",
+        "build/manual-20261027/65-cliente-lee-respuesta.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T19",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Novedades y revisión",
+      "observado": "Abrir la novedad lleva al entrenamiento; Marcar como revisado llega al cliente. Una sesión cerrada no ofrece ajustar ni cambiar día.",
+      "evidencias": [
+        "build/manual-20261027/52-cliente-notificacion-abierta.png",
+        "build/manual-20261027/54-sesion-revisada.png",
+        "build/manual-20261027/66-cliente-ve-revision.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T20",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Cambio de ancho sin pérdida",
+      "observado": "Conserva nombre y tres semanas al pasar de 1440 a 430 y volver a 1440 tras corregir Armazon.",
+      "evidencias": [
+        "build/manual-20261027/15-vista-cliente-desktop.png",
+        "build/manual-20261027/43-cambio-ancho-conserva-movil.png",
+        "build/manual-20261027/44-cambio-ancho-conserva-desktop.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T21",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Salida con cambios sin guardar",
+      "observado": "La salida pide confirmación; Seguir editando conserva el borrador y Salir sin guardar vuelve a la ficha.",
+      "evidencias": ["build/manual-20261027/45-salida-cambios-sin-guardar.png"]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T22",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Calendario y cambio de día",
+      "observado": "Semana siguiente muestra la segunda sesión; martes 3 nov pasa a miércoles 4 nov con historial y reflejo en entrenador.",
+      "evidencias": [
+        "build/manual-20261027/56-semana-siguiente.png",
+        "build/manual-20261027/58-dia-cambiado.png",
+        "build/manual-20261027/59-historial-cambio-dia.png",
+        "build/manual-20261027/61-entrenador-ve-cambio.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T23",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Ajuste de sesión abierta",
+      "observado": "Cambia solo la futura a 10/9 repeticiones y 22 kg en primera serie; el cliente recibe nombre y fecha; el resultado previo se conserva.",
+      "evidencias": [
+        "build/manual-20261027/62-ajuste-sesion.png",
+        "build/manual-20261027/63-ajuste-guardado.png",
+        "build/manual-20261027/64-cliente-recibe-ajuste.png",
+        "build/manual-20261027/66-cliente-ve-revision.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T24",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Comentario con red interrumpida",
+      "observado": "Conserva el comentario bloqueado hasta confirmar; dos intentos comparten una operación y producen un único comentario visible.",
+      "evidencias": [
+        "build/manual-20261027/67-comentario-pendiente-red.png",
+        "build/manual-20261027/68-comentario-confirmado.png",
+        "build/manual-20261027/comentario-reintento.json"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T25",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Lectura del comentario por cliente",
+      "observado": "El texto del entrenador aparece junto a la respuesta a la molestia en el resultado.",
+      "evidencias": ["build/manual-20261027/69-cliente-lee-comentario.png"]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T26",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Diario",
+      "observado": "Rechaza 20 kg; guarda 80,5 kg, 7.500 pasos y 7:40 de sueño, conservados tras recargar.",
+      "evidencias": [
+        "build/manual-20261027/50-diario-validacion-peso.png",
+        "build/manual-20261027/51-diario-guardado.png",
+        "build/manual-20261027/70-progreso-cliente-diario.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T27",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Medidas iniciales",
+      "observado": "Guarda peso, cintura 82 cm, grasa 18% y altura 180 cm; presenta masa libre de grasa 66,0 kg.",
+      "evidencias": [
+        "build/manual-20261027/71-anadir-medida.png",
+        "build/manual-20261027/72-medida-punto-partida.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T28",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Salud del entrenador",
+      "observado": "Tras actualizar la ficha, aparecen las medidas del cliente, consentimiento y molestia por zona.",
+      "evidencias": ["build/manual-20261027/74-salud-entrenador.png"]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T29",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Configuración de seguimiento",
+      "observado": "Reordena Pasos/Peso, pauta peso semanal miércoles y prueba en cm; rechaza rango invertido y guarda 75–85 kg con revisión 1.",
+      "evidencias": [
+        "build/manual-20261027/76-config-validacion-rango.png",
+        "build/manual-20261027/77-seguimiento-configurado.png",
+        "build/manual-20261027/78-cliente-recibe-configuracion.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T30",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Prueba física con valor cero",
+      "observado": "Exige elegir una prueba pautada; guarda 0 cm y lo conserva como dato, no como ausencia.",
+      "evidencias": ["build/manual-20261027/79-prueba-cero-guardada.png"]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T31",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Vistas de evolución diaria",
+      "observado": "Peso, pasos, sueño, cintura y fuerza presentan los datos sintéticos guardados con sus unidades y objetivo.",
+      "evidencias": [
+        "build/manual-20261027/80-grafica-peso.png",
+        "build/manual-20261027/81-grafica-pasos.png",
+        "build/manual-20261027/82-grafica-sueno.png",
+        "build/manual-20261027/83-grafica-cintura.png",
+        "build/manual-20261027/84-grafica-fuerza.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T32",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Plan sin conexión",
+      "observado": "Tras carga online, la copia semanal identifica su estado offline; Reintentar recupera la lectura online.",
+      "evidencias": ["build/manual-20261027/85-plan-copia-offline.png"]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T33",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Bloque y guía",
+      "observado": "El cliente ve fase, duración, deporte y guía de RIR, molestias y progresión.",
+      "evidencias": [
+        "build/manual-20261027/86-bloque-cliente.png",
+        "build/manual-20261027/87-guia-cliente.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T34",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Técnica con y sin conexión",
+      "observado": "Sin figura muestra los pasos; al volver sin red conserva la ficha e identifica la copia local.",
+      "evidencias": [
+        "build/manual-20261027/88-tecnica-online.png",
+        "build/manual-20261027/89-tecnica-copia-offline.png"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T35",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Progresión de ejercicio sin carga",
+      "observado": "Plancha sin carga muestra Revisar pauta; Press con carga mantiene Sube la carga y la molestia mantiene revisión.",
+      "evidencias": [
+        "build/manual-20261027/90-progresion-sin-carga-corregida.png",
+        "build/manual-20261027/progresion-retest.json"
+      ]
+    },
+    {
+      "area": "entrenamiento_diario",
+      "id": "T36",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Vídeo en cliente",
+      "observado": "Tras asignación por UI, reproduce clip sintético 320×180: avanza de 4 a 16 fotogramas en 700 ms.",
+      "evidencias": [
+        "build/manual-20261027/91-cliente-video-real.png",
+        "build/manual-20261027/video-cliente-retest.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "A01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Protected route redirects without data",
+      "observado": "Fresh /cartera redirected to /login; login screen rendered.",
+      "evidencias": ["build/manual-20261027/identity/01-login-anonymous.png"]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "A03-validation",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Inline login validation",
+      "observado": "Empty submit showed Correo no válido and Escribe tu contraseña; no auth request.",
+      "evidencias": ["build/manual-20261027/identity/02-login-validation.png"]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "A02-trainer",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Trainer login home",
+      "observado": "Actual POST /auth/login200, trainer workspace/navigation and portfolio GET200.",
+      "evidencias": [
+        "build/manual-20261027/identity/03-trainer-home.png",
+        "build/manual-20261027/identity/04-portfolio.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U02",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Create pending own client",
+      "observado": "UI created Identidad Manual Prueba with201; pending fiche, no password and captured invitation.",
+      "evidencias": [
+        "build/manual-20261027/identity/05-pending-client.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U07",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Correct pending email",
+      "observado": "Corregir correo UI changed own client email to identidad-corregido@manual-20261027.test; PATCH200; no automatic mail until explicit re-send.",
+      "evidencias": [
+        "build/manual-20261027/identity/07-email-corrected-resent.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U06",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Re-send invalidates old invite",
+      "observado": "REENVIAR ENLACE200; saved old browser activation link then submitted and received400 plus Este enlace ya no sirve.",
+      "evidencias": [
+        "build/manual-20261027/identity/07-email-corrected-resent.png",
+        "build/manual-20261027/identity/08-old-invite-rejected.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U04-validation",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Activation password validation",
+      "observado": "Short/mismatched fields rejected before valid activation.",
+      "evidencias": ["build/manual-20261027/identity/09-activation-validation.png"]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U04",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "New captured link activates existing pending account",
+      "observado": "Newest captured link opened actual activation UI; valid password POST204 returned to login, subsequent own client login200.",
+      "evidencias": [
+        "build/manual-20261027/identity/06-activation-before.png",
+        "build/manual-20261027/identity/10-activated.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "C01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "First-entry explicit consent",
+      "observado": "Client home blocked by health consent gate with disabled Continuar until checkbox; accept POST201 opened app.",
+      "evidencias": [
+        "build/manual-20261027/identity/11-client-consent.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U08-save",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Trainer edits contacts and stable birthdate",
+      "observado": "Trainer saved phone and1990-02-03 with PATCH200; own client profile showed phone and3 de febrero de1990.",
+      "evidencias": [
+        "build/manual-20261027/identity/12-contact-saved.png",
+        "build/manual-20261027/identity/13-client-profile.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "P01-read",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Own profile metadata/consent",
+      "observado": "Client profile displays own identity/role/readonly email, correct phone/date and recorded consent date.",
+      "evidencias": [
+        "build/manual-20261027/identity/13-client-profile.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "A04-reload",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Reload retains session",
+      "observado": "Trainer reload issued refresh200 and reloaded saved own fixture fiche200 without login.",
+      "evidencias": ["build/manual-20261027/identity/events.json"]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "P01-edit-null-cancel",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Cancelled changes are discarded; saved changes/null-clearing and calendar date persist.",
+      "observado": "Cancelled temporary name edit, then saved Identidad Editada and cleared phone; reload shows saved name, Sin completar and exact birthdate3Feb1990.",
+      "evidencias": ["build/manual-20261027/identity/14-profile-edit-null-reload.png"]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "C02-withdraw-reaccept",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Explicit withdrawal returns to consent gate; unchecked cannot continue; reaccept restores app.",
+      "observado": "Profile withdrawal confirmation DELETE200 returned consent gate; unchecked/checked accessibility and enablement tested; reaccept POST201 resumed app.",
+      "evidencias": [
+        "build/manual-20261027/identity/15-consent-fixed-unchecked.png",
+        "build/manual-20261027/identity/16-consent-fixed-checked.png",
+        "build/manual-20261027/identity/17-consent-unchecked-accessible.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "P02-client-denial",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Client cannot read client-management data through direct route.",
+      "observado": "Own cliente direct /cartera navigation got GET /usuarios403 and no portfolio data.",
+      "evidencias": [
+        "build/manual-20261027/identity/18-client-management-denied.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U03-nutri",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Trainer creates pending nutritionist; captured activation enables correct role.",
+      "observado": "Created own nutritionist by supported UI route201; captured link activated204; same account login200.",
+      "evidencias": [
+        "build/manual-20261027/identity/19-nutri-created.png",
+        "build/manual-20261027/identity/20-own-nutri-unassigned.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "S01-own-assignment",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Nutritionist starts with no access; trainer assignment grants only selected client.",
+      "observado": "Own nutritionist empty list; trainer assigned ONLY own client switchPUT204; nutritionist reload saw and opened that one client.",
+      "evidencias": [
+        "build/manual-20261027/identity/20-own-nutri-unassigned.png",
+        "build/manual-20261027/identity/21-assignment-enabled.png",
+        "build/manual-20261027/identity/22-nutri-assigned.png",
+        "build/manual-20261027/identity/23-assigned-client-open.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "S02-own-revocation",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Removing assignment denies already open client on next read.",
+      "observado": "Removed same assignmentDELETE204; already open nutrition route reload returned403 on each health/nutrition read. Access denial effective immediately.",
+      "evidencias": [
+        "build/manual-20261027/identity/24-assignment-removed.png",
+        "build/manual-20261027/identity/25-revoked-access-denied.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "R01-generic",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Existing/absent recovery requests give identical success response.",
+      "observado": "Both absent and own active synthetic account recovery requests returned204 and identical Mira tu correo wording; active captured mail opened mapped localhost reset screen privately.",
+      "evidencias": [
+        "build/manual-20261027/identity/26-recovery-absent-generic.png",
+        "build/manual-20261027/identity/27-recovery-active-generic.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "R02-reset",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Password validation; reset succeeds; old password/sessions rejected and new password works.",
+      "observado": "Reset short/mismatch validation displayed; valid new password204 success. Existing own client session next refresh401/login expired; old password401, new password200.",
+      "evidencias": [
+        "build/manual-20261027/identity/28-reset-validation.png",
+        "build/manual-20261027/identity/29-reset-success.png",
+        "build/manual-20261027/identity/30-reset-revoked-old-session.png",
+        "build/manual-20261027/identity/31-old-password-denied.png",
+        "build/manual-20261027/identity/32-new-password-profile.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U09-active-disable",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Deactivation cuts login/current sessions while preserving profile/history.",
+      "observado": "Trainer deactivated own active client200; existing own client context refresh401 and returned login. Contact/consent data retained after reactivation.",
+      "evidencias": [
+        "build/manual-20261027/identity/33-client-disabled.png",
+        "build/manual-20261027/identity/34-disabled-session-cut.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U10-active-reactivate",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Former active account returns active; revoked sessions remain invalid.",
+      "observado": "Own former active client reactivated200 as activo and later login with new password200; old revoked session stayed invalid.",
+      "evidencias": [
+        "build/manual-20261027/identity/32-new-password-profile.png",
+        "build/manual-20261027/identity/83-client-receives-plan.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U02-duplicate",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Duplicate email rejected without losing form; corrected fresh email creates once.",
+      "observado": "UI duplicate normalized own email409 retained form; changed only email to new own pending fixture and create201 succeeded.",
+      "evidencias": [
+        "build/manual-20261027/identity/35-duplicate-email.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U10-never-active",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Never-activated account reactivates as pending, with fresh invitation required.",
+      "observado": "Own pending client UI deactivate200→reactivate200 returned PENDIENTE with re-send action, not falsely activo.",
+      "evidencias": [
+        "build/manual-20261027/identity/36-reactivated-still-pending.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "A02-employee",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Employee sees own workspace/profile and appropriate minimal navigation.",
+      "observado": "Employee fixture logged in200, own limited workspace/profile rendered; no client management navigation.",
+      "evidencias": [
+        "build/manual-20261027/identity/37-employee-home.png",
+        "build/manual-20261027/identity/38-employee-profile.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "P02-employee-denial",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Employee direct management route cannot disclose client portfolio.",
+      "observado": "Employee direct /cartera got403 and no client portfolio data.",
+      "evidencias": [
+        "build/manual-20261027/identity/39-employee-management-denied.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "A05-employee-logout",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "UI logout revokes session and returns login.",
+      "observado": "Employee own profile logout204 returned login.",
+      "evidencias": [
+        "build/manual-20261027/identity/40-employee-logout.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T02-catalog-create",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Validation and own exercise create preserve main/secondary groups and guidance.",
+      "observado": "Actual UI blank validation, own exercise name/mainPecho/secondaryTriceps/instructions/steps/avoidance/tips then create201; other catalog fixtures untouched.",
+      "evidencias": [
+        "build/manual-20261027/identity/41-catalog-before.png",
+        "build/manual-20261027/identity/42-catalog-validation.png",
+        "build/manual-20261027/identity/43-catalog-filled.png",
+        "build/manual-20261027/identity/44-catalog-created.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T01-catalog-search-read",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Case-insensitive search and detail return exact saved own exercise.",
+      "observado": "Uppercase search MANUAL IDENTIDAD found own exercise; editor detail preserved both groups and all entered fields.",
+      "evidencias": [
+        "build/manual-20261027/identity/45-catalog-search.png",
+        "build/manual-20261027/identity/46-catalog-detail.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T02-catalog-edit",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Edited guidance persists without dropping other fields.",
+      "observado": "Changed own exercise instructions only; PATCH200, reopened detail retains edited instructions and original remaining data.",
+      "evidencias": [
+        "build/manual-20261027/identity/47-catalog-edit-persisted.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T02-catalog-retire-restore",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Retirement hides active item, retired filter finds it and restore makes it active.",
+      "observado": "Explicit confirm retirement200; active search empty, retired toggle shows own RETIRADO item; REPONER200 and own active search returns it.",
+      "evidencias": [
+        "build/manual-20261027/identity/48-retired-state.png",
+        "build/manual-20261027/identity/49-retired-not-active-search.png",
+        "build/manual-20261027/identity/50-show-retired.png",
+        "build/manual-20261027/identity/51-catalog-restored.png",
+        "build/manual-20261027/identity/52-catalog-active-restored.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "U01-search-filter",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Search and state filters/empty states update correctly.",
+      "observado": "Portfolio uppercase identity search matches own fixtures; pending filter only own pending fixture; BAJAS/unmatched search show empty state; clearing restores list.",
+      "evidencias": [
+        "build/manual-20261027/identity/53-portfolio-search.png",
+        "build/manual-20261027/identity/54-portfolio-pending-filter.png",
+        "build/manual-20261027/identity/55-portfolio-empty-filter.png",
+        "build/manual-20261027/identity/56-portfolio-empty-search.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "FIX-Armazon-catalog",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Unsaved catalog state survives viewport changes and cancel leaves server record unchanged.",
+      "observado": "After fix/new bundle, unsaved own catalog instruction survives430→1440→430 with navigation intact; CANCELAR/reopen confirms persisted instructions unchanged.",
+      "evidencias": [
+        "build/manual-20261027/identity/57-resize-draft-mobile-before.png",
+        "build/manual-20261027/identity/58-resize-draft-desktop-retained.png",
+        "build/manual-20261027/identity/59-resize-draft-mobile-retained.png",
+        "build/manual-20261027/identity/60-unsaved-resize-draft-cancelled.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "FIX-Armazon-real-constructor",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Real constructor and preview state survives both1024breakpoint directions.",
+      "observado": "Actual ConstructorPlan name/date/weeks/day survive430→1440→430; preview opens then resized1440 and closes with values intact. Draft discarded via normal return; not published in this retest.",
+      "evidencias": [
+        "build/manual-20261027/identity/61-constructor-mobile-before.png",
+        "build/manual-20261027/identity/62-constructor-desktop-retained.png",
+        "build/manual-20261027/identity/63-constructor-mobile-retained.png",
+        "build/manual-20261027/identity/64-constructor-preview-retained.png",
+        "build/manual-20261027/identity/65-constructor-preview-desktop-retained.png",
+        "build/manual-20261027/identity/66-constructor-editor-after-preview.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "FIX-permission-message",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Forbidden errors describe lack of permission without asserting wrong role.",
+      "observado": "After new bundle, own revoked nutritionist view still403 and shows neutral No tienes permiso para acceder a estos datos.",
+      "evidencias": [
+        "build/manual-20261027/identity/25-revoked-access-denied.png",
+        "build/manual-20261027/identity/67-permission-message-fixed.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T03-routine-create-edit",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Routine and set/load values save and edit correctly.",
+      "observado": "Created own Rutina Manual Identidad201 with2different sets8/10reps,10/8kg; edited first to9reps and session name PATCH200; reopened values correct.",
+      "evidencias": [
+        "build/manual-20261027/identity/68-routines-list-before.png",
+        "build/manual-20261027/identity/69-routine-filled.png",
+        "build/manual-20261027/identity/70-routine-created.png",
+        "build/manual-20261027/identity/71-routine-edit-before.png",
+        "build/manual-20261027/identity/72-routine-edited.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T03-routine-copy-load",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Loaded plan copy is independent from saved source routine.",
+      "observado": "Loaded own routine through Partir de una plantilla into new own-client plan; copy was independently edited to2×12@10kg; original routine remains9/10reps,10/8kg after published copy.",
+      "evidencias": [
+        "build/manual-20261027/identity/73-routine-loaded-as-copy.png",
+        "build/manual-20261027/identity/85-original-routine-copy-independent.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T04-parts-builder-validation",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Builder supports four sections and refuses heterogeneous sets until explicit choice.",
+      "observado": "Added own exercise to warmup/main/circuit/cooldown, part times5/20/5/3min and circuit2rounds30s. Heterogeneous original sets blocked save/publish with clear review prompt; explicit Pautar todas and fresh values resolved validation.",
+      "evidencias": [
+        "build/manual-20261027/identity/74-plan-warmup-circuit.png",
+        "build/manual-20261027/identity/75-all-training-parts.png",
+        "build/manual-20261027/identity/77-publication-confirm.png",
+        "build/manual-20261027/identity/79-publication-dialog.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T04-full-template-publish",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Four-part template save and confirmed plan publication succeed once.",
+      "observado": "Actual full four-part template save201 confirmed in80; explicit publication dialog81 then own-client planPOST201 with2sessions over2weeks from26Oct. Earlier76-79 were validation attempts, not successful saves.",
+      "evidencias": [
+        "build/manual-20261027/identity/80-complete-template-created.png",
+        "build/manual-20261027/identity/81-publication-actual-dialog.png",
+        "build/manual-20261027/identity/82-plan-published.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T05-client-receives-plan",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Client sees published session in correct current week and can open it.",
+      "observado": "Reactivated own client logs in with changed password and sees new26Oct session/current week; actual session opens check-in.",
+      "evidencias": [
+        "build/manual-20261027/identity/83-client-receives-plan.png",
+        "build/manual-20261027/identity/84-client-published-parts.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T06-four-parts-client",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Warmup/main/circuit/cooldown remain separate and actual-value validation works.",
+      "observado": "Own client completed explicit check-in, warmup checkbox, principal2×12@10kg, circuit2×10@0kg, cooldown checkbox. Missing actual circuit weight rejected before explicit0; no part lost despite same exercise appearing four times.",
+      "evidencias": [
+        "build/manual-20261027/identity/86-client-warmup-stage.png",
+        "build/manual-20261027/identity/87-client-warmup-completed.png",
+        "build/manual-20261027/identity/88-client-circuit-stage.png",
+        "build/manual-20261027/identity/89-client-calm-stage.png",
+        "build/manual-20261027/identity/90-circuit-completed-calm.png"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T07-four-parts-submit",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Completed four-part result submits and preserves actual quantities.",
+      "observado": "Explicit finish dialog/summary/completion answers then Enviar200; immutable result shows all4separate exercise instances and actual principal/circuit values.",
+      "evidencias": [
+        "build/manual-20261027/identity/91-session-completion.png",
+        "build/manual-20261027/identity/92-session-summary.png",
+        "build/manual-20261027/identity/93-complete-parts-submitted.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T04-export-initial",
+      "estadoOriginal": "fail",
+      "estadoFinal": "corregido_y_revalidado",
+      "incidenciasCorregidas": ["M07"],
+      "esperado": "Export includes section/circuit/time metadata with exercise rows.",
+      "observado": "Actual Exportar PDF popup and PDF contain all4rows but omit section headings, circuit2vueltas/30s and per-part times; regression confirmed against prior source.",
+      "evidencias": [
+        "build/manual-20261027/identity/94-export-source-all-parts.png",
+        "build/manual-20261027/identity/95-export-popup.png",
+        "build/manual-20261027/identity/96-exported-plan.pdf",
+        "build/manual-20261027/identity/export-result.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "R03-used-reset-link",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Consumed recovery links cannot change password again.",
+      "observado": "Reopened consumed captured link privately, valid-format form submit returned400 and clear invalid-link message; normal login screen remains accessible.",
+      "evidencias": [
+        "build/manual-20261027/identity/97-used-reset-link-rejected.png",
+        "build/manual-20261027/identity/events.json"
+      ]
+    },
+    {
+      "area": "cuentas_catalogo_rutinas_pdf",
+      "id": "T04-export-retest",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Export retains all four sections, doses, part durations, circuit rounds/rest, Pauta header and escaped text.",
+      "observado": "Fourth bundle: actual Exportar PDF UI popup shows Calentamiento/Parte principal/Circuito/Vuelta a la calma;5/20/5/3min;2vueltas/30s;all4rows/doses/Pauta. Literal <seguro>&<x> rendered as text, no injected elements. Generated A4PDF rendered with Poppler and visually inspected,1page no clipping.",
+      "evidencias": [
+        "build/manual-20261027/identity/98-export-source-after.png",
+        "build/manual-20261027/identity/99-export-popup-after.png",
+        "build/manual-20261027/identity/100-exported-plan-after.pdf",
+        "build/manual-20261027/identity/101-pdf-render-1.png",
+        "build/manual-20261027/identity/export-result-after.json"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El cliente sin consentimiento debe pasar por el consentimiento de salud antes de acceder a la app.",
+      "observado": "Tras login se mostró Tus datos de salud; Continuar estaba deshabilitado hasta seleccionar el consentimiento; luego abrió el inicio.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/05-client-client-consent-gate.png",
+        "build/manual-20261027/nutrition/06-client-client-accepted-consent.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N02",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Un cliente sin dieta publicada debe ver un estado vacío comprensible.",
+      "observado": "Nutrición indicó que la dieta aún no está publicada. El profesional mostró historial vacío y creación de dieta.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/07-client-client-no-diet.png",
+        "build/manual-20261027/nutrition/08-trainer-professional-historial-empty.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N03",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "No guardar una dieta sin nombre ni contenido.",
+      "observado": "Guardar borrador mostró errores Pon un nombre a la dieta y añade una comida o algún número del objetivo.",
+      "evidencias": ["build/manual-20261027/nutrition/09-trainer-editor-empty-validation.png"]
+    },
+    {
+      "area": "nutricion",
+      "id": "N04",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Editar nombre, kcal y macros del tipo de día.",
+      "observado": "Dieta Nutrición Manual V1 con Todos los días,2000kcal,150g proteína,200g hidratos,67g grasas; guardado confirmado.",
+      "evidencias": ["build/manual-20261027/nutrition/14-trainer-diet-draft-saved.png"]
+    },
+    {
+      "area": "nutricion",
+      "id": "N05",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Crear platos completos con ingredientes,cantidades,nota y macros opcionales.",
+      "observado": "Desayuno contiene Avena con yogur, Avena50g y Yogur125g, nota Sin azúcar añadido,400kcal y25g proteína; segundo grupo Saladas contiene Tostada con pavo.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/11-trainer-breakfast-foods-and-macros.png",
+        "build/manual-20261027/nutrition/12-trainer-dish-duplicate-remove-add-group.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N06",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Duplicar y eliminar un plato sin perder el original.",
+      "observado": "Duplicar Avena con yogur creó segundo plato; renombrarlo a Avena duplicada y quitarlo dejó el original y permitió añadir otro grupo.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/12-trainer-dish-duplicate-remove-add-group.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N07",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "La hora inválida impide guardar y conserva el contenido.",
+      "observado": "25:00 produjo error HH:MM; corregir a08:30 permitió guardar conservando ingredientes y macros.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/11-trainer-breakfast-foods-and-macros.png",
+        "build/manual-20261027/nutrition/14-trainer-diet-draft-saved.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N08",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Crear intercambio con varios grupos y opciones.",
+      "observado": "Comida guardada14:00 con hidratos Arroz70g/Patata200g; proteína Pollo150g/Merluza200g; grasa Aceite10g e indicación Elige un alimento de cada grupo.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/13-trainer-interchange-editor.png",
+        "build/manual-20261027/nutrition/14-trainer-diet-draft-saved.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N09",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Guardar una indicación general de dieta.",
+      "observado": "Hidratación: Agua durante el día quedó en el editor guardado.",
+      "evidencias": ["build/manual-20261027/nutrition/14-trainer-diet-draft-saved.png"]
+    },
+    {
+      "area": "nutricion",
+      "id": "N10",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Guardar borrador sin publicar todavía.",
+      "observado": "Guardar borrador cambió Cambios sin guardar a Guardado en el editor real.",
+      "evidencias": ["build/manual-20261027/nutrition/14-trainer-diet-draft-saved.png"]
+    },
+    {
+      "area": "nutricion",
+      "id": "N11",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El borrador debe persistir y quedar privado hasta publicar.",
+      "observado": "Tras reiniciar Expo/recargar la ruta origen=nueva se abre un formulario nuevo, pero volver a Historial muestra el borrador guardado; Editar borrador recupera todas las comidas/macros/indicaciones.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/15-trainer-draft-persists-after-reload.png",
+        "build/manual-20261027/nutrition/16-trainer-history-saved-draft.png",
+        "build/manual-20261027/nutrition/17-trainer-reopened-draft-and-unsaved-guard.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N12",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Proteger la salida con cambios sin guardar y permitir continuar.",
+      "observado": "Renombrar y volver mostró aviso explícito con Seguir editando y Salir sin guardar; Seguir editando conservó contenido.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/17-trainer-reopened-draft-and-unsaved-guard.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N13",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Duplicar tipo copia contenido y permite asignarlo a otro día.",
+      "observado": "Duplicado renombrado Descanso,1850kcal,asignado domingo; guardado; cliente muestra Domingo·Descanso1850kcal y mismas comidas.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/18-trainer-duplicated-day-type.png",
+        "build/manual-20261027/nutrition/24-client-client-sunday-type-correct.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N14",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Publicación pide confirmación y permite cancelar.",
+      "observado": "Publicar mostró explicación; Cancelar devolvió acciones sin publicar; nueva confirmación publicó y retiró borrador.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/19-trainer-publish-confirmation.png",
+        "build/manual-20261027/nutrition/20-trainer-published-first-version.png",
+        "build/manual-20261027/nutrition/21-client-client-published-diet.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N15",
+      "estadoOriginal": "fixed_retested",
+      "estadoFinal": "corregido_y_revalidado",
+      "esperado": "Actualizar cabecera y Pauta del profesional cuando Historial publica o descarta.",
+      "observado": "La primera publicación dejó la cabecera obsoleta. Tras corregir la invalidación del padre y recargar el bundle, publicar V2 actualiza la cabecera sin reload y descartar un borrador de 2400 kcal restaura Pauta a 2300 sin reload.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/20-trainer-published-first-version.png",
+        "build/manual-20261027/nutrition/63-nutritionist-v2-published-header-refreshes-without-reload.png",
+        "build/manual-20261027/nutrition/67-nutritionist-discard-restores-pauta-without-reload.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N16",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Cliente lee hoy y semana con objetivos,comidas y pautas completos.",
+      "observado": "Hoy muestra3comidas y0/3; vista semanal presenta7días y Domingo·Descanso1850kcal frente2000martes. Platos,ingredientes,cantidades,notas,macros e indicación general coinciden.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/21-client-client-published-diet.png",
+        "build/manual-20261027/nutrition/22-client-client-week-view.png",
+        "build/manual-20261027/nutrition/23-client-client-week-expanded.png",
+        "build/manual-20261027/nutrition/24-client-client-sunday-type-correct.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N17",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Plato completo requiere elección; grupos alternativos funcionan y registro persiste.",
+      "observado": "Sin elegir mostró Elige un plato completo antes de guardar; tabSaladas ofreció Tostada con pavo; registro confirmado y presente trasreload.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/27-client-breakfast-choice-required.png",
+        "build/manual-20261027/nutrition/28-client-breakfast-group-switch.png",
+        "build/manual-20261027/nutrition/29-client-breakfast-registered.png",
+        "build/manual-20261027/nutrition/30-client-breakfast-persists-reload.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N18",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Quitar comida hecha actualiza estado ycontador.",
+      "observado": "Quitar de hechas eliminó confirmación y regreso a Nutrición mostró0de3.",
+      "evidencias": ["build/manual-20261027/nutrition/31-client-breakfast-remove-completion.png"]
+    },
+    {
+      "area": "nutricion",
+      "id": "N19",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Intercambio requiere una opción de cada grupo y registra combinación.",
+      "observado": "Con solo Patata apareció error de todos los grupos. Elegir Merluza yAceite completó plato. Guardado final muestra combinación y Nutrición1de3.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/34-client-interchange-incomplete-error.png",
+        "build/manual-20261027/nutrition/35-client-interchange-select-fat.png",
+        "build/manual-20261027/nutrition/41-client-interchange-registered-after-retry.png",
+        "build/manual-20261027/nutrition/42-client-one-of-three-complete.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N20",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Sin red no fingir guardado; conservar elecciones y permitir reintento al volver.",
+      "observado": "Offline navegador produjo alerta de conexión,ningún Comida registrada,selección intacta; segundo intento offline igual; online permitió confirmar combinación.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/38-client-offline-save-not-confirmed.png",
+        "build/manual-20261027/nutrition/39-client-offline-retry-retains-selection.png",
+        "build/manual-20261027/nutrition/41-client-interchange-registered-after-retry.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N21",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El profesional debe ver registros reales del cliente al cargar ficha.",
+      "observado": "Tras recargar, resumen de7días muestra1de21 y Seguimiento Hoy1/3.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/44-trainer-professional-fresh-daily-summary.png",
+        "build/manual-20261027/nutrition/45-trainer-professional-daily-table-refreshed.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N22",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Pauta calcula basal/gasto/gramos y rechaza porcentajes que no suman100.",
+      "observado": "80kg,180cm,30años,hombre,factor1.55 mostraron1780kcal basal y2759gasto. 45/25/29 mostró99% y bloqueó confirmación; corregir30 dio248gHC/138gP/73gG,2200kcal y rango2100–2300.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/46-trainer-pauta-macros-validation.png",
+        "build/manual-20261027/nutrition/47-trainer-pauta-publish-confirm.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N23",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Publicar cambios de pauta con confirmación conserva comidas y entrega suplementos,nota e indicaciones.",
+      "observado": "Cancelar cerró diálogo sin publicar. Confirmar publicó2200kcal y nota,constancia/agua,creatina3–5g y peso en ayunas; cliente conserva comidas y registro1/3.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/49-trainer-pauta-after-cancel.png",
+        "build/manual-20261027/nutrition/50-trainer-pauta-confirmed-publication.png",
+        "build/manual-20261027/nutrition/51-client-client-pauta-visible.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N24",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Marcar suplemento actualiza estado accesible y persiste al recargar.",
+      "observado": "Creatina monohidrato tomada cambió de no seleccionada a [checked] en DOM ariaSnapshot; tras reload siguió[checked].",
+      "evidencias": [
+        "build/manual-20261027/nutrition/51-client-client-pauta-visible.png",
+        "build/manual-20261027/nutrition/52-client-creatine-checked.png",
+        "build/manual-20261027/nutrition/53-client-creatine-persists-reload.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N25",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Asignar exclusivamente el cliente sintético y limitar la lista del nutricionista.",
+      "observado": "Switch Cliente Nutrición Manual pasó a seleccionado; AAA Identidad Nutri vio exclusivamente ese cliente y abrió su ficha.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/55-trainer-nutrition-client-assigned-only.png",
+        "build/manual-20261027/nutrition/59-nutritionist-nutritionist-only-assigned-client.png",
+        "build/manual-20261027/nutrition/60-nutritionist-nutritionist-assigned-ficha.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N26",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El nutricionista asignado edita y publica una nueva versión.",
+      "observado": "Desde vigente creó borrador V2 con2300kcal, lo publicó y ficha mostró V2 sin recargar; comidas/nota/suplementos conservados.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/62-nutritionist-nutritionist-v2-draft.png",
+        "build/manual-20261027/nutrition/63-nutritionist-v2-published-header-refreshes-without-reload.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N27",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Una publicación nueva archiva la anterior y permite consulta sin edición.",
+      "observado": "Histórico contiene las dos V1 previas. Ver V1 abre DIETA ANTERIOR·SOLO LECTURA con2200kcal frente2300vigente y sin acciones de edición de esa versión.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/63-nutritionist-v2-published-header-refreshes-without-reload.png",
+        "build/manual-20261027/nutrition/64-nutritionist-archived-version-readonly.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N28",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Descartar pide confirmación/cancelación y restaura el contenido vigente en Pauta.",
+      "observado": "Borrador para descartar2400kcal; cancelar conservó borrador; confirmar eliminó borrador, Pauta volvió2300sin recarga y vigenteV2 quedó intacta.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/65-nutritionist-discard-draft-prepared.png",
+        "build/manual-20261027/nutrition/66-nutritionist-discard-confirmation.png",
+        "build/manual-20261027/nutrition/67-nutritionist-discard-restores-pauta-without-reload.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N29",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Con registroComidas desactivado cliente consulta comida sin controles de escritura.",
+      "observado": "Nutricionista publicó switch desactivado; cliente muestra Dieta de tu nutricionista y comida ya registrada consultable, mensaje solo para consultar,sin Registrar ni Quitar de hechas.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/68-nutritionist-nutritionist-publishes-readonly-meals.png",
+        "build/manual-20261027/nutrition/69-client-client-nutritionist-diet-readonly.png",
+        "build/manual-20261027/nutrition/70-client-meal-consultation-no-write-controls.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N30",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Retirar asignación impide nuevo acceso del nutricionista al cliente.",
+      "observado": "Se retiró solo Cliente Nutrición Manual; todos switches quedaron no seleccionados; recargar URL conocida produjo alerta No tienes permiso y API403.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/79-trainer-assignment-removed-only-owned-client.png",
+        "build/manual-20261027/nutrition/80-nutritionist-nutritionist-access-revoked.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N31",
+      "estadoOriginal": "fixed_retested",
+      "estadoFinal": "corregido_y_revalidado",
+      "esperado": "Copia offline conserva autor y no presenta ausencia de registros como cero/desmarcado.",
+      "observado": "La copia offline perdió autor y presentó registros ausentes como cero/desmarcado. Tras el fix, conserva Nutricionista, muestra Registro de comidas no disponible y suplemento sin estado de toma; no hay progreso ni badge Ahora ficticios. Al reconectar reaparecen 1/3 y creatina tomada. DOM aria-checked: true online y null cuando no hay registro disponible.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/74-client-cache-after-route-return.png",
+        "build/manual-20261027/nutrition/83-client-final-online-baseline.png",
+        "build/manual-20261027/nutrition/85-client-final-offline-cached-author-and-unknown-records.png",
+        "build/manual-20261027/nutrition/86-client-final-cache-retry-offline.png",
+        "build/manual-20261027/nutrition/88-client-final-online-recovery.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N32",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Eliminar un tipo asignado exige reasignar el día antes de guardar.",
+      "observado": "Quitar Descanso dejó domingo sin tipo. Guardar mostró Asigna un tipo de día al domingo; el radio Todos los días permitió reasignarlo.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/93-trainer-remove-assigned-type-validation.png",
+        "build/manual-20261027/nutrition/94-trainer-add-blank-type-and-format-confirmation.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N33",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Cambiar formato de comida con datos pide confirmación y valida el nuevo contenido.",
+      "observado": "Intercambio a platos completos mostró advertencia explícita de exclusión de grupos. Cancelar conservó formato; confirmar creó un plato vacío. Guardar rechazó plato sin título/alimentos y el tipo añadido sin nombre/contenido.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/94-trainer-add-blank-type-and-format-confirmation.png",
+        "build/manual-20261027/nutrition/95-trainer-format-switch-cancel-then-confirm.png",
+        "build/manual-20261027/nutrition/96-trainer-invalid-empty-added-type.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N34",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Ordenar, duplicar y quitar comidas e indicaciones conserva datos en la edición.",
+      "observado": "Media mañana subió al primer lugar, su duplicado conservó Fruta/Manzana/1 ud, quitar la original dejó la copia; Subir indicación cambió el orden de las dos indicaciones.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/97-trainer-reorder-duplicate-meal-unsaved.png",
+        "build/manual-20261027/nutrition/98-trainer-exit-unsaved-changes-confirm.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N35",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Salir sin guardar abandona modificaciones y conserva la vigente sin crear borrador.",
+      "observado": "El aviso ofreció Seguir editando y Salir sin guardar. Salir volvió a Historial sin borrador y conservó V2, orden de comidas, intercambio y contenido publicados.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/98-trainer-exit-unsaved-changes-confirm.png",
+        "build/manual-20261027/nutrition/99-trainer-unsaved-exit-keeps-published-diet.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N36",
+      "estadoOriginal": "fixed_retested",
+      "estadoFinal": "corregido_y_revalidado",
+      "esperado": "Una URL de comida ausente muestra error y una salida clara a Nutrición.",
+      "observado": "Antes solo había un alert sin salida. Tras añadir el botón, la misma URL muestra Volver a Nutrición; pulsarlo vuelve a /nutricion con el registro real 1/3 y creatina tomada.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/100-client-missing-meal-safe-error.png",
+        "build/manual-20261027/nutrition/103-client-missing-meal-has-return-button.png",
+        "build/manual-20261027/nutrition/104-client-missing-meal-return-works.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N37",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Dos editores no deben sobreescribir cambios de otra revisión.",
+      "observado": "Dos contextos aislados abrieron el mismo borrador. A guardó; B recibió 409 y un aviso que conserva su texto sin guardarlo. Cargar la versión guardada retiró el conflicto y habilitó una nueva edición.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/108-trainer-concurrency-draft-created.png",
+        "build/manual-20261027/nutrition/111-trainer-conflict-second-editor-same-revision.png",
+        "build/manual-20261027/nutrition/112-trainer-concurrency-first-editor-saves.png",
+        "build/manual-20261027/nutrition/113-trainer-conflict-concurrency-stale-editor-rejected.png",
+        "build/manual-20261027/nutrition/114-trainer-conflict-conflict-reloads-server-version.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N38",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Fallar el guardado del borrador conserva la edición y permite reintentar.",
+      "observado": "Offline mostró No se pudo guardar y mantuvo el nombre/objetivo. Restaurar red y Guardar guardó el borrador y abrió confirmación de publicación con el nombre conservado.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/116-trainer-conflict-draft-save-failure-retains-form.png",
+        "build/manual-20261027/nutrition/118-trainer-conflict-draft-save-retry-succeeds.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N39",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Si el servidor publica pero se pierde la respuesta, reintentar no crea otra versión.",
+      "observado": "Playwright dejó procesar el POST real (200) y abortó solo la respuesta. La UI avisó de confirmación pendiente. Segundo Confirmar recibió 200 y mostró una única versión nueva vigente; el histórico añadió solo la anterior V2. No se inspeccionaron headers, tokens ni cuerpos de autenticación.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/119-trainer-conflict-publish-response-lost-after-accepted.png",
+        "build/manual-20261027/nutrition/120-trainer-conflict-publish-retry-idempotent-success.png",
+        "build/manual-20261027/nutrition/events.json"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N40",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Una dieta sin comidas muestra el objetivo diario y permite consultar cada día semanal.",
+      "observado": "Cliente mostró 2.300 kcal al día sin comidas ficticias. Semana y los siete botones Lunes–Domingo mostraron el día seleccionado con 2300 kcal; Volver a hoy regresó al objetivo.",
+      "evidencias": [
+        "build/manual-20261027/nutrition/121-client-objective-only-diet-client.png",
+        "build/manual-20261027/nutrition/122-client-objective-week-before-day-traversal.png",
+        "build/manual-20261027/nutrition/123-client-objective-day-1.png",
+        "build/manual-20261027/nutrition/124-client-objective-day-2.png",
+        "build/manual-20261027/nutrition/125-client-objective-day-3.png",
+        "build/manual-20261027/nutrition/126-client-objective-day-4.png",
+        "build/manual-20261027/nutrition/127-client-objective-day-5.png",
+        "build/manual-20261027/nutrition/128-client-objective-day-6.png",
+        "build/manual-20261027/nutrition/129-client-objective-day-7.png",
+        "build/manual-20261027/nutrition/130-client-final-return-hoy.png"
+      ]
+    },
+    {
+      "area": "nutricion",
+      "id": "N41",
+      "estadoOriginal": "blocked",
+      "estadoFinal": "no_ejecutado",
+      "esperado": "Repetir los flujos en una instalación nativa Android/iOS.",
+      "observado": "No se encontró SDK Android, ADB, emulador ni AVD en este equipo. Todas estas pruebas usan Chromium real y viewport móvil/desktop; no certifican almacenamiento seguro, teclado ni conectividad nativa.",
+      "evidencias": []
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "consent-initial",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Explicitly accept own synthetic client consent before health writes",
+      "observado": "Unchecked gate blocked Continue; clicking checkbox enabled Continue; consent accepted through UI",
+      "evidencias": [
+        "build/manual-20261027/valuation/03-client-consent.png",
+        "build/manual-20261027/valuation/03b-client-consent-after-click.png",
+        "build/manual-20261027/valuation/18-client-after-reaccept.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "consent-accessibility",
+      "estadoOriginal": "failed",
+      "estadoFinal": "corregido_y_revalidado",
+      "incidenciasCorregidas": ["M01", "M02"],
+      "esperado": "Consent on dark background and checkbox exposes checked state",
+      "observado": "Low-contrast light text on white background; aria-checked absent both states. Reported to root.",
+      "evidencias": [
+        "build/manual-20261027/valuation/16-consent-before-attrs.png",
+        "build/manual-20261027/valuation/17-consent-after-attrs.png",
+        "build/manual-20261027/valuation/consent-attributes.json"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "template-create",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Create body, skinfold, bioimpedance and standard/custom tests through actual UI",
+      "observado": "Saved Peso/Altura/Cintura Manual/Tríceps Manual/Grasa Bio Manual plus Flexiones and Salto Vertical Manual. Empty custom name rejected.",
+      "evidencias": [
+        "build/manual-20261027/valuation/06-template-basic.png",
+        "build/manual-20261027/valuation/12b-custom-validation.png",
+        "build/manual-20261027/valuation/13-template-saved.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "skinfold-adopt",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Readings do not auto-populate adopted value; explicit adoption persists readings/value/method",
+      "observado": "Before adoption=\"\", after=12,4. Three original readings and manual fat% saved.",
+      "evidencias": [
+        "build/manual-20261027/valuation/24-skinfold-readings.png",
+        "build/manual-20261027/valuation/25-skinfold-saved.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "checkbox-fix-retest",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "DOM checkbox state reflects toggle after reload",
+      "observado": "aria-checked false=false, true=true; reloaded saved draft retained weight82.5, pending height, unperformed waist.",
+      "evidencias": ["build/manual-20261027/valuation/26-draft-reopened-after-reload.png"]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "draft-privacy",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Unpublished draft/internal notes remain invisible to client",
+      "observado": "Saved draft with private marker; client Progress still shows no published valuations.",
+      "evidencias": ["build/manual-20261027/valuation/31-draft-private-client.png"]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "initial-publication",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Client sees public results/zero/noRealizado, no internal notes or pending height",
+      "observado": "Public detail includes0reps/incomplete protocol/actual-test date, skinfold readings+adopted12.4 and method, bio18.5%, noRealizado reason; pending height/private marker absent.",
+      "evidencias": [
+        "build/manual-20261027/valuation/32-initial-published.png",
+        "build/manual-20261027/valuation/33-client-public-summary.png",
+        "build/manual-20261027/valuation/34-client-public-detail.png",
+        "build/manual-20261027/valuation/client-valuation-response-shapes.json"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "correction",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Correction creates version2 of same visit, preserves public privacy",
+      "observado": "Client real GET confirms publication numero2, valoracionId 939e4ccc-22cb-41c6-9b12-a82cb23e0bbe; summary marks Corregida and81.8kg, no duplicate visit.",
+      "evidencias": [
+        "build/manual-20261027/valuation/35-correction-published.png",
+        "build/manual-20261027/valuation/36-client-corrected.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "planned-review",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Schedule dated/interval review, create with empty results and publish",
+      "observado": "0weeks rejected;6weeks saved then dated1Oct+medidas/pruebas/fotos saved. Review started with blank results and separate previous0reps reference. Published80.5kg/180cm/91.5cm/20reps/32cm; client marks scheduled review fulfilled.",
+      "evidencias": [
+        "build/manual-20261027/valuation/38-schedule-validation.png",
+        "build/manual-20261027/valuation/39-dated-review-fields.png",
+        "build/manual-20261027/valuation/41-planned-review-draft.png",
+        "build/manual-20261027/valuation/42-review-test-reference.png",
+        "build/manual-20261027/valuation/43-client-review-published.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "photo-upload-retry",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Real chooser/preparation/upload/confirmation; failed PUT retries original operation once",
+      "observado": "Front PNG converted/uploaded/confirmed. Back PUT deliberately aborted once: UI retained image and offered retry/discard; double-click retry sent one further intent with same operation/type/bytes and confirmed both views.",
+      "evidencias": [
+        "build/manual-20261027/valuation/47-first-photo-upload-state.png",
+        "build/manual-20261027/valuation/48-first-photo-outcome.png",
+        "build/manual-20261027/valuation/49-photo-failure-retry.png",
+        "build/manual-20261027/valuation/50-photo-retry-success.png",
+        "build/manual-20261027/valuation/photo-intents.json"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "photos-request-link-review",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Trainer request validates date, client uploads views, trainer links/reviews and client pending disappears",
+      "observado": "Invalid date rejected; front/back requested with deadline/instructions. Both confirmed photos incorporated into open third visit through UI, marked Revisada; client now no pending photos.",
+      "evidencias": [
+        "build/manual-20261027/valuation/45-photo-request-invalid.png",
+        "build/manual-20261027/valuation/46-client-photo-request.png",
+        "build/manual-20261027/valuation/51-trainer-received-photos.png",
+        "build/manual-20261027/valuation/52-photos-linked-reviewed.png",
+        "build/manual-20261027/valuation/53-client-photos-reviewed.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "evolution-history",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Corrected history and three-point series preserve visit count and comparisons",
+      "observado": "Three Peso points81.8→80.5→79.9; corrected initial history retained; first/last−1.9, selected1Oct→27Oct−0.6, same-date message, reversed1Oct/1Sep giveschronological−1.3. Incomplete/complete protocol series separated; absent latest metrics explicitly noted.",
+      "evidencias": [
+        "build/manual-20261027/valuation/54-history-corrected-initial.png",
+        "build/manual-20261027/valuation/55-evolution-three-visits.png",
+        "build/manual-20261027/valuation/56-evolution-date-selectors.png",
+        "build/manual-20261027/valuation/57-evolution-same-date.png",
+        "build/manual-20261027/valuation/58-evolution-reverse-dates.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "photo-date-fixtures",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Prepare historical photos through same actual client upload UI",
+      "observado": "Two additional requests uploaded through native browser file chooser. Only client browser Date fixed to1Sep/1Oct to prepare earlier taken dates; server/DB clock unchanged, browser clock restored. Requests confirmed real JPEG uploads.",
+      "evidencias": [
+        "build/manual-20261027/valuation/60-historical-front-upload.png",
+        "build/manual-20261027/valuation/61-historical-front-upload.png",
+        "build/manual-20261027/valuation/photo-intents.json"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "photo-comparator-radio-responsive",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Compare same view/different dates, disable duplicate slot, stack when narrow; radio selected states exposed",
+      "observado": "After root radio fix: Espalda aria-checked false→true and one-photo explanation; Frente earliest/latest then manual1Oct. Occupied date disabled. Computed flexDirection row at390px andcolumn at320px.",
+      "evidencias": [
+        "build/manual-20261027/valuation/62-three-front-photos.png",
+        "build/manual-20261027/valuation/63-radio-fixed-back-view.png",
+        "build/manual-20261027/valuation/64-photos-selected-dates.png",
+        "build/manual-20261027/valuation/65-photos-narrow-stacked.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "photo-delete",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Delete requires confirmation; failure hides photo, retry awaits actual server and preserves retired slot",
+      "observado": "Cancel preserved image. One DELETE deliberately aborted: Pendiente de retirar + retry, no image refetch. Actual retry confirms Foto retirada; selected1Oct slot retained and1Sep stays visible.",
+      "evidencias": [
+        "build/manual-20261027/valuation/66-photo-delete-confirm.png",
+        "build/manual-20261027/valuation/67-photo-delete-failure.png",
+        "build/manual-20261027/valuation/68-photo-delete-success.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "photo-link-renewal",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Image load failure automatically renews once, then explicit retry can recover",
+      "observado": "The27Oct target had2real200access responses before explicit retry and1after retry; the other visible slot also refreshed under broad controlled storage failure. UI displayed error+Reintentar then actual image recovered.",
+      "evidencias": [
+        "build/manual-20261027/valuation/69-photo-expired-load-retry.png",
+        "build/manual-20261027/valuation/70-photo-read-recovered.png",
+        "build/manual-20261027/valuation/events.json"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "photo-link-renewal-count-detail",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Target picture renews once before manual retry",
+      "observado": "The27Oct target had2real200access responses before explicit retry and1after retry; the other visible slot also refreshed under broad controlled storage failure. UI displayed error+Reintentar then actual image recovered.",
+      "evidencias": [
+        "build/manual-20261027/valuation/69-photo-expired-load-retry.png",
+        "build/manual-20261027/valuation/70-photo-read-recovered.png",
+        "build/manual-20261027/valuation/events.json"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "consent-fix-final",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Consent has readable dark background and checked accessibility state",
+      "observado": "With existing valuations/photos, withdrew/reaccepted through UI after reload: background now dark and aria-checked false→true; existing data retained.",
+      "evidencias": [
+        "build/manual-20261027/valuation/71-consent-fixed-dark-unchecked.png",
+        "build/manual-20261027/valuation/72-consent-fixed-dark-checked.png"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "valuation-conflict",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Real revision conflict preserves own edit and supports both resolution choices",
+      "observado": "A saved79.1;B79.2 received409, kept edit, saved79.2. A79.3 received409 after expected manual retry for access refresh; Cargar restored79.2. Fourth visit saved unpublished.",
+      "evidencias": [
+        "build/manual-20261027/valuation/73-real-valuation-conflict.png",
+        "build/manual-20261027/valuation/74-conflict-keep-saved.png",
+        "build/manual-20261027/valuation/74c-second-real-conflict.png",
+        "build/manual-20261027/valuation/75-conflict-server-version.png",
+        "build/manual-20261027/valuation/events.json"
+      ]
+    },
+    {
+      "area": "valoraciones_fotos",
+      "id": "auth-refresh-nonidempotent",
+      "estadoOriginal": "passed",
+      "estadoFinal": "correcto",
+      "esperado": "Non-idempotent save after401 refresh asks manual confirmation, retaining edit",
+      "observado": "ObservedPUT401 Sesion no valida→refresh200; safe no automatic replay. ManualGuardar saved or produced expected409conflict; source permits replay only reads/operacionId. Both tabs retained edits.",
+      "evidencias": [
+        "build/manual-20261027/valuation/73a-conflict-current-a.png",
+        "build/manual-20261027/valuation/73c-second-save-state.png",
+        "build/manual-20261027/valuation/refresh-interruption.json"
+      ]
+    },
+    {
+      "area": "videos",
+      "id": "selector-search-close",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Filter handles accents/case, empty result and cancel without mutation",
+      "observado": {
+        "foldedOtherCount": 0,
+        "emptyResult": "o hacerlo, un paso por línea (opcional)\":\n  - /placeholder: \"Pies firmes y escápulas atrás.\\nBaja controlado al pecho.\"\n  - text: Posición de prueba. Movimiento de prueba. Final de prueba.\n- text: Evita (opcional)\n- textbox \"Evita (opcional)\":\n  - /placeholder: Rebotar, despegar glúteos o abrir codos.\n- text: \"Consejos, uno por línea como «Título: texto» (opcional)\"\n- 'textbox \"Consejos, uno por línea como «Título: texto» (opcional)\"':\n  - /placeholder: \"Respira: coge aire arriba, suéltalo al subir.\\nPara si: pinchazo o dolor.\"\n- text: ANIMACIÓN DE LA TÉCNICA Sin animación. El cliente verá solo el nombre y las instrucciones. Buscar animación\n- textbox \"Buscar animación\":\n  - /placeholder: Sentadilla, press, remo…\n  - text: sin coincidencias xyz\n- radiogroup: Ninguna animación coincide con «sin coincidencias xyz».\n- button \"CERRAR\"\n- button \"GUARDAR\"\n- button \"CANCELAR\"\n- button \"RETIRAR\"",
+        "writes": 0
+      },
+      "evidencias": [
+        "build/manual-20261027/media-animations/05-selector-list.png",
+        "build/manual-20261027/media-animations/06-filter-without-accent.png",
+        "build/manual-20261027/media-animations/07-filter-empty.png"
+      ]
+    },
+    {
+      "area": "videos",
+      "id": "assign-cache-licensed",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Select vital-0051 saves immediately and web video decodes/advances",
+      "observado": {
+        "motion": {
+          "before": {
+            "time": 0.037723,
+            "paused": false,
+            "muted": true,
+            "loop": true,
+            "width": 320,
+            "height": 180,
+            "frames": 4,
+            "readyState": 4,
+            "blobSource": true
+          },
+          "after": {
+            "time": 0.204781,
+            "paused": false,
+            "muted": true,
+            "loop": true,
+            "width": 320,
+            "height": 180,
+            "frames": 8,
+            "readyState": 4,
+            "blobSource": true
+          }
+        },
+        "latest": {
+          "method": "PUT",
+          "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+          "exercise": {
+            "id": "322616c9-36d6-4681-8cd2-61250e689a3e",
+            "nombre": "Manual Press",
+            "grupoPrincipal": "pecho",
+            "gruposSecundarios": [],
+            "instrucciones": "Ejercicio sintético para verificar la interfaz.",
+            "pasos": ["Posición de prueba.", "Movimiento de prueba.", "Final de prueba."],
+            "evita": null,
+            "consejos": [],
+            "estado": "publicado",
+            "figura": {
+              "medioId": "vital-0051",
+              "version": "1",
+              "origen": "licenciado",
+              "licencia": "Vital Animations EULA 2026.1 · paquete gratuito",
+              "sinConexion": true
+            },
+            "video": null
+          }
+        },
+        "videoFetches": [
+          {
+            "method": "PUT",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": null
+          },
+          {
+            "method": "GET",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": "vital-0051.1"
+          }
+        ]
+      },
+      "evidencias": [
+        "build/manual-20261027/media-animations/08-vital-playing.png",
+        "build/manual-20261027/media-animations/08-vital-playing.txt"
+      ]
+    },
+    {
+      "area": "videos",
+      "id": "pause-resume-web",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Pause freezes and accessible resume restarts actual video",
+      "observado": {
+        "pausedBefore": {
+          "time": 3.286685,
+          "paused": true,
+          "muted": true,
+          "loop": true,
+          "width": 320,
+          "height": 180,
+          "frames": 114,
+          "readyState": 4,
+          "blobSource": true
+        },
+        "pausedAfter": {
+          "time": 3.286685,
+          "paused": true,
+          "muted": true,
+          "loop": true,
+          "width": 320,
+          "height": 180,
+          "frames": 114,
+          "readyState": 4,
+          "blobSource": true
+        },
+        "resumed": {
+          "before": {
+            "time": 3.29991,
+            "paused": false,
+            "muted": true,
+            "loop": true,
+            "width": 320,
+            "height": 180,
+            "frames": 114,
+            "readyState": 4,
+            "blobSource": true
+          },
+          "after": {
+            "time": 3.554318,
+            "paused": false,
+            "muted": true,
+            "loop": true,
+            "width": 320,
+            "height": 180,
+            "frames": 118,
+            "readyState": 4,
+            "blobSource": true
+          }
+        }
+      },
+      "evidencias": [
+        "build/manual-20261027/media-animations/09-paused.png",
+        "build/manual-20261027/media-animations/10-resumed.png"
+      ]
+    },
+    {
+      "area": "videos",
+      "id": "change-streaming-licensed",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Change to movekit-pull-ups switches source and streaming notice; decoded frames advance",
+      "observado": {
+        "motion": {
+          "before": {
+            "time": 0.02409,
+            "paused": false,
+            "muted": true,
+            "loop": true,
+            "width": 320,
+            "height": 180,
+            "frames": 6,
+            "readyState": 4,
+            "blobSource": true
+          },
+          "after": {
+            "time": 0.295637,
+            "paused": false,
+            "muted": true,
+            "loop": true,
+            "width": 320,
+            "height": 180,
+            "frames": 10,
+            "readyState": 4,
+            "blobSource": true
+          }
+        },
+        "last": {
+          "method": "PUT",
+          "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+          "exercise": {
+            "id": "322616c9-36d6-4681-8cd2-61250e689a3e",
+            "nombre": "Manual Press",
+            "grupoPrincipal": "pecho",
+            "gruposSecundarios": [],
+            "instrucciones": "Ejercicio sintético para verificar la interfaz.",
+            "pasos": ["Posición de prueba.", "Movimiento de prueba.", "Final de prueba."],
+            "evita": null,
+            "consejos": [],
+            "estado": "publicado",
+            "figura": {
+              "medioId": "movekit-pull-ups",
+              "version": "1",
+              "origen": "licenciado",
+              "licencia": "MoveKit License Agreement v1.0 · muestra gratuita",
+              "sinConexion": false
+            },
+            "video": null
+          }
+        },
+        "figuraRequests": [
+          {
+            "method": "PUT",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": null
+          },
+          {
+            "method": "GET",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": "vital-0051.1"
+          },
+          {
+            "method": "PUT",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": null
+          },
+          {
+            "method": "GET",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": "movekit-pull-ups.1"
+          }
+        ]
+      },
+      "evidencias": [
+        "build/manual-20261027/media-animations/11-movekit-streaming.png",
+        "build/manual-20261027/media-animations/11-movekit-streaming.txt"
+      ]
+    },
+    {
+      "area": "videos",
+      "id": "remove-figure",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Removing sets figura:null and text-only fallback, no video/control",
+      "observado": {
+        "videos": 0,
+        "pauseControls": 0,
+        "last": {
+          "method": "PUT",
+          "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+          "exercise": {
+            "id": "322616c9-36d6-4681-8cd2-61250e689a3e",
+            "nombre": "Manual Press",
+            "grupoPrincipal": "pecho",
+            "gruposSecundarios": [],
+            "instrucciones": "Ejercicio sintético para verificar la interfaz.",
+            "pasos": ["Posición de prueba.", "Movimiento de prueba.", "Final de prueba."],
+            "evita": null,
+            "consejos": [],
+            "estado": "publicado",
+            "figura": null,
+            "video": null
+          }
+        }
+      },
+      "evidencias": [
+        "build/manual-20261027/media-animations/12-removed-text-only.png",
+        "build/manual-20261027/media-animations/12-removed-text-only.txt"
+      ]
+    },
+    {
+      "area": "videos",
+      "id": "final-persisted-and-preserved",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Restore vital-0051, reload, prove frames and all non-figura exercise fields unchanged",
+      "observado": {
+        "motion": {
+          "before": {
+            "time": 0.070155,
+            "paused": false,
+            "muted": true,
+            "loop": true,
+            "width": 320,
+            "height": 180,
+            "frames": 4,
+            "readyState": 4,
+            "blobSource": true
+          },
+          "after": {
+            "time": 0.268192,
+            "paused": false,
+            "muted": true,
+            "loop": true,
+            "width": 320,
+            "height": 180,
+            "frames": 8,
+            "readyState": 4,
+            "blobSource": true
+          }
+        },
+        "preserved": true,
+        "writePaths": [
+          {
+            "method": "POST",
+            "path": "/auth/login",
+            "status": 200
+          },
+          {
+            "method": "PUT",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": null
+          },
+          {
+            "method": "PUT",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": null
+          },
+          {
+            "method": "PUT",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": null
+          },
+          {
+            "method": "POST",
+            "path": "/auth/refresh",
+            "status": 200
+          },
+          {
+            "method": "PUT",
+            "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e/figura",
+            "status": 200,
+            "version": null
+          },
+          {
+            "method": "POST",
+            "path": "/auth/refresh",
+            "status": 200
+          }
+        ],
+        "last": {
+          "method": "GET",
+          "path": "/ejercicios/322616c9-36d6-4681-8cd2-61250e689a3e",
+          "exercise": {
+            "id": "322616c9-36d6-4681-8cd2-61250e689a3e",
+            "nombre": "Manual Press",
+            "grupoPrincipal": "pecho",
+            "gruposSecundarios": [],
+            "instrucciones": "Ejercicio sintético para verificar la interfaz.",
+            "pasos": ["Posición de prueba.", "Movimiento de prueba.", "Final de prueba."],
+            "evita": null,
+            "consejos": [],
+            "estado": "publicado",
+            "figura": {
+              "medioId": "vital-0051",
+              "version": "1",
+              "origen": "licenciado",
+              "licencia": "Vital Animations EULA 2026.1 · paquete gratuito",
+              "sinConexion": true
+            },
+            "video": null
+          }
+        },
+        "unchangedFields": [
+          "id",
+          "nombre",
+          "grupoPrincipal",
+          "gruposSecundarios",
+          "instrucciones",
+          "pasos",
+          "evita",
+          "consejos",
+          "estado",
+          "video"
+        ]
+      },
+      "evidencias": [
+        "build/manual-20261027/media-animations/13-removed-persisted-reload.png",
+        "build/manual-20261027/media-animations/14-restored-vital.png",
+        "build/manual-20261027/media-animations/15-vital-persisted-playing.png"
+      ]
+    },
+    {
+      "area": "videos",
+      "id": "visible-final-media",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Final persisted video is visually displayed, with pause control and license/cache notice",
+      "observado": {
+        "state": {
+          "time": 3.839686,
+          "paused": false,
+          "muted": true,
+          "loop": true,
+          "width": 320,
+          "height": 180,
+          "frames": 300,
+          "readyState": 4,
+          "blobSource": true
+        },
+        "accessibleControl": "Pausar la animación"
+      },
+      "evidencias": [
+        "build/manual-20261027/media-animations/16-final-video-visible.png",
+        "build/manual-20261027/media-animations/16-final-video-visible.txt"
+      ]
+    },
+    {
+      "area": "videos",
+      "id": "native-cache-and-content",
+      "estadoOriginal": "not-run",
+      "estadoFinal": "no_ejecutado",
+      "esperado": "Validate native disk caching/eviction and licensed biomechanical animation content on supported devices",
+      "observado": "Outside this Chromium synthetic-fixture run; cache notices/license flags observed, native persistence and biomechanics not validated",
+      "evidencias": []
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El nombre cambia manteniendo identidad y versión semántica.",
+      "observado": "Peso pasó a Peso Identidad; mismo ID 7cefa176-3e3d-464d-8306-27e09623fe99 y versión 1, revisión de plantilla 2.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/05-template-renamed.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-02",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El orden se guarda sin recrear definiciones.",
+      "observado": "Altura se subió sobre Peso Identidad y reapareció en ese orden en las visitas; IDs y versiones intactos, revisión 3.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/06-template-reordered.png",
+        "build/manual-20261027/identity/valuation-extra/24-reopened-measures.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-03",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se guarda cada estado conservando ID y versión.",
+      "observado": "Altura activa false en revisión 4 y true en revisión 5; mismo ID y versión 1. La interfaz explicó que no se copiaría mientras estaba desactivada.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/07-template-deactivated.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-04",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Cambiar instrumento avisa y aumenta la versión sin cambiar ID.",
+      "observado": "Báscula medida Identidad creó versión 2 en revisión 6; posteriormente Báscula medida Identidad B creó versión 3 en revisión 9. La versión anterior se conservó en la publicación inicial.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/08-version-warning.png",
+        "build/manual-20261027/identity/valuation-extra/09-template-versioned.png",
+        "build/manual-20261027/identity/valuation-extra/32-historical-snapshot-preserved.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-05",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se guardan magnitud, unidad e instrumento elegidos.",
+      "observado": "Se guardaron peso kg, grasa %, grasa visceral índice con BI Identidad A, y masa muscular kg sin instrumento; cuatro IDs distintos versión 1, revisión 7.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/10-bioimpedance-definitions.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-06",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Los valores predeterminados y métricas corresponden al tipo elegido.",
+      "observado": "Dominadas, aguante, flexiones, sentadillas, press banca, Cooper y Puntuación Identidad guardados en revisión 8. Flexiones y sentadillas conservaron 60 s; Cooper incluyó distancia/duración/FC y la personalizada puntos.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/11-standard-dominadas.png",
+        "build/manual-20261027/identity/valuation-extra/12-standard-Aguante-en-barra.png",
+        "build/manual-20261027/identity/valuation-extra/12-standard-Flexiones-1-min.png",
+        "build/manual-20261027/identity/valuation-extra/12-standard-Sentadillas-1-min.png",
+        "build/manual-20261027/identity/valuation-extra/12-standard-Press-banca-1RM.png",
+        "build/manual-20261027/identity/valuation-extra/12-standard-Cooper.png",
+        "build/manual-20261027/identity/valuation-extra/13-custom-definition.png",
+        "build/manual-20261027/identity/valuation-extra/14-all-tests-saved.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-07",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "La variante nueva genera versión semántica nueva y no altera el resultado publicado.",
+      "observado": "Dominadas Identidad · Asistidas mantuvo ID 20e3a256-d4cf-4c6d-9fe2-8c8c84db1bdf y pasó de versión 1 a 2; la publicación inicial siguió mostrando Dominadas 8 reps.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/30-post-publication-new-version.png",
+        "build/manual-20261027/identity/valuation-extra/32-historical-snapshot-preserved.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-08",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El orden se aplica a las nuevas visitas.",
+      "observado": "Se bajó Dominadas Identidad bajo Aguante en barra. La revisión nueva y el cliente mostraron Aguante primero; ningún ID cambió.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/38-followup-reopened-success.json",
+        "build/manual-20261027/identity/valuation-extra/40-client-followup-partial.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TPL-09",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se guardan estados sin perder identidad ni crear versión extra.",
+      "observado": "Dominadas Identidad · Asistidas quedó inactiva en revisión 10 y activa en 11, mismo ID y versión 2; volvió a estar disponible en la siguiente visita.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/31-test-deactivated.png",
+        "build/manual-20261027/identity/valuation-extra/38-followup-reopened-success.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "REV-01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Persisten semanas y bloques elegidos.",
+      "observado": "Cada 2 semanas con Medidas, Bioimpedancia y Pruebas físicas, PUT 200 y reapertura idéntica.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/15-review-interval.png",
+        "build/manual-20261027/identity/valuation-extra/28-client-progress-published.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "REV-02",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se sustituye el intervalo por una fecha elegida.",
+      "observado": "2026-11-10 guardada con PUT 200 y resumen actualizado.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/16-review-date.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "REV-03",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "La pauta se puede eliminar y guardar otra vez.",
+      "observado": "Dejar sin programar mostró Sin programar y se guardó; se restauró Cada 2 semanas con tres bloques. Todas las mutaciones 200.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/17-review-cleared.png",
+        "build/manual-20261027/identity/valuation-extra/28-client-progress-published.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "REV-04",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El cliente ve la pauta y el profesional puede crear una visita con sus bloques.",
+      "observado": "Cliente mostró Cada 2 semanas y los tres bloques. Hacer la revisión pautada creó una Revisión con Medidas/Bioimpedancia/Pruebas, POST 201.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/28-client-progress-published.json",
+        "build/manual-20261027/identity/valuation-extra/33-new-visit-versioned-measures.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se copian las definiciones activas y el orden de la plantilla.",
+      "observado": "POST 201 creó valoración inicial con seis datos corporales y siete pruebas; Altura precedió a Peso Identidad.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/18-valuation-created.png",
+        "build/manual-20261027/identity/valuation-extra/21-standard-tests-empty.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "BIO-01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El decimal se guarda y se muestra sin cambiar magnitud/unidad.",
+      "observado": "Peso bio 72.5 se reabrió como 72,5 y se publicó con kg y BI Identidad A; segunda visita 72,2 kg.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/20-bioimpedance-filled.png",
+        "build/manual-20261027/identity/valuation-extra/25-reopened-bioimpedance.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json",
+        "build/manual-20261027/identity/valuation-extra/40-client-followup-partial.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "BIO-02",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Grasa usa % y mantiene el valor elegido.",
+      "observado": "18.4 se reabrió y publicó como 18,4 %; segunda visita 18,2 %, diferencia −0,2 % en su serie.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/25-reopened-bioimpedance.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json",
+        "build/manual-20261027/identity/valuation-extra/41-client-evolution-series.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "BIO-03",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se etiqueta como índice, sin convertirlo en kg o %.",
+      "observado": "Índice visceral 6 conservado en borrador, publicación y evolución como índice del fabricante.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/25-reopened-bioimpedance.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json",
+        "build/manual-20261027/identity/valuation-extra/41-client-evolution-series.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "BIO-04",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se advierte del modelo ausente; motivo y dato real se distinguen entre visitas.",
+      "observado": "Músculo sin báscula mostró el aviso de modelo. Primera visita No realizado con motivo persistente y público; segunda visita 35 kg. El dato ausente no creó cero ni punto de comparación.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/19-bioimpedance-form.png",
+        "build/manual-20261027/identity/valuation-extra/25-reopened-bioimpedance.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json",
+        "build/manual-20261027/identity/valuation-extra/40-client-followup-partial.json",
+        "build/manual-20261027/identity/valuation-extra/41-client-evolution-series.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TEST-01",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Resultado en repeticiones y protocolo completo persistentes.",
+      "observado": "8 reps y protocolo sí, guardados, reabiertos y publicados.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/26-reopened-tests.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TEST-02",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Duración decimal en segundos.",
+      "observado": "20.5 s se reabrió como 20,5 s; segunda visita 22 s y evolución +1,5 s.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/26-reopened-tests.json",
+        "build/manual-20261027/identity/valuation-extra/38-followup-reopened-success.json",
+        "build/manual-20261027/identity/valuation-extra/41-client-evolution-series.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TEST-03",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Prescripción de 60 s y repeticiones válidas.",
+      "observado": "10 reps guardadas y publicadas; definición y formulario conservaron 60 s.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/12-standard-Flexiones-1-min.png",
+        "build/manual-20261027/identity/valuation-extra/26-reopened-tests.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TEST-04",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Prescripción de 60 s y repeticiones válidas.",
+      "observado": "20 reps guardadas y publicadas; definición y formulario conservaron 60 s.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/12-standard-Sentadillas-1-min.png",
+        "build/manual-20261027/identity/valuation-extra/26-reopened-tests.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TEST-05",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Carga lograda en kg conservada como dato sintético.",
+      "observado": "Se registraron 25 kg, protocolo sí, y se recuperaron y publicaron. No se hizo ejercicio real ni prueba de límites.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/12-standard-Press-banca-1RM.png",
+        "build/manual-20261027/identity/valuation-extra/26-reopened-tests.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TEST-06",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Distancia, duración, FC, recuperación, fecha alternativa y nota mantienen sus asociaciones.",
+      "observado": "1000 m / 720 s; FC media130, máxima150, final140, recuperación95 lpm a60 s; fecha2026-10-26 y nota pública. Todo reabierto y visible al cliente con las unidades correctas.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/12-standard-Cooper.png",
+        "build/manual-20261027/identity/valuation-extra/26-reopened-tests.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json",
+        "build/manual-20261027/identity/valuation-extra/41-client-evolution-series.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "TEST-07",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Nombre de métrica/unidad/protocolo propios; el protocolo incompleto no se mezcla con uno completo.",
+      "observado": "Puntuación técnica 5 puntos, Escala sintética manual, protocolo no. Persistió y cliente mostró Protocolo incompleto; evolución explicó su separación.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/13-custom-definition.png",
+        "build/manual-20261027/identity/valuation-extra/26-reopened-tests.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json",
+        "build/manual-20261027/identity/valuation-extra/41-client-evolution-series.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-02",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Datos, estados y opciones de todos los bloques sobreviven al cierre.",
+      "observado": "PUT 200 y GET 200. Dos medidas, cuatro entradas bio, siete pruebas, protocolos, fecha y motivo reaparecieron intactos, con formato decimal español.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/23-draft-saved.png",
+        "build/manual-20261027/identity/valuation-extra/24-reopened-measures.png",
+        "build/manual-20261027/identity/valuation-extra/25-reopened-bioimpedance.json",
+        "build/manual-20261027/identity/valuation-extra/26-reopened-tests.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-03",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El cliente ve conclusión, destacados y resultados; las notas internas quedan fuera de su pantalla.",
+      "observado": "POST publicaciones 201. Cliente vio Conclusión sintética variantes Identidad, destacados Cooper/Grasa y detalle completo. INTERNA_IDENTIDAD_VARIANTES estuvo visible al entrenador y ausente del DOM del cliente.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/27-publish-confirmation.png",
+        "build/manual-20261027/identity/valuation-extra/28-client-progress-published.json",
+        "build/manual-20261027/identity/valuation-extra/29-client-full-results.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-04",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "El cambio de instrumento/variante no modifica la publicación anterior.",
+      "observado": "Tras guardar plantilla versión corporal3/prueba2 y recargar cliente, inicial conservó Báscula medida Identidad y Dominadas 8 reps. La nueva variante Asistidas no sustituyó ese resultado.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/32-historical-snapshot-preserved.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-05",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se copian instrumento nuevo, variante nueva y orden vigente; referencias anteriores solo comparables.",
+      "observado": "La revisión mostró Báscula medida Identidad B y Dominadas Identidad · Asistidas tras Aguante. Dominadas nueva no heredó referencia de versión1; Aguante sí mostró anterior20,5 s sin rellenar el campo nuevo.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/33-new-visit-versioned-measures.png",
+        "build/manual-20261027/identity/valuation-extra/38-followup-reopened-success.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-06",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Se conservan estados diferentes sin convertir pendientes en resultados.",
+      "observado": "Tras PUT200 y reapertura: Aguante22 s realizado/protocolo sí; Dominadas Asistidas no realizada con motivo; otras cinco pruebas pendientes. Publicación mostró solo los dos estados con resultado/motivo.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/38-followup-reopened-success.json",
+        "build/manual-20261027/identity/valuation-extra/40-client-followup-partial.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-07",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "No guarda un resultado registrado sin indicar si se completó el protocolo.",
+      "observado": "Guardar mostró Aguante en barra: indica si se completó el protocolo, sin petición PUT. Seleccionar sí permitió PUT200. Un primer intento se abandonó sin guardar tras esa validación; no hubo pérdida de datos previamente guardados.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/36-followup-save-validation.json",
+        "build/manual-20261027/identity/valuation-extra/37-followup-saved.png",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-08",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "Solo se publican las pruebas completadas/no realizadas y datos introducidos, sin inventar valores para pendientes.",
+      "observado": "POST201; cliente mostró Aguante22 s, Dominadas no realizada/motivo, medidas y cuatro valores bio. Flexiones, sentadillas, press, Cooper y personalizada pendientes no aparecieron como ceros.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/39-followup-published.png",
+        "build/manual-20261027/identity/valuation-extra/40-client-followup-partial.json",
+        "build/manual-20261027/identity/valuation-extra/events.json"
+      ]
+    },
+    {
+      "area": "variantes_valoracion",
+      "id": "VAL-09",
+      "estadoOriginal": "pass",
+      "estadoFinal": "correcto",
+      "esperado": "No mezcla métodos/versiones diferentes; conserva unidades y fechas de cada métrica.",
+      "observado": "Peso se separó en dos series por báscula A/B. Aguante comparó20,5→22 s (+1,5). Bio comparó72,5→72,2 kg y18,4→18,2 %. Cooper conservó fecha26oct para todas sus métricas; protocolo incompleto se identificó por separado.",
+      "evidencias": [
+        "build/manual-20261027/identity/valuation-extra/41-client-evolution-series.json",
+        "build/manual-20261027/identity/valuation-extra/41-client-evolution-series.png"
+      ]
+    }
+  ],
+  "revisionesIndependientes": [
+    "build/manual-20261027/valuation/manual-review.json",
+    "build/manual-20261027/valuation/pdf-review.json",
+    "build/manual-20261027/valuation/food-error-review.json",
+    "build/manual-20261027/nutrition/report.json"
+  ],
+  "limites": {
+    "nativo": "Sin dispositivo/emulador Android/iOS: permisos de cámara/galería, llavero/cifrado/caché nativos, ciclo de proceso, enlaces del sistema y lectores de pantalla nativos no verificados.",
+    "servicios": "Sin entrega real de correo ni S3; clips sintéticos, sin certificación biomecánica.",
+    "interfaz": "Chromium y tamaños indicados. No todas las combinaciones numéricas, carreras, máximos o paginaciones. Subida/comparación profesional de fotos sin acceso en UI.",
+    "variantesDetalladas": [
+      "build/manual-20261027/identity/result.json",
+      "build/manual-20261027/nutrition/report.json",
+      "build/manual-20261027/valuation/result.json",
+      "build/manual-20261027/media-animations/result.json",
+      "build/manual-20261027/identity/valuation-extra/report.json"
+    ],
+    "notaDeCobertura": "Los informes son por tramo de trabajo: la ampliación de valoración posterior cubre renombrar/reordenar/desactivar/versionar plantillas y las seis pruebas estándar que no ejecutó el primer recorrido de valoración."
+  },
+  "archivosDeProductoConCambioEnLaPrueba": [
+    {
+      "archivo": "apps/mobile/app/nutricion/comida.tsx",
+      "sha256Anterior": "213824c5a086a4fa247e0e3e84e203af0069d66331b40083c3a4b9a935d5fcd8",
+      "sha256Actual": "5e0ce0cfddb9cd83c4ef018e9364c219ceac6d372494c7ca1973a30a2e66db23"
+    },
+    {
+      "archivo": "apps/mobile/src/catalogo-ejercicios/formulario-ejercicio.tsx",
+      "sha256Anterior": "3809335b8ff706bc8516755da5fde3b0e2f546d535ee7c68cc37ca03388e5078",
+      "sha256Actual": "dd0afd8671d92825ed86ea3adbf11e198d3b47172c1c92d342c20770b8e3f8c5"
+    },
+    {
+      "archivo": "apps/mobile/src/catalogo-ejercicios/selector-figura.tsx",
+      "sha256Anterior": "8c01a997bbe4800f6050cae7b919c804418dacf9d001492005c8f16ddc4385e9",
+      "sha256Actual": "0ad112ed35274db9c92b45434ddc55716967e3d9d157de5ed249f57957560923"
+    },
+    {
+      "archivo": "apps/mobile/src/componentes/armazon.spec.tsx",
+      "sha256Anterior": null,
+      "sha256Actual": "0771c6b529600c20ec50ac63905de5ad3eaa8c3aa96ce0ef7507674b93b411c7",
+      "nuevo": true
+    },
+    {
+      "archivo": "apps/mobile/src/componentes/armazon.tsx",
+      "sha256Anterior": "11bf3c65f683bb88e5cfbeecb3a00faf973fa142a2baca7aea9bd27b34cc84ef",
+      "sha256Actual": "bde80d9b8140f4c986c4138ac5fdc640a99f8822c0f7acb37e19823903454b31"
+    },
+    {
+      "archivo": "apps/mobile/src/consentimiento.tsx",
+      "sha256Anterior": "807425f026334ece4e97d39e20a3b44e2eac46e240af5b4cb2542fa52f62bccc",
+      "sha256Actual": "dce88a420d32c711e06b0de5c121fce068b6ffff4e2189aa1c2a3cd7ef4fb561"
+    },
+    {
+      "archivo": "apps/mobile/src/entrenamiento-entrenador/constructor/constructor.tsx",
+      "sha256Anterior": "744fa4412c5a8c925119c3db94ecba46f00a375561958e034d016de18b5a6fcb",
+      "sha256Actual": "f0a74f35e7cc97e355be5d293e3e6c3bbfaaece70291e90a315ad59e176d4d5b"
+    },
+    {
+      "archivo": "apps/mobile/src/entrenamiento-entrenador/constructor/partes.tsx",
+      "sha256Anterior": "16d92c5a041134ac75b616f1c4ec26714305d20ea189728668d720a77dc5ce9b",
+      "sha256Actual": "1e87814068d23b2a60a0cc0eedb3d0bb349658787f7e6f9996c1d817fe072642"
+    },
+    {
+      "archivo": "apps/mobile/src/entrenamiento/sesion/controles.tsx",
+      "sha256Anterior": "591c7778aac4625496477343b9e21659d77467af753bf195702084e01e73f703",
+      "sha256Actual": "7190aa56411ab202dffa2a2ecff558c1238912546dc7f671d437118aea52836e"
+    },
+    {
+      "archivo": "apps/mobile/src/entrenamiento/sesion/modelo.spec.ts",
+      "sha256Anterior": "4fa866b02657e8834b08e2a3e0bb48adfc0377c28ff441aba5d4091fda2a4b70",
+      "sha256Actual": "69ebabf7cefe2f2c6d4fdbfc2963ca7cd331bf336b206c193387672c417f6816"
+    },
+    {
+      "archivo": "apps/mobile/src/entrenamiento/sesion/modelo.ts",
+      "sha256Anterior": "a3e8d2ae3a290aa627e4d116dc9dced198c7574baff19d613b1918e5e113ff05",
+      "sha256Actual": "065088d9b4551ec82f784b7ac1c73ffaec682b4b961fe33585762bedae1d22a0"
+    },
+    {
+      "archivo": "apps/mobile/src/entrenamiento/sesion/partes.tsx",
+      "sha256Anterior": "06ba3887bb0d17f5ab6d389312e6b787aa5aab9f75d98622868672810bed15ed",
+      "sha256Actual": "50c0b8e817fe8e316e25909b94399de60dd4d924cc3d9f1f92bf6c51137774c1"
+    },
+    {
+      "archivo": "apps/mobile/src/entrenamiento/tabla-series.tsx",
+      "sha256Anterior": "1c321cee82d47c9ed509f63ee16014d9e4a38dd15bb4ac7900ff9fac2d2e425f",
+      "sha256Actual": "cafacb9fc0443324fed9fb671d09ce0e78c44dd3201c2630a591117afc80086b"
+    },
+    {
+      "archivo": "apps/mobile/src/lib/errores.spec.ts",
+      "sha256Anterior": "120d247725448ffc2707f6fc3bb5108a0657e2e974778c5ff2cd64dea019ddfe",
+      "sha256Actual": "6cd4a749dcf53647635f8b127d8ca70ffd11c0c16a21422f5ad719270f0f1fe7"
+    },
+    {
+      "archivo": "apps/mobile/src/lib/errores.ts",
+      "sha256Anterior": "146561c12e83118b8910a9036e1b5f4c45fb4ad798d28cb47fb9820485886211",
+      "sha256Actual": "1a6666a94586834d54565bd6c9f0194f181b1350f1f47f74b5e5a40b62ed5ba4"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/comida-del-dia.tsx",
+      "sha256Anterior": "c98fdd743e3e3ad30dcf48bf1aae59613e402a684c5cf89f9621df2962826529",
+      "sha256Actual": "9e6dadc0766e2d5fd26d8b14b97c59d1622d2d97cc41361b9a870b983a75e576"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/comida-ruta.spec.tsx",
+      "sha256Anterior": "cdede7e55e3279307a898feec04028cf41617349bf7b92c21da01edff668e7f0",
+      "sha256Actual": "b3958431b92c48c6526bc1032b098a4f945290aa1d18278104032756db558312"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/copia-local.ts",
+      "sha256Anterior": "8df8ae0e92600027b06896a49d1cbe083998d42d10bfabcf8cafd2abae69b72b",
+      "sha256Actual": "4d134da684af0db33d95b3490db729cbe8fdb2ce8cf7b977738183961c8a9df1"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/editor-comida.tsx",
+      "sha256Anterior": "db554807df277028d9b94cdaf6560d37b9468db9d93334294ab6f9fa12baf930",
+      "sha256Actual": "1e0901b6d6b7e34a0207e13d2af059858729c1c2256836347bfeed77eef27d35"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/editor-dieta.tsx",
+      "sha256Anterior": "7c1e2393f1a76d8a101d3b7082ebae575987b6b47722341aef64e2d21887ae4f",
+      "sha256Actual": "3e68180d631c39dc85c9c01c347b68856bde9f70f7a66dbc1950c3ea743699a0"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/ficha-nutricion.spec.tsx",
+      "sha256Anterior": "a45f74a0fbd0eb5fb6f442f73d47a3346bbe8fc53e5cd79ff3eb56fda9fc7431",
+      "sha256Actual": "d4a3f65f5f15d507de5b572451252aa19a570d9eb855809e2d5298b617c3c673"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/ficha-nutricion.tsx",
+      "sha256Anterior": "76b3ff08070092a79e60c3b2f37c7d39479b551f33a809e23e2d84cbbe4bcfe6",
+      "sha256Actual": "8133290af94e8d14c0b7976e4dcf23988d7fb137d629685fa96aa57bbdbbef15"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/hoy-inicio.tsx",
+      "sha256Anterior": "48d1e667275254ce28064eba4e14154c071eb4bf9bb1192ef51e955d2100e6be",
+      "sha256Actual": "010d144d03b0046f26937dbf13099a4155ba5aee9fa801ea37376a49a149b534"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/hoy-nutricion.tsx",
+      "sha256Anterior": "38346b3d6296501eb184f9824389de397764389583781eeb381f10fb28cc7d74",
+      "sha256Actual": "4b66fd947af44d360749b6aa2e6655d9b3dcb063e6b15a476e6f0e7ef296da33"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/panel-dieta.tsx",
+      "sha256Anterior": "788678cf1b20e15d69ad38270c5027f08b46b1e0c658486676c3b742e1fa4a01",
+      "sha256Actual": "5e8d3d4bffeaa005bcd2b343380a8473f578e2dd189c8dd9158064f2e946cf9a"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/pauta.tsx",
+      "sha256Anterior": "b907129e9093c99dbfdb0e2bd5041e4a0e3b0b56f8ea3d541f56a7628391631d",
+      "sha256Actual": "e11896331749a2c392d91c49a09f26001002070e66b43e6850bbffed57f89c27"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/vista-dieta.spec.tsx",
+      "sha256Anterior": "ebac32ee64fe8ca33f2960aecae25bc5c66948db3de68fb6cb1082da372d9996",
+      "sha256Actual": "7320d139487a76147ca5a26a30b5ba31de8db6590d4ad731fe721f1d34ee875d"
+    },
+    {
+      "archivo": "apps/mobile/src/nutricion/vista-dieta.tsx",
+      "sha256Anterior": "5c0b73701fcf9610c22ec5bc939ebab811517762a5ba786181e690ca8e720d5b",
+      "sha256Actual": "59c58423f5f6374ad06fab08e74e5c52fd9dd76a65a17771b4fe25a9e4800a15"
+    },
+    {
+      "archivo": "apps/mobile/src/seguimiento/bioimpedancia-valoracion.tsx",
+      "sha256Anterior": "397f2819fd64012ee7c20a984be011bfe63a45750b1d318d2617ef75ff2cdfef",
+      "sha256Actual": "dde57a2e8b219d1814bd7c7e5cb5433226721807a5f97c75816d38f5291e0c04"
+    },
+    {
+      "archivo": "apps/mobile/src/seguimiento/borrador-valoracion.tsx",
+      "sha256Anterior": "b707dda343f9086ba7eb09a6bc76c74995730c14ed587944d400728baff9fbf6",
+      "sha256Actual": "f15a1fc08f2d047b02a93a9d1f4d72527d492337fb068cf37156ff72cf77a8ce"
+    },
+    {
+      "archivo": "apps/mobile/src/seguimiento/comparador-fotos.tsx",
+      "sha256Anterior": "c15aff1287b5f5aa2cfa7ed9bfe10575672532efbd84997eb94098ef4f4ad98d",
+      "sha256Actual": "09c9c036df39e35f5d7c9f5825f2f0c645758a2f78f1fdabb6fbcb7905e471d6"
+    },
+    {
+      "archivo": "apps/mobile/src/seguimiento/editor-valoracion.tsx",
+      "sha256Anterior": "835278ec9db5d2236f29d67c01a6fa733dc37878fffbdfcf1dc8f5346b55bf47",
+      "sha256Actual": "46b9ad9470a89c6c681162e65cccdc82abce8c7dd180a1f1e9ef48b4316a9215"
+    },
+    {
+      "archivo": "apps/mobile/src/seguimiento/hoy-diario.tsx",
+      "sha256Anterior": "936e4b3affc91c808cf9baad23bedc0c3f04cf7663810c962c28b0342236b265",
+      "sha256Actual": "df7a2a993c08ec898cd7f5336f8c89fa29085b2eb6266f25ec0db705fd5ed5ef"
+    },
+    {
+      "archivo": "apps/mobile/src/seguimiento/pauta-revision.tsx",
+      "sha256Anterior": "972da5f18fb6a3532bd31aa0bc01317f111ee8f5d9072ef8a2c4afc2c7c33f17",
+      "sha256Actual": "f3bbe864aa3fe4dde0aab9e2cdaf5df53e180d582a8aa86cfd73f5ae0d9f3efe"
+    },
+    {
+      "archivo": "apps/mobile/src/seguimiento/pliegues-valoracion.tsx",
+      "sha256Anterior": "f67685e2c1add4af48f84cb2b6b2fb9dc33976e16e68c8bb18f726fb63f02f97",
+      "sha256Actual": "0646c76efb7410714e985b9fae28a492804364e4f7d0207b9054074a0cef2ed5"
+    },
+    {
+      "archivo": "apps/mobile/src/seguimiento/solicitudes-fotos.tsx",
+      "sha256Anterior": "a7a564e41cbf737e16b259fd3dd2d8cc79afa347c86bcc2deef6fdabe6a9b51c",
+      "sha256Actual": "f06611dcf8073aecb64a878ff6523dbbd71630ded283ca6f68ad5c5613442d92"
+    }
+  ],
+  "estadoLocal": "Docker y servidores de prueba disponibles; datos y cuentas sintéticos aislados; sin commits ni despliegue. Evidencias bajo build/ excluidas de Git."
+}

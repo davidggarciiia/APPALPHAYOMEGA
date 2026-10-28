@@ -6,7 +6,7 @@
 //   RECORRIDO_API=http://localhost:3101 node tasks/iteracion-3/recorrido-f09.mjs
 //
 // Crea tres cuentas sintéticas (@recorrido-f09.test) y ejercicios con prefijo
-// "recorrido-f09" en la base del .env, recorre catálogo → rutina → plan → agenda →
+// "recorrido-f09" en una base dedicada (_e2e_, _manual_, _test o _review_), recorre catálogo → rutina → plan → agenda →
 // registro → resultado y borra solo lo suyo al final, como las pruebas e2e. No toca
 // otras cuentas ni imprime tokens, contraseñas o datos de clientes.
 import { randomBytes, randomUUID } from "node:crypto"
@@ -17,6 +17,13 @@ const RAIZ = new URL("apps/api/dist/", REPO).href
 process.chdir(fileURLToPath(REPO))
 const { cargarEntornoLocal } = await import(RAIZ + "config/entorno.js")
 cargarEntornoLocal()
+
+if (
+  process.env.NODE_ENV === "production" ||
+  !/_(?:e2e_|manual_|test(?:_|$)|review_)/.test(process.env.POSTGRES_DB ?? "")
+) {
+  throw new Error("El recorrido necesita una base dedicada y nunca se ejecuta en producción")
+}
 
 // Fechas relativas a hoy en Madrid: el plan empieza el lunes de esta semana.
 const DIA = 86_400_000
@@ -74,6 +81,8 @@ async function limpiar() {
   const sesionId = { in: sesiones.map((s) => s.id) }
   const ejercicios = { nombreNormalizado: { startsWith: PREFIJO } }
   await prisma.$transaction([
+    prisma.lecturaNovedad.deleteMany({ where: { novedad: { sesionId } } }),
+    prisma.novedadEntrenamiento.deleteMany({ where: { sesionId } }),
     prisma.operacionEntrenamiento.deleteMany({ where: { sesionId } }),
     prisma.referenciaEjercicio.deleteMany({ where: { sesionId } }),
     prisma.cambioDeFecha.deleteMany({ where: { sesionId } }),
@@ -418,8 +427,10 @@ try {
 } finally {
   await limpiar()
   const quedan = await prisma.usuario.count({ where: { email: { endsWith: SUFIJO } } })
+  if (quedan !== 0) fallos++
   informe.push(`${quedan === 0 ? "OK " : "MAL"} limpieza: ${quedan} cuentas sintéticas restantes`)
   await prisma.$disconnect()
 }
 console.log(informe.join("\n"))
 console.log(`\n${fallos === 0 ? "Recorrido completo sin fallos" : `${fallos} fallos`}`)
+process.exitCode = fallos === 0 ? 0 : 1

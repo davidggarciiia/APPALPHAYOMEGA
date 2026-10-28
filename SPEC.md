@@ -191,6 +191,17 @@ herramienta se aprende una vez.
 Cobertura mínima del 80% en servicios y guardas de permisos. Sin objetivo global,
 porque perseguir un número en código repetitivo enseña a escribir tests malos.
 
+**Cómo se mide (28-10-2026).** El mínimo se aplica al **agregado** de todos los
+`*.service.ts` y `*.guard.ts` de la API, en las cuatro métricas de Istanbul
+(líneas, sentencias, funciones y ramas), sumando los contadores de las pruebas
+unitarias y de las E2E: la lógica de los servicios y de las guardas se ejercita
+sobre todo con la base real, así que solo con las unitarias no se alcanza (~50 %) y
+no se pretende. Un servicio sin ningún test cuenta a cero. Los archivos por debajo
+del 80 % de líneas se listan en el informe pero no hacen fallar el control por sí
+solos; si se decide exigirlo por archivo, es un cambio de esta regla, no un ajuste
+del umbral. `npm run test:cobertura` lo ejecuta (necesita una base de pruebas, ver
+README) y la CI lo repite en cada cambio.
+
 **Regla innegociable: toda regla de permiso tiene un test que demuestra que
 deniega.** No basta con probar que un rol puede hacer algo. Hay que probar que
 los otros tres no pueden.

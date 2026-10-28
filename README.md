@@ -28,13 +28,17 @@ El entrenador prepara desde cero o adapta una rutina guardada, asigna varias
 semanas y consulta los resultados enviados. El cliente puede mover su sesión,
 escribir peso y repeticiones o segundos, marcar series y enviar al terminar.
 Sus borradores son privados; las sesiones descargadas admiten edición sin red.
-Hay soporte para figuras animadas y un catálogo inicial de 52 ejercicios;
-los archivos y su carga en la base principal todavía requieren comprobación.
+El catálogo incluye un paquete inicial de 52 ejercicios y una ampliación de
+74 fichas con técnica, pasos y errores a evitar. El 30-09-2026 se comprobaron
+130 ejercicios publicados en la base local `alpha_omega`, con 52 animaciones
+y sus pósteres disponibles. Las 74 fichas nuevas llevan técnica textual.
 Licencias y restricciones en [docs/animaciones-ejercicios.md](docs/animaciones-ejercicios.md).
 
 ## Cómo arrancarlo
 
-Hace falta Node 22 o superior y Docker.
+Hace falta Docker, npm 10.9.4 y Node compatible con `engines` de la raíz
+(22.22.3+, 24.15+ o 26+). La revisión actual está en
+[revisión de producción](tasks/revision-produccion-2026-10-27.md).
 
 ```bash
 npm install
@@ -43,6 +47,17 @@ npm run db:up               # Postgres en Docker
 npm run db:migrate          # aplica las migraciones
 npm run db:seed             # crea la cuenta del entrenador
 ```
+
+Para cargar las fichas adicionales en la base configurada:
+
+```bash
+npm run db:catalogo:ampliar                 # simulación, sin escrituras
+npm run db:catalogo:ampliar -- --confirmar   # crea únicamente las ausentes
+```
+
+La carga conserva las fichas existentes, incluidas las retiradas y las editadas,
+y no añade animaciones a movimientos sin un medio correspondiente. Los recuentos
+locales incluyen cuatro ejercicios previos adicionales al paquete inicial.
 
 Después, en dos terminales:
 
@@ -64,12 +79,21 @@ npm test                    # unitarios
 # HTTP: solo contra una base dedicada, nunca contra la base habitual.
 # En PowerShell: $env:POSTGRES_DB='alpha_omega_e2e_codex'
 npm run test:e2e            # necesita esa base levantada y migrada
+npm run test:cobertura      # unitarias + E2E + mínimo del 80 % en servicios y guardas
 ```
 
-La verificación del 24-09-2026 registra 188 pruebas unitarias de API,
-452 móviles y 448 HTTP. Los tests de extremo a extremo hablan con una base de datos
-de verdad y nunca salen a la red: el envío de correo se sustituye por un doble en
-memoria.
+Los E2E crean y borran filas: se niegan a arrancar si `POSTGRES_DB` no lleva `e2e`
+en el nombre (por ejemplo `alpha_omega_e2e_codex`), así que un `npm run test:e2e`
+sin la variable no escribe en la base habitual. La CI de GitHub
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) repite tipos, lint, unitarias,
+E2E sobre una base desechable y el mínimo de cobertura.
+
+La última verificación completa (28-10-2026, sin commit) registra 390 pruebas
+unitarias de API, 733 de la app y 512 E2E en 47 suites; la cobertura fusionada de
+servicios y guardas es de 96,06 % en líneas y 86,56 % en ramas. Los tests de extremo
+a extremo hablan con una base de datos de verdad y nunca salen a la red: el envío de
+correo se sustituye por un doble en memoria. El seguimiento de esas mejoras está en
+[tasks/todo-mejoras-2026-10-27.md](tasks/todo-mejoras-2026-10-27.md).
 
 ## Cómo está organizado
 

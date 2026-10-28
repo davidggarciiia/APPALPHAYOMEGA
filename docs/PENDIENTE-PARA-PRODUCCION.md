@@ -1,8 +1,9 @@
 # Pendiente antes de publicar
 
-> Cosas que no se resuelven programando. Se han ido acumulando durante el
-> desarrollo y ninguna bloquea seguir construyendo, pero **todas bloquean
-> publicar**. Se actualiza cada vez que aparece una nueva.
+> Estado de preparación para publicar. Incluye configuración de proveedores,
+> dispositivos, decisiones de alcance y revisión jurídica. Las comprobaciones
+> de código no acreditan que la instalación real esté preparada. Los puntos
+> siguientes indican qué bloquea la publicación y qué revisión es condicional.
 
 ## Bloqueantes duros
 
@@ -36,7 +37,7 @@ No hay que tocar código.
 **Estado: pendiente, y depende del punto 1.** Lo encontró la revisión adversarial
 del andamiaje y es el hallazgo de seguridad más serio que queda abierto.
 
-Hoy el correo de activación apunta a `alphaomega://activar?token=...`. Un esquema
+En desarrollo el correo de activación apunta a `alphaomega://activar?token=...`. Un esquema
 propio no está reservado a nadie: **cualquier otra app instalada en el teléfono
 puede declarar que también responde a `alphaomega://`**. Si lo hace, al pulsar el
 enlace es esa app la que recibe el token, y con él fija la contraseña y entra
@@ -57,6 +58,13 @@ Qué hay que hacer, y todo depende de tener el dominio:
 Con eso el sistema operativo comprueba contra el dominio que la app tiene derecho
 a abrir esos enlaces, y ninguna otra puede reclamarlos.
 
+**Actualización del 27-10-2026:** la API exige en producción dos bases HTTPS
+explícitas: `ACTIVACION_URL_BASE` para `/activar` y `RECUPERACION_URL_BASE` para
+`/restablecer`. Fuera de producción conserva los esquemas propios para las pruebas.
+La recuperación necesita la misma asociación de dominio que la activación; cambiar
+solo el enlace de activación no la protege. Las guardas de arranque no acreditan
+que AASA, assetlinks, huellas y configuración de tiendas estén verificados.
+
 Mientras tanto, el enlace funciona para probar y **no debe usarse con clientes
 reales**. Que hoy no se pueda enviar correo fuera de tu dirección lo hace
 inofensivo por accidente, no por diseño.
@@ -70,19 +78,19 @@ se tramita en cinco minutos y Apple puede tardar días en verificar la identidad
 separéis la app se va contigo y él se queda sin poder actualizarla ni responder a
 una incidencia. Es la clase de detalle que arruina una relación profesional.
 
-### 3. Entrar con Apple
+### 3. Alcance del login social y revisión de App Store
 
-**Estado: fuera del alcance por decisión de David.** Pero la directriz 4.8 de
-revisión de Apple exige que una app que ofrece login de terceros ofrezca también
-una alternativa equivalente que respete la privacidad, y Entrar con Apple es la
-forma estándar de cumplirla.
+**Estado comprobado el 27-10-2026:** el acceso actual usa correo y contraseña.
+Entrar con Google está en [SPEC-identity.md](../SPEC-identity.md), pero aún no
+está implementado en la interfaz ni en la API. Hay que cerrar ese alcance antes
+de presentarlo como funcionalidad terminada.
 
-Publicar en App Store con Google y sin Apple es un motivo de rechazo documentado.
-Hay un argumento defendible a favor, porque aquí Google no crea cuentas, solo
-autentica las que ya existen. Es un argumento, no una garantía, y decide el
-revisor.
-
-En Android no hay problema. Ver [SPEC-identity.md](../SPEC-identity.md).
+Entrar con Apple quedó fuera del alcance por decisión de David. La
+[directriz 4.8 de Apple](https://developer.apple.com/app-store/review/guidelines/#login-services)
+contempla una excepción para sistemas de acceso propios. Si se añade Google,
+hay que revisar de nuevo el requisito de un servicio equivalente con las
+características de privacidad indicadas por Apple. Esta revisión condicional
+no acredita aprobación de la tienda.
 
 ### 4. Texto de consentimiento de datos de salud
 
@@ -194,6 +202,11 @@ Las bajas y reactivaciones dejan una línea en el log del servidor con quién,
 a quién y cuándo, y nada más. Cuando llegue el borrado a petición (tarea 21)
 habrá que poder demostrar qué se hizo y cuándo, y eso pide una tabla.
 
+**Actualización del 28-10-2026:** el borrado a petición sigue **sin implementar**.
+Existe una propuesta en [ADR 0006](adr/0006-borrado-a-peticion.md) (estado
+«Propuesto») que necesita la decisión de David sobre el histórico de entrenos y la
+respuesta a seis dudas jurídicas antes de programarse.
+
 ### 9b. La app móvil no tenía tests
 
 **Hecho.** La app tiene su suite con React Native Testing Library
@@ -203,9 +216,33 @@ mano antes de publicar (`tasks/todo.md`, Q03).
 
 ### 10. Avisos de `npm audit`
 
-Cinco aceptados con razonamiento, ninguno silenciado. Hay que revisarlos al subir
-el SDK de Expo y antes de publicar. Ver
-[ADR 0003](adr/0003-avisos-de-seguridad-aceptados.md).
+Revisados el 27-10-2026: dependencias actualizadas, Expo 57 alineado y
+compatibilidad del router cubierta con pruebas. La auditoría actual no presenta
+avisos conocidos; esto no sustituye la revisión del código ni las pruebas del
+binario. Repetir la auditoría al actualizar dependencias y antes de publicar.
+El [ADR 0003](adr/0003-avisos-de-seguridad-aceptados.md) conserva el razonamiento
+histórico; el resultado actual está en la
+[revisión de producción](../tasks/revision-produccion-2026-10-27.md).
+
+### 11. Plazos, cobertura y CI (estado 28-10-2026)
+
+**Hecho en código, sin sustituir la prueba en el alojamiento real:**
+
+- La API abre PostgreSQL con plazos de conexión, consulta (`statement_timeout`) e
+  inactividad, un tamaño de pool y un plazo propio en `/salud` y en el envío de
+  correo (ver «Plazos de la base» en [DESPLIEGUE.md](DESPLIEGUE.md)). Los valores por
+  defecto son holgados y **no están medidos** en el proveedor elegido; un pooler
+  externo en modo transacción puede rechazar `statement_timeout` y hay que ensayarlo.
+- `npm run test:cobertura` exige el 80 % agregado de servicios y guardas (SPEC.md,
+  «Cómo se mide»). Hoy: 96,06 % en líneas y 86,56 % en ramas.
+- Hay un flujo de CI en `.github/workflows/ci.yml` (tipos, lint, unitarias, E2E sobre
+  una base desechable y cobertura). **No se ha ejecutado todavía en GitHub**: se
+  sabrá en el primer push. No existe equivalente para el espejo de GitLab.
+- Los E2E se niegan a correr contra una base cuyo nombre no lleve `e2e`.
+
+**Sigue pendiente:** alertas y sondas en el proveedor, prueba de capacidad, copias
+programadas cifradas con recuperación ensayada, y que la CI haya pasado al menos una
+vez en el repositorio real.
 
 ## Avisos que Claude debe dar
 

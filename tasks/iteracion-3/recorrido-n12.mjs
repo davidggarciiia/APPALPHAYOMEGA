@@ -5,7 +5,7 @@
 //   node tasks/iteracion-3/recorrido-n12.mjs          # API en http://localhost:$API_PORT (3000)
 //   RECORRIDO_API=http://localhost:3101 node tasks/iteracion-3/recorrido-n12.mjs
 //
-// Crea cuentas sintéticas (@recorrido-n12.test) en la base del .env, recorre los
+// Crea cuentas sintéticas (@recorrido-n12.test) en una base dedicada (_e2e_, _manual_, _test o _review_), recorre los
 // criterios de SPEC-nutricion.md que se pueden comprobar por HTTP y borra solo lo
 // suyo al final. La dieta es inventada. Imprime el marcador que lleva el documento
 // para buscarlo después en los registros del servidor (criterio 14).
@@ -17,6 +17,14 @@ const RAIZ = new URL("apps/api/dist/", REPO).href
 process.chdir(fileURLToPath(REPO))
 const { cargarEntornoLocal } = await import(RAIZ + "config/entorno.js")
 cargarEntornoLocal()
+
+if (
+  process.env.NODE_ENV === "production" ||
+  !/_(?:e2e_|manual_|test(?:_|$)|review_)/.test(process.env.POSTGRES_DB ?? "")
+) {
+  throw new Error("El recorrido necesita una base dedicada y nunca se ejecuta en producción")
+}
+
 const { PrismaService } = await import(RAIZ + "prisma/prisma.service.js")
 const { cifrarContrasena } = await import(RAIZ + "identity/contrasenas.js")
 
@@ -388,9 +396,11 @@ try {
 } finally {
   await limpiar()
   const quedan = await prisma.usuario.count({ where: { email: { endsWith: SUFIJO } } })
+  if (quedan !== 0) fallos++
   informe.push(`${quedan === 0 ? "OK " : "MAL"} limpieza: ${quedan} cuentas sintéticas restantes`)
   await prisma.$disconnect()
 }
 console.log(informe.join("\n"))
 console.log(`\nMarcador del documento: ${MARCADOR}`)
 console.log(fallos === 0 ? "Recorrido completo sin fallos" : `${fallos} fallos`)
+process.exitCode = fallos === 0 ? 0 : 1

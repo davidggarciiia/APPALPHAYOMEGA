@@ -97,7 +97,7 @@ proveedor, y las comprobaciones físicas y de interfaz indicadas en `tasks/todo.
     cuerpo vacío.
   - `AlmacenLocal` usa el disco del servidor, con enlaces HMAC a la propia API.
     Es solo para desarrollo.
-  - Con `NODE_ENV=production` la API no arranca sin elegir uno. Ver
+  - Con `NODE_ENV=production` la API exige `ALMACEN=s3` y rechaza el local. Ver
     [DESPLIEGUE.md](../DESPLIEGUE.md).
 - **Flujo:** la app pide una intención (`POST /medios/subidas`) y sube directo
   con un enlace de 15 minutos que firma el tipo y el tamaño. Después confirma, y
@@ -123,9 +123,12 @@ proveedor, y las comprobaciones físicas y de interfaz indicadas en `tasks/todo.
 - **Nada público ni persistido:** la base guarda la clave del objeto, nunca una
   URL. El visor no guarda enlaces ni fotos para uso sin conexión. En Android
   descarga la foto a memoria y la pinta como `data:`, evitando la caché de disco
-  de Fresco. La selección/preparación nativa sí genera archivos de caché: su
-  borrado explícito al terminar/cancelar sigue pendiente en F03a; no equivale
-  a afirmar que no queda ningún archivo en el dispositivo.
+  de Fresco. La selección/preparación nativa sí genera archivos de caché. La app
+  libera los archivos temporales que controla al confirmar, descartar o salir
+  y reintenta su limpieza si falla; los tests sintéticos cubren esos caminos.
+  Sigue pendiente comprobarlo en dispositivos físicos y determinar las cachés
+  propias del selector y del sistema operativo. No se afirma que no quede ningún
+  archivo en el dispositivo.
 - **Quién ve qué:** el entrenador ve todas las fotos de sus clientes. El cliente
   ve las suyas y las del entrenador ya publicadas. El nutricionista no ve
   ninguna.

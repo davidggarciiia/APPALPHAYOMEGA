@@ -1,10 +1,19 @@
 # ADR 0003: Qué avisos de `npm audit` se aceptan y por qué
 
 - **Fecha:** 2026-09-12
-- **Estado:** aceptado
+- **Estado:** histórico; sustituido por la revisión del 27-10-2026
 - **Sustituye parcialmente a:** [ADR 0001](0001-prisma-7-y-avisos-del-cli.md), que cubría dos de estos seis
 
 ## Contexto
+
+**Actualización del 27-10-2026:** los avisos de este documento se revisaron
+de nuevo con el código completo. La actualización del lockfile, la alineación
+con Expo 57 y los overrides limitados al CLI/router eliminan los avisos de la
+auditoría actual. La compatibilidad del router se conserva mediante un parche
+de exportaciones, descrito en [patches/README.md](../../patches/README.md).
+El razonamiento original que sigue describe el estado de septiembre; no es
+una aceptación permanente para versiones posteriores. Véanse los resultados
+de [la revisión de producción](../../tasks/revision-produccion-2026-10-27.md).
 
 Tras montar la app Expo, `npm audit` pasó de 4 avisos a 25. Los 25 se reducen a
 **cinco paquetes con aviso propio**; el resto son sus cadenas de dependencias.
