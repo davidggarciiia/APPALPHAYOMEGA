@@ -13,16 +13,20 @@ Rama de trabajo: `mejoras/base-2026-10-28` (solo commits locales; **ningún push
 
 ### 2. Correcciones aplicadas (cada una con prueba que falla antes y pasa después)
 
-| ID de la auditoría | Qué arreglaba                                                                                                                                                                                                       | Commit    |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| A-01…A-05, A-07    | La puerta de consentimiento se abría ante cualquier error (500, sesión caducada); pantalla sin zona segura ni indicador; «Go» del teclado enviaba dos veces; activar cuenta no confirmaba el éxito ni dejaba salida | `81e80b0` |
-| N-01, S-02, T-17   | El teclado tapaba el campo y «Guardar» al apuntar peso, pasos, sueño, cintura o responder una molestia                                                                                                              | `391be7c` |
-| T-15               | La respuesta escrita para una molestia aparecía ya puesta en la siguiente (indicación de salud al cliente equivocado)                                                                                               | `96244ed` |
-| E-02               | «Hecha» sin peso no hacía nada visible: el aviso salía al pie, fuera de la vista                                                                                                                                    | `e1c324b` |
-| E-01               | «Terminar» solo estaba en la cabecera; ahora hay «Terminar entreno» al pie al acabar la última serie                                                                                                                | `d0faf4c` |
-| S-01               | Salir de Progreso con una foto sin confirmar la perdía en silencio                                                                                                                                                  | `5bff1d0` |
-| T-01               | El constructor de planes no autoguardaba: 10–30 min de trabajo perdidos si Android mataba el proceso                                                                                                                | `d22ad0b` |
-| T-02               | Elegir una plantilla machacaba el plan montado sin preguntar                                                                                                                                                        | `a471635` |
+| ID de la auditoría | Qué arreglaba                                                                                                                                                                                                               | Commit    |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| A-01…A-05, A-07    | La puerta de consentimiento se abría ante cualquier error (500, sesión caducada); pantalla sin zona segura ni indicador; «Go» del teclado enviaba dos veces; activar cuenta no confirmaba el éxito ni dejaba salida         | `81e80b0` |
+| N-01, S-02, T-17   | El teclado tapaba el campo y «Guardar» al apuntar peso, pasos, sueño, cintura o responder una molestia                                                                                                                      | `391be7c` |
+| T-15               | La respuesta escrita para una molestia aparecía ya puesta en la siguiente (indicación de salud al cliente equivocado)                                                                                                       | `96244ed` |
+| E-02               | «Hecha» sin peso no hacía nada visible: el aviso salía al pie, fuera de la vista                                                                                                                                            | `e1c324b` |
+| E-01               | «Terminar» solo estaba en la cabecera; ahora hay «Terminar entreno» al pie al acabar la última serie                                                                                                                        | `d0faf4c` |
+| S-01               | Salir de Progreso con una foto sin confirmar la perdía en silencio                                                                                                                                                          | `5bff1d0` |
+| T-01               | El constructor de planes no autoguardaba: 10–30 min de trabajo perdidos si Android mataba el proceso                                                                                                                        | `d22ad0b` |
+| T-02               | Elegir una plantilla machacaba el plan montado sin preguntar                                                                                                                                                                | `a471635` |
+| N-02               | El editor de dieta solo guardaba al pulsar «Guardar borrador» (al final del formulario): cerrar la app o perder la red costaba todo lo escrito. Ahora autoguarda a los 2,5 s, en silencio y con un solo intento por edición | `892ed88` |
+| T-04 (parcial)     | «Quitar día» borraba todos los ejercicios del día de un toque; ahora pregunta. Quitar un ejercicio, una fase o un deporte sigue sin confirmar                                                                               | `45d7604` |
+| P-01               | Un 409 por falta de consentimiento se mostraba como «hay otra versión de esta sesión» con un botón que no arreglaba nada                                                                                                    | `0428926` |
+| Capturas           | Botones del plan que se salían por la derecha en móvil (y aplastaban el título en escritorio), huecos en Fases y Otros deportes, estado vacío de Nutrición, enlaces de acceso con el botón nuevo                            | `7325b15` |
 
 También: **pantalla de carga con el vídeo del logo** (agente, integrada tras revisar su código), CI de GitHub, plazos de PostgreSQL y correo, cobertura del 80 % ejecutable, guarda de E2E, pruebas de acceso, y exclusión de los worktrees de agentes de Git, Prettier y ESLint.
 
@@ -35,7 +39,7 @@ También: **pantalla de carga con el vídeo del logo** (agente, integrada tras r
 ## Verificación
 
 - Antes de los cambios de la noche: 390 pruebas de API, 733 del móvil, 512 E2E; cobertura fusionada 96,06 % líneas / 86,56 % ramas.
-- Tras integrar la pantalla de carga: **762 pruebas del móvil en 90 suites, tipos y lint en verde**. Después se añadieron más pruebas con T-01 y T-02 (cada grupo verificado por separado).
+- Última verificación completa (tras integrar carga y botones y la ronda de capturas): **tipos y lint en verde y 812 pruebas del móvil en 93 suites**; después se añadieron las de T-04 y P-01 (261 de entrenamiento en verde).
 - **No se ha ejecutado la CI en GitHub.** La simulación local sin `.env` da 512/512 E2E.
 
 ## Lo que NO está comprobado
@@ -46,12 +50,12 @@ También: **pantalla de carga con el vídeo del logo** (agente, integrada tras r
 
 ## Pendiente (en orden de prioridad)
 
-1. **Sistema de botones** con esquina cortada y animación (agente en curso): se integra cuando termine y pase todo.
-2. **Autoguardado del editor de dieta (N-02, P1):** misma pérdida de datos que T-01, en el editor de nutrición.
-3. **Resto de P1/P2 de las auditorías** (ver los dos informes): confirmaciones al quitar días y ejercicios (T-04), 409 de consentimiento mal explicado (P-01), parpadeo al recargar Inicio y Nutrición (N-03, N-06), copia sin conexión en nutrición (N-04, N-05), sondeos de 5 s con escritura cifrada (E-04, E-05).
+1. **Migrar el resto de botones sueltos** a los nuevos (unos 50 `Pressable`; muchos serán tarjetas o chips que no deben cambiar) y decidir dónde usar «mantener para confirmar» en los destructivos.
+2. **Resto de P1/P2 de las auditorías** (ver los dos informes): confirmar también al quitar un ejercicio, una fase o un deporte (T-04), parpadeo al recargar Inicio y Nutrición (N-03, N-06), copia sin conexión en nutrición (N-04, N-05), sondeos de 5 s con escritura cifrada (E-04, E-05), pestañas con `router.replace` y rutas públicas con sesión (A-06, A-12).
+3. **Ruido en consola:** un `AbortError` de `play()` aparece de vez en cuando en la intro del vídeo en web; es una carrera benigna, no está corregida.
 4. **Rendimiento:** informe parcial; faltan las medidas de arranque, bundle y endpoints.
 5. **Skills y plugins:** informe parcial; no se instaló nada de terceros esta noche.
-6. **Decisiones tuyas de antes:** borrado a petición (A o B), login con Google, dos políticas de acceso, y cómo repartir los commits de Codex (hecho en 4 commits por capa).
+6. **Decisiones tuyas de antes:** borrado a petición (A o B), login con Google, dos políticas de acceso.
 
 ## Cómo probarlo en tu móvil (Expo Go)
 
