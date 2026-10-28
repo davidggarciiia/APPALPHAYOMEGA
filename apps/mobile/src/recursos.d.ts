@@ -10,3 +10,7 @@ declare module "*.ttf" {
   const fuente: import("expo-font").FontSource
   export default fuente
 }
+declare module "*.mp4" {
+  const clip: import("expo-video").VideoSource
+  export default clip
+}
