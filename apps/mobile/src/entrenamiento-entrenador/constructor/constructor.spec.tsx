@@ -9,6 +9,7 @@ import {
 
 import { crearApiEntrenamiento } from "../../entrenamiento/api"
 import type { AlmacenLocal } from "../../entrenamiento/almacen-local"
+import type { ApiRutinas } from "../api-rutinas"
 import { crearPeticionAutenticada } from "../../lib/peticion-autenticada"
 import { ErrorDePeticion } from "../../lib/http"
 import {
@@ -40,14 +41,21 @@ const mockPreventRemove = jest.fn<
   void,
   [boolean, (evento: { data: { action: NavigationAction } }) => void]
 >()
-jest.mock("expo-router", () => ({ useNavigation: () => ({ dispatch: mockDispatch }) }))
+jest.mock("expo-router", () => ({
+  useNavigation: () => ({ dispatch: mockDispatch }),
+  useFocusEffect: (efecto: () => void) =>
+    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
+}))
 jest.mock("expo-router/react-navigation", () => ({
   usePreventRemove: (...args: Parameters<typeof mockPreventRemove>) => mockPreventRemove(...args),
 }))
 
 const { randomUUID } = jest.requireActual<typeof import("node:crypto")>("node:crypto")
 
-async function prepararConstructor(almacen: AlmacenLocal = almacenEnMemoria()) {
+async function prepararConstructor(
+  almacen: AlmacenLocal = almacenEnMemoria(),
+  rutinas: ApiRutinas = { listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() },
+) {
   const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))
   const asignar = jest.spyOn(api, "asignar").mockRejectedValue(Error("Respuesta perdida"))
   const vista = await render(
@@ -60,7 +68,7 @@ async function prepararConstructor(almacen: AlmacenLocal = almacenEnMemoria()) {
       catalogo={catalogoEnMemoria([
         ejercicioDePrueba("10000000-0000-4000-8000-000000000000", "Press banca", "pecho"),
       ])}
-      rutinas={{ listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() }}
+      rutinas={rutinas}
       nuevoId={randomUUID}
       terminado={jest.fn()}
       volver={jest.fn()}
@@ -851,5 +859,60 @@ describe("autoguardado del borrador (T-01)", () => {
     await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
     await waitFor(() => expect(asignar).toHaveBeenCalledTimes(1), hastaGuardar)
     await waitFor(() => expect(almacen.datos.has(CLAVE_BORRADOR)).toBe(false), hastaGuardar)
+  })
+})
+
+describe("elegir una plantilla (T-02)", () => {
+  const plantilla = {
+    id: "70000000-0000-4000-8000-000000000000",
+    revision: 1,
+    nombre: "Plantilla pierna",
+    patron: {
+      sesiones: [
+        {
+          id: "70000000-0000-4000-8000-000000000001",
+          nombre: "Pierna",
+          diaSemana: 3,
+          ejercicios: [],
+        },
+      ],
+    },
+  }
+  const rutinas = (): ApiRutinas => ({
+    listar: jest.fn(async () => ({ rutinas: [plantilla], total: 1 })) as never,
+    leer: jest.fn(),
+    crear: jest.fn(),
+    editar: jest.fn(),
+  })
+  const elegirPlantilla = async (): Promise<void> => {
+    await fireEvent.press(screen.getByRole("button", { name: "Partir de una plantilla" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Elegir Plantilla pierna" }))
+  }
+
+  it("con lo montado pregunta antes de sustituirlo y «Conservar lo mío» no cambia nada", async () => {
+    await prepararConstructor(almacenEnMemoria(), rutinas())
+    await completarDia()
+    await elegirPlantilla()
+    expect(await screen.findByText("¿Sustituir lo que has montado?")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Conservar lo mío" }))
+    expect(screen.queryByText("¿Sustituir lo que has montado?")).toBeNull()
+    expect(screen.getByDisplayValue("Fuerza")).toBeTruthy()
+    expect(screen.queryByDisplayValue("Plantilla pierna")).toBeNull()
+  })
+
+  it("al confirmar, la plantilla reemplaza lo montado", async () => {
+    await prepararConstructor(almacenEnMemoria(), rutinas())
+    await completarDia()
+    await elegirPlantilla()
+    await fireEvent.press(await screen.findByRole("button", { name: "Sustituir por la plantilla" }))
+    expect(await screen.findByDisplayValue("Plantilla pierna")).toBeTruthy()
+    expect(screen.queryByDisplayValue("Fuerza")).toBeNull()
+  })
+
+  it("sin nada montado la carga directamente, sin preguntar", async () => {
+    await prepararConstructor(almacenEnMemoria(), rutinas())
+    await elegirPlantilla()
+    expect(await screen.findByDisplayValue("Plantilla pierna")).toBeTruthy()
+    expect(screen.queryByText("¿Sustituir lo que has montado?")).toBeNull()
   })
 })

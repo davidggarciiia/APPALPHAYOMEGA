@@ -249,6 +249,8 @@ export function ConstructorPlan({
   const [elegido, setElegido] = useState<string | null>(null)
   const [anadiendo, setAnadiendo] = useState<SeccionDeSesion | null>(null)
   const [plantillas, setPlantillas] = useState(false)
+  /** Plantilla elegida sobre un plan ya empezado: se pregunta antes de sustituirlo. */
+  const [sustituyendoPor, setSustituyendoPor] = useState<RutinaGuardada | null>(null)
   const [comoCliente, setComoCliente] = useState(false)
   const [confirmando, setConfirmando] = useState<AsignarPlan | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioDelConstructor | null>(null)
@@ -689,7 +691,16 @@ export function ConstructorPlan({
           onPress={() => setPlantillas(!plantillas)}
         />
       </View>
-      {plantillas && <ListadoDeRutinas api={rutinas} elegir={(r) => void elegirPlantilla(r)} />}
+      {plantillas && (
+        <ListadoDeRutinas
+          api={rutinas}
+          elegir={(r) =>
+            versionDelEditor === versionInicial.current
+              ? void elegirPlantilla(r)
+              : setSustituyendoPor(r)
+          }
+        />
+      )}
 
       <EditorDeBloque bloque={bloque} semanas={Number(semanas) || 1} cambiar={setBloque} />
 
@@ -958,6 +969,20 @@ export function ConstructorPlan({
         ocupado={ocupado}
         alConfirmar={() => confirmando && void publicar(confirmando)}
         alCancelar={() => setConfirmando(null)}
+      />
+      <Dialogo
+        visible={sustituyendoPor !== null}
+        titulo="¿Sustituir lo que has montado?"
+        texto="Cargar la plantilla reemplaza los días y ejercicios que llevas montados. No se puede deshacer."
+        confirmar="Sustituir por la plantilla"
+        cancelar="Conservar lo mío"
+        peligro
+        alConfirmar={() => {
+          const plantilla = sustituyendoPor
+          setSustituyendoPor(null)
+          if (plantilla) void elegirPlantilla(plantilla)
+        }}
+        alCancelar={() => setSustituyendoPor(null)}
       />
       <Dialogo
         visible={saliendo}
