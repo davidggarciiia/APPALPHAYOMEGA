@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native"
 import type { CrearSolicitudFotos, MedioFoto, SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
+import { useSalidaProtegida } from "../componentes/salida-protegida"
 import { fechaLegible, hoyAgenda } from "../entrenamiento/fechas"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { faltaDe } from "../lib/errores"
@@ -186,6 +187,9 @@ export function SolicitudesFotos({
   // suelta al confirmarse, al descartarla o al salir (RI07b).
   const [fotoPendiente, setFotoPendiente] = useState<FotoPendiente | null>(null)
   const fotoPendienteRef = useRef<FotoPendiente | null>(null)
+  // Cambiar de pestaña o volver atrás desmonta Progreso y aborta la subida: se pregunta
+  // antes, porque la foto solo existe en el móvil hasta que el servidor la confirma.
+  const { proteccion } = useSalidaProtegida(fotoPendiente !== null, TEXTOS_FOTO)
   const montado = useRef(true)
   // Síncrono: dos toques antes de repintar no arrancan dos envíos de la misma copia.
   const enviandoFoto = useRef(false)
@@ -436,6 +440,7 @@ export function SolicitudesFotos({
 
   return (
     <View style={s.grupo}>
+      {proteccion}
       <Titulo>
         {modo === "cliente" ? "Fotos que te pide tu entrenador" : "Fotos del cliente"}
       </Titulo>
@@ -635,6 +640,14 @@ export function SolicitudesFotos({
         ))}
     </View>
   )
+}
+
+const TEXTOS_FOTO = {
+  titulo: "¿Salir sin enviar la foto?",
+  texto:
+    "Tu foto todavía no se ha enviado. Si sales ahora se perderá y tendrás que hacerla otra vez.",
+  confirmar: "Salir y perder la foto",
+  cancelar: "Quedarme",
 }
 
 const s = StyleSheet.create({

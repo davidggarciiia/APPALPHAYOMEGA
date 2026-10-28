@@ -7,6 +7,8 @@ import type {
   SolicitudFotos,
 } from "@alpha-omega/shared"
 
+import { NavigationContext } from "expo-router/react-navigation"
+
 import { ErrorDePeticion, ErrorDeRed } from "../lib/http"
 import type { ApiMedios } from "./medios-api"
 import { liberarFoto, obtenerFoto } from "./preparar-foto"
@@ -30,6 +32,14 @@ jest.mock("expo-router", () => ({
     }, [])
     useEffect(efecto, [efecto, foco])
   },
+}))
+
+// Salir de Progreso (pestañas, Atrás) desmonta la pantalla y aborta la subida: la
+// guarda de ruta tiene que estar activa mientras haya una foto sin confirmar.
+const mockPrevenirSalida = jest.fn<void, [boolean, unknown]>()
+jest.mock("expo-router/react-navigation", () => ({
+  ...jest.requireActual<object>("expo-router/react-navigation"),
+  usePreventRemove: (...args: [boolean, unknown]) => mockPrevenirSalida(...args),
 }))
 
 async function volverALaPantalla(): Promise<void> {
@@ -842,5 +852,55 @@ describe("copia local de la foto (RI07b)", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(/conservamos mientras sigas/)
       expect(liberarFoto).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe("salir con una foto sin confirmar (S-01)", () => {
+  const foto = {
+    uri: "file:///cache/foto-sin-confirmar.jpg",
+    tipoMime: "image/jpeg" as const,
+    bytes: 2345,
+    ancho: 800,
+    alto: 1200,
+  }
+  const protegida = (): boolean | undefined => mockPrevenirSalida.mock.calls.at(-1)?.[0]
+  const pintar = async (falsa: ReturnType<typeof api>): Promise<void> => {
+    await render(
+      <NavigationContext.Provider value={{ dispatch: jest.fn() } as never}>
+        <SolicitudesFotos clienteId={CLIENTE} api={falsa} modo="cliente" nuevoId={nuevoId} />
+      </NavigationContext.Provider>,
+    )
+    await screen.findByText("Frente · Espalda")
+  }
+
+  it("sin foto pendiente se puede salir libremente", async () => {
+    mockPrevenirSalida.mockClear()
+    await pintar(api([solicitud()]))
+    expect(protegida()).toBe(false)
+  })
+
+  it("con una foto que espera reintento, salir exige confirmación", async () => {
+    mockPrevenirSalida.mockClear()
+    jest.mocked(obtenerFoto).mockResolvedValueOnce({ tipo: "lista", foto })
+    const falsa = api([solicitud()])
+    falsa.solicitarSubida.mockResolvedValue({
+      medio: { ...medio, estado: "pendiente" },
+      subida: {
+        url: "https://storage.example/foto-sin-confirmar",
+        metodo: "PUT",
+        cabeceras: { "Content-Type": "image/jpeg" },
+        caducaEn: "2026-09-24T12:15:00.000Z",
+      },
+    })
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      if (url === foto.uri) return { blob: async () => new Blob(["foto"]) } as Response
+      return { ok: false, status: 503 } as Response
+    })
+    await pintar(falsa)
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Elegir foto de Frente desde la galería" }),
+    )
+    await screen.findByRole("alert")
+    expect(protegida()).toBe(true)
   })
 })

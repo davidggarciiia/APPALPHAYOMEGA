@@ -15,8 +15,20 @@ function GuardaDeRuta({
   return null
 }
 
+type Textos = { titulo: string; texto: string; confirmar: string; cancelar: string }
+
+const TEXTOS_POR_DEFECTO: Textos = {
+  titulo: "¿Salir sin guardar?",
+  texto: "Tienes cambios sin guardar. Si sales ahora se perderán.",
+  confirmar: "Salir sin guardar",
+  cancelar: "Seguir editando",
+}
+
 /** La misma confirmación protege botones internos, Atrás y los destinos del armazón. */
-export function useSalidaProtegida(sinGuardar: boolean): {
+export function useSalidaProtegida(
+  sinGuardar: boolean,
+  textos: Textos = TEXTOS_POR_DEFECTO,
+): {
   proteger: (salir: () => void) => void
   permitir: (salir: () => void) => void
   proteccion: React.JSX.Element
@@ -59,10 +71,10 @@ export function useSalidaProtegida(sinGuardar: boolean): {
         {navigation && <GuardaDeRuta activa={sinGuardar && !autorizada} preguntar={proteger} />}
         <Dialogo
           visible={preguntando}
-          titulo="¿Salir sin guardar?"
-          texto="Tienes cambios sin guardar. Si sales ahora se perderán."
-          confirmar="Salir sin guardar"
-          cancelar="Seguir editando"
+          titulo={textos.titulo}
+          texto={textos.texto}
+          confirmar={textos.confirmar}
+          cancelar={textos.cancelar}
           alConfirmar={() => {
             setPreguntando(false)
             setAutorizada(true)
