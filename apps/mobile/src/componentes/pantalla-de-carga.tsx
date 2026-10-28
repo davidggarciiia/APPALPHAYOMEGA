@@ -116,12 +116,7 @@ export function PantallaDeCarga({ lista }: { lista: boolean }): React.JSX.Elemen
         accessibilityRole="progressbar"
         accessibilityLabel="Alpha & Omega Training, cargando"
       >
-        <Image
-          source={logo}
-          style={StyleSheet.absoluteFill}
-          resizeMode="contain"
-          accessible={false}
-        />
+        <Image source={logo} style={estilos.llena} resizeMode="contain" accessible={false} />
         {reducir === false && !terminada && (
           <Reproductor alEmpezar={alEmpezar} alTerminar={terminar} />
         )}
@@ -156,7 +151,6 @@ function Reproductor({
   const jugador = useVideoPlayer(video, (nuevo) => {
     nuevo.muted = true
     nuevo.loop = false
-    nuevo.play()
   })
 
   useEffect(() => {
@@ -170,22 +164,21 @@ function Reproductor({
         if (status === "error") alTerminar()
       }),
     ]
+    // En web `play()` solo llega a los vídeos ya montados: va aquí, tras montarse VideoView.
+    jugador.play()
     return () => {
       for (const suscripcion of suscripciones) suscripcion.remove()
     }
   }, [jugador, alEmpezar, alTerminar])
 
   return (
-    <VideoView
-      player={jugador}
-      nativeControls={false}
-      contentFit="contain"
-      style={StyleSheet.absoluteFill}
-    />
+    <VideoView player={jugador} nativeControls={false} contentFit="contain" style={estilos.llena} />
   )
 }
 
 const estilos = StyleSheet.create({
   cubierta: { backgroundColor: tema.fondo, zIndex: 1000 },
+  // Con absoluteFill a secas, la imagen y el vídeo conservan su tamaño propio en web.
+  llena: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
   indicador: { position: "absolute", bottom: 72, alignSelf: "center" },
 })
