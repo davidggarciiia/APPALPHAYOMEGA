@@ -27,6 +27,8 @@ Rama de trabajo: `mejoras/base-2026-10-28` (solo commits locales; **ningún push
 | T-04 (parcial)     | «Quitar día» borraba todos los ejercicios del día de un toque; ahora pregunta. Quitar un ejercicio, una fase o un deporte sigue sin confirmar                                                                               | `45d7604` |
 | P-01               | Un 409 por falta de consentimiento se mostraba como «hay otra versión de esta sesión» con un botón que no arreglaba nada                                                                                                    | `0428926` |
 | Capturas           | Botones del plan que se salían por la derecha en móvil (y aplastaban el título en escritorio), huecos en Fases y Otros deportes, estado vacío de Nutrición, enlaces de acceso con el botón nuevo                            | `7325b15` |
+| N-03               | Inicio vaciaba la tarjeta de Hoy cada vez que recuperaba el foco y la rellenaba después (parpadeo en el caso más frecuente); ahora recarga en silencio                                                                      | `30c8419` |
+| Enlaces            | VOLVER, CANCELAR y CORREGIR CORREO de Mis clientes, Nutricionista, Nuevo cliente y la ficha del cliente usan ya el botón de enlace nuevo                                                                                    | `455e8df` |
 
 También: **pantalla de carga con el vídeo del logo** (agente, integrada tras revisar su código), CI de GitHub, plazos de PostgreSQL y correo, cobertura del 80 % ejecutable, guarda de E2E, pruebas de acceso, y exclusión de los worktrees de agentes de Git, Prettier y ESLint.
 
@@ -39,7 +41,7 @@ También: **pantalla de carga con el vídeo del logo** (agente, integrada tras r
 ## Verificación
 
 - Antes de los cambios de la noche: 390 pruebas de API, 733 del móvil, 512 E2E; cobertura fusionada 96,06 % líneas / 86,56 % ramas.
-- Última verificación completa (tras integrar carga y botones y la ronda de capturas): **tipos y lint en verde y 812 pruebas del móvil en 93 suites**; después se añadieron las de T-04 y P-01 (261 de entrenamiento en verde).
+- Última verificación completa (tras integrar carga y botones y la ronda de capturas): **tipos y lint en verde y 819 pruebas del móvil en 93 suites** (390 de API sin cambios). No se han vuelto a ejecutar los E2E ni la CI tras los cambios de la noche en el móvil: no tocan la API.
 - **No se ha ejecutado la CI en GitHub.** La simulación local sin `.env` da 512/512 E2E.
 
 ## Lo que NO está comprobado
@@ -50,8 +52,8 @@ También: **pantalla de carga con el vídeo del logo** (agente, integrada tras r
 
 ## Pendiente (en orden de prioridad)
 
-1. **Migrar el resto de botones sueltos** a los nuevos (unos 50 `Pressable`; muchos serán tarjetas o chips que no deben cambiar) y decidir dónde usar «mantener para confirmar» en los destructivos.
-2. **Resto de P1/P2 de las auditorías** (ver los dos informes): confirmar también al quitar un ejercicio, una fase o un deporte (T-04), parpadeo al recargar Inicio y Nutrición (N-03, N-06), copia sin conexión en nutrición (N-04, N-05), sondeos de 5 s con escritura cifrada (E-04, E-05), pestañas con `router.replace` y rutas públicas con sesión (A-06, A-12).
+1. **Migrar el resto de botones sueltos**: quedan unos 40 `Pressable` (muchos son tarjetas, chips o filas que no deben cambiar; los enlaces de acceso, plan, ficha y listados ya están migrados) y decidir dónde usar «mantener para confirmar» en los destructivos.
+2. **Resto de P1/P2 de las auditorías** (ver los dos informes): confirmar también al quitar un ejercicio, una fase o un deporte (T-04), parpadeo al recargar Nutrición (N-06; el de Inicio, N-03, ya está corregido), copia sin conexión en nutrición (N-04, N-05), sondeos de 5 s con escritura cifrada (E-04, E-05), pestañas con `router.replace` y rutas públicas con sesión (A-06, A-12).
 3. **Ruido en consola:** un `AbortError` de `play()` aparece de vez en cuando en la intro del vídeo en web; es una carrera benigna, no está corregida.
 4. **Rendimiento:** informe parcial; faltan las medidas de arranque, bundle y endpoints.
 5. **Skills y plugins:** informe parcial; no se instaló nada de terceros esta noche.
