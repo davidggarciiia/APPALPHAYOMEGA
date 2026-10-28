@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals"
 import { AppState } from "react-native"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native"
 import type {
   Borrador,
   EnviarEntrenamiento,
@@ -420,5 +420,61 @@ describe("RegistroCliente · cierre comprometido", () => {
     expect(envio.operacionId).toBe(operacionId)
     expect(envio.registro.cierre ?? null).toBeNull()
     expect(envio.registro.notas).toBeNull()
+  })
+})
+
+describe("RegistroCliente · serie sin el peso que pide el ejercicio", () => {
+  beforeEach(async () => {
+    mockFalloDeDisco = false
+    await almacenDispositivo.limpiar(CUENTA)
+    almacenDispositivo.habilitar(CUENTA)
+    AppState.currentState = "background"
+  })
+  afterEach(() => {
+    AppState.currentState = "active"
+  })
+
+  // Un ejercicio con carga externa y sin peso prescrito ni escrito: «Hecha» no puede
+  // marcarse, y el motivo tiene que verse junto a las series, no al pie de la pantalla.
+  const sinPeso: SesionCliente = {
+    ...sesion,
+    prescripcion: {
+      ...sesion.prescripcion,
+      ejercicios: [
+        {
+          ...sesion.prescripcion.ejercicios[0]!,
+          tipoCarga: "conCargaExterna",
+          calibrar: true,
+          series: [{ id: SERIE, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 }],
+        },
+      ],
+    },
+    borrador: {
+      ...sesion.borrador!,
+      registro: {
+        ...sesion.borrador!.registro,
+        series: [
+          {
+            serieId: SERIE,
+            tipoMedicion: "repeticiones",
+            pesoKg: null,
+            repeticiones: 8,
+            hecha: false,
+          },
+        ],
+      },
+    },
+  }
+
+  it("el aviso de que falta el peso aparece junto a las series y no se pierde al pie", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue(sinPeso)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(await screen.findByRole("checkbox", { name: /Hecha — Press banca/ }))
+
+    const series = within(screen.getByTestId("series-del-ejercicio"))
+    expect(await series.findByRole("alert")).toBeTruthy()
+    expect(series.getByText(/Escribe los valores realizados y el peso indicado/)).toBeTruthy()
+    expect(screen.getAllByText(/Escribe los valores realizados/)).toHaveLength(1)
   })
 })

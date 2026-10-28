@@ -124,6 +124,9 @@ export function RegistroCliente({
   const [control, setControl] = useState<RegistroControl | null>(null)
   const [, repintar] = useState(0)
   const [error, setError] = useState("")
+  // Al marcar «Hecha» sin lo necesario el motivo sale junto a las series: el aviso
+  // general queda al pie de la pantalla, normalmente fuera de la vista.
+  const [errorSerie, setErrorSerie] = useState("")
   const [intento, setIntento] = useState(0)
   const [ocupado, setOcupado] = useState(false)
   const [fase, setFase] = useState<Fase>("sesion")
@@ -359,6 +362,7 @@ export function RegistroCliente({
       )
   }
   const serie = (serieId: string, cambio: Partial<Serie>): void => {
+    setErrorSerie("")
     const anterior = edicion.series.find((s) => s.serieId === serieId)
     const nueva = {
       ...edicion,
@@ -369,7 +373,7 @@ export function RegistroCliente({
       try {
         registroParaEnviar(prescripcion, nueva)
       } catch {
-        setError("Escribe los valores realizados y el peso indicado antes de marcar la serie.")
+        setErrorSerie("Escribe los valores realizados y el peso indicado antes de marcar la serie.")
         return
       }
       // Tras una serie hecha empieza el descanso que prescribió el entrenador.
@@ -629,27 +633,31 @@ export function RegistroCliente({
           saltar={() => void control.guardarVista({ descansoHasta: null, descansoTotal: null })}
         />
       )}
-      {ejercicioActual &&
-        (ejercicioActual.seccion === "calentamiento" || ejercicioActual.seccion === "final" ? (
-          <ListaMarcable
-            titulo={TITULOS_DE_SECCION[ejercicioActual.seccion]}
-            ejercicios={[ejercicioActual]}
-            series={edicion.series}
-            bloqueado={bloqueado || pausado}
-            marcar={marcarLista}
-            cambiarPeso={(serieId, peso) => serie(serieId, { peso })}
-          />
-        ) : (
-          <TablaSeries
-            ejercicio={ejercicioActual}
-            series={edicion.series}
-            bloqueado={bloqueado || pausado}
-            cambiar={serie}
-            verTecnica={() => setTecnica(ejercicioActual)}
-            enCurso={enCurso}
-            anterior={anteriores.get(ejercicioActual.ejercicioId)}
-          />
-        ))}
+      {ejercicioActual && (
+        <View testID="series-del-ejercicio" style={e.series}>
+          {ejercicioActual.seccion === "calentamiento" || ejercicioActual.seccion === "final" ? (
+            <ListaMarcable
+              titulo={TITULOS_DE_SECCION[ejercicioActual.seccion]}
+              ejercicios={[ejercicioActual]}
+              series={edicion.series}
+              bloqueado={bloqueado || pausado}
+              marcar={marcarLista}
+              cambiarPeso={(serieId, peso) => serie(serieId, { peso })}
+            />
+          ) : (
+            <TablaSeries
+              ejercicio={ejercicioActual}
+              series={edicion.series}
+              bloqueado={bloqueado || pausado}
+              cambiar={serie}
+              verTecnica={() => setTecnica(ejercicioActual)}
+              enCurso={enCurso}
+              anterior={anteriores.get(ejercicioActual.ejercicioId)}
+            />
+          )}
+          {errorSerie !== "" && <AvisoDeError mensaje={errorSerie} />}
+        </View>
+      )}
       {ejercicioElegido &&
         ejercicioParaRirFinal(prescripcion, edicion, ejercicioActual?.series.at(-1)?.id ?? "") ===
           ejercicioElegido && (
@@ -761,6 +769,7 @@ export function RegistroCliente({
 
 const e = StyleSheet.create({
   contenedor: { gap: 24 },
+  series: { gap: 12 },
   listaEjercicios: { backgroundColor: tema.superficie, borderRadius: 16, padding: 14 },
   cabeceraLista: {
     minHeight: 44,
