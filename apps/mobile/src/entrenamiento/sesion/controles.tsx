@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react"
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -278,7 +280,13 @@ export function Dialogo({
       animationType="fade"
       onRequestClose={ocupado ? () => undefined : alCancelar}
     >
-      <View style={s.velo}>
+      {/* Los diálogos con campo (peso, pasos, sueño) quedan anclados abajo: sin esto el
+          teclado tapaba el campo y «Guardar». */}
+      <KeyboardAvoidingView
+        testID="dialogo-esquiva-teclado"
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={s.velo}
+      >
         <View style={s.dialogo} accessibilityViewIsModal>
           <Text style={s.tituloDialogo} accessibilityRole="header">
             {titulo}
@@ -306,7 +314,7 @@ export function Dialogo({
             <Text style={s.textoSecundario}>{cancelar}</Text>
           </Pressable>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
