@@ -14,7 +14,7 @@ import {
   type EdicionRegistro,
 } from "./registro-modelo"
 import { pausarTramo } from "./sesion/tiempo"
-import { ErrorDelServidor } from "../lib/http"
+import { ErrorDePeticion, ErrorDelServidor } from "../lib/http"
 
 type VistaSesion = Pick<DocumentoSesion, "ejercicioElegidoId" | "descansoHasta" | "descansoTotal">
 type CopiaLocal = NonNullable<DocumentoSesion["respaldo"]>
@@ -39,6 +39,8 @@ export class RegistroControl {
   guardando = 0
   errorLocal = false
   conflicto = false
+  /** El servidor rechaza guardar porque el consentimiento de salud no está vigente. */
+  sinConsentimiento = false
   sinRed = false
   private vigente = true
   private enCurso: Promise<void> | null = null
@@ -180,6 +182,7 @@ export class RegistroControl {
     )
       return
     this.sinRed = false
+    this.sinConsentimiento = false
     if (sesion.enviadoEn) {
       if (conocido?.envioPendiente) {
         try {
@@ -324,6 +327,7 @@ export class RegistroControl {
         sincronizada: pendiente.secuencia,
       }
       this.sinRed = false
+      this.sinConsentimiento = false
       await this.persistir()
     } catch (error) {
       this.falloRemoto(error)
@@ -333,7 +337,10 @@ export class RegistroControl {
   private falloRemoto(error: unknown): void {
     if (!this.vigente) return
     if (error instanceof ErrorDeCopiaLocal || error instanceof ConflictoDeEdicionLocal) return
-    if (error instanceof ErrorDelServidor && error.codigo === 409) this.conflicto = true
+    // Un 409 de consentimiento no es otra versión de la sesión: recuperarla no lo arregla.
+    if (error instanceof ErrorDePeticion && error.detalle.codigo === "consentimiento_pendiente")
+      this.sinConsentimiento = true
+    else if (error instanceof ErrorDelServidor && error.codigo === 409) this.conflicto = true
     else this.sinRed = true
     this.cambio()
   }
@@ -359,6 +366,7 @@ export class RegistroControl {
     }
     this.conflicto = false
     this.sinRed = false
+    this.sinConsentimiento = false
     await this.persistir()
   }
   async recuperarCopia(): Promise<void> {
@@ -502,6 +510,7 @@ export class RegistroControl {
     }
     this.conflicto = false
     this.sinRed = false
+    this.sinConsentimiento = false
     await this.persistir()
   }
 }

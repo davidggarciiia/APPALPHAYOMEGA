@@ -546,6 +546,9 @@ export function RegistroCliente({
           onPress={() => void accion(() => control.reintentarGuardado())}
         />
       )}
+      {control.sinConsentimiento && (
+        <AvisoDeError mensaje="Tu consentimiento de datos de salud no está vigente, así que de momento no se puede guardar ni enviar la sesión. Acéptalo desde tu perfil y vuelve a intentarlo: lo que has escrito se conserva en este dispositivo." />
+      )}
       {control.conflicto && (
         <View>
           <AvisoDeError

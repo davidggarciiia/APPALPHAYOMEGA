@@ -7,6 +7,7 @@ import { DocumentoSesionSchema, claveSesion, hayCambiosLocales } from "./documen
 import type { Borrador, SesionCliente, ResultadoEntrenamiento } from "@alpha-omega/shared"
 import { iniciarTramo } from "./sesion/tiempo"
 import { registroParaEnviar } from "./registro-modelo"
+import { ErrorDePeticion } from "../lib/http"
 
 jest.mock("../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 const cuenta = randomUUID(),
@@ -789,5 +790,50 @@ describe("Cambio de unidad y copias anteriores (D01)", () => {
     expect(registroParaEnviar(sesion.prescripcion, control.documento!.edicion).series).toEqual([
       { serieId, tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10, hecha: true },
     ])
+  })
+})
+
+describe("un 409 del servidor no siempre es un conflicto de versión (P-01)", () => {
+  const rechazo = (codigo: "consentimiento_pendiente" | "revision_obsoleta") =>
+    new ErrorDePeticion({ statusCode: 409, codigo, message: "rechazado" })
+  const editada = async () => {
+    const preparado = preparar()
+    await preparado.control.abrir()
+    await preparado.control.editar({ ...preparado.control.documento!.edicion, notas: "a medias" })
+    return preparado
+  }
+
+  it("sin consentimiento vigente no se presenta como otra versión ni como falta de red", async () => {
+    const { control, api } = await editada()
+    jest.spyOn(api, "guardar").mockRejectedValue(rechazo("consentimiento_pendiente"))
+    await expect(control.sincronizar()).rejects.toThrow()
+    expect(control.sinConsentimiento).toBe(true)
+    expect(control.conflicto).toBe(false)
+    expect(control.sinRed).toBe(false)
+  })
+
+  it("una revisión obsoleta sigue siendo un conflicto de versión", async () => {
+    const { control, api } = await editada()
+    jest.spyOn(api, "guardar").mockRejectedValue(rechazo("revision_obsoleta"))
+    await expect(control.sincronizar()).rejects.toThrow()
+    expect(control.conflicto).toBe(true)
+    expect(control.sinConsentimiento).toBe(false)
+  })
+
+  it("el aviso desaparece cuando el servidor vuelve a aceptar el guardado", async () => {
+    const { control, api } = await editada()
+    const guardar = jest
+      .spyOn(api, "guardar")
+      .mockRejectedValueOnce(rechazo("consentimiento_pendiente"))
+    await expect(control.sincronizar()).rejects.toThrow()
+    expect(control.sinConsentimiento).toBe(true)
+    guardar.mockImplementation(async (_id, peticion) => ({
+      revision: 1,
+      revisionPrescripcion: peticion.revisionPrescripcion,
+      registro: peticion.registro,
+      actualizadoEn: "2026-10-28T10:00:00.000Z",
+    }))
+    await control.sincronizar()
+    expect(control.sinConsentimiento).toBe(false)
   })
 })
