@@ -1,26 +1,27 @@
-import { useCallback, useState, type ReactNode } from "react"
+import { useCallback, useState } from "react"
 import { useFocusEffect, type Href } from "expo-router"
 import { StyleSheet, Text, View } from "react-native"
-import { ETIQUETA_DE_ZONA, type ListadoUsuarios, type ResumenUsuario } from "@alpha-omega/shared"
+import type { ListadoUsuarios } from "@alpha-omega/shared"
 
 import { Aviso } from "../componentes/aviso"
 import { BotonEnlace } from "../componentes/botones"
-import { EntradaMarca } from "../componentes/entrada-marca"
+import { CambioDeContenido, EntradaMarca } from "../componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { Icono } from "../componentes/iconos"
 import { Pulsable } from "../componentes/pulsable"
+import { hoyAgenda, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
+import { fechaCorta } from "../entrenamiento/plan/modelo"
 import { faltaDe, type Falta } from "../lib/errores"
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
-import { espacio, radio, tema, tipo } from "../tema"
+import { alto, espacio, radio, tema, tipo } from "../tema"
 import {
   ACTIVACIONES_POR_PAGINA,
   ACTIVOS_POR_PAGINA,
   cargarTrabajo,
   type TrabajoEntrenador,
 } from "./cargar-trabajo"
-
-const nombreCompleto = (cliente: ResumenUsuario): string =>
-  [cliente.nombre, cliente.apellidos].filter(Boolean).join(" ")
+import { TarjetaCliente, TarjetaTrabajo, necesitaAtencion, nombreCliente } from "./tarjeta-cliente"
+import { useResumenSemanal } from "./use-resumen-semanal"
 
 export function InicioEntrenador({
   nombre,
@@ -31,7 +32,11 @@ export function InicioEntrenador({
   pedir: PeticionAutenticada
   abrir: (ruta: Href) => void
 }): React.JSX.Element {
-  const [datos, setDatos] = useState<TrabajoEntrenador | null>(null)
+  const hoy = hoyAgenda()
+  const actual = lunesDeSemana(hoy)
+  const [semana, setSemana] = useState(actual)
+  const resumen = useResumenSemanal(pedir, semana)
+  const [trabajo, setTrabajo] = useState<TrabajoEntrenador | null>(null)
   const [error, setError] = useState<Falta | null>(null)
   const [desdeActivos, setDesdeActivos] = useState(0)
   const [desdePendientes, setDesdePendientes] = useState(0)
@@ -39,11 +44,11 @@ export function InicioEntrenador({
   useFocusEffect(
     useCallback(() => {
       let vigente = true
-      setDatos(null)
+      setTrabajo(null)
       setError(null)
       void cargarTrabajo(pedir, desdeActivos, desdePendientes)
-        .then((trabajo) => {
-          if (vigente) setDatos(trabajo)
+        .then((datos) => {
+          if (vigente) setTrabajo(datos)
         })
         .catch((causa: unknown) => {
           if (vigente) setError(faltaDe(causa, "No se pudieron cargar las tareas."))
@@ -53,196 +58,159 @@ export function InicioEntrenador({
       }
     }, [pedir, desdeActivos, desdePendientes, intento]),
   )
-  const ficha = (id: string): void =>
-    abrir({ pathname: "/entrenador/cliente/[id]", params: { id } })
-  const sinRevisar = datos?.clientes.filter((c) => c.sesion?.revisadaEn === null) ?? []
-  const conMolestias = datos?.clientes.filter((c) => c.totalMolestias > 0) ?? []
-  const sinPlan = datos?.clientes.filter((c) => c.sinPlan) ?? []
-  const sinTareas =
-    sinRevisar.length +
-      conMolestias.length +
-      sinPlan.length +
-      (datos?.pendientes.usuarios.length ?? 0) ===
-    0
-  const paginaParcial =
-    datos &&
-    (desdeActivos > 0 ||
-      desdePendientes > 0 ||
-      datos.activos.total > datos.activos.usuarios.length ||
-      datos.pendientes.total > datos.pendientes.usuarios.length)
-
+  const clientes = [...(resumen.datos?.clientes ?? [])].sort(
+    (a, b) =>
+      Number(necesitaAtencion(b, semana, hoy)) - Number(necesitaAtencion(a, semana, hoy)) ||
+      nombreCliente(a).localeCompare(nombreCliente(b), "es"),
+  )
+  const estaSemana = semana === actual
+  const mostrarTrabajo = resumen.error?.reintentable !== false
   return (
     <View style={s.contenido}>
       <Text style={s.nombre} accessibilityRole="header">
         Hola, {nombre}
       </Text>
-      <View style={s.grupo}>
-        <Text style={s.titulo} accessibilityRole="header">
-          Qué toca hoy
+      <View style={s.semana}>
+        <Pulsable
+          style={s.flecha}
+          accessibilityLabel="Semana anterior"
+          onPress={() => setSemana(sumarDias(semana, -7))}
+        >
+          <Icono nombre="atras" color={tema.texto} tamano={20} />
+        </Pulsable>
+        <Text style={s.intervalo} accessibilityLiveRegion="polite">
+          {fechaCorta(semana)} — {fechaCorta(sumarDias(semana, 6))}
         </Text>
-        <Text style={s.tenue}>
-          Última sesión enviada de cada cliente, molestias abiertas y planes de esta semana.
-        </Text>
+        <Pulsable
+          style={s.flecha}
+          accessibilityLabel="Semana siguiente"
+          disabled={semana >= actual}
+          onPress={() => setSemana(sumarDias(semana, 7))}
+        >
+          <Icono
+            nombre="adelante"
+            color={semana >= actual ? tema.textoTenue : tema.texto}
+            tamano={20}
+          />
+        </Pulsable>
       </View>
-      {error ? (
+      {resumen.error && (
         <Aviso
           tipo="error"
-          mensaje={error.texto}
-          alReintentar={error.reintentable ? () => setIntento((n) => n + 1) : undefined}
+          mensaje={resumen.error.texto}
+          alReintentar={resumen.error.reintentable ? resumen.reintentar : undefined}
         />
-      ) : !datos ? (
-        <View
-          accessibilityLabel="Cargando tareas del entrenador"
-          accessibilityState={{ busy: true }}
-        >
-          <GrupoEsqueletos>
-            <View style={s.grupo}>
-              {[0, 1, 2].map((n) => (
-                <Esqueleto key={n} alto={72} radio={radio.tarjetaInterna} />
-              ))}
-            </View>
-          </GrupoEsqueletos>
-        </View>
-      ) : (
-        <EntradaMarca style={s.contenido}>
-          <Paginacion
-            listado={datos.activos}
-            desde={desdeActivos}
-            paso={ACTIVOS_POR_PAGINA}
-            nombre="Clientes activos"
-            anterior="Clientes activos anteriores"
-            siguiente="Siguientes clientes activos"
-            cambiar={setDesdeActivos}
-          />
-          {sinTareas && (
-            <View style={s.tarjeta}>
-              <Text style={s.titulo}>
-                {paginaParcial ? "Al día en esta página" : "Todo al día"}
-              </Text>
-              <Text style={s.tenue}>
-                Sin tareas pendientes en los datos consultados. Puedes abrir cada ficha para ver sus
-                sesiones anteriores.
-              </Text>
-            </View>
-          )}
-          {sinRevisar.length > 0 && (
-            <Grupo titulo="Sesiones sin revisar">
-              {sinRevisar.map(
-                ({ cliente, sesion }) =>
-                  sesion && (
-                    <Fila
-                      key={cliente.id}
-                      titulo={nombreCompleto(cliente)}
-                      detalle={sesion.prescripcion.nombre}
-                      etiqueta={`Revisar ${sesion.prescripcion.nombre} de ${nombreCompleto(cliente)}`}
-                      abrir={() =>
-                        abrir({
-                          pathname: "/entrenamiento/[id]",
-                          params: { id: sesion.agenda.id, nombre: nombreCompleto(cliente) },
-                        })
-                      }
-                    />
-                  ),
-              )}
-            </Grupo>
-          )}
-          {conMolestias.length > 0 && (
-            <Grupo titulo="Molestias abiertas">
-              {conMolestias.map(({ cliente, molestias, totalMolestias }) => (
-                <View key={cliente.id} style={s.grupo}>
-                  {molestias.map((m) => (
-                    <Fila
-                      key={m.id}
-                      titulo={nombreCompleto(cliente)}
-                      detalle={`${ETIQUETA_DE_ZONA[m.zona]} · ${m.intensidad} de 10${m.ejercicio ? ` · ${m.ejercicio}` : ""}`}
-                      etiqueta={`Atender molestia de ${nombreCompleto(cliente)}: ${ETIQUETA_DE_ZONA[m.zona]}, ${m.intensidad} de 10`}
-                      abrir={() => ficha(cliente.id)}
-                    />
-                  ))}
-                  {totalMolestias > molestias.length && (
-                    <BotonEnlace
-                      texto={`Ver las ${totalMolestias} molestias de ${nombreCompleto(cliente)}`}
-                      onPress={() => ficha(cliente.id)}
-                    />
-                  )}
-                </View>
-              ))}
-            </Grupo>
-          )}
-          {sinPlan.length > 0 && (
-            <Grupo titulo="Sin plan esta semana">
-              {sinPlan.map(({ cliente }) => (
-                <Fila
-                  key={cliente.id}
-                  titulo={nombreCompleto(cliente)}
-                  detalle="Crear plan"
-                  etiqueta={`Crear plan para ${nombreCompleto(cliente)}`}
-                  abrir={() =>
-                    abrir({ pathname: "/entrenador/cliente/[id]/plan", params: { id: cliente.id } })
+      )}
+      <CambioDeContenido clave={semana}>
+        {!resumen.datos && !resumen.error ? (
+          <View accessibilityLabel="Cargando resumen semanal" accessibilityState={{ busy: true }}>
+            <GrupoEsqueletos>
+              <View style={s.grupo}>
+                {[0, 1, 2].map((n) => (
+                  <Esqueleto key={n} alto={176} radio={radio.tarjeta} />
+                ))}
+              </View>
+            </GrupoEsqueletos>
+          </View>
+        ) : (
+          resumen.datos && (
+            <EntradaMarca style={s.grupo}>
+              {clientes.length === 0 && <Text style={s.tenue}>Aún no tienes clientes activos</Text>}
+              {clientes.map((cliente) => (
+                <TarjetaCliente
+                  key={cliente.clienteId}
+                  cliente={cliente}
+                  sinEnvios={
+                    cliente.sesionesPrevistas > 0 &&
+                    cliente.sesionesEnviadas === 0 &&
+                    hoy >= sumarDias(semana, 2)
                   }
+                  trabajo={
+                    estaSemana && mostrarTrabajo
+                      ? trabajo?.clientes.find((t) => t.cliente.id === cliente.clienteId)
+                      : undefined
+                  }
+                  abrir={abrir}
                 />
               ))}
-            </Grupo>
+            </EntradaMarca>
+          )
+        )}
+      </CambioDeContenido>
+      {!resumen.datos && resumen.error?.reintentable && estaSemana && trabajo && (
+        <View style={s.grupo}>
+          {trabajo.clientes
+            .filter((t) => t.sinPlan || t.sesion?.revisadaEn === null)
+            .map((t) => (
+              <TarjetaTrabajo key={t.cliente.id} trabajo={t} abrir={abrir} />
+            ))}
+        </View>
+      )}
+      {mostrarTrabajo && (
+        <>
+          {error && (
+            <Aviso
+              tipo="error"
+              mensaje={error.texto}
+              alReintentar={error.reintentable ? () => setIntento((n) => n + 1) : undefined}
+            />
           )}
-          {(datos.pendientes.total > 0 || desdePendientes > 0) && (
-            <Grupo titulo="Pendientes de activar">
-              {datos.pendientes.usuarios.map((cliente) => (
-                <Fila
-                  key={cliente.id}
-                  titulo={nombreCompleto(cliente)}
-                  detalle="Datos y activación"
-                  etiqueta={`Activar a ${nombreCompleto(cliente)}`}
-                  abrir={() => abrir({ pathname: "/cliente/[id]", params: { id: cliente.id } })}
+          {!trabajo && !error && resumen.datos && (
+            <GrupoEsqueletos>
+              <Esqueleto alto={alto.tactil} />
+            </GrupoEsqueletos>
+          )}
+          {trabajo && (
+            <>
+              {estaSemana && trabajo.activos.total > 0 && (
+                <Paginacion
+                  listado={trabajo.activos}
+                  desde={desdeActivos}
+                  paso={ACTIVOS_POR_PAGINA}
+                  nombre="Revisión y planes"
+                  anterior="Clientes activos anteriores"
+                  siguiente="Siguientes clientes activos"
+                  cambiar={setDesdeActivos}
                 />
-              ))}
-              <Paginacion
-                listado={datos.pendientes}
-                desde={desdePendientes}
-                paso={ACTIVACIONES_POR_PAGINA}
-                nombre="Pendientes de activar"
-                anterior="Pendientes de activar anteriores"
-                siguiente="Siguientes pendientes de activar"
-                cambiar={setDesdePendientes}
-              />
-            </Grupo>
+              )}
+              {(trabajo.pendientes.total > 0 || desdePendientes > 0) && (
+                <View style={s.grupo}>
+                  <Text style={s.titulo} accessibilityRole="header">
+                    Pendientes de activar
+                  </Text>
+                  {trabajo.pendientes.usuarios.map((cliente) => (
+                    <Pulsable
+                      key={cliente.id}
+                      style={s.pendiente}
+                      accessibilityLabel={`Activar a ${nombreCliente(cliente)}`}
+                      onPress={() =>
+                        abrir({ pathname: "/cliente/[id]", params: { id: cliente.id } })
+                      }
+                    >
+                      <View style={s.textos}>
+                        <Text style={s.destacado}>{nombreCliente(cliente)}</Text>
+                        <Text style={s.tenue}>Datos y activación</Text>
+                      </View>
+                      <Icono nombre="adelante" color={tema.acento} />
+                    </Pulsable>
+                  ))}
+                  <Paginacion
+                    listado={trabajo.pendientes}
+                    desde={desdePendientes}
+                    paso={ACTIVACIONES_POR_PAGINA}
+                    nombre="Pendientes de activar"
+                    anterior="Pendientes de activar anteriores"
+                    siguiente="Siguientes pendientes de activar"
+                    cambiar={setDesdePendientes}
+                  />
+                </View>
+              )}
+            </>
           )}
-        </EntradaMarca>
+        </>
       )}
       <BotonEnlace texto="Ver todos los clientes" onPress={() => abrir("/cartera")} />
     </View>
-  )
-}
-
-function Grupo({ titulo, children }: { titulo: string; children: ReactNode }): React.JSX.Element {
-  return (
-    <View style={s.grupo}>
-      <Text style={s.titulo} accessibilityRole="header">
-        {titulo}
-      </Text>
-      {children}
-    </View>
-  )
-}
-
-function Fila({
-  titulo,
-  detalle,
-  etiqueta,
-  abrir,
-}: {
-  titulo: string
-  detalle: string
-  etiqueta: string
-  abrir: () => void
-}): React.JSX.Element {
-  return (
-    <Pulsable style={s.fila} accessibilityLabel={etiqueta} onPress={abrir}>
-      <View style={s.textos}>
-        <Text style={s.destacado}>{titulo}</Text>
-        <Text style={s.tenue}>{detalle}</Text>
-      </View>
-      <Icono nombre="adelante" color={tema.acento} />
-    </Pulsable>
   )
 }
 
@@ -293,17 +261,20 @@ function Paginacion({
 
 const s = StyleSheet.create({
   contenido: { gap: espacio[24] },
-  grupo: { gap: espacio[8] },
+  grupo: { gap: espacio[12] },
   nombre: { ...tipo.tituloPantalla, color: tema.texto },
   titulo: { ...tipo.titulo, color: tema.texto },
   tenue: { ...tipo.secundario, color: tema.textoTenue },
-  tarjeta: {
-    backgroundColor: tema.superficie,
-    borderRadius: radio.tarjeta,
-    padding: espacio[16],
-    gap: espacio[8],
+  semana: { flexDirection: "row", alignItems: "center", gap: espacio[8] },
+  intervalo: { ...tipo.fila, ...tipo.cifras, color: tema.texto, flex: 1, textAlign: "center" },
+  flecha: {
+    width: alto.tactil,
+    minHeight: alto.tactil,
+    borderRadius: radio.campo,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  fila: {
+  pendiente: {
     backgroundColor: tema.superficie,
     borderRadius: radio.tarjetaInterna,
     padding: espacio[16],

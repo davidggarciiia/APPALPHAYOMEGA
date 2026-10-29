@@ -1,10 +1,4 @@
-import {
-  ListadoMolestiasSchema,
-  type ListadoUsuarios,
-  type Molestia,
-  type ResumenUsuario,
-  type SesionEntrenador,
-} from "@alpha-omega/shared"
+import type { ListadoUsuarios, ResumenUsuario, SesionEntrenador } from "@alpha-omega/shared"
 
 import { crearApiEntrenamiento } from "../entrenamiento/api"
 import { lunesDeSemana } from "../entrenamiento/fechas"
@@ -13,14 +7,11 @@ import type { PeticionAutenticada } from "../lib/peticion-autenticada"
 
 export const ACTIVOS_POR_PAGINA = 4
 export const ACTIVACIONES_POR_PAGINA = 8
-const MOLESTIAS_POR_CLIENTE = 3
 
 export type TrabajoCliente = {
   cliente: ResumenUsuario
   sinPlan: boolean
   sesion: SesionEntrenador | null
-  molestias: Molestia[]
-  totalMolestias: number
 }
 export type TrabajoEntrenador = {
   activos: ListadoUsuarios
@@ -53,14 +44,9 @@ export async function cargarTrabajo(
   const lunes = lunesDeSemana()
   const clientes = await Promise.all(
     usuarios.map(async (cliente): Promise<TrabajoCliente> => {
-      const [plan, resultados, molestias] = await Promise.all([
+      const [plan, resultados] = await Promise.all([
         api.plan(cliente.id, lunes),
         api.resultados(cliente.id, 1),
-        // El wrapper api.molestias recorre todo el historial; Inicio pide una sola página.
-        pedir(
-          `/entrenamiento/clientes/${encodeURIComponent(cliente.id)}/molestias?estado=abierta&limite=${MOLESTIAS_POR_CLIENTE}&desplazamiento=0`,
-          ListadoMolestiasSchema,
-        ),
       ])
       const ultima = resultados.resultados[0]
       const sesion = ultima ? await api.leerEntrenador(ultima.resultado.sesionId) : null
@@ -70,8 +56,6 @@ export async function cargarTrabajo(
         cliente,
         sinPlan: plan.plan === null,
         sesion,
-        molestias: molestias.molestias.slice(0, MOLESTIAS_POR_CLIENTE),
-        totalMolestias: molestias.total,
       }
     }),
   )

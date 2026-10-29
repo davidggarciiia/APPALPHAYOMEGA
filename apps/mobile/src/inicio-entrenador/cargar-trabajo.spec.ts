@@ -35,7 +35,7 @@ beforeEach(() => {
   }))
 })
 
-it("acota incluso una respuesta sobredimensionada a 4 activos, 8 activaciones y 18 llamadas", async () => {
+it("acota incluso una respuesta sobredimensionada a 4 activos, 8 activaciones y 14 llamadas", async () => {
   const datos = await cargarTrabajo(pedir as never, 4, 8)
   expect(listarUsuarios).toHaveBeenCalledTimes(2)
   expect(listarUsuarios).toHaveBeenCalledWith(pedir, {
@@ -55,13 +55,11 @@ it("acota incluso una respuesta sobredimensionada a 4 activos, 8 activaciones y 
   expect(api.plan).toHaveBeenCalledTimes(4)
   expect(api.resultados).toHaveBeenCalledTimes(4)
   expect(api.leerEntrenador).toHaveBeenCalledTimes(4)
-  expect(pedir).toHaveBeenCalledTimes(4)
+  expect(pedir).not.toHaveBeenCalled()
   for (const [id, limite] of api.resultados.mock.calls) {
     expect(id).toMatch(/^cliente-/)
     expect(limite).toBe(1)
   }
-  for (const [ruta] of pedir.mock.calls as unknown as string[][])
-    expect(ruta).toContain("molestias?estado=abierta&limite=3&desplazamiento=0")
 })
 
 it("no inventa Sin revisar cuando el servidor no expone el estado de revisión", async () => {
