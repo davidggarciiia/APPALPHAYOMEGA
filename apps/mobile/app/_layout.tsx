@@ -5,7 +5,7 @@ import archivoBold from "../assets/fonts/Archivo-Bold.ttf"
 import { DarkTheme, Stack, ThemeProvider, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useFonts } from "expo-font"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
 
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
@@ -128,13 +128,16 @@ const TEMA_DE_NAVEGACION = {
   },
 }
 
-/** Dentro del proveedor para leer la fase de sesión sin retrasar su comprobación. */
-function CargaDeArranque({ fuentesListas }: { fuentesListas: boolean }): React.JSX.Element {
+function EsperaDeSesion({ alComprobar }: { alComprobar: (lista: boolean) => void }): null {
   const { estado } = useSesion()
-  return <PantallaDeCarga lista={fuentesListas && estado.fase !== "comprobando"} />
+  useEffect(() => {
+    alComprobar(estado.fase !== "comprobando")
+  }, [estado.fase, alComprobar])
+  return null
 }
 
 export default function DisposicionRaiz(): React.JSX.Element {
+  const [sesionComprobada, fijarSesionComprobada] = useState(false)
   const [fuentes, errorFuentes] = useFonts({
     Anton: anton,
     Archivo: archivo,
@@ -145,11 +148,15 @@ export default function DisposicionRaiz(): React.JSX.Element {
   // La sesión se comprueba a la vez que se cargan las fuentes: la pantalla de
   // carga cubre ambas esperas y solo se retira cuando las dos han acabado.
   return (
-    <ProveedorDeSesion>
-      <StatusBar style="light" />
-      {fuentesListas && <Enrutador />}
-      <CargaDeArranque fuentesListas={fuentesListas} />
-    </ProveedorDeSesion>
+    <>
+      <ProveedorDeSesion>
+        <StatusBar style="light" />
+        {fuentesListas && <Enrutador />}
+        <EsperaDeSesion alComprobar={fijarSesionComprobada} />
+      </ProveedorDeSesion>
+      {/* La intro vive fuera del árbol que se remonta al cambiar de cuenta. */}
+      <PantallaDeCarga lista={fuentesListas && sesionComprobada} />
+    </>
   )
 }
 

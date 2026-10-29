@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import { useLocalSearchParams } from "expo-router"
+import { AccessibilityInfo, StyleSheet } from "react-native"
 
 import Activar from "../../app/activar"
 import Login from "../../app/login"
@@ -14,6 +15,13 @@ jest.mock("expo-router", () => ({
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaView: jest.requireActual("react-native").View,
 }))
+jest.mock("react-native-reanimated", () => {
+  const React = jest.requireActual<typeof import("react")>("react")
+  return {
+    ...jest.requireActual("react-native-reanimated/mock"),
+    useSharedValue: (valor: unknown) => React.useState(() => ({ value: valor }))[0],
+  }
+})
 jest.mock("./direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 jest.mock("./api", () => ({ ...jest.requireActual("./api"), activarCuenta: jest.fn() }))
 jest.mock("../sesion", () => ({ useSesion: jest.fn() }))
@@ -81,6 +89,48 @@ describe("activar cuenta", () => {
 })
 
 describe("entrar", () => {
+  describe("posición al validar el formulario vacío", () => {
+    beforeEach(() => jest.useFakeTimers())
+    afterEach(async () => {
+      await screen.unmount()
+      jest.useRealTimers()
+      jest.restoreAllMocks()
+    })
+
+    it.each([false, true])(
+      "conserva ambos grupos en su origen tras 5 s y al repetir (movimiento reducido: %s)",
+      async (reducido) => {
+        jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(reducido)
+        const entrar = jest.fn()
+        jest.mocked(useSesion).mockReturnValue({
+          entrar,
+          sesionCaducada: false,
+        } as unknown as ReturnType<typeof useSesion>)
+        await render(<Login />)
+
+        for (let intento = 0; intento < 2; intento++) {
+          await act(async () => {
+            await fireEvent.press(screen.getByRole("button", { name: "ENTRAR" }))
+          })
+          expect(screen.getByText("Correo no válido")).toHaveProp("accessibilityRole", "alert")
+          expect(screen.getByText("Escribe tu contraseña")).toHaveProp("accessibilityRole", "alert")
+          await act(() => jest.advanceTimersByTime(5000))
+
+          const grupos = [screen.getByRole("header").parent, screen.getByLabelText("Correo").parent]
+          for (const grupo of grupos) {
+            const { transform } = StyleSheet.flatten(grupo?.props.style) as {
+              transform: [{ translateX: number }, { translateY: number }]
+            }
+            expect(transform).toHaveLength(2)
+            expect(transform[0].translateX).toBeCloseTo(0, 6)
+            expect(transform[1].translateY).toBeCloseTo(0, 6)
+          }
+        }
+        expect(entrar).not.toHaveBeenCalled()
+      },
+    )
+  })
+
   it("permite ver y ocultar la contraseña sin perder lo escrito", async () => {
     jest.mocked(useSesion).mockReturnValue({
       entrar: jest.fn(),
@@ -119,6 +169,6 @@ describe("entrar", () => {
     await fireEvent(contrasena, "submitEditing")
     await fireEvent(contrasena, "submitEditing")
     await waitFor(() => expect(entrar).toHaveBeenCalledTimes(1))
-    terminar()
+    await act(() => terminar())
   })
 })
