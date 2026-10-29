@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
 import type { Bloque, DeporteDelPlan, FaseDeBloque } from "@alpha-omega/shared"
 
@@ -96,15 +96,82 @@ function AreaDeLineas({
   )
 }
 
+const textoDeSemana = (valor: number): string => (valor === 0 ? "" : String(valor))
+
+function SemanasDeFase({
+  fase,
+  numero,
+  cambiar,
+  quitar,
+}: {
+  fase: FaseDeBloque
+  numero: number
+  cambiar: (cambio: Partial<FaseDeBloque>) => void
+  quitar: () => void
+}): React.JSX.Element {
+  const [desde, setDesde] = useState(() => textoDeSemana(fase.desde))
+  const [hasta, setHasta] = useState(() => textoDeSemana(fase.hasta))
+  const [revisado, setRevisado] = useState(false)
+  useEffect(() => {
+    setDesde((texto) => (Number(texto) === fase.desde ? texto : textoDeSemana(fase.desde)))
+    setHasta((texto) => (Number(texto) === fase.hasta ? texto : textoDeSemana(fase.hasta)))
+    setRevisado(false)
+  }, [fase.desde, fase.hasta])
+  const error = revisado && [desde, hasta].some((texto) => Number(texto) < 1 || Number(texto) > 52)
+  const campo = (primera: boolean): React.JSX.Element => (
+    <TextInput
+      accessibilityLabel={`${primera ? "Primera" : "Última"} semana de la fase ${numero}`}
+      aria-invalid={Boolean(error)}
+      value={primera ? desde : hasta}
+      onChangeText={(texto) => {
+        if (!/^\d*$/.test(texto)) return
+        if (primera) setDesde(texto)
+        else setHasta(texto)
+        cambiar({ [primera ? "desde" : "hasta"]: Number(texto) })
+      }}
+      onBlur={() => setRevisado(true)}
+      keyboardType="number-pad"
+      maxLength={2}
+      placeholderTextColor={tema.marcador}
+      selectionColor={tema.acento}
+      style={s.semana}
+    />
+  )
+  return (
+    <>
+      <View style={s.filaFase}>
+        <Text style={s.tenue}>Semanas</Text>
+        {campo(true)}
+        <Text style={s.tenue}>a</Text>
+        {campo(false)}
+        <Enlace texto="Quitar" etiqueta={`Quitar la fase ${numero}`} onPress={quitar} />
+      </View>
+      {error && (
+        <Text style={s.errorSemana} accessibilityRole="alert">
+          Escribe semanas de 1 a 52.
+        </Text>
+      )}
+    </>
+  )
+}
+
 /** Bloque del constructor: fases, otros deportes, qué buscamos, notas y pasos. */
 export function EditorDeBloque({
   bloque,
   semanas,
   cambiar,
+  quitarFase,
+  quitarDeporte,
+  avisoFases,
+  avisoDeportes,
 }: {
   bloque: Bloque
   semanas: number
   cambiar: (bloque: Bloque) => void
+  quitarFase?: (indice: number) => void
+  quitarDeporte?: (indice: number) => void
+  avisoFases?: React.ReactNode
+  avisoDeportes?: React.ReactNode
 }): React.JSX.Element {
   const cambiarFase = (n: number, cambio: Partial<FaseDeBloque>): void =>
     cambiar({ ...bloque, fases: bloque.fases.map((f, i) => (i === n ? { ...f, ...cambio } : f)) })
@@ -126,31 +193,16 @@ export function EditorDeBloque({
         <View testID="fases" style={s.fases}>
           {bloque.fases.map((fase, n) => (
             <View key={n} style={s.fase}>
-              <View style={s.filaFase}>
-                <Text style={s.tenue}>Semanas</Text>
-                <Celda
-                  etiqueta={`Primera semana de la fase ${n + 1}`}
-                  valor={String(fase.desde)}
-                  cambiar={(v) => cambiarFase(n, { desde: numero(v, 1) })}
-                  ancho={44}
-                  teclado="number-pad"
-                />
-                <Text style={s.tenue}>a</Text>
-                <Celda
-                  etiqueta={`Última semana de la fase ${n + 1}`}
-                  valor={String(fase.hasta)}
-                  cambiar={(v) => cambiarFase(n, { hasta: numero(v, 1) })}
-                  ancho={44}
-                  teclado="number-pad"
-                />
-                <Enlace
-                  texto="Quitar"
-                  etiqueta={`Quitar la fase ${n + 1}`}
-                  onPress={() =>
-                    cambiar({ ...bloque, fases: bloque.fases.filter((_, i) => i !== n) })
-                  }
-                />
-              </View>
+              <SemanasDeFase
+                fase={fase}
+                numero={n + 1}
+                cambiar={(cambio) => cambiarFase(n, cambio)}
+                quitar={() =>
+                  quitarFase
+                    ? quitarFase(n)
+                    : cambiar({ ...bloque, fases: bloque.fases.filter((_, i) => i !== n) })
+                }
+              />
               <TextInput
                 accessibilityLabel={`Nombre de la fase ${n + 1}`}
                 value={fase.nombre}
@@ -173,7 +225,9 @@ export function EditorDeBloque({
           ))}
         </View>
       )}
-      {bloque.fases.length < 8 && (
+      {avisoFases}
+      {/* La fase retirada conserva su plaza hasta que caduque «Deshacer». */}
+      {bloque.fases.length + (avisoFases ? 1 : 0) < 8 && (
         <Enlace
           texto="Añadir fase"
           onPress={() => {
@@ -238,12 +292,15 @@ export function EditorDeBloque({
             texto="Quitar"
             etiqueta={`Quitar ${d.nombre}`}
             onPress={() =>
-              cambiar({ ...bloque, deportes: bloque.deportes.filter((_, i) => i !== n) })
+              quitarDeporte
+                ? quitarDeporte(n)
+                : cambiar({ ...bloque, deportes: bloque.deportes.filter((_, i) => i !== n) })
             }
           />
         </View>
       ))}
-      {bloque.deportes.length < 4 && (
+      {avisoDeportes}
+      {bloque.deportes.length + (avisoDeportes ? 1 : 0) < 4 && (
         <Enlace
           texto="Añadir deporte"
           onPress={() =>
@@ -326,6 +383,20 @@ const s = StyleSheet.create({
     borderTopColor: tema.acento,
   },
   filaFase: { flexDirection: "row", alignItems: "center", gap: 8 },
+  semana: {
+    width: 44,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    backgroundColor: tema.hundido,
+    color: tema.texto,
+    fontFamily: tema.fuenteBoton,
+    fontSize: 14,
+    textAlign: "center",
+    paddingHorizontal: 4,
+  },
+  errorSemana: { color: tema.error, fontFamily: tema.fuenteTexto, fontSize: 13 },
   nombreFase: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 16, paddingVertical: 4 },
   detalleFase: {
     color: tema.textoTenue,

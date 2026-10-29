@@ -18,6 +18,8 @@ import {
   FechaAgendaSchema,
   type AsignarPlan,
   type Bloque,
+  type DeporteDelPlan,
+  type FaseDeBloque,
   type PatronRutina,
   type Prescripcion,
   type RutinaGuardada,
@@ -26,7 +28,12 @@ import {
 
 import type { ApiDeCatalogo } from "../../catalogo-ejercicios/api"
 import { useAccesoAFiguras } from "../../catalogo-ejercicios/figura-ejercicio"
-import { AvisoDeError, BotonPrincipal, BotonSecundario } from "../../componentes/formulario"
+import {
+  AvisoDeError,
+  BotonEnlace,
+  BotonPrincipal,
+  BotonSecundario,
+} from "../../componentes/formulario"
 import type { AlmacenLocal } from "../../entrenamiento/almacen-local"
 import { almacenDispositivo } from "../../entrenamiento/almacen-dispositivo"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
@@ -38,6 +45,7 @@ import { BotonAtras, Dialogo, Enlace } from "../../entrenamiento/sesion/controle
 import { VerTecnica } from "../../entrenamiento/ver-tecnica"
 import { ErrorDePeticion, ErrorDePermiso, ErrorDelServidor } from "../../lib/http"
 import { conRecursoLocalExclusivo } from "../../lib/candado-local"
+import { useEnvioUnico } from "../../lib/envio-unico"
 import { degradadoOro, tema } from "../../tema"
 import type { ApiRutinas } from "../api-rutinas"
 import { ListadoDeRutinas } from "../listado-rutinas"
@@ -54,6 +62,7 @@ import {
 } from "./modelo"
 import { EditorDeBloque, ListaDeSeccion } from "./partes"
 import { PanelEjercicio, pautaDeFila, TablaPrincipal } from "./tabla"
+import { errorDeValidacion } from "./validacion"
 
 /** La misma clave que el editor anterior: una asignación pendiente se recupera en ambos. */
 const PendienteSchema = z.strictObject({
@@ -90,6 +99,13 @@ const SECCIONES: Array<{ seccion: SeccionDeSesion; titulo: string }> = [
 ]
 
 const BLOQUE_VACIO: Bloque = { objetivos: [], fases: [], deportes: [], notas: [] }
+
+type Retirada =
+  | { tipo: "ejercicio"; indice: number; elemento: EjercicioDelConstructor; diaId: string }
+  | { tipo: "fase"; indice: number; elemento: FaseDeBloque }
+  | { tipo: "deporte"; indice: number; elemento: DeporteDelPlan }
+
+type LugarDelMensaje = "cabecera" | "plantilla" | "pie"
 
 function tieneBloque(bloque: Bloque): boolean {
   return (
@@ -253,11 +269,15 @@ export function ConstructorPlan({
   const [sustituyendoPor, setSustituyendoPor] = useState<RutinaGuardada | null>(null)
   /** «Quitar día» con ejercicios: elimina todo lo del día, así que se pregunta antes. */
   const [quitandoDia, setQuitandoDia] = useState(false)
+  const [retirada, setRetirada] = useState<Retirada | null>(null)
+  const retiradaDeshecha = useRef<Retirada | null>(null)
   const [comoCliente, setComoCliente] = useState(false)
   const [confirmando, setConfirmando] = useState<AsignarPlan | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioDelConstructor | null>(null)
   const [error, setError] = useState("")
   const [aviso, setAviso] = useState("")
+  const [lugarDelMensaje, setLugarDelMensaje] = useState<LugarDelMensaje>("cabecera")
+  const [guardandoPlantilla, setGuardandoPlantilla] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [pendiente, setPendiente] = useState<AsignarPlan | null>(null)
   const [recuperado, setRecuperado] = useState(false)
@@ -267,15 +287,26 @@ export function ConstructorPlan({
   const [salidaAutorizada, setSalidaAutorizada] = useState(false)
   const salida = useRef<(() => void) | null>(null)
   const navigation = useNavigation()
-  const versionDelEditor = JSON.stringify({ nombre, semanaInicial, semanas, dias, bloque })
-  const versionInicial = useRef(versionDelEditor)
+  const versionInicial = useRef({ nombre, semanaInicial, semanas, dias, bloque })
+  // Las listas se actualizan de forma inmutable: sus referencias detectan cambios sin serializarlas.
+  const sinCambios =
+    nombre === versionInicial.current.nombre &&
+    semanaInicial === versionInicial.current.semanaInicial &&
+    semanas === versionInicial.current.semanas &&
+    dias === versionInicial.current.dias &&
+    bloque === versionInicial.current.bloque
   const enCurso = useRef(false)
   const clave = `plan-${clienteId}`
   const claveBorrador = `borrador-plan-${clienteId}`
   /** Copia de una sesión anterior pendiente de decidir: recuperarla o empezar de cero. */
   const [borrador, setBorrador] = useState<Borrador | null>(null)
-  const sinGuardar =
-    pendiente === null && versionDelEditor !== versionInicial.current && !salidaAutorizada
+  const sinGuardar = pendiente === null && !sinCambios && !salidaAutorizada
+
+  useEffect(() => {
+    if (!retirada) return
+    const id = setTimeout(() => setRetirada(null), 6000)
+    return () => clearTimeout(id)
+  }, [retirada])
 
   usePreventRemove(sinGuardar, ({ data }) => {
     salida.current = () => navigation.dispatch(data.action)
@@ -297,7 +328,7 @@ export function ConstructorPlan({
     continuar?.()
   }, [salidaAutorizada])
   const pedirSalida = (): void => {
-    if (versionDelEditor === versionInicial.current) volver()
+    if (sinCambios) volver()
     else {
       salida.current = volver
       setSaliendo(true)
@@ -349,13 +380,7 @@ export function ConstructorPlan({
   // Autoguardado: sin esperar a «Publicar». Mientras haya una copia anterior sin decidir
   // no se pisa, para que no se pierda si el entrenador cierra sin recuperarla.
   useEffect(() => {
-    if (
-      !recuperado ||
-      pendiente !== null ||
-      salidaAutorizada ||
-      borrador !== null ||
-      versionDelEditor === versionInicial.current
-    )
+    if (!recuperado || pendiente !== null || salidaAutorizada || borrador !== null || sinCambios)
       return
     const id = setTimeout(() => {
       void almacen
@@ -363,12 +388,24 @@ export function ConstructorPlan({
         .catch(() => undefined)
     }, 800)
     return () => clearTimeout(id)
-  }, [versionDelEditor, recuperado, pendiente, salidaAutorizada, borrador])
+  }, [
+    nombre,
+    semanaInicial,
+    semanas,
+    dias,
+    bloque,
+    sinCambios,
+    recuperado,
+    pendiente,
+    salidaAutorizada,
+    borrador,
+  ])
   // Se publique o se descarte, el borrador ya no tiene objeto.
   useEffect(() => {
     if (salidaAutorizada) void almacen.borrar(cuentaId, claveBorrador).catch(() => undefined)
   }, [salidaAutorizada])
   const recuperarBorrador = (copia: Borrador): void => {
+    setRetirada(null)
     setNombre(copia.nombre)
     setSemanaInicial(copia.semanaInicial)
     setSemanas(copia.semanas)
@@ -388,14 +425,80 @@ export function ConstructorPlan({
   const cambiarEjercicio = (id: string, cambio: Partial<EjercicioDelConstructor>): void =>
     cambiarDia({ ejercicios: dia.ejercicios.map((e) => (e.id === id ? { ...e, ...cambio } : e)) })
   const quitarDia = (): void => {
+    setRetirada(null)
     const resto = dias.filter((d) => d.id !== dia.id)
     setDias(resto)
     setActivo(resto[0]!.id)
   }
   const quitar = (id: string): void => {
+    const indice = dia.ejercicios.findIndex((e) => e.id === id)
+    const elemento = dia.ejercicios[indice]
+    if (!elemento) return
+    setRetirada({ tipo: "ejercicio", indice, elemento, diaId: dia.id })
     cambiarDia({ ejercicios: dia.ejercicios.filter((e) => e.id !== id) })
     if (elegido === id) setElegido(null)
   }
+  const quitarFase = (indice: number): void => {
+    const elemento = bloque.fases[indice]!
+    setRetirada(
+      elemento.nombre.trim() || elemento.detalle?.trim()
+        ? { tipo: "fase", indice, elemento }
+        : null,
+    )
+    setBloque((actual) => ({ ...actual, fases: actual.fases.filter((_, n) => n !== indice) }))
+  }
+  const quitarDeporte = (indice: number): void => {
+    const elemento = bloque.deportes[indice]!
+    setRetirada(elemento.nombre.trim() ? { tipo: "deporte", indice, elemento } : null)
+    setBloque((actual) => ({ ...actual, deportes: actual.deportes.filter((_, n) => n !== indice) }))
+  }
+  const deshacer = (): void => {
+    if (!retirada || retiradaDeshecha.current === retirada) return
+    retiradaDeshecha.current = retirada
+    const { indice } = retirada
+    // Insertar en el estado actual conserva lo editado desde la retirada.
+    if (retirada.tipo === "ejercicio") {
+      const ejercicio = retirada.elemento
+      setDias((actuales) =>
+        actuales.map((d) =>
+          d.id === retirada.diaId
+            ? {
+                ...d,
+                ejercicios: [
+                  ...d.ejercicios.slice(0, indice),
+                  ejercicio,
+                  ...d.ejercicios.slice(indice),
+                ],
+              }
+            : d,
+        ),
+      )
+    } else if (retirada.tipo === "fase") {
+      const fase = retirada.elemento
+      setBloque((actual) => ({
+        ...actual,
+        fases: [...actual.fases.slice(0, indice), fase, ...actual.fases.slice(indice)],
+      }))
+    } else {
+      const deporte = retirada.elemento
+      setBloque((actual) => ({
+        ...actual,
+        deportes: [...actual.deportes.slice(0, indice), deporte, ...actual.deportes.slice(indice)],
+      }))
+    }
+    setRetirada(null)
+  }
+  const barraDeshacer = retirada && (
+    <View style={s.barraDeshacer}>
+      <Text accessibilityLiveRegion="polite" style={[s.tenue, s.flex]}>
+        {retirada.tipo === "fase"
+          ? `Fase «${retirada.elemento.nombre || "Sin nombre"}» quitada`
+          : `${retirada.elemento.nombre} quitado`}{" "}
+        ·
+      </Text>
+      <Enlace texto="DESHACER" etiqueta="Deshacer" onPress={deshacer} />
+    </View>
+  )
   const mover = (id: string, desplazamiento: number): void => {
     const lista = [...dia.ejercicios]
     const i = lista.findIndex((e) => e.id === id)
@@ -408,8 +511,35 @@ export function ConstructorPlan({
   }
   const ejercicioElegido = dia.ejercicios.find((e) => e.id === elegido) ?? null
 
+  const sesionesDelPlan = (): AsignarPlan["patron"]["sesiones"] =>
+    dias.map((d) => {
+      try {
+        return aSesionEnRutina(d, nuevoId)
+      } catch (fallo) {
+        setActivo(d.id)
+        if (fallo instanceof z.ZodError) {
+          const ruta = fallo.issues[0]?.path ?? []
+          const indice = ruta[0] === "ejercicios" && typeof ruta[1] === "number" ? ruta[1] : null
+          const ejercicio = indice === null ? undefined : d.ejercicios[indice]
+          setElegido(ejercicio?.id ?? null)
+          const errorDelCampo = new z.ZodError(
+            fallo.issues.map((issue) => ({
+              ...issue,
+              path: ejercicio ? issue.path.slice(2) : issue.path,
+            })),
+          )
+          throw new Error(
+            `${NOMBRES_DE_DIA[d.diaSemana - 1]} · ${d.nombre || "Sin nombre"}${ejercicio ? ` · ${ejercicio.nombre}` : ""} · ${errorDeValidacion(errorDelCampo)}`,
+          )
+        }
+        throw new Error(
+          `${NOMBRES_DE_DIA[d.diaSemana - 1]} · ${d.nombre || "Sin nombre"}: ${fallo instanceof Error ? fallo.message : "Revisa este día."}`,
+        )
+      }
+    })
+
   const construir = (operacionId: string): AsignarPlan => {
-    const sesiones = dias.map((d) => aSesionEnRutina(d, nuevoId))
+    const sesiones = sesionesDelPlan()
     const repetidos = sesiones.map((s) => s.diaSemana)
     if (new Set(repetidos).size !== repetidos.length)
       throw new Error("Hay dos días en el mismo día de la semana.")
@@ -423,14 +553,15 @@ export function ConstructorPlan({
     })
   }
 
-  const preparar = (): void => {
+  const preparar = (lugar: LugarDelMensaje = "cabecera"): void => {
+    setLugarDelMensaje(lugar)
     setError("")
     try {
       setConfirmando(pendiente ?? construir(nuevoId()))
     } catch (e) {
       setError(
         e instanceof z.ZodError
-          ? "Revisa el lunes de inicio, de 1 a 52 semanas, y que las fases quepan en el bloque con nombre."
+          ? errorDeValidacion(e)
           : e instanceof Error
             ? e.message
             : "Revisa el plan.",
@@ -439,6 +570,7 @@ export function ConstructorPlan({
   }
 
   const previsualizar = (): void => {
+    setLugarDelMensaje("cabecera")
     try {
       construir(nuevoId())
       setComoCliente(true)
@@ -502,11 +634,13 @@ export function ConstructorPlan({
     }
   }
 
-  const guardarPlantilla = async (): Promise<void> => {
+  const guardarPlantilla = useEnvioUnico(async (): Promise<void> => {
+    setLugarDelMensaje("plantilla")
+    setGuardandoPlantilla(true)
     setError("")
     setAviso("")
     try {
-      const sesiones = dias.map((d) => aSesionEnRutina(d, nuevoId))
+      const sesiones = sesionesDelPlan()
       await rutinas.crear({ nombre: nombre.trim() || sesiones[0]!.nombre, patron: { sesiones } })
       setAviso("Guardado como plantilla en Rutinas.")
     } catch (e) {
@@ -515,15 +649,19 @@ export function ConstructorPlan({
           ? e.message
           : "No se pudo guardar la plantilla.",
       )
+    } finally {
+      setGuardandoPlantilla(false)
     }
-  }
+  })
 
   const elegirPlantilla = async (rutina: RutinaGuardada): Promise<void> => {
+    setLugarDelMensaje("cabecera")
     setOcupado(true)
     setError("")
     try {
       const { dias: cargados, retirados } = await cargarPatron(rutina.patron, catalogo)
       setDias(cargados)
+      setRetirada(null)
       setActivo(cargados[0]?.id ?? "")
       setNombre(rutina.nombre)
       setPlantillas(false)
@@ -541,6 +679,9 @@ export function ConstructorPlan({
     (s) =>
       s.seccion === "principal" ||
       dia.ejercicios.some((e) => e.seccion === s.seccion) ||
+      (retirada?.tipo === "ejercicio" &&
+        retirada.diaId === dia.id &&
+        retirada.elemento.seccion === s.seccion) ||
       anadiendo === s.seccion,
   )
   const faltan = SECCIONES.filter((s) => !seccionesVisibles.includes(s))
@@ -560,6 +701,13 @@ export function ConstructorPlan({
         </Text>
       </View>
     )
+
+  const mensaje = (
+    <>
+      {aviso !== "" && <Text style={s.aviso}>{aviso}</Text>}
+      {error !== "" && <AvisoDeError mensaje={error} />}
+    </>
+  )
 
   if (!recuperado)
     return (
@@ -589,7 +737,11 @@ export function ConstructorPlan({
           conservan todas sus sesiones y series.
         </Text>
         {error !== "" && <AvisoDeError mensaje={error} />}
-        <BotonPrincipal texto="Reintentar publicación" onPress={preparar} deshabilitado={ocupado} />
+        <BotonPrincipal
+          texto="Reintentar publicación"
+          onPress={() => preparar()}
+          deshabilitado={ocupado}
+        />
         <Dialogo
           visible={confirmando !== null}
           titulo="¿Publicar el plan?"
@@ -641,11 +793,16 @@ export function ConstructorPlan({
             </View>
           )}
           <View style={[s.boton, ancho && s.botonAncho]}>
-            <BotonPrincipal texto="Publicar" onPress={preparar} sinMargen />
+            <BotonPrincipal
+              texto="Publicar"
+              onPress={() => preparar()}
+              deshabilitado={guardandoPlantilla}
+              sinMargen
+            />
           </View>
         </View>
       </View>
-      {aviso !== "" && <Text style={s.aviso}>{aviso}</Text>}
+      {lugarDelMensaje === "cabecera" && mensaje}
       {borrador && (
         <View style={s.recuperacion}>
           <Text style={s.aviso}>
@@ -655,7 +812,6 @@ export function ConstructorPlan({
           <BotonSecundario texto="Empezar de cero" onPress={descartarBorrador} />
         </View>
       )}
-      {error !== "" && <AvisoDeError mensaje={error} />}
 
       <View style={s.datos}>
         <View style={s.dato}>
@@ -689,15 +845,19 @@ export function ConstructorPlan({
       {plantillas && (
         <ListadoDeRutinas
           api={rutinas}
-          elegir={(r) =>
-            versionDelEditor === versionInicial.current
-              ? void elegirPlantilla(r)
-              : setSustituyendoPor(r)
-          }
+          elegir={(r) => (sinCambios ? void elegirPlantilla(r) : setSustituyendoPor(r))}
         />
       )}
 
-      <EditorDeBloque bloque={bloque} semanas={Number(semanas) || 1} cambiar={setBloque} />
+      <EditorDeBloque
+        bloque={bloque}
+        semanas={Number(semanas) || 1}
+        cambiar={setBloque}
+        quitarFase={quitarFase}
+        quitarDeporte={quitarDeporte}
+        avisoFases={retirada?.tipo === "fase" ? barraDeshacer : null}
+        avisoDeportes={retirada?.tipo === "deporte" ? barraDeshacer : null}
+      />
 
       <View style={s.diasFila}>
         <View style={s.flex}>
@@ -792,14 +952,21 @@ export function ConstructorPlan({
             />
           </View>
         ))}
-        <View style={s.accionesDia}>
-          <Enlace texto="Guardar como plantilla" onPress={() => void guardarPlantilla()} />
-          {dias.length > 1 && (
-            <Enlace
-              texto="Quitar día"
-              onPress={() => (dia.ejercicios.length === 0 ? quitarDia() : setQuitandoDia(true))}
+        <View testID="acciones-del-dia">
+          <View style={s.accionesDia}>
+            <BotonEnlace
+              texto={guardandoPlantilla ? "Guardando plantilla…" : "Guardar como plantilla"}
+              ocupado={guardandoPlantilla}
+              onPress={guardarPlantilla}
             />
-          )}
+            {dias.length > 1 && (
+              <Enlace
+                texto="Quitar día"
+                onPress={() => (dia.ejercicios.length === 0 ? quitarDia() : setQuitandoDia(true))}
+              />
+            )}
+          </View>
+          {lugarDelMensaje === "plantilla" && mensaje}
         </View>
       </View>
       <TextInput
@@ -876,6 +1043,10 @@ export function ConstructorPlan({
                     quitar={quitar}
                   />
                 )}
+                {retirada?.tipo === "ejercicio" &&
+                  retirada.diaId === dia.id &&
+                  retirada.elemento.seccion === seccion &&
+                  barraDeshacer}
                 {anadiendo === seccion ? (
                   <View style={s.selector}>
                     <SelectorEjercicios
@@ -915,6 +1086,17 @@ export function ConstructorPlan({
           )}
         </View>
         {ancho && <View style={s.lateral}>{panel}</View>}
+      </View>
+
+      <View testID="pie-del-plan" style={s.pie}>
+        {lugarDelMensaje === "pie" && mensaje}
+        <BotonPrincipal
+          texto="Publicar"
+          etiquetaAccesible="Publicar al pie"
+          onPress={() => preparar("pie")}
+          deshabilitado={guardandoPlantilla}
+          sinMargen
+        />
       </View>
 
       <Modal
@@ -1045,6 +1227,14 @@ const s = StyleSheet.create({
     padding: 12,
     fontFamily: tema.fuenteBoton,
   },
+  barraDeshacer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: tema.superficieAlta,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
   datos: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12 },
   dato: { gap: 4 },
   campo: {
@@ -1077,6 +1267,7 @@ const s = StyleSheet.create({
   textoDia: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
   textoDiaElegido: { color: tema.sobreAcento },
   accionesDia: { flexDirection: "row", gap: 16 },
+  pie: { gap: 12 },
   cuerpo: { gap: 20 },
   cuerpoAncho: { flexDirection: "row", alignItems: "flex-start" },
   lateral: { width: 300 },

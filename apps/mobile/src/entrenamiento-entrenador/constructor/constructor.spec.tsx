@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native"
 import { Platform } from "react-native"
 import type { NavigationAction } from "expo-router/react-navigation"
 import {
@@ -18,7 +18,12 @@ import {
 } from "../../catalogo-ejercicios/pruebas/catalogo-en-memoria"
 import type { SesionConDistancia } from "../editor-modelo"
 import { ConstructorPlan } from "./constructor"
-import { desdeSesionEnRutina, nuevoEjercicio, type EjercicioDelConstructor } from "./modelo"
+import {
+  desdeSesionEnRutina,
+  nuevoDia,
+  nuevoEjercicio,
+  type EjercicioDelConstructor,
+} from "./modelo"
 import { ListaDeSeccion } from "./partes"
 import { objetivoConUnidad, PanelEjercicio, TablaPrincipal } from "./tabla"
 
@@ -949,4 +954,326 @@ describe("quitar un día (T-04)", () => {
     expect(screen.queryByText("¿Quitar este día?")).toBeNull()
     expect(screen.queryByText(/Mar · Sin nombre/)).toBeNull()
   })
+})
+
+describe("errores de publicación (T-05)", () => {
+  it.each([
+    [{ carga: "-5", calibrar: false }, /carga inicial.*0/i],
+    [{ subida: "0" }, /subida/i],
+    [{ subida: "51" }, /subida.*50/i],
+    [{ nota: "x".repeat(301) }, /nota.*300/i],
+    [{ indicaciones: "x".repeat(2001) }, /indicaciones.*2000/i],
+    [{ descanso: "x".repeat(31) }, /descanso.*30/i],
+    [{ alternativas: "x".repeat(81) }, /alternativas.*80/i],
+  ] satisfies Array<[Partial<EjercicioDelConstructor>, RegExp]>)(
+    "señala día, ejercicio y campo al publicar %j",
+    async (cambio, campo) => {
+      const almacen = almacenEnMemoria()
+      const dias = [nuevoDia(randomUUID, 1), nuevoDia(randomUUID, 3)]
+      dias.forEach((dia, n) => {
+        dia.nombre = n === 0 ? "Fuerza" : "Pierna"
+        dia.ejercicios = [
+          nuevoEjercicio(
+            { id: "10000000-0000-4000-8000-000000000000", nombre: "Press banca" },
+            "principal",
+            randomUUID,
+          ),
+        ]
+      })
+      Object.assign(dias[1]!.ejercicios[0]!, cambio)
+      almacen.datos.set("borrador-plan-20000000-0000-4000-8000-000000000000", {
+        v: 1,
+        nombre: "Plan",
+        semanaInicial: "2026-11-02",
+        semanas: "6",
+        dias,
+        bloque: { objetivos: [], fases: [], deportes: [], notas: [] },
+      })
+      const { asignar } = await prepararConstructor(almacen)
+      await fireEvent.press(await screen.findByRole("button", { name: "Recuperar mi plan" }))
+      await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+      const mensaje = screen.getByRole("alert").props.children as string
+      expect(mensaje).toMatch(/miércoles.*Pierna.*Press banca/i)
+      expect(mensaje).toMatch(campo)
+      expect(screen.getByLabelText("Nombre del día").props.value).toBe("Pierna")
+      expect(asignar).not.toHaveBeenCalled()
+      expect(screen.queryByText("¿Publicar el plan?")).toBeNull()
+    },
+  )
+
+  it("nombra las semanas del plan cuando su número está fuera de rango", async () => {
+    await prepararConstructor()
+    await completarDia()
+    await fireEvent.changeText(screen.getByLabelText("Número de semanas"), "53")
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+    expect(screen.getByRole("alert").props.children).toMatch(/semanas.*52/i)
+  })
+
+  it("limita el descanso al tamaño admitido al escribir", async () => {
+    await prepararConstructor()
+    await completarDia()
+    expect(screen.getByLabelText("Descanso de Press banca").props.maxLength).toBe(30)
+  })
+})
+
+describe("deshacer una retirada (T-04)", () => {
+  const prepararRetiradas = async (fases = 3, deportes = 3, recuperar = true) => {
+    const almacen = almacenEnMemoria()
+    const dia = nuevoDia(randomUUID, 1)
+    dia.nombre = "Fuerza"
+    dia.ejercicios = ["Primero", "Segundo", "Tercero"].map((nombre) =>
+      nuevoEjercicio(
+        { id: "10000000-0000-4000-8000-000000000000", nombre },
+        "principal",
+        randomUUID,
+      ),
+    )
+    almacen.datos.set("borrador-plan-20000000-0000-4000-8000-000000000000", {
+      v: 1,
+      nombre: "Plan",
+      semanaInicial: "2026-11-02",
+      semanas: "6",
+      dias: [dia],
+      bloque: {
+        objetivos: [],
+        fases: Array.from(
+          { length: fases },
+          (_, n) => ["Base", "Fuerza", "Descarga"][n] ?? `Fase ${n + 1}`,
+        ).map((nombre, n) => ({
+          nombre,
+          desde: n + 1,
+          hasta: n + 1,
+          detalle: null,
+        })),
+        deportes: ["Correr", "Nadar", "Bici", "Caminar"]
+          .slice(0, deportes)
+          .map((nombre) => ({ nombre, dias: [4], minutos: 60 })),
+        notas: [],
+      },
+    })
+    await prepararConstructor(almacen)
+    const boton = await screen.findByRole("button", { name: "Recuperar mi plan" })
+    if (recuperar) await fireEvent.press(boton)
+    return almacen
+  }
+
+  it("restaura solo el ejercicio en su posición y conserva las ediciones posteriores", async () => {
+    await prepararRetiradas()
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar Segundo" }))
+    expect(screen.queryByLabelText("Series de Segundo")).toBeNull()
+    await fireEvent.changeText(screen.getByLabelText("Series de Tercero"), "5")
+    await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+    expect(screen.getAllByLabelText(/^Series de /).map((c) => c.props.accessibilityLabel)).toEqual([
+      "Series de Primero",
+      "Series de Segundo",
+      "Series de Tercero",
+    ])
+    expect(screen.getByLabelText("Series de Tercero").props.value).toBe("5")
+    expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
+  })
+
+  it("restaura solo la fase en su posición y conserva las ediciones posteriores", async () => {
+    await prepararRetiradas()
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar la fase 2" }))
+    await fireEvent.changeText(screen.getByLabelText("Detalle de la fase 2"), "Editado después")
+    await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+    expect(
+      [1, 2, 3].map((n) => screen.getByLabelText(`Nombre de la fase ${n}`).props.value),
+    ).toEqual(["Base", "Fuerza", "Descarga"])
+    expect(screen.getByLabelText("Detalle de la fase 3").props.value).toBe("Editado después")
+  })
+
+  it("restaura solo el deporte en su posición y conserva las ediciones posteriores", async () => {
+    await prepararRetiradas()
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar Nadar" }))
+    await fireEvent.changeText(screen.getByLabelText("Minutos de Bici"), "90")
+    await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+    expect([1, 2, 3].map((n) => screen.getByLabelText(`Deporte ${n}`).props.value)).toEqual([
+      "Correr",
+      "Nadar",
+      "Bici",
+    ])
+    expect(screen.getByLabelText("Minutos de Bici").props.value).toBe("90")
+  })
+
+  it("otra retirada sustituye la barra anterior aunque sea de otro tipo", async () => {
+    await prepararRetiradas()
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar Segundo" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar Nadar" }))
+    expect(screen.getAllByRole("button", { name: "Deshacer" })).toHaveLength(1)
+    await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+    expect(screen.getByLabelText("Deporte 2").props.value).toBe("Nadar")
+    expect(screen.queryByLabelText("Series de Segundo")).toBeNull()
+  })
+
+  it("la barra desaparece a los seis segundos y el borrador conserva la retirada", async () => {
+    const almacen = await prepararRetiradas()
+    jest.useFakeTimers()
+    try {
+      await fireEvent.press(screen.getByRole("button", { name: "Quitar Segundo" }))
+      await act(async () => {
+        jest.advanceTimersByTime(5999)
+      })
+      expect(screen.getByRole("button", { name: "Deshacer" })).toBeTruthy()
+      await act(async () => {
+        jest.advanceTimersByTime(1)
+      })
+      expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
+      const copia = almacen.datos.get("borrador-plan-20000000-0000-4000-8000-000000000000") as {
+        dias: Array<{ ejercicios: Array<{ nombre: string }> }>
+      }
+      expect(copia.dias[0]!.ejercicios.map((e) => e.nombre)).toEqual(["Primero", "Tercero"])
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it.each(["fase", "deporte"])("quitar una %s vacía no ofrece deshacer", async (tipo) => {
+    await prepararConstructor()
+    await screen.findByLabelText("Nombre del día")
+    await fireEvent.press(
+      screen.getByRole("button", { name: tipo === "fase" ? "Añadir fase" : "Añadir deporte" }),
+    )
+    await fireEvent.press(
+      screen.getByRole("button", { name: tipo === "fase" ? "Quitar la fase 1" : "Quitar " }),
+    )
+    expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
+  })
+  it.each(["fase", "deporte"])(
+    "reserva la plaza del elemento retirado (%s) hasta deshacer o agotar el plazo",
+    async (tipo) => {
+      await prepararRetiradas(8, 4)
+      jest.useFakeTimers()
+      try {
+        await fireEvent.press(
+          screen.getByRole("button", {
+            name: tipo === "fase" ? "Quitar la fase 2" : "Quitar Nadar",
+          }),
+        )
+        const anadir = tipo === "fase" ? "Añadir fase" : "Añadir deporte"
+        expect(screen.queryByRole("button", { name: anadir })).toBeNull()
+        await act(async () => {
+          jest.advanceTimersByTime(6000)
+        })
+        expect(screen.getByRole("button", { name: anadir })).toBeTruthy()
+      } finally {
+        jest.useRealTimers()
+      }
+    },
+  )
+
+  it.each(["Quitar Segundo", "Quitar la fase 2", "Quitar Nadar"])(
+    "dos activaciones de Deshacer no duplican lo quitado con %s",
+    async (quitar) => {
+      await prepararRetiradas()
+      await fireEvent.press(screen.getByRole("button", { name: quitar }))
+      const deshacer = screen.getByRole("button", { name: "Deshacer" }).props.onClick as () => void
+      await act(() => {
+        deshacer()
+        deshacer()
+      })
+      expect(screen.getAllByLabelText(/^Series de /)).toHaveLength(3)
+      expect(screen.getAllByLabelText(/^Nombre de la fase /)).toHaveLength(3)
+      expect(screen.getAllByLabelText(/^Deporte \d/)).toHaveLength(3)
+    },
+  )
+
+  it("recuperar el borrador descarta la retirada de la edición anterior", async () => {
+    await prepararRetiradas(3, 3, false)
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir fase" }))
+    await fireEvent.changeText(screen.getByLabelText("Nombre de la fase 1"), "Otra fase")
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar la fase 1" }))
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Recuperar mi plan" }))
+    expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
+    expect(screen.getAllByLabelText(/^Nombre de la fase /)).toHaveLength(3)
+  })
+})
+
+it("no serializa el plan por tecla y sigue protegiendo y autoguardando los cambios (T-07)", async () => {
+  const almacen = almacenEnMemoria()
+  await prepararConstructor(almacen)
+  await screen.findByLabelText("Nombre del día")
+  const original = JSON.stringify
+  const serializados: unknown[] = []
+  const serializar = jest
+    .spyOn(JSON, "stringify")
+    .mockImplementation((...args: Parameters<typeof JSON.stringify>) => {
+      const valor = args[0] as { dias?: unknown; bloque?: unknown } | null
+      if (valor && typeof valor === "object" && "dias" in valor && "bloque" in valor)
+        serializados.push(valor)
+      return original(...args)
+    })
+  jest.useFakeTimers()
+  try {
+    await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "P")
+    await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Plan")
+    await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Fuerza")
+    expect(serializados).toHaveLength(0)
+    expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(true)
+    await act(async () => {
+      jest.advanceTimersByTime(800)
+    })
+    expect(almacen.datos.get("borrador-plan-20000000-0000-4000-8000-000000000000")).toEqual(
+      expect.objectContaining({ nombre: "Plan" }),
+    )
+  } finally {
+    serializar.mockRestore()
+    jest.useRealTimers()
+  }
+})
+
+describe("acciones y mensajes junto al botón (T-06)", () => {
+  it("permite publicar desde el pie y muestra allí el campo que falta", async () => {
+    await prepararConstructor()
+    await screen.findByLabelText("Nombre del día")
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar al pie" }))
+    expect(within(screen.getByTestId("pie-del-plan")).getByRole("alert")).toHaveTextContent(
+      /Pon nombre a cada día/,
+    )
+    await completarDia()
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar al pie" }))
+    expect(screen.getByText("¿Publicar el plan?")).toBeTruthy()
+  })
+
+  it.each(["correcto", "fallido"])(
+    "un doble toque guarda una sola plantilla con resultado %s visible",
+    async (resultado) => {
+      let liberar!: () => void
+      const pausa = new Promise<void>((resolve) => {
+        liberar = resolve
+      })
+      const rutinas: ApiRutinas = {
+        listar: jest.fn(),
+        leer: jest.fn(),
+        editar: jest.fn(),
+        crear: jest.fn(async () => {
+          await pausa
+          if (resultado === "fallido") throw new Error("No se pudo guardar esta plantilla.")
+          return {} as never
+        }),
+      }
+      await prepararConstructor(almacenEnMemoria(), rutinas)
+      await completarDia()
+      const guardar = screen.getByRole("button", { name: "Guardar como plantilla" })
+      await fireEvent.press(guardar)
+      await fireEvent.press(guardar)
+      try {
+        expect(rutinas.crear).toHaveBeenCalledTimes(1)
+        expect(
+          screen.getByRole("button", { name: "Guardando plantilla…" }).props.accessibilityState,
+        ).toEqual(expect.objectContaining({ busy: true, disabled: true }))
+      } finally {
+        await act(async () => {
+          liberar()
+          await pausa
+        })
+      }
+      const acciones = within(screen.getByTestId("acciones-del-dia"))
+      if (resultado === "correcto")
+        expect(acciones.getByText("Guardado como plantilla en Rutinas.")).toBeTruthy()
+      else
+        expect(acciones.getByRole("alert")).toHaveTextContent("No se pudo guardar esta plantilla.")
+    },
+  )
 })

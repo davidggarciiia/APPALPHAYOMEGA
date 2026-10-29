@@ -15,11 +15,12 @@ export function SelectorEjercicios({
   const [buscar, setBuscar] = useState("")
   const [pagina, setPagina] = useState(0)
   const [resultado, setResultado] = useState<ListadoEjercicios | null>(null)
+  const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(false)
   const [intento, setIntento] = useState(0)
   useEffect(() => {
     let vigente = true
-    setResultado(null)
+    setCargando(true)
     setError(false)
     const temporizador = setTimeout(() => {
       void api
@@ -29,6 +30,9 @@ export function SelectorEjercicios({
         })
         .catch(() => {
           if (vigente) setError(true)
+        })
+        .finally(() => {
+          if (vigente) setCargando(false)
         })
     }, 250)
     return () => {
@@ -69,11 +73,16 @@ export function SelectorEjercicios({
           {pagina > 0 && (
             <BotonSecundario
               texto="Ejercicios anteriores"
+              deshabilitado={cargando}
               onPress={() => setPagina((n) => n - 1)}
             />
           )}
           {(pagina + 1) * 10 < resultado.total && (
-            <BotonSecundario texto="Más ejercicios" onPress={() => setPagina((n) => n + 1)} />
+            <BotonSecundario
+              texto="Más ejercicios"
+              deshabilitado={cargando}
+              onPress={() => setPagina((n) => n + 1)}
+            />
           )}
         </>
       )}

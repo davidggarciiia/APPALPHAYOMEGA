@@ -62,6 +62,7 @@ export function Celda({
   ancho,
   teclado = "default",
   marcador,
+  maximo = 40,
 }: {
   valor: string
   cambiar: (texto: string) => void
@@ -69,6 +70,7 @@ export function Celda({
   ancho?: number
   teclado?: "default" | "number-pad" | "decimal-pad"
   marcador?: string
+  maximo?: number
 }): React.JSX.Element {
   return (
     <TextInput
@@ -79,7 +81,7 @@ export function Celda({
       placeholder={marcador}
       placeholderTextColor={tema.marcador}
       selectionColor={tema.acento}
-      maxLength={40}
+      maxLength={maximo}
       style={[s.celda, ancho !== undefined ? { width: ancho } : s.flex]}
     />
   )
@@ -152,6 +154,7 @@ export function TablaPrincipal({
             />
             <Celda
               etiqueta={`Descanso de ${e.nombre}`}
+              maximo={30}
               valor={e.descanso}
               cambiar={(v) => cambiar(e.id, { descanso: v })}
               ancho={84}
