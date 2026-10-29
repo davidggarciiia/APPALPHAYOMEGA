@@ -1,6 +1,6 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useFocusEffect, useRouter } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_ZONA,
   type EstadoConsentimiento,
@@ -20,6 +20,7 @@ import { faseActual, semanaDelBloque, textoDeDeporte } from "../../entrenamiento
 import { Fila, Pestanas, Tarjeta, Titulo } from "../../entrenamiento/plan/piezas"
 import { Enlace } from "../../entrenamiento/sesion/controles"
 import { faltaDe } from "../../lib/errores"
+import { ErrorDePermiso, ErrorDeSesion } from "../../lib/http"
 import type { ApiNutricion } from "../../nutricion/api"
 import { tipoDelDia } from "../../nutricion/hoy-modelo"
 import type { ApiSeguimiento } from "../../seguimiento/api"
@@ -96,50 +97,102 @@ export function FichaCliente({
   abrirNutricion: (nombre: string) => void
 }): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>("resumen")
+  const [sesionInicial, setSesionInicial] = useState<string>()
   const [editandoProgreso, setEditandoProgreso] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
   const [respondiendo, setRespondiendo] = useState<Molestia | null>(null)
+  const versionMolestias = useRef(0)
   const router = useRouter()
   const lunes = lunesDeSemana()
 
   useFocusEffect(
     useCallback(() => {
-      let vigente = true
-      Promise.all([
-        leerFicha(),
-        api.plan(clienteId, lunes),
-        api.resultados(clienteId, 30),
-        api.molestias(clienteId, "todas"),
-        nutricion.vigente(clienteId).catch(() => null),
-        seguimiento.medidas(clienteId).catch(() => null),
-        seguimiento.consentimiento(clienteId).catch(() => null),
-      ])
-        .then(
-          ([ficha, { plan }, { resultados }, { molestias }, dieta, medidas, consentimiento]) => {
-            if (!vigente) return
-            setDatos({ ficha, plan, resultados, molestias, dieta, medidas, consentimiento })
-            setError("")
-          },
-        )
-        .catch((e: unknown) => {
-          if (vigente) setError(faltaDe(e, "No se pudo cargar la ficha.").texto)
-        })
+      let vigente = true,
+        cargando = false
+      const cargar = async (): Promise<void> => {
+        if (cargando || (AppState.currentState !== null && AppState.currentState !== "active"))
+          return
+        cargando = true
+        const versionDeMolestias = versionMolestias.current
+        try {
+          const [ficha, plan, resultados, molestias, dieta, medidas, consentimiento] =
+            await Promise.allSettled([
+              leerFicha(),
+              api.plan(clienteId, lunes),
+              api.resultados(clienteId, 30),
+              api.molestias(clienteId, "todas"),
+              nutricion.vigente(clienteId),
+              seguimiento.medidas(clienteId),
+              seguimiento.consentimiento(clienteId),
+            ])
+          if (!vigente) return
+          const sinAcceso = [
+            ficha,
+            plan,
+            resultados,
+            molestias,
+            dieta,
+            medidas,
+            consentimiento,
+          ].find(
+            (consulta) =>
+              consulta.status === "rejected" &&
+              (consulta.reason instanceof ErrorDeSesion ||
+                consulta.reason instanceof ErrorDePermiso),
+          )
+          if (sinAcceso?.status === "rejected") {
+            setDatos(null)
+            setRespondiendo(null)
+            setError(faltaDe(sinAcceso.reason, "No se pudo cargar la ficha.").texto)
+            return
+          }
+          setDatos((actual) => {
+            const perfil = ficha.status === "fulfilled" ? ficha.value : actual?.ficha
+            if (!perfil) return null
+            return {
+              ficha: perfil,
+              plan: plan.status === "fulfilled" ? plan.value.plan : (actual?.plan ?? null),
+              resultados:
+                resultados.status === "fulfilled"
+                  ? resultados.value.resultados
+                  : (actual?.resultados ?? []),
+              molestias:
+                molestias.status === "fulfilled" && versionDeMolestias === versionMolestias.current
+                  ? molestias.value.molestias
+                  : (actual?.molestias ?? []),
+              dieta: dieta.status === "fulfilled" ? dieta.value : (actual?.dieta ?? null),
+              medidas: medidas.status === "fulfilled" ? medidas.value : (actual?.medidas ?? null),
+              consentimiento:
+                consentimiento.status === "fulfilled"
+                  ? consentimiento.value
+                  : (actual?.consentimiento ?? null),
+            }
+          })
+          const fallo = [ficha, plan, resultados, molestias].find((r) => r.status === "rejected")
+          setError(fallo ? faltaDe(fallo.reason, "No se pudo cargar la ficha.").texto : "")
+        } finally {
+          cargando = false
+        }
+      }
+      void cargar()
+      const reloj = setInterval(() => void cargar(), 10000)
       return () => {
         vigente = false
+        clearInterval(reloj)
       }
     }, [leerFicha, api, nutricion, seguimiento, clienteId, lunes, intento]),
   )
 
-  if (error !== "")
-    return (
+  const aviso =
+    error !== "" ? (
       <View style={s.grupo}>
         <AvisoDeError mensaje={error} />
         <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
       </View>
-    )
-  if (datos === null) return <Text style={s.tenue}>Cargando la ficha…</Text>
+    ) : null
+  if (datos === null) return aviso ?? <Text style={s.tenue}>Cargando la ficha…</Text>
 
   const nombre = [datos.ficha.nombre, datos.ficha.apellidos].filter(Boolean).join(" ")
   const plan = datos.plan
@@ -159,8 +212,17 @@ export function FichaCliente({
     .filter((r) => r.agenda.fechaActual >= lunes)
     .map((r) => r.resultado)
   const ultima = datos.resultados[0]
+  const verSesion = (sesionId: string): void => {
+    if (!datos.resultados.some((r) => r.agenda.id === sesionId)) {
+      router.push({ pathname: "/entrenamiento/[id]", params: { id: sesionId } })
+      return
+    }
+    setSesionInicial(sesionId)
+    setPestana("sesiones")
+  }
   const responder = async (molestia: Molestia, texto: string): Promise<void> => {
     const atendida = await api.atenderMolestia(molestia.id, texto)
+    versionMolestias.current += 1
     setDatos((actual) =>
       actual
         ? {
@@ -173,6 +235,7 @@ export function FichaCliente({
 
   return (
     <View style={s.contenido}>
+      {aviso}
       <View style={s.cabecera}>
         <View style={s.textos}>
           <Text style={s.nombre} accessibilityRole="header">
@@ -219,7 +282,7 @@ export function FichaCliente({
             molestias={datos.molestias}
             semana={deEstaSemana}
             responder={setRespondiendo}
-            verSesiones={() => setPestana("sesiones")}
+            verSesiones={verSesion}
           />
           <NovedadesEntrenamiento
             clienteId={clienteId}
@@ -240,7 +303,7 @@ export function FichaCliente({
                     </Text>
                     <Text style={s.tenue}>{resumenDeResultado(ultima.resultado)}</Text>
                   </View>
-                  <Enlace texto="Ver sesión" onPress={() => setPestana("sesiones")} />
+                  <Enlace texto="Ver sesión" onPress={() => verSesion(ultima.agenda.id)} />
                 </Fila>
               </Tarjeta>
             ) : (
@@ -262,6 +325,7 @@ export function FichaCliente({
 
       {pestana === "sesiones" && (
         <SesionesDelCliente
+          sesionInicial={sesionInicial}
           resultados={datos.resultados}
           molestias={datos.molestias}
           api={api}

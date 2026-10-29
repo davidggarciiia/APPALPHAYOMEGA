@@ -21,21 +21,42 @@ export function DetalleEntrenador({
   const [intento, setIntento] = useState(0)
   const [revisando, setRevisando] = useState(false)
   const router = useRouter()
+  const completada = Boolean(
+    sesion?.agenda.id === id && sesion.enviadoEn && sesion.revisadaEn && resultado && !error,
+  )
   useFocusEffect(
     useCallback(() => {
+      if (completada) return
       let vigente = true,
-        cargando = false
+        cargando = false,
+        enviada = false
       const cargar = async (): Promise<void> => {
-        if (cargando || (AppState.currentState !== null && AppState.currentState !== "active"))
+        if (
+          !vigente ||
+          cargando ||
+          (AppState.currentState !== null && AppState.currentState !== "active")
+        )
           return
         cargando = true
         try {
-          const s = await api.leerEntrenador(id)
-          const r = s.enviadoEn ? await api.resultado(id) : undefined
+          const lectura = api.leerEntrenador(id)
+          const [s, r] = await Promise.allSettled([
+            lectura,
+            enviada
+              ? api.resultado(id)
+              : lectura.then((s) => (vigente && s.enviadoEn ? api.resultado(id) : undefined)),
+          ])
           if (vigente) {
-            setSesion(s)
-            setResultado(r)
-            setError("")
+            if (s.status === "fulfilled") {
+              setSesion(s.value)
+              enviada = Boolean(s.value.enviadoEn)
+            }
+            if (r.status === "fulfilled") setResultado(r.value)
+            setError(
+              s.status === "rejected" || r.status === "rejected"
+                ? "No se pudo actualizar el entrenamiento."
+                : "",
+            )
           }
         } catch {
           if (vigente) setError("No se pudo actualizar el entrenamiento.")
@@ -53,7 +74,7 @@ export function DetalleEntrenador({
         clearInterval(reloj)
         actividad.remove()
       }
-    }, [id, api, intento]),
+    }, [id, api, intento, completada]),
   )
   return (
     <View style={{ gap: 16 }}>

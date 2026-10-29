@@ -12,7 +12,7 @@ import type {
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { useSalidaProtegida } from "../componentes/salida-protegida"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
-import { Enlace } from "../entrenamiento/sesion/controles"
+import { Dialogo, Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePeticion } from "../lib/http"
 import { tema } from "../tema"
@@ -210,6 +210,7 @@ export function BorradorValoracion({
   const [edicion, setEdicion] = useState(() => edicionDe(inicial))
   const [estado, setEstado] = useState<Estado>("guardado")
   const [error, setError] = useState("")
+  const [confirmandoPublicacion, setConfirmandoPublicacion] = useState(false)
   const { proteger, permitir, proteccion } = useSalidaProtegida(estado !== "guardado")
   const [abierta, setAbierta] = useState<Seccion>(
     () => inicial.borrador!.documento.bloques.find((b) => CON_FORMULARIO.includes(b)) ?? "resumen",
@@ -300,6 +301,7 @@ export function BorradorValoracion({
           ).texto,
         )
     } finally {
+      setConfirmandoPublicacion(false)
       enCurso.current = false
     }
   }
@@ -435,13 +437,27 @@ export function BorradorValoracion({
                     ? "Publicar la corrección"
                     : "Publicar"
               }
-              onPress={() => void publicarAhora()}
+              onPress={() => {
+                if (!enCurso.current && estado === "guardado") setConfirmandoPublicacion(true)
+              }}
             />
           ) : (
             <Text style={s.tenue}>Guarda los cambios para poder publicar.</Text>
           )}
         </View>
       )}
+      <Dialogo
+        visible={confirmandoPublicacion}
+        titulo={
+          borrador.corrigePublicacionId ? "¿Publicar la corrección?" : "¿Publicar la valoración?"
+        }
+        texto="El cliente verá esta valoración y recibirá un aviso. Para cambiarla después tendrás que publicar una corrección."
+        confirmar="Sí, publicar"
+        cancelar="Cancelar"
+        ocupado={estado === "publicando"}
+        alConfirmar={() => void publicarAhora()}
+        alCancelar={() => setConfirmandoPublicacion(false)}
+      />
     </View>
   )
 }

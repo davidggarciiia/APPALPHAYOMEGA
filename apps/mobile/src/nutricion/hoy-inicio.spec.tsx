@@ -9,8 +9,10 @@ import {
 } from "@alpha-omega/shared"
 
 import { hoyAgenda } from "../entrenamiento/fechas"
+import { ErrorDePermiso, ErrorDeRed, ErrorDeSesion, ErrorDelServidor } from "../lib/http"
 import type { ApiSeguimiento } from "../seguimiento/api"
 import type { ApiNutricion } from "./api"
+import { leerCopia } from "./copia-local"
 import { HoyInicio } from "./hoy-inicio"
 
 jest.mock("expo-router", () => ({
@@ -18,12 +20,16 @@ jest.mock("expo-router", () => ({
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
 }))
 jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
+jest.mock("../entrenamiento/almacen-dispositivo", () => ({ almacenDispositivo: {} }))
+jest.mock("./copia-local", () => ({ leerCopia: jest.fn(async () => null) }))
 jest.mock("expo-crypto", () => ({
   randomUUID: () => jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID(),
 }))
 
 const CLIENTE = "10000000-0000-4000-8000-000000000000"
 const TIPO = "00000000-0000-4000-8000-000000000001"
+
+beforeEach(() => jest.mocked(leerCopia).mockReset().mockResolvedValue(null))
 
 function dieta(suplementos?: DocumentoDieta["suplementos"]): DocumentoDieta {
   return {
@@ -573,4 +579,79 @@ it("al volver a enfocar recarga sin vaciar la tarjeta de Hoy (N-03)", async () =
   )
   expect(screen.getByRole("button", { name: "Peso: sin apuntar. Cambiar" })).toBeTruthy()
   expect(screen.getByRole("button", { name: "Pasos: sin apuntar. Cambiar" })).toBeTruthy()
+})
+
+it.each([new ErrorDeRed(), new ErrorDelServidor(503), new Error("Respuesta inválida")])(
+  "conserva los suplementos de la copia en solo lectura ante %s (N-04)",
+  async (fallo) => {
+    const { nutricion, seguimiento } = apis(dieta([{ nombre: "Vitamina D", dosis: "1 cápsula" }]))
+    const vigente = await nutricion.vigente()
+    jest.mocked(leerCopia).mockResolvedValue({ ...vigente, actualizadaEn: "2026-10-28T08:00:00Z" })
+    nutricion.vigente.mockRejectedValue(fallo)
+
+    await render(
+      <HoyInicio
+        clienteId={CLIENTE}
+        nutricion={nutricion}
+        seguimiento={seguimiento}
+        objetivoPasos={null}
+      />,
+    )
+    const suplemento = await screen.findByRole("checkbox", { name: "Vitamina D tomada" })
+    expect(suplemento).toBeDisabled()
+    expect(screen.getByText("1 cápsula")).toBeTruthy()
+    expect(screen.getByText("Suplementos de la copia guardada · solo lectura.")).toBeTruthy()
+    await fireEvent.press(suplemento)
+    expect(seguimiento.cambiarDia).not.toHaveBeenCalled()
+    expect(leerCopia).toHaveBeenCalledWith(expect.anything(), CLIENTE)
+  },
+)
+
+it.each([new ErrorDeSesion(), new ErrorDePermiso()])(
+  "no consulta la copia cuando falla la autorización con %s (N-04)",
+  async (fallo) => {
+    const { nutricion, seguimiento } = apis(null)
+    nutricion.vigente.mockRejectedValue(fallo)
+    await render(
+      <HoyInicio
+        clienteId={CLIENTE}
+        nutricion={nutricion}
+        seguimiento={seguimiento}
+        objetivoPasos={null}
+      />,
+    )
+    await screen.findByRole("button", { name: "Peso: sin apuntar. Cambiar" })
+    expect(leerCopia).not.toHaveBeenCalled()
+    expect(screen.queryByRole("checkbox")).toBeNull()
+  },
+)
+
+it("recupera la edición de suplementos al volver a cargar desde el servidor (N-04)", async () => {
+  const { nutricion, seguimiento } = apis(dieta([{ nombre: "Vitamina D", dosis: null }]))
+  const vigente = await nutricion.vigente()
+  jest.mocked(leerCopia).mockResolvedValue({ ...vigente, actualizadaEn: "2026-10-28T08:00:00Z" })
+  nutricion.vigente.mockRejectedValueOnce(new ErrorDeRed())
+  const vista = await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  expect(await screen.findByRole("checkbox", { name: "Vitamina D tomada" })).toBeDisabled()
+  await vista.rerender(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={{ ...nutricion }}
+      seguimiento={seguimiento}
+      objetivoPasos={null}
+    />,
+  )
+  await waitFor(() =>
+    expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled(),
+  )
+  expect(screen.queryByText("Suplementos de la copia guardada · solo lectura.")).toBeNull()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(seguimiento.cambiarDia).toHaveBeenCalledTimes(1)
 })

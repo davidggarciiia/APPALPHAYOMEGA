@@ -373,6 +373,43 @@ function publicada(numero = 1): ValoracionProfesional {
   }
 }
 
+it("Publicar pide confirmación y cancelar conserva el borrador sin publicarlo", async () => {
+  const falsa = api()
+  await abrirNueva(falsa)
+  await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  expect(falsa.publicar).not.toHaveBeenCalled()
+  expect(screen.getByRole("header", { name: "¿Publicar la valoración?" })).toBeOnTheScreen()
+  expect(screen.getByText(/El cliente verá esta valoración y recibirá un aviso/)).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Cancelar" }))
+  expect(screen.queryByRole("button", { name: "Sí, publicar" })).toBeNull()
+  expect(screen.getByLabelText("Peso (kg)")).toBeOnTheScreen()
+  expect(screen.getByText("Guardado")).toBeOnTheScreen()
+  expect(falsa.publicar).not.toHaveBeenCalled()
+})
+
+it("confirmar una publicación lenta bloquea el diálogo y envía una sola vez", async () => {
+  const falsa = api()
+  let terminar!: (publicacion: PublicacionValoracion) => void
+  falsa.publicar.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        terminar = resolve
+      }),
+  )
+  falsa.leer.mockResolvedValue(publicada())
+  await abrirNueva(falsa)
+  await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  const confirmar = screen.getByRole("button", { name: "Sí, publicar" })
+  await fireEvent.press(confirmar)
+  expect(confirmar).toBeDisabled()
+  expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled()
+  await fireEvent.press(confirmar)
+  await fireEvent.press(screen.getByRole("button", { name: "Cancelar" }))
+  expect(falsa.publicar).toHaveBeenCalledTimes(1)
+  await act(async () => terminar(publicada().publicacion!))
+  expect(await screen.findByRole("button", { name: "Corregir" })).toBeOnTheScreen()
+})
+
 it("publicar exige lo guardado y un reintento reutiliza la misma operación", async () => {
   const falsa = api()
   await abrirNueva(falsa)
@@ -384,9 +421,12 @@ it("publicar exige lo guardado y un reintento reutiliza la misma operación", as
   falsa.publicar.mockRejectedValueOnce(new ErrorDeRed())
   falsa.publicar.mockResolvedValueOnce(publicada().publicacion!)
   await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Sí, publicar" }))
   expect(await screen.findByText(/No hemos podido conectar/)).toBeTruthy()
   falsa.leer.mockResolvedValue(publicada())
   await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  expect(falsa.publicar).toHaveBeenCalledTimes(1)
+  await fireEvent.press(screen.getByRole("button", { name: "Sí, publicar" }))
   expect(await screen.findByRole("button", { name: "Corregir" })).toBeTruthy()
   const [primera, segunda] = falsa.publicar.mock.calls
   expect(segunda![2].operacionId).toBe(primera![2].operacionId)
@@ -424,6 +464,9 @@ it("corregir una publicación abre un borrador de la misma visita que la sustitu
   })
   falsa.publicar.mockResolvedValueOnce({ ...publicada(2).publicacion!, sustituyeId: PUBLICACION })
   await fireEvent.press(screen.getByRole("button", { name: "Publicar la corrección" }))
+  expect(falsa.publicar).not.toHaveBeenCalled()
+  expect(screen.getByRole("header", { name: "¿Publicar la corrección?" })).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Sí, publicar" }))
   await waitFor(() =>
     expect(falsa.publicar).toHaveBeenCalledWith(
       CLIENTE,

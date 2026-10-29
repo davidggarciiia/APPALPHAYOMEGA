@@ -100,7 +100,7 @@ export function RequiereAtencion({
   /** Resultados de esta semana. */
   semana: ResultadoEntrenamiento[]
   responder: (molestia: Molestia) => void
-  verSesiones: () => void
+  verSesiones: (sesionId: string) => void
 }): React.JSX.Element {
   const [criterios, setCriterios] = useState(false)
   const abiertas = molestias
@@ -127,7 +127,7 @@ export function RequiereAtencion({
                 <Text style={s.tenue}>{detalle}</Text>
               </View>
               <View style={s.acciones}>
-                <Enlace texto="Ver sesión" onPress={verSesiones} />
+                <Enlace texto="Ver sesión" onPress={() => verSesiones(m.sesionId)} />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Responder: ${titulo}`}
@@ -191,7 +191,7 @@ const s = StyleSheet.create({
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18 },
   cumple: { color: tema.aviso, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18 },
   acciones: { flexDirection: "row", alignItems: "center", gap: 12 },
-  boton: { minHeight: 40, paddingHorizontal: 14, borderRadius: 10, justifyContent: "center" },
+  boton: { minHeight: 44, paddingHorizontal: 14, borderRadius: 10, justifyContent: "center" },
   textoBoton: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 14 },
   campo: {
     minHeight: 88,

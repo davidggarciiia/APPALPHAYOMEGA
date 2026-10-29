@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native"
 import type { ComentarioSesion, ListadoResultados, Molestia } from "@alpha-omega/shared"
 
-import { AvisoDeError } from "../../componentes/formulario"
+import { AvisoDeError, BotonSecundario } from "../../componentes/formulario"
 import { Icono } from "../../componentes/iconos"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import { fechaLegible } from "../../entrenamiento/fechas"
@@ -26,6 +26,8 @@ function colorDeProxima(fila: FilaDeSesion): object {
 function hora(iso: string): string {
   return new Intl.DateTimeFormat("es-ES", {
     weekday: "long",
+    day: "numeric",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Madrid",
@@ -34,12 +36,14 @@ function hora(iso: string): string {
 
 /** «Sesiones» de la ficha: cada sesión enviada con su tabla y los comentarios. */
 export function SesionesDelCliente({
+  sesionInicial,
   resultados,
   molestias,
   api,
   cuentaId,
   nuevoId,
 }: {
+  sesionInicial?: string
   resultados: Resultado[]
   molestias: Molestia[]
   api: ApiEntrenamiento
@@ -47,7 +51,11 @@ export function SesionesDelCliente({
   nuevoId: () => string
 }): React.JSX.Element {
   const { width } = useWindowDimensions()
-  const [indice, setIndice] = useState(0)
+  const [seleccionada, setSeleccionada] = useState(() => sesionInicial ?? resultados[0]?.agenda.id)
+  const indice = Math.max(
+    0,
+    resultados.findIndex((r) => r.agenda.id === seleccionada),
+  )
   const [comentarios, setComentarios] = useState<ComentarioSesion[]>([])
   const [borradores, setBorradores] = useState<Record<string, string>>({})
   const [pendientes, setPendientes] = useState<Record<string, SolicitudComentario>>({})
@@ -55,11 +63,19 @@ export function SesionesDelCliente({
   const [error, setError] = useState("")
   const [enviando, setEnviando] = useState(false)
   const enCurso = useRef(false)
+  const [revisadas, setRevisadas] = useState<Record<string, boolean>>({})
+  const [revisando, setRevisando] = useState<string | null>(null)
+  const revisionEnCurso = useRef(false)
+  const [errorRevision, setErrorRevision] = useState<{ sesionId: string; texto: string } | null>(
+    null,
+  )
   const actual = resultados[indice]
   const sesionId = actual?.agenda.id
   const texto = sesionId ? (borradores[sesionId] ?? "") : ""
   const sesionVisible = useRef(sesionId)
   sesionVisible.current = sesionId
+
+  useEffect(() => setSeleccionada(sesionId), [sesionId])
 
   useEffect(() => {
     if (!sesionId) return
@@ -83,6 +99,25 @@ export function SesionesDelCliente({
   )
   const filas = filasDeSesion(actual.resultado, conMolestia)
   const ancho = width >= 900
+  const revisar = async (): Promise<void> => {
+    const origen = actual.agenda.id
+    if (revisionEnCurso.current || revisadas[origen]) return
+    revisionEnCurso.current = true
+    setRevisando(origen)
+    setErrorRevision(null)
+    try {
+      await api.revisar(origen)
+      setRevisadas((anteriores) => ({ ...anteriores, [origen]: true }))
+    } catch (e) {
+      setErrorRevision({
+        sesionId: origen,
+        texto: faltaDe(e, "No se pudo guardar la revisión. Reintenta.").texto,
+      })
+    } finally {
+      revisionEnCurso.current = false
+      setRevisando(null)
+    }
+  }
   const enviar = async (): Promise<void> => {
     if (enCurso.current) return
     if (texto.trim() === "") return setError("Escribe el comentario.")
@@ -137,7 +172,7 @@ export function SesionesDelCliente({
             accessibilityRole="button"
             accessibilityLabel="Sesión anterior"
             disabled={enviando || indice >= resultados.length - 1}
-            onPress={() => setIndice(indice + 1)}
+            onPress={() => setSeleccionada(resultados[indice + 1]?.agenda.id)}
             style={[s.flecha, (enviando || indice >= resultados.length - 1) && s.apagada]}
           >
             <Icono nombre="atras" color={tema.texto} tamano={18} />
@@ -146,7 +181,7 @@ export function SesionesDelCliente({
             accessibilityRole="button"
             accessibilityLabel="Sesión siguiente"
             disabled={enviando || indice === 0}
-            onPress={() => setIndice(indice - 1)}
+            onPress={() => setSeleccionada(resultados[indice - 1]?.agenda.id)}
             style={[s.flecha, (enviando || indice === 0) && s.apagada]}
           >
             <Icono nombre="adelante" color={tema.texto} tamano={18} />
@@ -230,6 +265,19 @@ export function SesionesDelCliente({
           <Text style={s.tenue}>Reintenta para confirmar este comentario antes de cambiarlo.</Text>
         )}
         <BotonDorado texto="Enviar comentario" ocupado={enviando} onPress={() => void enviar()} />
+        {errorRevision?.sesionId === actual.agenda.id && (
+          <AvisoDeError mensaje={errorRevision.texto} />
+        )}
+        {revisadas[actual.agenda.id] ? (
+          <Text style={s.tenue}>Revisada</Text>
+        ) : (
+          <BotonSecundario
+            texto="Marcar como revisada"
+            ocupado={revisando === actual.agenda.id}
+            deshabilitado={revisando !== null}
+            onPress={() => void revisar()}
+          />
+        )}
       </View>
     </View>
   )
@@ -247,8 +295,8 @@ const s = StyleSheet.create({
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
   fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
   flecha: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 10,
     backgroundColor: tema.superficieAlta,
     alignItems: "center",

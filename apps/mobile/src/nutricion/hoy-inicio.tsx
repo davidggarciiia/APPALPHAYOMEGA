@@ -12,13 +12,16 @@ import type {
 
 import { AvisoDeError, Campo } from "../componentes/formulario"
 import { Icono } from "../componentes/iconos"
+import { almacenDispositivo } from "../entrenamiento/almacen-dispositivo"
 import { hoyAgenda } from "../entrenamiento/fechas"
 import { Dialogo } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
+import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
 import { degradadoExito, tema } from "../tema"
 import type { ApiSeguimiento } from "../seguimiento/api"
 import { leerDecimal, leerSueno, miles, pesoLegible, suenoLegible } from "../seguimiento/modelo"
 import type { ApiNutricion } from "./api"
+import { leerCopia } from "./copia-local"
 import { cambioDeSuplemento, suplementoTomado } from "./hoy-modelo"
 
 type Dato = "pesoKg" | "pasos" | "suenoMin" | "cinturaCm"
@@ -133,6 +136,7 @@ export function HoyInicio({
   // Un reintento del mismo valor reutiliza la operación: el servidor no guarda dos medidas.
   const operacionCintura = useRef<{ id: string; cm: number } | null>(null)
   const [suplementos, setSuplementos] = useState<Suplemento[]>([])
+  const [suplementosDeCopia, setSuplementosDeCopia] = useState(false)
   const [editando, setEditando] = useState<Dato | null>(null)
   const [texto, setTexto] = useState("")
   const [error, setError] = useState("")
@@ -183,10 +187,20 @@ export function HoyInicio({
       nutricion
         .vigente(clienteId)
         .then(({ dieta }) => {
-          if (vigente) setSuplementos(dieta?.documento.suplementos ?? [])
+          if (!vigente) return
+          setSuplementos(dieta?.documento.suplementos ?? [])
+          setSuplementosDeCopia(false)
         })
-        .catch(() => {
-          if (vigente) setSuplementos([])
+        .catch(async (fallo) => {
+          if (!vigente) return
+          // Como en Nutrición, una sesión caducada o un permiso retirado no permiten usar la copia.
+          const copia =
+            fallo instanceof ErrorDeSesion || fallo instanceof ErrorDePermiso
+              ? null
+              : await leerCopia(almacenDispositivo, clienteId).catch(() => null)
+          if (!vigente) return
+          setSuplementos(copia?.dieta?.documento.suplementos ?? [])
+          setSuplementosDeCopia(copia !== null)
         })
       return () => {
         vigente = false
@@ -304,8 +318,11 @@ export function HoyInicio({
               accessibilityRole="checkbox"
               aria-checked={tomado}
               accessibilityLabel={`${suplemento.nombre} tomada`}
-              accessibilityState={{ checked: tomado, disabled: ocupado || !diaCargado }}
-              disabled={ocupado || !diaCargado}
+              accessibilityState={{
+                checked: tomado,
+                disabled: ocupado || !diaCargado || suplementosDeCopia,
+              }}
+              disabled={ocupado || !diaCargado || suplementosDeCopia}
               onPress={() => void guardar(cambioDeSuplemento(suplemento, !tomado, dia))}
             >
               <View style={s.suplemento}>
@@ -319,6 +336,9 @@ export function HoyInicio({
           )
         })}
       </View>
+      {suplementosDeCopia && suplementos.length > 0 && (
+        <Text style={s.dosis}>Suplementos de la copia guardada · solo lectura.</Text>
+      )}
       {configuracion && indicadoresHoy.length === 0 && suplementos.length === 0 && error === "" && (
         <Text style={s.dosis}>Hoy no tienes registros pautados en esta pantalla.</Text>
       )}

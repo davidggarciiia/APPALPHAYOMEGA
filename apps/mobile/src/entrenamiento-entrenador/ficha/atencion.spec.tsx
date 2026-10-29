@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react-native"
+import { StyleSheet } from "react-native"
 import type { Molestia } from "@alpha-omega/shared"
 
-import { DialogoResponder } from "./atencion"
+import { DialogoResponder, RequiereAtencion } from "./atencion"
 
 jest.mock("../../componentes/iconos", () => ({ Icono: () => null }))
 
@@ -19,6 +20,23 @@ const molestia = (id: string): Molestia =>
   }) as unknown as Molestia
 
 const CAMPO = "Respuesta para el cliente"
+
+it("Responder tiene una caja propia de al menos 44 px de alto", async () => {
+  const responder = jest.fn()
+  await render(
+    <RequiereAtencion
+      molestias={[molestia("a")]}
+      semana={[]}
+      responder={responder}
+      verSesiones={jest.fn()}
+    />,
+  )
+  const boton = screen.getByRole("button", { name: /^Responder:/ })
+  const estilo = StyleSheet.flatten(boton.props.style)
+  expect(estilo.minHeight).toBeGreaterThanOrEqual(44)
+  await fireEvent.press(boton)
+  expect(responder).toHaveBeenCalledWith(molestia("a"))
+})
 
 /**
  * Lo que se escribe para una molestia es una indicación de salud: no puede
