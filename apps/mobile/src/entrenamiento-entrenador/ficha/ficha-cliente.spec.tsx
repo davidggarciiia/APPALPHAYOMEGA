@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+﻿import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import { AppState, StyleSheet } from "react-native"
 import type { FichaDeUsuario, ListadoResultados, Molestia } from "@alpha-omega/shared"
 
@@ -10,12 +10,18 @@ import type { ApiMedios } from "../../seguimiento/medios-api"
 import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { FichaCliente } from "./ficha-cliente"
 
+const mockEntradaValoracion = jest.fn()
 jest.mock("../../seguimiento/editor-valoracion", () => ({
   ValoracionesProfesional: function EditorDePrueba({
     alEditar,
+    iniciarInicial,
+    fechaNacimiento,
   }: {
     alEditar?: (valor: boolean) => void
+    iniciarInicial?: boolean
+    fechaNacimiento?: string | null
   }) {
+    mockEntradaValoracion({ iniciarInicial, fechaNacimiento })
     const { useEffect, useState } = jest.requireActual<typeof import("react")>("react")
     const { TextInput } = jest.requireActual<typeof import("react-native")>("react-native")
     const [valor, cambiar] = useState("")
@@ -73,7 +79,7 @@ async function mostrarFicha(
   consultas: Partial<
     Pick<
       Parameters<typeof FichaCliente>[0],
-      "leerFicha" | "nutricion" | "seguimiento" | "verSemana"
+      "leerFicha" | "nutricion" | "seguimiento" | "verSemana" | "valoraciones" | "valoracionInicial"
     >
   > = {},
 ): Promise<void> {
@@ -92,7 +98,9 @@ async function mostrarFicha(
         } as unknown as ApiSeguimiento
       }
       nutricion={{ vigente: async () => null } as unknown as ApiNutricion}
-      valoraciones={{} as ApiValoraciones}
+      valoraciones={
+        { listar: async () => ({ total: 0, valoraciones: [] }) } as unknown as ApiValoraciones
+      }
       medios={{} as ApiMedios}
       nuevoId={() => clienteId}
       editarPlan={jest.fn()}
@@ -102,6 +110,47 @@ async function mostrarFicha(
     />,
   )
 }
+
+it("ofrece valoración inicial en Resumen solo cuando no hay ninguna visita", async () => {
+  const listar = jest.fn(async () => ({ total: 0, valoraciones: [] }))
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, {
+    valoraciones: { listar } as unknown as ApiValoraciones,
+    leerFicha: async () => ({ nombre: "Lara", fechaNacimiento: "1990-05-12" }) as FichaDeUsuario,
+  })
+  expect(listar).toHaveBeenCalledWith(clienteId, 1)
+  await fireEvent.press(await screen.findByRole("button", { name: "Valoración inicial" }))
+  expect(screen.getByRole("tab", { name: "Progreso" })).toBeSelected()
+  expect(screen.getByLabelText("Valoración en edición")).toBeOnTheScreen()
+  expect(mockEntradaValoracion).toHaveBeenLastCalledWith({
+    iniciarInicial: true,
+    fechaNacimiento: "1990-05-12",
+  })
+})
+
+it.each(["borrador", "publicada", "sin datos de visitas"])(
+  "no ofrece una inicial en Resumen con %s",
+  async (estado) => {
+    const listar = jest.fn(async () => {
+      if (estado === "sin datos de visitas") throw new Error("Sin conexión")
+      return { total: 1, valoraciones: [] }
+    })
+    await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, {
+      valoraciones: { listar } as unknown as ApiValoraciones,
+    })
+    await screen.findByText("Lara García")
+    expect(screen.queryByRole("button", { name: "Valoración inicial" })).toBeNull()
+  },
+)
+
+it("el acceso tras el alta entra en Progreso y solicita la selección inicial", async () => {
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, { valoracionInicial: true })
+  expect(await screen.findByLabelText("Valoración en edición")).toBeOnTheScreen()
+  expect(screen.getByRole("tab", { name: "Progreso" })).toBeSelected()
+  expect(mockEntradaValoracion).toHaveBeenLastCalledWith({
+    iniciarInicial: true,
+    fechaNacimiento: undefined,
+  })
+})
 
 it.each(["cliente", "cuenta"])(
   "aísla la ficha y sus borradores al cambiar de %s",
@@ -116,7 +165,9 @@ it.each(["cliente", "cuenta"])(
         consentimiento: async () => null,
       } as unknown as ApiSeguimiento,
       nutricion: { vigente: async () => null } as unknown as ApiNutricion,
-      valoraciones: {} as ApiValoraciones,
+      valoraciones: {
+        listar: async () => ({ total: 0, valoraciones: [] }),
+      } as unknown as ApiValoraciones,
       medios: {} as ApiMedios,
       nuevoId: () => clienteId,
       editarPlan: jest.fn(),
@@ -380,7 +431,9 @@ it.each(["C", "fuera-del-listado"])(
           } as unknown as ApiSeguimiento
         }
         nutricion={{ vigente: async () => null } as unknown as ApiNutricion}
-        valoraciones={{} as ApiValoraciones}
+        valoraciones={
+          { listar: async () => ({ total: 0, valoraciones: [] }) } as unknown as ApiValoraciones
+        }
         medios={{} as ApiMedios}
         nuevoId={() => clienteId}
         editarPlan={jest.fn()}
@@ -427,7 +480,9 @@ it("cambiar de pestaña conserva el editor de valoraciones abierto", async () =>
         } as unknown as ApiSeguimiento
       }
       nutricion={{ vigente: async () => null } as unknown as ApiNutricion}
-      valoraciones={{} as ApiValoraciones}
+      valoraciones={
+        { listar: async () => ({ total: 0, valoraciones: [] }) } as unknown as ApiValoraciones
+      }
       medios={{} as ApiMedios}
       nuevoId={() => clienteId}
       editarPlan={jest.fn()}
@@ -486,7 +541,9 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
       leerFicha={async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario}
       api={api}
       seguimiento={seguimiento}
-      valoraciones={{} as ApiValoraciones}
+      valoraciones={
+        { listar: async () => ({ total: 0, valoraciones: [] }) } as unknown as ApiValoraciones
+      }
       medios={{} as ApiMedios}
       nutricion={nutricion}
       nuevoId={() => "50000000-0000-4000-8000-000000000000"}

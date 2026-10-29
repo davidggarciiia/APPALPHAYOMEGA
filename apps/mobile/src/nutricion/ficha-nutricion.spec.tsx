@@ -1,6 +1,11 @@
 import { describe, expect, it, jest } from "@jest/globals"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
-import type { BorradorDieta, DietaPublicada, DocumentoDieta } from "@alpha-omega/shared"
+import type {
+  BorradorDieta,
+  DietaPublicada,
+  DocumentoDieta,
+  ValoracionCorporal,
+} from "@alpha-omega/shared"
 import { hoyAgenda } from "../entrenamiento/fechas"
 
 import type { ApiSeguimiento } from "../seguimiento/api"
@@ -67,6 +72,111 @@ function apis() {
 }
 
 describe("FichaNutricion", () => {
+  const valoracion: ValoracionCorporal = {
+    id: "20000000-0000-4000-8000-000000000001",
+    publicacionId: "30000000-0000-4000-8000-000000000001",
+    tipo: "revision",
+    numero: 1,
+    fechaToma: "2026-10-20",
+    publicadaEn: "2026-10-21T10:00:00.000Z",
+    definiciones: [
+      {
+        id: "40000000-0000-4000-8000-000000000001",
+        version: 1,
+        bloque: "medidas",
+        magnitud: "peso",
+        nombre: "Peso",
+        unidad: "kg",
+        zona: null,
+        lateralidad: null,
+        instrumento: null,
+        protocolo: null,
+        activa: true,
+      },
+    ],
+    corporales: [
+      { definicionId: "40000000-0000-4000-8000-000000000001", estado: "registrado", valor: 82.5 },
+    ],
+    grasaPorPliegues: null,
+  }
+
+  it("precarga la última publicación y permite corregir sus datos", async () => {
+    const { nutricion, seguimiento } = apis()
+    const consultarValoracion = jest.fn(async () => valoracion)
+    await render(
+      <FichaNutricion
+        clienteId={CLIENTE}
+        nombre="Cliente"
+        api={nutricion}
+        seguimiento={seguimiento}
+        consultarValoracion={consultarValoracion}
+        nuevoId={nuevoId}
+        editar={() => undefined}
+      />,
+    )
+    await waitFor(() => expect(screen.getByLabelText("Peso en kg").props.value).toBe("82,5"))
+    expect(consultarValoracion).toHaveBeenCalledWith(CLIENTE)
+    expect(screen.getByLabelText("Altura en cm").props.value).toBe("")
+    expect(screen.getByLabelText("Grasa corporal en %").props.value).toBe("")
+    await fireEvent.changeText(screen.getByLabelText("Peso en kg"), "83,2")
+    expect(screen.getByLabelText("Peso en kg").props.value).toBe("83,2")
+    expect(screen.getByLabelText("Peso en kg").props.editable).toBe(true)
+  })
+
+  it("un error al consultar publicaciones no precarga medidas antiguas ni pierde cambios al reintentar", async () => {
+    const { nutricion, seguimiento } = apis()
+    const consultarValoracion = jest
+      .fn<() => Promise<ValoracionCorporal | null>>()
+      .mockRejectedValueOnce(new Error("sin conexión"))
+      .mockResolvedValue(valoracion)
+    await render(
+      <FichaNutricion
+        clienteId={CLIENTE}
+        nombre="Cliente"
+        api={nutricion}
+        seguimiento={seguimiento}
+        consultarValoracion={consultarValoracion}
+        nuevoId={nuevoId}
+        editar={() => undefined}
+      />,
+    )
+    await screen.findByRole("alert")
+    expect(screen.getByText(/No se han podido cargar .*valoraciones publicadas/i)).toBeTruthy()
+    expect(screen.getByLabelText("Peso en kg").props.value).toBe("")
+    expect(screen.getByLabelText("Edad").props.value).toBe("21")
+    await fireEvent.changeText(screen.getByLabelText("Peso en kg"), "86,5")
+    await fireEvent.changeText(screen.getByLabelText("Calorías del objetivo"), "2400")
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar seguimiento" }))
+    await waitFor(() => expect(consultarValoracion).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
+    expect(screen.getByLabelText("Peso en kg").props.value).toBe("86,5")
+    expect(screen.getByLabelText("Calorías del objetivo").props.value).toBe("2400")
+  })
+
+  it("recupera valores publicados sin tocar los campos que ya se editaron", async () => {
+    const { nutricion, seguimiento } = apis()
+    const consultarValoracion = jest
+      .fn<() => Promise<ValoracionCorporal | null>>()
+      .mockRejectedValueOnce(new Error("sin conexión"))
+      .mockResolvedValue(valoracion)
+    await render(
+      <FichaNutricion
+        clienteId={CLIENTE}
+        nombre="Cliente"
+        api={nutricion}
+        seguimiento={seguimiento}
+        consultarValoracion={consultarValoracion}
+        nuevoId={nuevoId}
+        editar={() => undefined}
+      />,
+    )
+    await screen.findByRole("alert")
+    await fireEvent.changeText(screen.getByLabelText("Altura en cm"), "180")
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar seguimiento" }))
+    await waitFor(() => expect(screen.getByLabelText("Peso en kg").props.value).toBe("82,5"))
+    expect(screen.getByLabelText("Altura en cm").props.value).toBe("180")
+  })
+
   it("conserva los objetivos sin publicar al consultar otra pestaña de la ficha", async () => {
     const { nutricion, seguimiento } = apis()
     await render(

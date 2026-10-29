@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { crearPruebaEstandar } from "@alpha-omega/shared"
 import type {
   CambiarValoracion,
   CrearValoracion,
@@ -156,6 +157,102 @@ async function abrirNueva(falsa: ReturnType<typeof api>): Promise<void> {
   await fireEvent.press(screen.getByRole("button", { name: "Crear valoración" }))
   await screen.findByText("Valoración inicial")
 }
+
+it("el acceso inicial abre los bloques corporales activos de plantilla sin crear todavía", async () => {
+  const pliegue: DefinicionCorporal = {
+    ...peso,
+    id: nuevoId(),
+    bloque: "pliegues",
+    magnitud: "pliegue",
+    nombre: "Tríceps",
+    unidad: "mm",
+  }
+  const bio: DefinicionCorporal = {
+    ...peso,
+    id: nuevoId(),
+    bloque: "bioimpedancia",
+    magnitud: "grasa",
+    nombre: "Grasa",
+    unidad: "%",
+  }
+  const falsa = api({
+    revision: 1,
+    corporales: [peso, pliegue, bio],
+    pruebas: [crearPruebaEstandar("flexiones1min", nuevoId())],
+  })
+  await render(
+    <ValoracionesProfesional clienteId={CLIENTE} api={falsa} nuevoId={nuevoId} iniciarInicial />,
+  )
+  expect(await screen.findByRole("checkbox", { name: "Medidas" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Pliegues" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Bioimpedancia" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Pruebas físicas" })).not.toBeChecked()
+  expect(falsa.crear).not.toHaveBeenCalled()
+  await fireEvent.press(screen.getByRole("button", { name: "Crear valoración" }))
+  await waitFor(() =>
+    expect(falsa.crear).toHaveBeenCalledWith(
+      CLIENTE,
+      expect.objectContaining({
+        tipo: "inicial",
+        bloques: ["medidas", "pliegues", "bioimpedancia"],
+      }),
+    ),
+  )
+})
+
+it("el acceso inicial omite los bloques inactivos y permite cancelar o cambiar la selección", async () => {
+  const falsa = api({
+    revision: 1,
+    corporales: [
+      peso,
+      { ...altura, activa: false },
+      {
+        ...peso,
+        id: nuevoId(),
+        bloque: "pliegues",
+        magnitud: "pliegue",
+        nombre: "Tríceps",
+        unidad: "mm",
+        activa: false,
+      },
+    ],
+    pruebas: [],
+  })
+  await render(
+    <ValoracionesProfesional clienteId={CLIENTE} api={falsa} nuevoId={nuevoId} iniciarInicial />,
+  )
+  await screen.findByRole("checkbox", { name: "Medidas" })
+  expect(screen.queryByRole("checkbox", { name: "Pliegues" })).toBeNull()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Medidas" }))
+  expect(screen.getByRole("button", { name: "Crear valoración" })).toBeDisabled()
+  await fireEvent.press(screen.getByRole("button", { name: "Cancelar" }))
+  await screen.findByRole("button", { name: "Nueva valoración" })
+  expect(falsa.crear).not.toHaveBeenCalled()
+})
+
+it("si ya existe borrador el acceso inicial permite continuar sin crear otra visita", async () => {
+  const falsa = api()
+  falsa.listar.mockResolvedValue({
+    total: 1,
+    valoraciones: [
+      {
+        id: VISITA,
+        tipo: "inicial",
+        estado: "borrador",
+        fechaToma: "2026-09-24",
+        publicadaEn: null,
+        numeroPublicacion: null,
+      },
+    ],
+  })
+  falsa.leer.mockResolvedValue(visita())
+  await render(
+    <ValoracionesProfesional clienteId={CLIENTE} api={falsa} nuevoId={nuevoId} iniciarInicial />,
+  )
+  await fireEvent.press(await screen.findByRole("button", { name: "Continuar valoración" }))
+  expect(await screen.findByLabelText("Peso (kg)")).toBeOnTheScreen()
+  expect(falsa.crear).not.toHaveBeenCalled()
+})
 
 it("Volver conserva el borrador de valoración hasta confirmar que se descarta", async () => {
   await abrirNueva(api())

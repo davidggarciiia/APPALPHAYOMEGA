@@ -1,4 +1,4 @@
-import { useState } from "react"
+﻿import { useState } from "react"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import type { DefinicionCorporal } from "@alpha-omega/shared"
 
@@ -41,11 +41,15 @@ function Arnes({
   inicial = {},
   grasaInicial = GRASA_VACIA,
   bloqueado = false,
+  fechaNacimiento,
+  fechaToma = "2026-09-24",
 }: {
   definiciones?: DefinicionCorporal[]
   inicial?: Record<string, Partial<CampoCorporal>>
   grasaInicial?: CampoGrasa
   bloqueado?: boolean
+  fechaNacimiento?: string | null
+  fechaToma?: string
 }): React.JSX.Element {
   const [campos, setCampos] = useState<Record<string, CampoCorporal>>(() =>
     Object.fromEntries(
@@ -59,6 +63,8 @@ function Arnes({
       campos={campos}
       grasa={grasa}
       bloqueado={bloqueado}
+      fechaNacimiento={fechaNacimiento}
+      fechaToma={fechaToma}
       cambiarCampo={(id, cambio) => {
         cambiarCampo(id, cambio)
         setCampos((a) => ({ ...a, [id]: { ...CAMPO_CORPORAL_VACIO, ...a[id], ...cambio } }))
@@ -187,9 +193,12 @@ it("no realizado con motivo desactiva los valores sin borrar las lecturas", asyn
   expect(cambiarCampo.mock.calls.some(([, cambio]) => "lecturas" in cambio)).toBe(false)
 })
 
-it("anota la grasa que calculó el profesional con su método y fecha", async () => {
+it("conserva la anotación manual del porcentaje, método y fecha", async () => {
   await render(<Arnes />)
-  expect(screen.getByText(/La app no lo calcula/)).toBeTruthy()
+  expect(screen.getByRole("radio", { name: "Manual" })).toHaveProp("accessibilityState", {
+    checked: true,
+    disabled: false,
+  })
   const porcentaje = screen.getByLabelText("Porcentaje de grasa (%)")
   expect(porcentaje).toHaveProp("keyboardType", "decimal-pad")
   await fireEvent.changeText(porcentaje, "18,5")
@@ -233,4 +242,88 @@ it("sin puntos en la plantilla lo explica y deja anotar la grasa", async () => {
   expect(screen.getByText("La plantilla de esta visita no tiene puntos de pliegues.")).toBeTruthy()
   expect(screen.queryByRole("button", { name: /Añadir lectura/ })).toBeNull()
   expect(screen.getByLabelText("Porcentaje de grasa (%)")).toBeTruthy()
+})
+
+const puntosJP = ["Pectoral", "Abdominal", "Muslo anterior"].map((nombre, n) => ({
+  ...puntoA,
+  id: `40000000-0000-4000-8000-00000000000${n + 1}`,
+  nombre,
+  zona: null,
+}))
+const adoptadosJP = Object.fromEntries(
+  puntosJP.map((d) => [d.id, { texto: "36", lecturas: ["10", "12"] }]),
+)
+
+it("propone grasa con protocolo y edad en la toma sin sustituir el dato manual hasta adoptarlo", async () => {
+  await render(
+    <Arnes
+      definiciones={puntosJP}
+      inicial={adoptadosJP}
+      fechaNacimiento="2005-03-10"
+      grasaInicial={{ texto: "18,5", metodo: "Método anterior", fecha: "2026-08-01" }}
+    />,
+  )
+  await fireEvent.press(screen.getByRole("radio", { name: "Jackson-Pollock 3 pliegues" }))
+  expect(screen.getByLabelText("Edad en la toma (años)")).toHaveProp("value", "21")
+  expect(cambiarGrasa).not.toHaveBeenCalled()
+  expect(screen.getByLabelText("Porcentaje de grasa (%)")).toHaveProp("value", "18,5")
+  await fireEvent.press(screen.getByRole("radio", { name: "Hombre" }))
+  const usar = screen.getByRole("button", { name: "Usar 29,02 %" })
+  await fireEvent.press(usar)
+  expect(cambiarGrasa).toHaveBeenLastCalledWith({
+    texto: "29,02",
+    metodo: "Jackson-Pollock 3 · Siri",
+    fecha: "2026-09-24",
+  })
+  await fireEvent.changeText(screen.getByLabelText("Porcentaje de grasa (%)"), "28,5")
+  expect(screen.getByLabelText("Porcentaje de grasa (%)")).toHaveProp("value", "28,5")
+  await fireEvent.press(screen.getByRole("radio", { name: "Manual" }))
+  expect(screen.getByLabelText("Porcentaje de grasa (%)")).toHaveProp("value", "28,5")
+  expect(screen.getByLabelText("Método que usaste")).toHaveProp("value", "Jackson-Pollock 3 · Siri")
+})
+
+it("explica los puntos pendientes y no usa lecturas sin un valor adoptado", async () => {
+  await render(
+    <Arnes
+      definiciones={puntosJP}
+      inicial={{ ...adoptadosJP, [puntosJP[1]!.id]: { texto: "", lecturas: ["36"] } }}
+      fechaNacimiento="2005-03-10"
+    />,
+  )
+  await fireEvent.press(screen.getByRole("radio", { name: "Jackson-Pollock 3 pliegues" }))
+  await fireEvent.press(screen.getByRole("radio", { name: "Hombre" }))
+  expect(screen.queryByRole("button", { name: /^Usar .* %$/ })).toBeNull()
+  expect(screen.getByRole("alert")).toHaveTextContent(/abdominal/i)
+  expect(cambiarGrasa).not.toHaveBeenCalled()
+  await fireEvent.changeText(
+    screen.getByLabelText("Valor adoptado (mm) — Abdominal, derecha"),
+    "36",
+  )
+  expect(screen.getByRole("button", { name: /^Usar 29,\d+ %$/ })).toBeEnabled()
+})
+
+it("pide sexo y edad ausentes y permite completar los datos para calcular", async () => {
+  await render(<Arnes definiciones={puntosJP} inicial={adoptadosJP} />)
+  await fireEvent.press(screen.getByRole("radio", { name: "Jackson-Pollock 3 pliegues" }))
+  expect(screen.getByLabelText("Edad en la toma (años)")).toHaveProp("value", "")
+  expect(screen.getByLabelText("Edad en la toma (años)")).toHaveProp("keyboardType", "number-pad")
+  expect(screen.queryByRole("button", { name: /^Usar .* %$/ })).toBeNull()
+  await fireEvent.changeText(screen.getByLabelText("Edad en la toma (años)"), "21")
+  await fireEvent.press(screen.getByRole("radio", { name: "Hombre" }))
+  expect(screen.getByRole("button", { name: /^Usar 29,\d+ %$/ })).toBeEnabled()
+})
+
+it("no sustituye un valor guardado al cambiar de protocolo y respeta el bloqueo", async () => {
+  await render(
+    <Arnes
+      bloqueado
+      definiciones={puntosJP}
+      inicial={adoptadosJP}
+      grasaInicial={{ texto: "18,5", metodo: "Método anterior", fecha: "2026-08-01" }}
+    />,
+  )
+  for (const control of screen.getAllByRole("radio")) expect(control).toBeDisabled()
+  await fireEvent.press(screen.getByRole("radio", { name: "Jackson-Pollock 3 pliegues" }))
+  expect(cambiarGrasa).not.toHaveBeenCalled()
+  expect(screen.getByLabelText("Porcentaje de grasa (%)")).toHaveProp("value", "18,5")
 })

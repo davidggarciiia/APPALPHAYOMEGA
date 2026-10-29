@@ -147,6 +147,8 @@ export function ValoracionesProfesional({
   medios,
   nuevoId,
   alEditar,
+  iniciarInicial = false,
+  fechaNacimiento,
 }: {
   clienteId: string
   api: ApiValoraciones
@@ -154,6 +156,9 @@ export function ValoracionesProfesional({
   medios?: ApiMedios
   nuevoId: () => string
   alEditar?: (editando: boolean) => void
+  /** Abre la selección de la primera visita; nunca la crea sin confirmación. */
+  iniciarInicial?: boolean
+  fechaNacimiento?: string | null
 }): React.JSX.Element {
   const [listado, setListado] = useState<ListadoValoraciones | null>(null)
   const [plantilla, setPlantilla] = useState<PlantillaValoracion | null>(null)
@@ -167,6 +172,18 @@ export function ValoracionesProfesional({
   const consulta = useRef(0)
   // La misma operación en cada reintento: el servidor no crea dos visitas ni correcciones.
   const operacion = useRef<string | null>(null)
+  const entradaInicialAtendida = useRef(false)
+  useEffect(() => {
+    if (!iniciarInicial || entradaInicialAtendida.current || !listado || !plantilla) return
+    if (listado.total > 0) {
+      entradaInicialAtendida.current = true
+      return
+    }
+    const disponibles = bloquesDisponibles(plantilla)
+    if (disponibles.length === 0) return
+    entradaInicialAtendida.current = true
+    setEligiendo(disponibles.filter((b) => b !== "pruebas"))
+  }, [iniciarInicial, listado, plantilla])
   const editando =
     vista.tipo === "plantilla" ||
     vista.tipo === "pauta" ||
@@ -253,6 +270,7 @@ export function ValoracionesProfesional({
           key={valoracion.borrador.id}
           valoracion={valoracion}
           referencias={vista.referencias}
+          fechaNacimiento={fechaNacimiento}
           cambiar={(datos) => api.cambiar(clienteId, valoracion.id, datos)}
           recargar={() => api.leer(clienteId, valoracion.id)}
           publicar={(datos) => api.publicar(clienteId, valoracion.id, datos)}
@@ -382,6 +400,7 @@ export function ValoracionesProfesional({
           <BotonPrincipal
             texto={ultima ? "Crear revisión" : "Crear valoración"}
             ocupado={ocupado}
+            deshabilitado={!ultima && eligiendo.length === 0}
             onPress={() => void crear(eligiendo, null)}
           />
           <BotonSecundario texto="Cancelar" onPress={() => setEligiendo(null)} />

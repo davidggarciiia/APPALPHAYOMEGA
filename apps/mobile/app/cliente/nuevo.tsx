@@ -9,13 +9,14 @@ import {
   AvisoDeError,
   BotonEnlace,
   BotonPrincipal,
+  BotonSecundario,
   Campo,
   PantallaDeFormulario,
 } from "../../src/componentes/formulario"
 import { ErrorDelServidor, crearUsuario } from "../../src/lib/api"
 import { faltaDe } from "../../src/lib/errores"
 import { useSesion } from "../../src/sesion"
-import { tema } from "../../src/tema"
+import { tema, tipo } from "../../src/tema"
 
 /**
  * Que perfil se esta creando.
@@ -51,6 +52,10 @@ export default function NuevoCliente(): React.JSX.Element {
   const router = useRouter()
   const parametros = useLocalSearchParams<{ rol?: string | string[] }>()
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
+  const [clienteCreado, setClienteCreado] = useState<{
+    id: string
+    correoEnviado: boolean
+  } | null>(null)
 
   // El parametro llega de fuera: solo se acepta si es uno de los dos perfiles
   // que esta pantalla sabe crear. Cualquier otra cosa da de alta a un cliente.
@@ -77,8 +82,11 @@ export default function NuevoCliente(): React.JSX.Element {
     try {
       const creado = await crearUsuario(pedir, { ...datos, rol })
 
-      // Se va a la ficha y no a la lista. Lo siguiente en la vida real es
-      // "¿te ha llegado?", y el boton de reenviar esta ahi.
+      if (rol === "cliente") {
+        setClienteCreado(creado)
+        return
+      }
+
       router.replace({
         pathname: "/cliente/[id]",
         params: { id: creado.id, correoFallido: creado.correoEnviado ? "0" : "1" },
@@ -92,6 +100,39 @@ export default function NuevoCliente(): React.JSX.Element {
       setErrorGeneral(faltaDe(error, "No hemos podido crear la cuenta.").texto)
     }
   })
+
+  if (clienteCreado)
+    return (
+      <PantallaDeFormulario>
+        <Text style={estilos.titulo} accessibilityRole="header">
+          Cliente creado
+        </Text>
+        {!clienteCreado.correoEnviado && (
+          <AvisoDeError mensaje="La cuenta se ha creado, pero no se pudo enviar el correo de activación. Puedes reenviarlo desde Datos y acceso." />
+        )}
+        <BotonPrincipal
+          texto="Valoración inicial"
+          onPress={() =>
+            router.replace({
+              pathname: "/entrenador/cliente/[id]",
+              params: { id: clienteCreado.id, valoracionInicial: "1" },
+            })
+          }
+        />
+        <BotonSecundario
+          texto="Datos y acceso"
+          onPress={() =>
+            router.replace({
+              pathname: "/cliente/[id]",
+              params: {
+                id: clienteCreado.id,
+                correoFallido: clienteCreado.correoEnviado ? "0" : "1",
+              },
+            })
+          }
+        />
+      </PantallaDeFormulario>
+    )
 
   return (
     <PantallaDeFormulario>
@@ -159,7 +200,7 @@ export default function NuevoCliente(): React.JSX.Element {
 }
 
 const estilos = StyleSheet.create({
-  titulo: { fontFamily: tema.fuenteSemi, color: tema.texto, fontSize: 18 },
+  titulo: { ...tipo.tituloPantalla, color: tema.texto },
   detalle: {
     fontFamily: tema.fuenteTexto,
     color: tema.textoTenue,

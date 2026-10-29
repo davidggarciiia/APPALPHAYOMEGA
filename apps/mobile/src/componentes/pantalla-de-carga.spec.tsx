@@ -117,7 +117,7 @@ describe("Pantalla de carga con el vídeo del logo", () => {
   it("con la app lista antes, espera a que acabe el clip", async () => {
     await render(<PantallaDeCarga lista />)
     await emitir("playingChange", { isPlaying: true })
-    await avanzar(1000)
+    await avanzar(8399)
 
     expect(hayPantalla()).toBe(true)
     expect(screen.getByTestId("pantalla-de-carga")).toHaveStyle({ pointerEvents: "auto" })
@@ -162,25 +162,28 @@ describe("Pantalla de carga con el vídeo del logo", () => {
     expect(hayPantalla()).toBe(false)
   })
 
-  it("si el vídeo no arranca en 1,5 s, sigue con el logo quieto", async () => {
+  it("si el vídeo no arranca en 9 s, sigue con el logo quieto y libera el reproductor", async () => {
     await render(<PantallaDeCarga lista />)
-    await avanzar(1499)
+    await avanzar(8999)
     expect(screen.getByTestId("video")).toBeOnTheScreen()
 
     await avanzar(1)
     expect(screen.queryByTestId("video")).toBeNull()
+    expect(mockJugadores[0]?.liberado).toBe(true)
     await avanzar(300)
     expect(hayPantalla()).toBe(false)
   })
 
   it("si arranca pero no avisa del fin, lo da por acabado tras su duración", async () => {
     await render(<PantallaDeCarga lista />)
-    await avanzar(1000)
+    await avanzar(8000)
     await emitir("playingChange", { isPlaying: true })
-    await avanzar(1499)
+    await avanzar(8699)
     expect(hayPantalla()).toBe(true)
+    expect(screen.getByTestId("video")).toBeOnTheScreen()
 
     await avanzar(1)
+    expect(mockJugadores[0]?.liberado).toBe(true)
     await avanzar(300)
     expect(hayPantalla()).toBe(false)
   })

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Pressable,
   StyleSheet,
@@ -14,11 +14,13 @@ import {
   type DietaPublicada,
   type ListadoMedidas,
   type Suplemento,
+  type ValoracionCorporal,
 } from "@alpha-omega/shared"
 
 import { edadEn, leerDecimal, miles, pesoLegible } from "../seguimiento/modelo"
 import { hoyAgenda } from "../entrenamiento/fechas"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
+import { fechaCorta } from "../entrenamiento/plan/modelo"
 import { degradadoOro, tema } from "../tema"
 import { deficit, gastoTotal, gramosDeMacros, porcentajesDe, type Pauta } from "./calculo"
 import { esCreatina } from "./hoy-modelo"
@@ -42,15 +44,26 @@ type Textos = {
 const coma = (valor: number | null | undefined): string =>
   valor === null || valor === undefined ? "" : String(valor).replace(".", ",")
 
-/** Los valores de partida: la pauta guardada o, si no hay, las últimas medidas. */
+/** La pauta guardada manda; una valoración parcial conserva sus huecos. */
 export function textosIniciales(
   documento: DietaPublicada["documento"] | null,
   medidas: ListadoMedidas | null,
+  valoracion: ValoracionCorporal | null = null,
 ): Formulario {
   const calculo = documento?.calculo
   const objetivo = documento?.tiposDeDia[0]?.objetivo ?? null
   const ultima = <K extends "pesoKg" | "alturaCm" | "grasaPct">(clave: K) =>
     [...(medidas?.medidas ?? [])].reverse().find((m) => m[clave] !== null)?.[clave] ?? null
+  const corporal = (magnitud: "peso" | "altura" | "grasa", unidad: "kg" | "cm" | "%") => {
+    const definiciones = (valoracion?.definiciones ?? [])
+      .filter((d) => d.magnitud === magnitud && d.unidad === unidad)
+      .sort((a, b) => Number(b.bloque === "medidas") - Number(a.bloque === "medidas"))
+    for (const definicion of definiciones) {
+      const resultado = valoracion?.corporales.find((r) => r.definicionId === definicion.id)
+      if (resultado?.estado === "registrado") return resultado.valor
+    }
+    return null
+  }
   const nacimiento = medidas?.fechaNacimiento ?? null
   const pct = objetivo ? porcentajesDe(objetivo) : null
   const repartoInicial = {
@@ -79,10 +92,18 @@ export function textosIniciales(
     otrasIndicaciones: (documento?.indicaciones ?? []).filter((i) => i.titulo !== "Peso en ayunas")
       .length,
     textos: {
-      peso: coma(calculo?.pesoKg ?? ultima("pesoKg")),
-      altura: coma(calculo?.alturaCm ?? ultima("alturaCm")),
+      peso: coma(calculo?.pesoKg ?? (valoracion ? corporal("peso", "kg") : ultima("pesoKg"))),
+      altura: coma(
+        calculo?.alturaCm ?? (valoracion ? corporal("altura", "cm") : ultima("alturaCm")),
+      ),
       edad: coma(calculo?.edad ?? (nacimiento ? edadEn(nacimiento, hoyAgenda()) : null)),
-      grasa: coma(calculo ? calculo.grasaPct : ultima("grasaPct")),
+      grasa: coma(
+        calculo
+          ? calculo.grasaPct
+          : valoracion
+            ? (valoracion.grasaPorPliegues?.valorPct ?? corporal("grasa", "%"))
+            : ultima("grasaPct"),
+      ),
       factor: coma(calculo?.factorActividad ?? 1.55),
       ...repartoInicial,
       margen: coma(documento?.tiposDeDia[0]?.margenKcal ?? 100),
@@ -137,6 +158,8 @@ export function pautaDesde(f: Formulario): Pauta | string {
   if (f.pesoDiario && f.otrasIndicaciones >= 10)
     return "La dieta ya tiene diez indicaciones. Edita las indicaciones antes de añadir el peso diario."
   const grasa = numero(t.grasa)
+  if (t.grasa.trim() !== "" && (grasa === null || grasa < 2 || grasa > 70))
+    return "Escribe la grasa corporal (2–70 %) o deja el campo vacío."
   const nota = f.nota.trim()
   const sinCambiarObjetivo = (
     Object.keys(f.repartoInicial) as Array<keyof typeof f.repartoInicial>
@@ -206,6 +229,7 @@ export function PautaNutricion({
   nombre,
   base,
   medidas,
+  valoracion = null,
   resumen,
   alCambiar,
   bloqueado = false,
@@ -214,6 +238,7 @@ export function PautaNutricion({
   /** Borrador o, si no hay, la dieta vigente: de ahí se parte. */
   base: BorradorDieta | DietaPublicada | null
   medidas: ListadoMedidas | null
+  valoracion?: ValoracionCorporal | null
   /** «Últimos 7 días», ya calculado. */
   resumen: React.ReactNode
   alCambiar: (pauta: Pauta | string) => void
@@ -221,8 +246,23 @@ export function PautaNutricion({
 }): React.JSX.Element {
   const { width } = useWindowDimensions()
   const [formulario, setFormulario] = useState<Formulario>(() =>
-    textosIniciales(base?.documento ?? null, medidas),
+    textosIniciales(base?.documento ?? null, medidas, valoracion),
   )
+  const editados = useRef(new Set<keyof Textos>())
+  useEffect(() => {
+    if (base?.documento.calculo) return
+    const iniciales = textosIniciales(base?.documento ?? null, medidas, valoracion).textos
+    setFormulario((actual) => {
+      const textos = { ...actual.textos }
+      let cambiado = false
+      for (const clave of ["peso", "altura", "grasa", "edad"] as const)
+        if (!editados.current.has(clave) && textos[clave] !== iniciales[clave]) {
+          textos[clave] = iniciales[clave]
+          cambiado = true
+        }
+      return cambiado ? { ...actual, textos } : actual
+    })
+  }, [base?.documento, medidas, valoracion])
   const { textos, sexo, creatina, pesoDiario, registroComidas, nota } = formulario
   useEffect(() => {
     alCambiar(pautaDesde(formulario))
@@ -233,8 +273,10 @@ export function PautaNutricion({
   const cambiar =
     (clave: keyof Textos) =>
     (texto: string): void => {
-      if (!bloqueado)
+      if (!bloqueado) {
+        editados.current.add(clave)
         setFormulario((actual) => ({ ...actual, textos: { ...actual.textos, [clave]: texto } }))
+      }
     }
 
   const peso = numero(textos.peso)
@@ -301,6 +343,9 @@ export function PautaNutricion({
       <View style={[s.columnas, dosColumnas && s.columnasAnchas]}>
         <View style={[s.grupo, dosColumnas && s.columna]}>
           <Titulo>Cálculo del gasto</Titulo>
+          {!base?.documento.calculo && valoracion && (
+            <Text style={s.tenue}>Valoración publicada · {fechaCorta(valoracion.fechaToma)}</Text>
+          )}
           <Tarjeta>
             <Fila primera>
               <Text style={[s.texto, s.flex]}>Peso</Text>
@@ -517,7 +562,7 @@ const s = StyleSheet.create({
   error: { color: tema.aviso, fontFamily: tema.fuenteTexto, fontSize: 13 },
   campoFila: { flexDirection: "row", alignItems: "center", gap: 6 },
   campo: {
-    height: 40,
+    height: 44,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: tema.bordeFuerte,
@@ -529,7 +574,7 @@ const s = StyleSheet.create({
   },
   sexos: { flexDirection: "row", gap: 6 },
   sexo: {
-    minHeight: 36,
+    minHeight: 44,
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,

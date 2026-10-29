@@ -12,14 +12,14 @@ import {
 import { useVideoPlayer, VideoView } from "expo-video"
 
 import logo from "../../assets/video/logo-carga.png"
-import video from "../../assets/video/logo-carga.mp4"
+import video from "../../assets/video/logo-carga-lenta.mp4"
 import { tema } from "../tema"
 
 /** Lo que dura el clip. Pasado un margen sin aviso de fin se da por terminado. */
-const DURACION_MS = 1200
+const DURACION_MS = 8400
 const MARGEN_MS = 300
 /** Si el clip no ha empezado a este tiempo, se queda el logo quieto y la app sigue. */
-const ARRANQUE_MS = 1500
+const ARRANQUE_MS = DURACION_MS + 600
 /** Con «reducir movimiento» no hay clip: el logo quieto se deja el tiempo de verlo. */
 const QUIETO_MS = 600
 const FUNDIDO_MS = 280

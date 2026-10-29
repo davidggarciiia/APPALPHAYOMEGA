@@ -190,6 +190,7 @@ function Resumen({
 export function BorradorValoracion({
   valoracion: inicial,
   referencias,
+  fechaNacimiento,
   cambiar,
   recargar,
   publicar,
@@ -199,6 +200,7 @@ export function BorradorValoracion({
 }: {
   valoracion: ValoracionProfesional
   referencias: ReferenciaPrueba[]
+  fechaNacimiento?: string | null
   cambiar: (datos: CambiarValoracion) => Promise<ValoracionProfesional>
   recargar: () => Promise<ValoracionProfesional>
   publicar: (datos: PublicarValoracion) => Promise<PublicacionValoracion>
@@ -383,6 +385,8 @@ export function BorradorValoracion({
               definiciones={corporalesDe(valoracion, "pliegues")}
               campos={edicion.corporales}
               grasa={edicion.grasa}
+              fechaNacimiento={fechaNacimiento}
+              fechaToma={edicion.fechaToma}
               cambiarCampo={campo}
               cambiarGrasa={(grasa) => editar({ grasa })}
               bloqueado={bloqueado}

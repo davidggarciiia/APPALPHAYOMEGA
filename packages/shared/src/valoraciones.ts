@@ -318,8 +318,8 @@ export const ResultadoPruebaSchema = z.discriminatedUnion("estado", [
 export type ResultadoPrueba = z.infer<typeof ResultadoPruebaSchema>
 
 /**
- * Porcentaje de grasa que ya calculó el profesional a partir de sus pliegues.
- * La app no lo calcula ni reconstruye lecturas a partir de él.
+ * Porcentaje de grasa adoptado por el profesional, calculado por la app o anotado a mano.
+ * Conserva el método y la fecha; nunca reconstruye las lecturas a partir del porcentaje.
  */
 export const GrasaPorPlieguesSchema = z.strictObject({
   valorPct: ValorSchema.refine((v) => v > 0 && v <= 100, "Un porcentaje mayor que 0 y hasta 100"),

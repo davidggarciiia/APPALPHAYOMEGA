@@ -1,4 +1,8 @@
-import { DocumentoDietaSchema, type ListadoMedidas } from "@alpha-omega/shared"
+import {
+  DocumentoDietaSchema,
+  type ListadoMedidas,
+  type ValoracionCorporal,
+} from "@alpha-omega/shared"
 import { aplicarPauta, type Pauta } from "./calculo"
 import { pautaDesde, textosIniciales } from "./pauta"
 
@@ -23,6 +27,95 @@ const pauta: Pauta = {
     nota: "Según turnos",
   },
 }
+
+const valoracion: ValoracionCorporal = {
+  id: "20000000-0000-4000-8000-000000000001",
+  publicacionId: "30000000-0000-4000-8000-000000000001",
+  numero: 1,
+  tipo: "revision",
+  fechaToma: "2026-10-20",
+  publicadaEn: "2026-10-21T10:00:00.000Z",
+  definiciones: (
+    [
+      ["peso", "kg", "medidas"],
+      ["altura", "cm", "medidas"],
+      ["grasa", "%", "bioimpedancia"],
+    ] as const
+  ).map(([magnitud, unidad, bloque], n) => ({
+    id: `40000000-0000-4000-8000-00000000000${n + 1}`,
+    version: 1,
+    nombre: magnitud,
+    magnitud,
+    unidad,
+    bloque,
+    zona: null,
+    lateralidad: null,
+    instrumento: null,
+    protocolo: null,
+    activa: true,
+  })),
+  corporales: [82.5, 181, 22.4].map((valor, n) => ({
+    definicionId: `40000000-0000-4000-8000-00000000000${n + 1}`,
+    estado: "registrado",
+    valor,
+  })),
+  grasaPorPliegues: null,
+}
+
+it("inicia el cálculo con peso, altura y porcentaje de la valoración publicada", () => {
+  expect(textosIniciales(null, null, valoracion).textos).toEqual(
+    expect.objectContaining({ peso: "82,5", altura: "181", grasa: "22,4" }),
+  )
+})
+
+it("una publicación parcial no completa sus huecos con medidas antiguas", () => {
+  const parcial = {
+    ...valoracion,
+    definiciones: valoracion.definiciones.slice(0, 1),
+    corporales: valoracion.corporales.slice(0, 1),
+  }
+  const medidas: ListadoMedidas = {
+    fechaNacimiento: "1996-01-01",
+    medidas: [
+      {
+        id: id(),
+        fecha: "2026-09-01",
+        pesoKg: 90,
+        alturaCm: 190,
+        grasaPct: 30,
+        cinturaCm: null,
+        creadoEn: "2026-09-01T10:00:00.000Z",
+      },
+    ],
+  }
+  expect(textosIniciales(null, medidas, parcial).textos).toEqual(
+    expect.objectContaining({ peso: "82,5", altura: "", grasa: "", edad: "30" }),
+  )
+})
+
+it("conserva el cálculo guardado frente a otra valoración publicada", () => {
+  const original = DocumentoDietaSchema.parse(aplicarPauta(null, pauta, id))
+  const formulario = textosIniciales(original, null, valoracion)
+  expect(pautaDesde(formulario)).toEqual(pauta)
+})
+
+it("la grasa por pliegues publicada puede iniciar el cálculo sin confundir kg con porcentaje", () => {
+  const corporal = {
+    ...valoracion,
+    definiciones: valoracion.definiciones.map((d) =>
+      d.magnitud === "grasa" ? { ...d, unidad: "kg" as const } : d,
+    ),
+    grasaPorPliegues: { valorPct: 19.5, metodo: "Método declarado", fecha: "2026-10-20" },
+  }
+  expect(textosIniciales(null, null, corporal).textos.grasa).toBe("19,5")
+  expect(textosIniciales(null, null, { ...corporal, grasaPorPliegues: null }).textos.grasa).toBe("")
+})
+
+it.each(["1", "71", "dato"])("avisa de una grasa %s que no admite el cálculo de dieta", (grasa) => {
+  const formulario = textosIniciales(aplicarPauta(null, pauta, id), null)
+  formulario.textos.grasa = grasa
+  expect(pautaDesde(formulario)).toBe("Escribe la grasa corporal (2–70 %) o deja el campo vacío.")
+})
 
 it("modificar solo la nota conserva los suplementos, sus dosis y la nota del cálculo", () => {
   const original = DocumentoDietaSchema.parse(aplicarPauta(null, pauta, id))

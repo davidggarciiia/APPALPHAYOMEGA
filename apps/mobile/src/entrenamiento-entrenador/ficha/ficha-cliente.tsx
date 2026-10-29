@@ -59,6 +59,7 @@ type Datos = {
   dieta: LecturaDietaVigente | null
   medidas: ListadoMedidas | null
   consentimiento: EstadoConsentimiento | null
+  totalValoraciones: number | null
 }
 
 /** Cómo está el consentimiento de datos de salud, en una línea. */
@@ -83,6 +84,7 @@ type Propiedades = {
   editarPlan: () => void
   verSemana: (nombre: string) => void
   abrirNutricion: (nombre: string) => void
+  valoracionInicial?: boolean
 }
 
 /** La identidad delimita también los datos y borradores montados de la ficha. */
@@ -102,8 +104,10 @@ function FichaActual({
   editarPlan,
   verSemana,
   abrirNutricion,
+  valoracionInicial = false,
 }: Propiedades): React.JSX.Element {
-  const [pestana, setPestana] = useState<Pestana>("resumen")
+  const [pestana, setPestana] = useState<Pestana>(valoracionInicial ? "progreso" : "resumen")
+  const [iniciarInicial, setIniciarInicial] = useState(valoracionInicial)
   const [editandoProgreso, setEditandoProgreso] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
@@ -131,7 +135,7 @@ function FichaActual({
         cargando = true
         const versionDeMolestias = versionMolestias.current
         try {
-          const [ficha, plan, resultados, molestias, dieta, medidas, consentimiento] =
+          const [ficha, plan, resultados, molestias, dieta, medidas, consentimiento, visitas] =
             await Promise.allSettled([
               leerFicha(),
               api.plan(clienteId, lunes),
@@ -140,6 +144,7 @@ function FichaActual({
               nutricion.vigente(clienteId),
               seguimiento.medidas(clienteId),
               seguimiento.consentimiento(clienteId),
+              valoraciones.listar(clienteId, 1),
             ])
           if (!vigente || permisoRevocado.current) return
           const sinAcceso = [
@@ -150,6 +155,7 @@ function FichaActual({
             dieta,
             medidas,
             consentimiento,
+            visitas,
           ].find(
             (consulta) =>
               consulta.status === "rejected" &&
@@ -182,6 +188,7 @@ function FichaActual({
                 consentimiento.status === "fulfilled"
                   ? consentimiento.value
                   : (actual?.consentimiento ?? null),
+              totalValoraciones: visitas.status === "fulfilled" ? visitas.value.total : null,
             }
           })
           const fallo = [ficha, plan, resultados, molestias].find((r) => r.status === "rejected")
@@ -196,7 +203,7 @@ function FichaActual({
         vigente = false
         clearInterval(reloj)
       }
-    }, [leerFicha, api, nutricion, seguimiento, clienteId, lunes, intento]),
+    }, [leerFicha, api, nutricion, seguimiento, valoraciones, clienteId, lunes, intento]),
   )
 
   const aviso =
@@ -314,6 +321,15 @@ function FichaActual({
       <CambioDeContenido clave={pestana}>
         {pestana === "resumen" && (
           <View style={s.contenido}>
+            {datos.totalValoraciones === 0 && (
+              <BotonSecundario
+                texto="Valoración inicial"
+                onPress={() => {
+                  setIniciarInicial(true)
+                  setPestana("progreso")
+                }}
+              />
+            )}
             <RequiereAtencion
               molestias={datos.molestias}
               semana={deEstaSemana}
@@ -366,6 +382,8 @@ function FichaActual({
               medios={medios}
               nuevoId={nuevoId}
               alEditar={setEditandoProgreso}
+              iniciarInicial={iniciarInicial}
+              fechaNacimiento={datos.ficha.fechaNacimiento}
             />
             <ProgresoCliente
               clienteId={clienteId}

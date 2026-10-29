@@ -7,6 +7,7 @@ import type {
   DiaDeSeguimiento,
   DietaPublicada,
   ListadoMedidas,
+  ValoracionCorporal,
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
@@ -38,9 +39,13 @@ type Datos = {
   vigente: DietaPublicada | null
   borrador: BorradorDieta | null
   medidas: ListadoMedidas | null
+  /** undefined: la consulta falló; null: no hay ninguna publicada. */
+  valoracion: ValoracionCorporal | null | undefined
   dias: DiaDeSeguimiento[] | null
   comidas: ComidaRegistrada[] | null
 }
+
+const sinValoracion = async (): Promise<ValoracionCorporal | null> => null
 
 const decimal = (valor: number): string => valor.toFixed(1).replace(".", ",")
 const diferencia = (valor: number, unidad: string): string =>
@@ -227,6 +232,7 @@ export function FichaNutricion({
   nombre,
   api,
   seguimiento,
+  consultarValoracion = sinValoracion,
   nuevoId,
   editar,
 }: {
@@ -234,6 +240,7 @@ export function FichaNutricion({
   nombre: string
   api: ApiNutricion
   seguimiento: ApiSeguimiento
+  consultarValoracion?: (clienteId: string) => Promise<ValoracionCorporal | null>
   nuevoId: () => string
   editar: (origen: OrigenDelEditor) => void
 }): React.JSX.Element {
@@ -268,6 +275,7 @@ export function FichaNutricion({
       ? []
       : [
           datos.medidas === null ? "las medidas" : null,
+          datos.valoracion === undefined ? "las valoraciones publicadas" : null,
           datos.dias === null ? "los registros diarios" : null,
           datos.comidas === null ? "las comidas registradas" : null,
         ].filter(Boolean)
@@ -282,13 +290,15 @@ export function FichaNutricion({
         seguimiento.medidas(clienteId).catch(() => null),
         seguimiento.dias(clienteId, sumarDias(hoy, -13), hoy).catch(() => null),
         api.comidas(clienteId, sumarDias(hoy, -13), hoy).catch(() => null),
+        consultarValoracion(clienteId).catch(() => undefined),
       ])
-        .then(([{ dieta }, { borrador }, medidas, dias, comidas]) => {
+        .then(([{ dieta }, { borrador }, medidas, dias, comidas, valoracion]) => {
           if (!vigente) return
           setDatos({
             vigente: dieta,
             borrador,
             medidas,
+            valoracion,
             dias: dias?.dias ?? null,
             comidas: comidas?.comidas ?? null,
           })
@@ -300,7 +310,7 @@ export function FichaNutricion({
       return () => {
         vigente = false
       }
-    }, [api, seguimiento, clienteId, hoy, intento]),
+    }, [api, seguimiento, consultarValoracion, clienteId, hoy, intento]),
   )
 
   const publicar = async (): Promise<void> => {
@@ -392,7 +402,12 @@ export function FichaNutricion({
               key={claveFormulario}
               nombre={nombre}
               base={datos.borrador ?? datos.vigente}
-              medidas={datos.medidas}
+              medidas={
+                datos.valoracion === undefined && datos.medidas
+                  ? { ...datos.medidas, medidas: [] }
+                  : datos.medidas
+              }
+              valoracion={datos.valoracion ?? null}
               resumen={<UltimosDias datos={datos} ver={() => setPestana("seguimiento")} />}
               alCambiar={cambiarPauta}
               bloqueado={ocupado || pendiente}

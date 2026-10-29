@@ -16,7 +16,10 @@ import { tema } from "../../../../src/tema"
 
 /** La ficha del cliente del diseño, para el entrenador. */
 export default function FichaDelCliente(): React.JSX.Element {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, valoracionInicial } = useLocalSearchParams<{
+    id: string
+    valoracionInicial?: string
+  }>()
   const { estado, pedir } = useSesion()
   const api = useEntrenamiento()
   const seguimiento = useSeguimiento()
@@ -41,6 +44,7 @@ export default function FichaDelCliente(): React.JSX.Element {
           medios={medios}
           nutricion={nutricion}
           nuevoId={randomUUID}
+          valoracionInicial={valoracionInicial === "1"}
           editarPlan={() =>
             router.push({ pathname: "/entrenador/cliente/[id]/plan", params: { id } })
           }

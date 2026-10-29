@@ -4,6 +4,8 @@ import type { DefinicionCorporal } from "@alpha-omega/shared"
 import { BotonSecundario, Campo } from "../componentes/formulario"
 import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { tema } from "../tema"
+import { hoyAgenda } from "../entrenamiento/fechas"
+import { CalculoPliegues } from "./calculo-pliegues"
 import { CAMPO_CORPORAL_VACIO, type CampoCorporal, type CampoGrasa } from "./valoracion-modelo"
 
 /** Lecturas originales por punto: el contrato no admite más. */
@@ -158,7 +160,7 @@ function PuntoPliegue({
   )
 }
 
-/** Porcentaje que ya calculó el profesional; aquí solo se anota. */
+/** El porcentaje propuesto y su corrección manual usan el mismo contrato de siempre. */
 function GrasaPorPliegues({
   grasa,
   cambiar,
@@ -172,10 +174,6 @@ function GrasaPorPliegues({
     <View style={s.grupo}>
       <Text style={s.subtitulo} accessibilityRole="header">
         Porcentaje de grasa por pliegues
-      </Text>
-      <Text style={s.tenue}>
-        Si ya calculaste el porcentaje con tu método, anótalo con el método y la fecha. La app no lo
-        calcula.
       </Text>
       <Tarjeta>
         <View style={s.relleno}>
@@ -219,6 +217,8 @@ export function BloquePliegues({
   cambiarCampo,
   cambiarGrasa,
   bloqueado,
+  fechaNacimiento,
+  fechaToma = hoyAgenda(),
 }: {
   definiciones: DefinicionCorporal[]
   campos: Record<string, CampoCorporal>
@@ -226,6 +226,8 @@ export function BloquePliegues({
   cambiarCampo: (id: string, cambio: Partial<CampoCorporal>) => void
   cambiarGrasa: (grasa: CampoGrasa) => void
   bloqueado: boolean
+  fechaNacimiento?: string | null
+  fechaToma?: string
 }): React.JSX.Element {
   return (
     <View style={s.bloque}>
@@ -248,6 +250,14 @@ export function BloquePliegues({
           </Tarjeta>
         )}
       </View>
+      <CalculoPliegues
+        definiciones={definiciones}
+        campos={campos}
+        fechaNacimiento={fechaNacimiento}
+        fechaToma={fechaToma}
+        cambiar={cambiarGrasa}
+        bloqueado={bloqueado}
+      />
       <GrasaPorPliegues grasa={grasa} cambiar={cambiarGrasa} bloqueado={bloqueado} />
     </View>
   )
