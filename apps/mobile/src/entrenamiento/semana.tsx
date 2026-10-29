@@ -7,6 +7,7 @@ import {
   ListadoSesionesSchema,
   type DeporteDelPlan,
   type ListadoSesiones,
+  type SesionProgramada,
 } from "@alpha-omega/shared"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import type { ApiEntrenamiento } from "./api"
@@ -73,11 +74,26 @@ export function SemanaEntrenamiento({
   const [cargado, setCargado] = useState<{ clave: string; datos: ListadoSesiones } | null>(null)
   const listado = cargado?.clave === clave ? cargado.datos : null
   const ultimaCopia = useRef<{ clave: string; contenido: string } | null>(null)
+  const agendasVigentes = useRef(new Map<string, SesionProgramada>())
   const [empezadas, setEmpezadas] = useState<Record<string, string>>({})
   const [error, setError] = useState("")
   const [sinConexion, setSinConexion] = useState(false)
   const [reintentable, setReintentable] = useState(true)
   const [intento, setIntento] = useState(0)
+  const conservarRevisiones = useCallback(
+    (datos: ListadoSesiones): ListadoSesiones => ({
+      ...datos,
+      sesiones: datos.sesiones.map((sesion) => {
+        const clave = `${clienteId}:${sesion.agenda.id}`
+        const vigente = agendasVigentes.current.get(clave)
+        if (vigente && vigente.revision > sesion.agenda.revision)
+          return { ...sesion, agenda: vigente }
+        agendasVigentes.current.set(clave, sesion.agenda)
+        return sesion
+      }),
+    }),
+    [clienteId],
+  )
   const guardarCopia = useCallback(
     async (datos: ListadoSesiones): Promise<void> => {
       if (!copiaLocal) return
@@ -132,21 +148,21 @@ export function SemanaEntrenamiento({
               .catch(() => null)
             if (!vigente) return
             if (copia) {
+              const datos = conservarRevisiones(copia)
               const contenido = JSON.stringify(copia)
               ultimaCopia.current = { clave, contenido }
-              setCargado((anterior) =>
-                anterior?.clave === clave ? anterior : { clave, datos: copia },
-              )
+              setCargado((anterior) => (anterior?.clave === clave ? anterior : { clave, datos }))
               if ((resumenHoy && semana === actual) || detectarEmpezadas) {
-                locales = await empezadasLocales(clienteId, copia.sesiones)
+                locales = await empezadasLocales(clienteId, datos.sesiones)
                 contenidoLocal = contenido
                 if (vigente) setEmpezadas(locales)
               }
             }
           }
           if (!vigente) return
-          const datos = await api.semana(clienteId, semana, cancelacion.signal)
+          const respuesta = await api.semana(clienteId, semana, cancelacion.signal)
           if (!vigente) return
+          const datos = conservarRevisiones(respuesta)
           setCargado({ clave, datos })
           setError("")
           setSinConexion(false)
@@ -228,10 +244,21 @@ export function SemanaEntrenamiento({
       resumenHoy,
       detectarEmpezadas,
       guardarCopia,
+      conservarRevisiones,
     ]),
   )
-  const actualizar = async (): Promise<void> => {
-    const datos = await api.semana(clienteId, semana)
+  const actualizar = async (agenda?: SesionProgramada): Promise<void> => {
+    if (agenda && listado) {
+      const datos = conservarRevisiones({
+        ...listado,
+        sesiones: listado.sesiones.map((sesion) =>
+          sesion.agenda.id === agenda.id ? { ...sesion, agenda } : sesion,
+        ),
+      })
+      setCargado({ clave, datos })
+      await guardarCopia(datos)
+    }
+    const datos = conservarRevisiones(await api.semana(clienteId, semana))
     setCargado({ clave, datos })
     await guardarCopia(datos)
   }

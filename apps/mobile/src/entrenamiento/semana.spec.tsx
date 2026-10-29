@@ -1,7 +1,7 @@
 import { AppState } from "react-native"
-import { act, fireEvent, render, screen } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import type { ApiEntrenamiento } from "./api"
-import type { SesionCliente } from "@alpha-omega/shared"
+import type { ListadoSesiones, SesionCliente } from "@alpha-omega/shared"
 import { ErrorDePermiso, ErrorDePeticion, ErrorDeSesion, ErrorDelServidor } from "../lib/http"
 import { SemanaEntrenamiento } from "./semana"
 import { crearApiEntrenamiento } from "./api"
@@ -405,6 +405,121 @@ it("cambia el día desde la agenda con la revisión vigente", async () => {
       name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente`,
     }),
   ).toBeOnTheScreen()
+})
+
+it("conserva la fecha y revisión del movimiento si falla el refresco, incluso al reabrir la hoja", async () => {
+  const lunes = lunesDeSemana()
+  const martes = sumarDias(lunes, 1)
+  const miercoles = sumarDias(lunes, 2)
+  const agenda = {
+    id: "sesion",
+    clienteId: "cliente",
+    fechaOriginal: lunes,
+    fechaActual: lunes,
+    estado: "abierta" as const,
+    revision: 2,
+  }
+  const mover = jest.fn(async (_id: string, datos: { fecha: string; revision: number }) => ({
+    ...agenda,
+    fechaActual: datos.fecha,
+    revision: datos.revision + 1,
+  }))
+  const semana = jest
+    .fn()
+    .mockResolvedValueOnce({
+      sesiones: [{ agenda, nombre: "Fuerza", enviadoEn: null }],
+      total: 1,
+    })
+    .mockRejectedValue(new Error("Sin conexión"))
+  const api = {
+    semana,
+    mover,
+    cambios: jest.fn(async () => ({ cambios: [], total: 0 })),
+  } as unknown as ApiEntrenamiento
+  await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} />)
+  await fireEvent.press(await screen.findByRole("button", { name: "Cambiar día de Fuerza" }))
+  await fireEvent.press(screen.getByRole("button", { name: fechaLegible(martes) }))
+  expect(await screen.findByText("Día cambiado; no se pudo refrescar la semana.")).toBeOnTheScreen()
+  expect(semana).toHaveBeenCalledTimes(2)
+
+  await fireEvent.press(screen.getByRole("button", { name: "Cerrar" }))
+  await waitFor(() =>
+    expect(
+      screen.queryByText("Día cambiado; no se pudo refrescar la semana.", {
+        includeHiddenElements: true,
+      }),
+    ).toBeNull(),
+  )
+  expect(
+    await screen.findByRole("button", {
+      name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente`,
+    }),
+  ).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Cambiar día de Fuerza" }))
+  await fireEvent.press(screen.getByRole("button", { name: fechaLegible(miercoles) }))
+  expect(mover).toHaveBeenLastCalledWith("sesion", { fecha: miercoles, revision: 3 })
+  expect(mover).toHaveBeenCalledTimes(2)
+})
+
+it("no retrocede la agenda ni su copia si un sondeo antiguo responde después del movimiento", async () => {
+  jest.useFakeTimers()
+  try {
+    const lunes = lunesDeSemana()
+    const martes = sumarDias(lunes, 1)
+    const miercoles = sumarDias(lunes, 2)
+    const listado = listadoDePrueba("Fuerza", lunes)
+    const sesion = listado.sesiones[0]!
+    sesion.agenda.revision = 2
+    const movida = { ...sesion.agenda, fechaActual: martes, revision: 3 }
+    let resolverSondeo!: (datos: ListadoSesiones) => void
+    const sondeo = new Promise<ListadoSesiones>((resolver) => {
+      resolverSondeo = resolver
+    })
+    const semana = jest
+      .fn()
+      .mockResolvedValueOnce(listado)
+      .mockReturnValueOnce(sondeo)
+      .mockRejectedValue(new Error("Sin conexión"))
+    const mover = jest.fn(async (_id: string, datos: { fecha: string; revision: number }) => ({
+      ...sesion.agenda,
+      fechaActual: datos.fecha,
+      revision: datos.revision + 1,
+    }))
+    const api = {
+      semana,
+      mover,
+      cambios: jest.fn(async () => ({ cambios: [], total: 0 })),
+    } as unknown as ApiEntrenamiento
+    const vista = await render(
+      <SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />,
+    )
+    await screen.findByText("Fuerza")
+    await act(async () => jest.advanceTimersByTimeAsync(15_000))
+    expect(semana).toHaveBeenCalledTimes(2)
+    await fireEvent.press(screen.getByRole("button", { name: "Cambiar día de Fuerza" }))
+    await fireEvent.press(screen.getByRole("button", { name: fechaLegible(martes) }))
+    expect(
+      await screen.findByText("Día cambiado; no se pudo refrescar la semana."),
+    ).toBeOnTheScreen()
+    expect(semana).toHaveBeenCalledTimes(3)
+    await act(async () => resolverSondeo(listado))
+
+    expect(almacenDispositivo.guardar).toHaveBeenLastCalledWith("cliente", `semana-${lunes}`, {
+      ...listado,
+      sesiones: [{ ...sesion, agenda: movida }],
+    })
+    await fireEvent.press(screen.getByRole("button", { name: "Cerrar" }))
+    await act(async () => jest.advanceTimersByTimeAsync(200))
+    expect(
+      screen.getByRole("button", { name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente` }),
+    ).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Cambiar día de Fuerza" }))
+    await fireEvent.press(screen.getByRole("button", { name: fechaLegible(miercoles) }))
+    expect(mover).toHaveBeenLastCalledWith(sesion.agenda.id, { fecha: miercoles, revision: 3 })
+    await vista.unmount()
+  } finally {
+    jest.useRealTimers()
+  }
 })
 
 it("ante conflicto actualiza la revisión y deja reintentar el cambio", async () => {

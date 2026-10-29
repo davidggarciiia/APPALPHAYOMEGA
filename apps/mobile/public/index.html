@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>%WEB_TITLE%</title>
+    <!-- Reset de Expo para mantener los ScrollView como en las plataformas nativas. -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        overflow: hidden;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+    <style id="fondo-inicial">
+      /* Coincide con tema.fondo y se pinta antes de cargar el bundle. */
+      html,
+      body,
+      #root {
+        background-color: #0e0d0b;
+        color-scheme: dark;
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>Necesitas activar JavaScript para usar esta aplicación.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

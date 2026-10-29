@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
-import type { DeporteDelPlan, ListadoSesiones } from "@alpha-omega/shared"
+import type { DeporteDelPlan, ListadoSesiones, SesionProgramada } from "@alpha-omega/shared"
 
 import { EntradaMarca } from "../componentes/entrada-marca"
 import { Hoja } from "../componentes/hoja"
@@ -39,7 +39,7 @@ export function AgendaSemanal({
   deportes?: DeporteDelPlan[]
   empezadas?: Record<string, string>
   api?: Pick<ApiEntrenamiento, "mover" | "cambios">
-  actualizado?: () => Promise<void>
+  actualizado?: (agenda?: SesionProgramada) => Promise<void>
   cargando?: boolean
 }): React.JSX.Element {
   const [moviendoId, setMoviendoId] = useState<string | null>(null)

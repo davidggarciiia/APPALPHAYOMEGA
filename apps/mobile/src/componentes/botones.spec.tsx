@@ -297,6 +297,52 @@ describe("vibrar", () => {
 })
 
 describe("BotonEnlace", () => {
+  it.each(["Volver", "HE OLVIDADO MI CONTRASEÑA"])(
+    "centra el acento bajo todo el texto de «%s»",
+    async (texto) => {
+      await render(<BotonEnlace texto={texto} onPress={jest.fn()} />)
+      const contenido = screen.getByText(texto).parent
+      const subrayado = contenido?.children[1]
+      if (typeof subrayado !== "object" || subrayado === null)
+        throw new Error("El enlace no tiene subrayado")
+      expect(StyleSheet.flatten(subrayado.props.style)).toMatchObject({
+        left: 0,
+        right: 0,
+        transformOrigin: "50% 50%",
+      })
+    },
+  )
+
+  it("conserva el muelle de pulsación y la transición al pasar el ratón", async () => {
+    await render(<BotonEnlace texto="Volver" onPress={jest.fn()} />)
+    const enlace = screen.getByRole("button", { name: "Volver" })
+    await fireEvent(enlace, "pressIn")
+    await fireEvent(enlace, "pressOut")
+    expect(withSpring).toHaveBeenCalledWith(1, expect.any(Object))
+    expect(withSpring).toHaveBeenCalledWith(0, expect.any(Object))
+    await fireEvent(enlace, "hoverIn")
+    await fireEvent(enlace, "hoverOut")
+    expect(withTiming).toHaveBeenCalledWith(1, { duration: 120 })
+    expect(withTiming).toHaveBeenCalledWith(0, { duration: 160 })
+  })
+
+  it("con movimiento reducido responde a pulsación y ratón sin interpolar", async () => {
+    movimientoReducido(true)
+    const volver = jest.fn()
+    await render(<BotonEnlace texto="Volver" onPress={volver} />)
+    const enlace = screen.getByRole("button", { name: "Volver" })
+    await fireEvent(enlace, "pressIn")
+    await fireEvent(enlace, "pressOut")
+    await fireEvent(enlace, "hoverIn")
+    await fireEvent(enlace, "hoverOut")
+    await fireEvent(enlace, "focus")
+    await fireEvent(enlace, "blur")
+    await fireEvent.press(enlace)
+    expect(volver).toHaveBeenCalledTimes(1)
+    expect(withSpring).not.toHaveBeenCalled()
+    expect(withTiming).not.toHaveBeenCalled()
+  })
+
   it("es un botón con nombre, llama a onPress una vez y mide al menos 48 px", async () => {
     const volver = jest.fn()
     await render(<BotonEnlace texto="Volver" onPress={volver} etiquetaAccesible="Volver a login" />)

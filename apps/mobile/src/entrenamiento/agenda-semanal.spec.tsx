@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import { AgendaSemanal } from "./agenda-semanal"
-import { fechaLegible, hoyAgenda, lunesDeSemana } from "./fechas"
+import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
 
 let mockFoco = 0
 jest.mock("expo-router", () => ({
@@ -75,7 +75,12 @@ it.each(["tarjeta", "día"])(
 )
 
 it("cambia el día desde una hoja y mantiene la revisión de la agenda", async () => {
-  const mover = jest.fn(async () => undefined)
+  const fechaNueva = sumarDias(lunesDeSemana(), hoy === lunesDeSemana() ? 1 : 0)
+  const mover = jest.fn(async () => ({
+    ...listado.sesiones[0]!.agenda,
+    fechaActual: fechaNueva,
+    revision: 1,
+  }))
   const actualizado = jest.fn(async () => undefined)
   await render(
     <AgendaSemanal
@@ -91,8 +96,8 @@ it("cambia el día desde una hoja y mantiene la revisión de la agenda", async (
   await fireEvent.press(screen.getByRole("button", { name: "Cambiar día de Fuerza" }))
   expect(screen.getByTestId("hoja-modal")).toBeOnTheScreen()
   expect(screen.getByText("Tu entrenador ve el cambio")).toBeOnTheScreen()
-  await fireEvent.press(screen.getByRole("button", { name: fechaLegible(lunesDeSemana()) }))
-  expect(mover).toHaveBeenCalledWith("sesion", { fecha: lunesDeSemana(), revision: 0 })
+  await fireEvent.press(screen.getByRole("button", { name: fechaLegible(fechaNueva) }))
+  expect(mover).toHaveBeenCalledWith("sesion", { fecha: fechaNueva, revision: 0 })
   expect(actualizado).toHaveBeenCalledTimes(1)
 })
 

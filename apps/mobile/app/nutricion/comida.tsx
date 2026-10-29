@@ -1,25 +1,25 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
-import { Text } from "react-native"
+import { View } from "react-native"
 import type { Comida, ComidaRegistrada, DietaPublicada } from "@alpha-omega/shared"
 
-import {
-  AvisoDeError,
-  BotonSecundario,
-  PantallaDeFormulario,
-} from "../../src/componentes/formulario"
+import { BotonSecundario, PantallaDeFormulario } from "../../src/componentes/formulario"
+import { Aviso } from "../../src/componentes/aviso"
+import { Esqueleto, GrupoEsqueletos } from "../../src/componentes/esqueleto"
 import { almacenDispositivo } from "../../src/entrenamiento/almacen-dispositivo"
 import { hoyAgenda } from "../../src/entrenamiento/fechas"
+import { faltaDe, type Falta } from "../../src/lib/errores"
+import { ErrorDeRed } from "../../src/lib/http"
 import { useNutricion } from "../../src/nutricion/api"
 import { ComidaDelDia } from "../../src/nutricion/comida-del-dia"
 import { leerCopia } from "../../src/nutricion/copia-local"
 import { tipoDelDia } from "../../src/nutricion/hoy-modelo"
 import { useSesion } from "../../src/sesion"
-import { tema } from "../../src/tema"
+import { espacio, radio } from "../../src/tema"
 
 type Estado =
   | { fase: "cargando" }
-  | { fase: "error"; mensaje: string }
+  | { fase: "error"; falta: Falta; sinConexion: boolean }
   | {
       fase: "lista"
       dieta: DietaPublicada
@@ -35,6 +35,7 @@ export default function ComidaDeHoy(): React.JSX.Element {
   const api = useNutricion()
   const router = useRouter()
   const [estado, setEstado] = useState<Estado>({ fase: "cargando" })
+  const [intento, setIntento] = useState(0)
   const clienteId = "usuario" in sesion ? sesion.usuario.id : null
   const hoy = hoyAgenda()
   const volver = (): void => (router.canGoBack() ? router.back() : router.replace("/nutricion"))
@@ -45,10 +46,21 @@ export default function ComidaDeHoy(): React.JSX.Element {
       const buscar = (dieta: DietaPublicada | null): Comida | undefined =>
         dieta ? tipoDelDia(dieta.documento, hoy)?.comidas.find((c) => c.id === id) : undefined
       try {
-        const [{ dieta }, { comidas }] = await Promise.all([
+        const lecturas = await Promise.allSettled([
           api.vigente(cliente),
           api.comidas(cliente, hoy, hoy),
         ])
+        // Espera ambas lecturas: un fallo de red rápido no puede ocultar un
+        // permiso retirado o una respuesta inválida del otro endpoint.
+        for (const lectura of lecturas) {
+          if (lectura.status === "rejected" && !(lectura.reason instanceof ErrorDeRed))
+            throw lectura.reason
+        }
+        const [lecturaDieta, lecturaComidas] = lecturas
+        if (lecturaDieta.status === "rejected") throw lecturaDieta.reason
+        if (lecturaComidas.status === "rejected") throw lecturaComidas.reason
+        const { dieta } = lecturaDieta.value
+        const { comidas } = lecturaComidas.value
         const comida = buscar(dieta)
         return dieta && comida
           ? {
@@ -58,13 +70,29 @@ export default function ComidaDeHoy(): React.JSX.Element {
               registrada: comidas.find((c) => c.comidaId === comida.id),
               enLinea: true,
             }
-          : { fase: "error", mensaje: "Esta comida ya no está en tu dieta de hoy." }
-      } catch {
-        const copia = await leerCopia(almacenDispositivo, cliente).catch(() => null)
-        const comida = buscar(copia?.dieta ?? null)
-        return copia?.dieta && comida
-          ? { fase: "lista", dieta: copia.dieta, comida, enLinea: false }
-          : { fase: "error", mensaje: "Necesitas conexión para abrir esta comida." }
+          : {
+              fase: "error",
+              falta: {
+                texto: "Esta comida ya no está en tu dieta de hoy.",
+                reintentable: false,
+                sesionCaducada: false,
+              },
+              sinConexion: false,
+            }
+      } catch (error) {
+        // La copia solo sustituye una lectura sin red, nunca un rechazo de acceso
+        // ni una respuesta que no cumple el contrato.
+        if (error instanceof ErrorDeRed) {
+          const copia = await leerCopia(almacenDispositivo, cliente).catch(() => null)
+          const comida = buscar(copia?.dieta ?? null)
+          if (copia?.dieta && comida)
+            return { fase: "lista", dieta: copia.dieta, comida, enLinea: false }
+        }
+        return {
+          fase: "error",
+          falta: faltaDe(error, "No se pudo abrir esta comida."),
+          sinConexion: error instanceof ErrorDeRed,
+        }
       }
     },
     [api, hoy, id],
@@ -80,17 +108,37 @@ export default function ComidaDeHoy(): React.JSX.Element {
       return () => {
         vigente = false
       }
-    }, [cargar, clienteId]),
+    }, [cargar, clienteId, intento]),
   )
 
   return (
     <PantallaDeFormulario sinTarjeta>
       {estado.fase === "cargando" && (
-        <Text style={{ color: tema.textoTenue, fontFamily: tema.fuenteTexto }}>Cargando…</Text>
+        <View accessibilityLabel="Cargando comida" accessibilityState={{ busy: true }}>
+          <GrupoEsqueletos>
+            <View style={{ gap: espacio[20] }}>
+              <Esqueleto ancho="70%" alto={38} />
+              <Esqueleto alto={44} />
+              <Esqueleto alto={160} radio={radio.tarjeta} />
+              <Esqueleto alto={160} radio={radio.tarjeta} />
+            </View>
+          </GrupoEsqueletos>
+        </View>
       )}
       {estado.fase === "error" && (
         <>
-          <AvisoDeError mensaje={estado.mensaje} />
+          <Aviso
+            mensaje={estado.falta.texto}
+            tipo={estado.sinConexion ? "conexion" : "error"}
+            alReintentar={
+              estado.falta.reintentable
+                ? () => {
+                    setEstado({ fase: "cargando" })
+                    setIntento((n) => n + 1)
+                  }
+                : undefined
+            }
+          />
           <BotonSecundario
             texto="Volver a Nutrición"
             onPress={() => router.replace("/nutricion")}

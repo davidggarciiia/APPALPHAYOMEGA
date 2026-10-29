@@ -657,6 +657,6 @@ const estilos = StyleSheet.create({
     bottom: -4,
     height: 2,
     backgroundColor: tema.acento,
-    transformOrigin: "0% 50%",
+    transformOrigin: "50% 50%",
   },
 })

@@ -16,7 +16,7 @@ export function FechaSesion({
 }: {
   agenda: SesionProgramada
   api: Pick<ApiEntrenamiento, "mover" | "cambios">
-  actualizado: () => Promise<void>
+  actualizado: (agenda?: SesionProgramada) => Promise<void>
   iniciarAbierta?: boolean
   onTerminar?: () => void
   enHoja?: boolean
@@ -26,22 +26,37 @@ export function FechaSesion({
   const [error, setError] = useState("")
   const [historial, setHistorial] = useState<CambioDeFecha[]>([])
   const [total, setTotal] = useState<number | null>(null)
-  const mover = async (fecha: string): Promise<void> => {
+  const [pendienteDeActualizar, setPendienteDeActualizar] = useState<SesionProgramada | null>(null)
+  const refrescar = async (nueva: SesionProgramada): Promise<void> => {
     setOcupado(true)
     setError("")
     try {
-      await api.mover(agenda.id, { fecha, revision: agenda.revision })
-      await actualizado()
-      setEligiendo(false)
-      setHistorial([])
-      setTotal(null)
+      await actualizado(nueva)
+      setPendienteDeActualizar(null)
       onTerminar?.()
     } catch {
-      setError("No se pudo cambiar el día. Actualiza la sesión antes de reintentar.")
-      await actualizado().catch(() => undefined)
+      setError("Día cambiado; no se pudo refrescar la semana.")
     } finally {
       setOcupado(false)
     }
+  }
+  const mover = async (fecha: string): Promise<void> => {
+    setOcupado(true)
+    setError("")
+    let nueva: SesionProgramada
+    try {
+      nueva = await api.mover(agenda.id, { fecha, revision: agenda.revision })
+    } catch {
+      setError("No se pudo cambiar el día. Actualiza la sesión antes de reintentar.")
+      await actualizado().catch(() => undefined)
+      setOcupado(false)
+      return
+    }
+    setEligiendo(false)
+    setHistorial([])
+    setTotal(null)
+    setPendienteDeActualizar(nueva)
+    await refrescar(nueva)
   }
   const cambios = async (): Promise<void> => {
     setOcupado(true)
@@ -81,6 +96,7 @@ export function FechaSesion({
             texto={eligiendo ? "Cancelar cambio de día" : "Cambiar día"}
             onPress={() => setEligiendo(!eligiendo)}
             ocupado={ocupado}
+            deshabilitado={pendienteDeActualizar !== null}
           />
         )}
         {(total === null || historial.length < total) && (
@@ -115,8 +131,9 @@ export function FechaSesion({
           ).map((fecha) => (
             <BotonSecundario
               key={fecha}
-              texto={fechaLegible(fecha)}
+              texto={`${fechaLegible(fecha)}${fecha === agenda.fechaActual ? " (actual)" : ""}`}
               ocupado={ocupado}
+              deshabilitado={fecha === agenda.fechaActual}
               onPress={() => void mover(fecha)}
             />
           ))}
@@ -136,6 +153,13 @@ export function FechaSesion({
         </Text>
       ))}
       {error !== "" && <AvisoDeError mensaje={error} />}
+      {pendienteDeActualizar && (
+        <BotonSecundario
+          texto="Reintentar actualización"
+          ocupado={ocupado}
+          onPress={() => void refrescar(pendienteDeActualizar)}
+        />
+      )}
     </View>
   )
 }
