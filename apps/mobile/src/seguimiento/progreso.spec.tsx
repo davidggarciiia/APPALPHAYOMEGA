@@ -31,6 +31,33 @@ const progreso = (seguimiento: ApiSeguimiento) => (
   <ProgresoCliente clienteId="cliente" seguimiento={seguimiento} entrenamiento={entrenamiento} />
 )
 
+it("el entrenador abre ejercicios con historial aunque Fuerza no esté activo y no duplica ese indicador", async () => {
+  const seguimiento = api()
+  seguimiento.fuerza = async () => ({
+    ejercicios: [
+      {
+        ejercicioId: "press",
+        nombre: "Press inclinado",
+        puntos: [{ fecha: "2026-10-26", pesoKg: 60, repeticiones: 10, estimado: 80 }],
+      },
+    ],
+  })
+  const abrir = jest.fn()
+  await render(
+    <ProgresoCliente
+      clienteId="cliente"
+      seguimiento={seguimiento}
+      entrenamiento={entrenamiento}
+      modo="entrenador"
+      abrirEjercicio={abrir}
+    />,
+  )
+  await fireEvent.press(await screen.findByRole("button", { name: /^Press inclinado/ }))
+  expect(abrir).toHaveBeenCalledWith("press")
+  expect(screen.getByRole("tab", { name: "Peso" })).toBeOnTheScreen()
+  expect(screen.queryByRole("tab", { name: "Fuerza" })).toBeNull()
+})
+
 it("muestra un esqueleto accesible mientras espera el seguimiento", async () => {
   const seguimiento = api()
   seguimiento.configuracion = () => new Promise(() => {})

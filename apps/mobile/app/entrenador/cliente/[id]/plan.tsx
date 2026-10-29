@@ -11,10 +11,11 @@ import { useSesion } from "../../../../src/sesion"
 import { tema } from "../../../../src/tema"
 import { almacenDispositivo } from "../../../../src/entrenamiento/almacen-dispositivo"
 import { useRutinas } from "../../../../src/entrenamiento-entrenador/api-rutinas"
+import { AjusteEjercicio } from "../../../../src/entrenamiento-entrenador/ajuste-ejercicio"
 
 /** «Crear plan nuevo»: prepara una nueva asignación para el cliente. */
 export default function PrepararPlan(): React.JSX.Element {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, ejercicioId } = useLocalSearchParams<{ id: string; ejercicioId?: string }>()
   const { estado, pedir } = useSesion()
   const api = useEntrenamiento()
   const catalogo = useCatalogo()
@@ -40,19 +41,30 @@ export default function PrepararPlan(): React.JSX.Element {
   return (
     <View style={{ flex: 1 }}>
       {estado.fase === "dentro" && estado.usuario.rol === "entrenador" && typeof id === "string" ? (
-        <ConstructorPlan
-          key={id}
-          clienteId={id}
-          cuentaId={estado.usuario.id}
-          nombreCliente={nombre}
-          almacen={almacenDispositivo}
-          api={api}
-          catalogo={catalogo}
-          rutinas={rutinas}
-          nuevoId={randomUUID}
-          terminado={aLaFicha}
-          volver={aLaFicha}
-        />
+        typeof ejercicioId === "string" ? (
+          <AjusteEjercicio
+            key={`${id}:${ejercicioId}`}
+            clienteId={id}
+            ejercicioId={ejercicioId}
+            nombreCliente={nombre}
+            api={api}
+            volver={aLaFicha}
+          />
+        ) : (
+          <ConstructorPlan
+            key={id}
+            clienteId={id}
+            cuentaId={estado.usuario.id}
+            nombreCliente={nombre}
+            almacen={almacenDispositivo}
+            api={api}
+            catalogo={catalogo}
+            rutinas={rutinas}
+            nuevoId={randomUUID}
+            terminado={aLaFicha}
+            volver={aLaFicha}
+          />
+        )
       ) : (
         <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
           Esta pantalla requiere una cuenta de entrenador.

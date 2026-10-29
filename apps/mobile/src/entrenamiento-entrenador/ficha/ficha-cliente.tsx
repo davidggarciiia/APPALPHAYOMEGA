@@ -142,7 +142,7 @@ function FichaActual({
             await Promise.allSettled([
               leerFicha(),
               api.plan(clienteId, lunes),
-              api.resultados(clienteId, 30),
+              api.resultados(clienteId, 60),
               api.molestias(clienteId, "todas"),
               nutricion.vigente(clienteId),
               seguimiento.medidas(clienteId),
@@ -392,6 +392,13 @@ function FichaActual({
               seguimiento={seguimiento}
               entrenamiento={api}
               modo="entrenador"
+              resultados={datos.resultados}
+              abrirEjercicio={(ejercicioId) =>
+                router.push({
+                  pathname: "/entrenador/cliente/[id]/ejercicio/[ejercicioId]",
+                  params: { id: clienteId, ejercicioId },
+                })
+              }
             />
           </View>
         )}

@@ -1,6 +1,8 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common"
 import {
   BorradorSchema,
+  estimar1RM,
+  mejorSerieDeSesion,
   PrescripcionSchema,
   ResultadoEntrenamientoSchema,
   SesionClienteSchema,
@@ -10,6 +12,7 @@ import {
   type ProgresionFuerza,
   type ListadoSesiones,
   type ValoresEjecutados,
+  type SerieRegistrada,
   type ValoresEjecutadosDistancia,
   type SesionCliente,
   type SesionEntrenador,
@@ -222,8 +225,8 @@ export class SesionesService {
   }
 
   /**
-   * «Fuerza»: por ejercicio, la mejor serie con carga de cada sesión enviada,
-   * valorada con la estimación de Epley. Los seis ejercicios más repetidos.
+   * «Fuerza»: mejor serie de E1 por ejercicio y sesión enviada,
+   * con su estimación de Epley, por frecuencia de registro.
    */
   async fuerza(identidad: IdentidadVerificada, clienteId: string): Promise<ProgresionFuerza> {
     this.comprobarAcceso(identidad, clienteId)
@@ -251,40 +254,39 @@ export class SesionesService {
       const hechas = new Map(
         resultado.series.flatMap((s) => (s.hecha ? [[s.serieId, s.valores] as const] : [])),
       )
-      const mejoresEnSesion = new Map<
-        string,
-        {
-          nombre: string
-          pesoKg: number
-          repeticiones: number
-          estimado: number
-        }
-      >()
+      const ejerciciosEnSesion = new Map<string, { nombre: string; series: SerieRegistrada[] }>()
       for (const ejercicio of resultado.prescripcion.ejercicios) {
-        let mejor: { pesoKg: number; repeticiones: number; estimado: number } | null = null
-        for (const serie of ejercicio.series) {
-          const estimada = fuerzaEstimada(hechas.get(serie.id))
-          if (estimada && (!mejor || estimada.estimado > mejor.estimado)) mejor = estimada
+        const entrada = ejerciciosEnSesion.get(ejercicio.ejercicioId) ?? {
+          nombre: ejercicio.nombre,
+          series: [],
         }
-        if (!mejor) continue
-        const anterior = mejoresEnSesion.get(ejercicio.ejercicioId)
-        if (!anterior || mejor.estimado > anterior.estimado)
-          mejoresEnSesion.set(ejercicio.ejercicioId, { nombre: ejercicio.nombre, ...mejor })
+        for (const serie of ejercicio.series) {
+          const valores = hechas.get(serie.id)
+          if (valores) entrada.series.push({ ...valores, serieId: serie.id, hecha: true })
+        }
+        ejerciciosEnSesion.set(ejercicio.ejercicioId, entrada)
       }
-      for (const [ejercicioId, { nombre, ...mejor }] of mejoresEnSesion) {
+      for (const [ejercicioId, { nombre, series }] of ejerciciosEnSesion) {
+        const mejor = mejorSerieDeSesion(series)
+        const estimado = estimar1RM(mejor)
+        if (!mejor || estimado === null) continue
         const entrada = porEjercicio.get(ejercicioId) ?? {
           nombre,
           puntos: [],
         }
         entrada.nombre = nombre
-        entrada.puntos.push({ fecha: agendaPublica(enviada.agenda).fechaActual, ...mejor })
+        entrada.puntos.push({
+          fecha: agendaPublica(enviada.agenda).fechaActual,
+          pesoKg: mejor.pesoKg!,
+          repeticiones: mejor.repeticiones!,
+          estimado,
+        })
         porEjercicio.set(ejercicioId, entrada)
       }
     }
     const ejercicios = [...porEjercicio.entries()]
       .map(([ejercicioId, datos]) => ({ ejercicioId, ...datos }))
       .sort((a, b) => b.puntos.length - a.puntos.length)
-      .slice(0, 6)
     return { ejercicios }
   }
 

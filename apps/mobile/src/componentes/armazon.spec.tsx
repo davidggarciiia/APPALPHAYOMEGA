@@ -100,6 +100,7 @@ it("reserva la cabecera de Notificaciones para volver y su título en móvil", a
 it.each([
   "/entrenador/cliente/cliente",
   "/entrenador/cliente/cliente/plan",
+  "/entrenador/cliente/cliente/ejercicio/press",
   "/entrenamiento/sesion",
 ])("deja la cabecera propia a la pantalla empujada %s", async (ruta) => {
   jest.mocked(usePathname).mockReturnValue(ruta)

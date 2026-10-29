@@ -8,6 +8,7 @@ import type {
   ListadoMedidas,
   ListadoPruebas,
   ListadoSesiones,
+  ListadoResultados,
   PlanVigente,
   ProgresionFuerza,
 } from "@alpha-omega/shared"
@@ -26,6 +27,7 @@ import { EditorConfiguracionSeguimiento } from "./configuracion"
 import { AnadirMedida, AnadirPrueba } from "./formularios"
 import { EvolucionValoraciones } from "./evolucion-valoraciones"
 import { Grafica } from "./grafica"
+import { ListaProgresion } from "../entrenamiento-entrenador/ficha/lista-progresion"
 import type { ApiMedios } from "./medios-api"
 import { ValoracionesCliente } from "./resumen-valoracion"
 import { SolicitudesFotos } from "./solicitudes-fotos"
@@ -77,6 +79,8 @@ export function ProgresoCliente({
   valoraciones,
   medios,
   modo = "cliente",
+  resultados = [],
+  abrirEjercicio,
 }: {
   clienteId: string
   seguimiento: ApiSeguimiento
@@ -86,6 +90,8 @@ export function ProgresoCliente({
   /** Solicitudes, aportación y consulta de fotografías privadas del cliente. */
   medios?: ApiMedios
   modo?: "cliente" | "entrenador"
+  resultados?: ListadoResultados["resultados"]
+  abrirEjercicio?: (ejercicioId: string) => void
 }): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>()
   const [datos, setDatos] = useState<Datos | null>(null)
@@ -132,11 +138,16 @@ export function ProgresoCliente({
 
   const recargar = (): void => setIntento((n) => n + 1)
   const opciones =
-    datos?.configuracion.indicadores.map((valor) => ({ valor, texto: NOMBRE[valor] })) ?? []
+    datos?.configuracion.indicadores
+      .filter((valor) => !(modo === "entrenador" && abrirEjercicio && valor === "fuerza"))
+      .map((valor) => ({ valor, texto: NOMBRE[valor] })) ?? []
   const activa = opciones.some((opcion) => opcion.valor === pestana) ? pestana : opciones[0]?.valor
 
   return (
     <View style={s.contenido}>
+      {modo === "entrenador" && datos && abrirEjercicio && (
+        <ListaProgresion ejercicios={datos.fuerza} resultados={resultados} abrir={abrirEjercicio} />
+      )}
       {modo === "entrenador" && datos && (
         <EditorConfiguracionSeguimiento
           valor={datos.configuracion}
