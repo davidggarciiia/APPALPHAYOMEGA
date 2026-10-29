@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { StyleSheet, Text, View } from "react-native"
 import { z } from "zod"
@@ -55,10 +55,16 @@ export function PlanCliente({
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
   const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
+  const abriendo = useRef(false)
   const catalogo = useCatalogo()
   const acceso = useAccesoAFiguras()
   const hoy = hoyAgenda()
 
+  useFocusEffect(
+    useCallback(() => {
+      abriendo.current = false
+    }, []),
+  )
   useFocusEffect(
     useCallback(() => {
       let vigente = true
@@ -116,6 +122,11 @@ export function PlanCliente({
     setElegido(null)
     setSemana((actual) => sumarDias(actual, dias_))
   }
+  const abrirSesion = (id: string): void => {
+    if (abriendo.current) return
+    abriendo.current = true
+    abrir(id)
+  }
 
   return (
     <View style={s.contenido}>
@@ -137,7 +148,7 @@ export function PlanCliente({
           elegir={setElegido}
           hoy={hoy}
           verTecnica={setTecnica}
-          abrir={abrir}
+          abrir={abrirSesion}
         />
       ) : (
         <BloqueDelPlan plan={datos.plan} lunes={semana} dias={dias} hoy={hoy} />

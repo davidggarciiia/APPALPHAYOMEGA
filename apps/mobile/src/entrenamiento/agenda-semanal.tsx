@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useCallback, useRef, useState } from "react"
+import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import type { DeporteDelPlan, ListadoSesiones } from "@alpha-omega/shared"
 import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
@@ -44,6 +45,17 @@ export function AgendaSemanal({
 }): React.JSX.Element {
   const [dia, setDia] = useState<string | null>(null)
   const [moviendoId, setMoviendoId] = useState<string | null>(null)
+  const abriendo = useRef(false)
+  useFocusEffect(
+    useCallback(() => {
+      abriendo.current = false
+    }, []),
+  )
+  const abrirSesion = (id: string): void => {
+    if (abriendo.current) return
+    abriendo.current = true
+    abrir(id)
+  }
   const hoy = hoyAgenda()
   const sesiones = listado?.sesiones ?? []
   const visibles = dia === null ? sesiones : sesiones.filter((s) => s.agenda.fechaActual === dia)
@@ -80,7 +92,7 @@ export function AgendaSemanal({
             sesiones.some((s) => s.agenda.fechaActual === hoy) ? "Trabajo completado" : "Descanso"
           }
           hoy={sesionHoy?.agenda.fechaActual ?? hoy}
-          abrir={abrir}
+          abrir={abrirSesion}
           detalle={detalle}
           empezada={sesionHoy?.agenda.id === empezada?.agenda.id}
         />
@@ -91,7 +103,7 @@ export function AgendaSemanal({
           hoy={hoy}
           sesiones={sesiones}
           deportes={deportes}
-          abrir={abrir}
+          abrir={abrirSesion}
           empezadas={empezadas}
         />
       ) : (
@@ -134,7 +146,7 @@ export function AgendaSemanal({
                     style={[s.dia, (fecha === hoy || seleccionado) && s.diaMarcado]}
                     accessibilityRole="button"
                     accessibilityState={{ selected: seleccionado }}
-                    accessibilityLabel={`${fechaLegible(fecha)} · ${delDia.length} sesiones`}
+                    accessibilityLabel={`${fechaLegible(fecha)} · ${delDia.length === 1 ? "1 sesión" : `${delDia.length} sesiones`}`}
                     onPress={() => setDia(seleccionado ? null : fecha)}
                   >
                     <Text style={s.letra}>{nombre}</Text>
@@ -207,7 +219,7 @@ export function AgendaSemanal({
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={`${enviada ? "Ver resumen de" : enCurso ? "Continuar" : "Empezar"} ${sesion.nombre}, ${fechaLegible(sesion.agenda.fechaActual)}, ${enviada ? "enviado" : enCurso ? "en curso" : "pendiente"}`}
-                          onPress={() => abrir(sesion.agenda.id)}
+                          onPress={() => abrirSesion(sesion.agenda.id)}
                           style={({ pressed }) => [s.renglon, pressed && s.pulsado]}
                         >
                           <View style={s.informacion}>

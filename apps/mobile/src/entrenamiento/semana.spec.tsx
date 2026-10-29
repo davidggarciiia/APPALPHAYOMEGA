@@ -2,7 +2,7 @@ import { AppState } from "react-native"
 import { act, fireEvent, render, screen } from "@testing-library/react-native"
 import type { ApiEntrenamiento } from "./api"
 import type { SesionCliente } from "@alpha-omega/shared"
-import { ErrorDePeticion } from "../lib/http"
+import { ErrorDePermiso, ErrorDePeticion, ErrorDeSesion, ErrorDelServidor } from "../lib/http"
 import { SemanaEntrenamiento } from "./semana"
 import { crearApiEntrenamiento } from "./api"
 import { crearPeticionAutenticada } from "../lib/peticion-autenticada"
@@ -10,15 +10,177 @@ import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
 import { AgendaSemanal } from "./agenda-semanal"
 import { almacenDispositivo } from "./almacen-dispositivo"
 
+let mockVisita = 0
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
-    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
+    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto, mockVisita]),
 }))
 jest.mock("./almacen-dispositivo", () => ({
   almacenDispositivo: { leer: jest.fn(), guardar: jest.fn() },
 }))
 jest.mock("../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
+
+beforeEach(() => {
+  mockVisita = 0
+  AppState.currentState = "active"
+  ;(almacenDispositivo.leer as jest.Mock).mockReset().mockResolvedValue(null)
+  ;(almacenDispositivo.guardar as jest.Mock).mockReset().mockResolvedValue(undefined)
+})
+
+function listadoDePrueba(nombre = "Fuerza guardada", fecha = lunesDeSemana()) {
+  return {
+    sesiones: [
+      {
+        agenda: {
+          id: "10000000-0000-4000-8000-000000000000",
+          clienteId: "cliente",
+          fechaOriginal: fecha,
+          fechaActual: fecha,
+          estado: "abierta" as const,
+          revision: 0,
+        },
+        nombre,
+        enviadoEn: null,
+      },
+    ],
+    total: 1,
+  }
+}
+
+it("muestra la copia local sin esperar a que responda la red", async () => {
+  const listado = listadoDePrueba()
+  ;(almacenDispositivo.leer as jest.Mock).mockResolvedValue(listado)
+  const api = { semana: jest.fn(() => new Promise(() => undefined)) } as unknown as ApiEntrenamiento
+  await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />)
+  expect(await screen.findByText("Fuerza guardada")).toBeOnTheScreen()
+  expect(screen.queryByText("Cargando entrenamientos…")).toBeNull()
+  expect(api.semana).toHaveBeenCalledTimes(1)
+})
+
+it("conserva la lista al volver a enfocar mientras actualiza", async () => {
+  const api = {
+    semana: jest
+      .fn()
+      .mockResolvedValueOnce(listadoDePrueba())
+      .mockImplementation(() => new Promise(() => undefined)),
+  } as unknown as ApiEntrenamiento
+  const abrir = jest.fn()
+  const vista = await render(
+    <SemanaEntrenamiento clienteId="cliente" api={api} abrir={abrir} copiaLocal />,
+  )
+  await screen.findByText("Fuerza guardada")
+  mockVisita++
+  await vista.rerender(
+    <SemanaEntrenamiento clienteId="cliente" api={api} abrir={abrir} copiaLocal />,
+  )
+  expect(screen.getByText("Fuerza guardada")).toBeOnTheScreen()
+  expect(screen.queryByText("Cargando entrenamientos…")).toBeNull()
+})
+
+it("sondea al cliente cada 15 segundos y no vuelve a cifrar ni leer documentos iguales", async () => {
+  jest.useFakeTimers()
+  const listado = listadoDePrueba()
+  ;(almacenDispositivo.leer as jest.Mock).mockImplementation(async (_cuenta, clave) =>
+    clave.startsWith("semana-") ? listado : null,
+  )
+  const api = {
+    semana: jest.fn().mockResolvedValue(listado),
+    leerCliente: jest.fn().mockResolvedValue({ borrador: null }),
+  } as unknown as ApiEntrenamiento
+  const vista = await render(
+    <SemanaEntrenamiento
+      clienteId="cliente"
+      api={api}
+      abrir={jest.fn()}
+      copiaLocal
+      detectarEmpezadas
+    />,
+  )
+  const lecturas = (almacenDispositivo.leer as jest.Mock).mock.calls.length
+  expect(almacenDispositivo.guardar).not.toHaveBeenCalled()
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(14_999)
+  })
+  expect(api.semana).toHaveBeenCalledTimes(1)
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1)
+  })
+  expect(api.semana).toHaveBeenCalledTimes(2)
+  expect(almacenDispositivo.leer).toHaveBeenCalledTimes(lecturas)
+  expect(almacenDispositivo.guardar).not.toHaveBeenCalled()
+  const nuevos = listadoDePrueba("Fuerza actualizada")
+  ;(api.semana as jest.Mock).mockResolvedValue(nuevos)
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(15_000)
+  })
+  expect(screen.getByText("Fuerza actualizada")).toBeOnTheScreen()
+  expect(almacenDispositivo.guardar).toHaveBeenCalledTimes(1)
+  expect(almacenDispositivo.guardar).toHaveBeenCalledWith(
+    "cliente",
+    `semana-${lunesDeSemana()}`,
+    nuevos,
+  )
+  await vista.unmount()
+  jest.useRealTimers()
+})
+
+it("no presenta datos de otra semana mientras carga la elegida", async () => {
+  const api = {
+    semana: jest
+      .fn()
+      .mockResolvedValueOnce(listadoDePrueba())
+      .mockImplementation(() => new Promise(() => undefined)),
+  } as unknown as ApiEntrenamiento
+  await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />)
+  await screen.findByText("Fuerza guardada")
+  await fireEvent.press(screen.getByRole("button", { name: "Semana siguiente" }))
+  expect(screen.queryByText("Fuerza guardada")).toBeNull()
+  expect(screen.getByText("Cargando entrenamientos…")).toBeOnTheScreen()
+})
+
+it.each([new ErrorDelServidor(503), new SyntaxError("Respuesta inválida")])(
+  "conserva la copia ante un error de servidor o respuesta: %s",
+  async (error) => {
+    ;(almacenDispositivo.leer as jest.Mock).mockResolvedValue(listadoDePrueba())
+    const api = { semana: jest.fn().mockRejectedValue(error) } as unknown as ApiEntrenamiento
+    await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />)
+    expect(await screen.findByText("Fuerza guardada")).toBeOnTheScreen()
+    expect(
+      await screen.findByText(
+        "No se pudo actualizar la semana. Revisa la conexión y vuelve a intentarlo.",
+      ),
+    ).toBeOnTheScreen()
+  },
+)
+
+it.each([new ErrorDeSesion(), new ErrorDePermiso()])(
+  "retira la copia si la sesión o los permisos se rechazan: %s",
+  async (error) => {
+    ;(almacenDispositivo.leer as jest.Mock).mockResolvedValue(listadoDePrueba())
+    const api = { semana: jest.fn().mockRejectedValue(error) } as unknown as ApiEntrenamiento
+    await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />)
+    expect(screen.queryByText("Fuerza guardada")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Actualizar semana" })).toBeNull()
+    expect(
+      screen.getByText(
+        error instanceof ErrorDeSesion
+          ? "Tu sesión ha caducado. Vuelve a entrar."
+          : "No tienes permiso para acceder a estos datos.",
+      ),
+    ).toBeOnTheScreen()
+  },
+)
+
+it("muestra la respuesta de red aunque falle el guardado de la copia", async () => {
+  ;(almacenDispositivo.guardar as jest.Mock).mockRejectedValue(new Error("Disco lleno"))
+  const api = {
+    semana: jest.fn().mockResolvedValue(listadoDePrueba("Fuerza de red")),
+  } as unknown as ApiEntrenamiento
+  await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />)
+  expect(await screen.findByText("Fuerza de red")).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: "Actualizar semana" })).toBeNull()
+})
 
 it("prioriza la sesión empezada más reciente aunque no sea la de hoy", async () => {
   AppState.currentState = "active"
@@ -176,10 +338,14 @@ it("conserva el estado local empezado aunque el borrador remoto esté vacío", a
     nombre: "Fuerza pendiente de sincronizar",
     enviadoEn: null,
   }
-  ;(almacenDispositivo.leer as jest.Mock).mockResolvedValue({
-    sesion: { borrador: null },
-    edicion: { inicio: null, checkin: { sensacion: 4 }, series: [] },
-  })
+  ;(almacenDispositivo.leer as jest.Mock).mockImplementation(async (_cuenta, clave) =>
+    clave.startsWith("semana-")
+      ? null
+      : {
+          sesion: { borrador: null },
+          edicion: { inicio: null, checkin: { sensacion: 4 }, series: [] },
+        },
+  )
   const api = {
     semana: jest.fn(async () => ({ sesiones: [sesion], total: 1 })),
     leerCliente: jest.fn(async () => ({ borrador: null }) as unknown as SesionCliente),
@@ -370,6 +536,31 @@ it("la agenda distingue continuar una sesión empezada y ver el resumen enviado"
   ).toBeOnTheScreen()
 })
 
+it.each([0, 1, 2])("anuncia el número de sesiones del día con su plural: %i", async (cantidad) => {
+  const lunes = lunesDeSemana()
+  const sesion = listadoDePrueba().sesiones[0]!
+  await render(
+    <AgendaSemanal
+      semana={lunes}
+      listado={{
+        total: cantidad,
+        sesiones: Array.from({ length: cantidad }, (_, n) => ({
+          ...sesion,
+          agenda: { ...sesion.agenda, id: `sesion-${n}` },
+        })),
+      }}
+      cambiarSemana={jest.fn()}
+      abrir={jest.fn()}
+      resumenHoy={false}
+    />,
+  )
+  expect(
+    screen.getByRole("button", {
+      name: `${fechaLegible(lunes)} · ${cantidad} ${cantidad === 1 ? "sesión" : "sesiones"}`,
+    }),
+  ).toBeOnTheScreen()
+})
+
 it("filtra por la fecha actual, abre la sesión y limpia el filtro al cambiar semana", async () => {
   AppState.currentState = "active"
   const lunes = lunesDeSemana()
@@ -399,9 +590,7 @@ it("filtra por la fecha actual, abre la sesión y limpia el filtro al cambiar se
   expect(
     screen.queryByRole("button", { name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente` }),
   ).toBeNull()
-  await fireEvent.press(
-    screen.getByRole("button", { name: `${fechaLegible(martes)} · 1 sesiones` }),
-  )
+  await fireEvent.press(screen.getByRole("button", { name: `${fechaLegible(martes)} · 1 sesión` }))
   await fireEvent.press(
     screen.getByRole("button", { name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente` }),
   )

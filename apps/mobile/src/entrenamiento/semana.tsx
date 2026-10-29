@@ -13,6 +13,8 @@ import type { ApiEntrenamiento } from "./api"
 import { claveSesion, DocumentoSesionSchema } from "./documento-local"
 import { lunesDeSemana, sumarDias } from "./fechas"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
+import { faltaDe } from "../lib/errores"
+import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
 import { tema } from "../tema"
 
 async function empezadasLocales(
@@ -66,10 +68,29 @@ export function SemanaEntrenamiento({
 }): React.JSX.Element {
   const [semana, setSemana] = useState(lunesDeSemana)
   const semanaActual = useRef(lunesDeSemana())
-  const [listado, setListado] = useState<ListadoSesiones | null>(null)
+  const clave = `${clienteId}:${semana}`
+  const [cargado, setCargado] = useState<{ clave: string; datos: ListadoSesiones } | null>(null)
+  const listado = cargado?.clave === clave ? cargado.datos : null
+  const ultimaCopia = useRef<{ clave: string; contenido: string } | null>(null)
   const [empezadas, setEmpezadas] = useState<Record<string, string>>({})
   const [error, setError] = useState("")
+  const [reintentable, setReintentable] = useState(true)
   const [intento, setIntento] = useState(0)
+  const guardarCopia = useCallback(
+    async (datos: ListadoSesiones): Promise<void> => {
+      if (!copiaLocal) return
+      const contenido = JSON.stringify(datos)
+      if (ultimaCopia.current?.clave === clave && ultimaCopia.current.contenido === contenido)
+        return
+      await almacenDispositivo
+        .guardar(clienteId, `semana-${semana}`, datos)
+        .then(() => {
+          ultimaCopia.current = { clave, contenido }
+        })
+        .catch(() => undefined)
+    },
+    [clienteId, semana, clave, copiaLocal],
+  )
   useFocusEffect(
     useCallback(() => {
       let vigente = true
@@ -77,11 +98,19 @@ export function SemanaEntrenamiento({
       let ultimaConsultaDetalles = 0
       let idsPendientes = ""
       let remotas: Record<string, string> = {}
+      let locales: Record<string, string> = {}
+      let contenidoLocal: string | null = null
+      let copiaLeida = false
+      let accesoRechazado = false
       const cancelacion = new AbortController()
-      setListado(null)
-      setEmpezadas({})
+      setError("")
+      setReintentable(true)
       const cargar = async (): Promise<void> => {
-        if (enCurso || (AppState.currentState !== null && AppState.currentState !== "active"))
+        if (
+          enCurso ||
+          accesoRechazado ||
+          (AppState.currentState !== null && AppState.currentState !== "active")
+        )
           return
         const actual = lunesDeSemana()
         if (resumenHoy && semanaActual.current !== actual) {
@@ -94,13 +123,32 @@ export function SemanaEntrenamiento({
         }
         enCurso = true
         try {
-          const datos = await api.semana(clienteId, semana, cancelacion.signal)
-          if (vigente && copiaLocal)
-            await almacenDispositivo.guardar(clienteId, `semana-${semana}`, datos)
-          if (vigente) {
-            setListado(datos)
-            setError("")
+          if (copiaLocal && !copiaLeida) {
+            copiaLeida = true
+            const copia = await almacenDispositivo
+              .leer(clienteId, `semana-${semana}`, ListadoSesionesSchema)
+              .catch(() => null)
+            if (!vigente) return
+            if (copia) {
+              const contenido = JSON.stringify(copia)
+              ultimaCopia.current = { clave, contenido }
+              setCargado((anterior) =>
+                anterior?.clave === clave ? anterior : { clave, datos: copia },
+              )
+              if ((resumenHoy && semana === actual) || detectarEmpezadas) {
+                locales = await empezadasLocales(clienteId, copia.sesiones)
+                contenidoLocal = contenido
+                if (vigente) setEmpezadas(locales)
+              }
+            }
           }
+          if (!vigente) return
+          const datos = await api.semana(clienteId, semana, cancelacion.signal)
+          if (!vigente) return
+          setCargado({ clave, datos })
+          setError("")
+          await guardarCopia(datos)
+          if (!vigente) return
           if ((resumenHoy && semana === actual) || detectarEmpezadas) {
             const pendientes = datos.sesiones.filter((sesion) => sesion.enviadoEn === null)
             const clave = pendientes.map((sesion) => sesion.agenda.id).join(",")
@@ -131,30 +179,32 @@ export function SemanaEntrenamiento({
                 )
               }
             }
-            const locales = copiaLocal ? await empezadasLocales(clienteId, datos.sesiones) : {}
+            const contenido = JSON.stringify(datos)
+            if (copiaLocal && contenidoLocal !== contenido) {
+              locales = await empezadasLocales(clienteId, datos.sesiones)
+              contenidoLocal = contenido
+            }
             if (vigente) setEmpezadas({ ...remotas, ...locales })
           }
-        } catch {
-          if (vigente && copiaLocal) {
-            const copia = await almacenDispositivo
-              .leer(clienteId, `semana-${semana}`, ListadoSesionesSchema)
-              .catch(() => null)
-            if (vigente && copia) {
-              if ((resumenHoy && semana === lunesDeSemana()) || detectarEmpezadas) {
-                const locales = await empezadasLocales(clienteId, copia.sesiones)
-                if (vigente) setEmpezadas(locales)
-              }
-              if (vigente) setListado(copia)
-            }
+        } catch (error) {
+          if (!vigente) return
+          if (error instanceof ErrorDeSesion || error instanceof ErrorDePermiso) {
+            accesoRechazado = true
+            setCargado(null)
+            setEmpezadas({})
           }
-          if (vigente)
-            setError("No se pudo actualizar la semana. Revisa la conexión y vuelve a intentarlo.")
+          const falta = faltaDe(
+            error,
+            "No se pudo actualizar la semana. Revisa la conexión y vuelve a intentarlo.",
+          )
+          setError(falta.texto)
+          setReintentable(falta.reintentable)
         } finally {
           enCurso = false
         }
       }
       void cargar()
-      const reloj = setInterval(() => void cargar(), 5000)
+      const reloj = setInterval(() => void cargar(), copiaLocal ? 15_000 : 5000)
       const actividad = AppState.addEventListener("change", (estado) => {
         if (estado === "active") void cargar()
       })
@@ -164,20 +214,31 @@ export function SemanaEntrenamiento({
         clearInterval(reloj)
         actividad.remove()
       }
-    }, [api, clienteId, semana, intento, copiaLocal, resumenHoy, detectarEmpezadas]),
+    }, [
+      api,
+      clienteId,
+      semana,
+      clave,
+      intento,
+      copiaLocal,
+      resumenHoy,
+      detectarEmpezadas,
+      guardarCopia,
+    ]),
   )
   const actualizar = async (): Promise<void> => {
     const datos = await api.semana(clienteId, semana)
-    setListado(datos)
-    if (copiaLocal)
-      await almacenDispositivo.guardar(clienteId, `semana-${semana}`, datos).catch(() => undefined)
+    setCargado({ clave, datos })
+    await guardarCopia(datos)
   }
   return (
     <View style={{ gap: 14 }}>
       {error !== "" && (
         <>
           <AvisoDeError mensaje={error} />
-          <BotonSecundario texto="Actualizar semana" onPress={() => setIntento((n) => n + 1)} />
+          {reintentable && (
+            <BotonSecundario texto="Actualizar semana" onPress={() => setIntento((n) => n + 1)} />
+          )}
         </>
       )}
       {listado === null && error === "" && (

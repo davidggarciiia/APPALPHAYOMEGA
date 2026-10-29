@@ -1,15 +1,17 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import type { NovedadEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { crearApiEntrenamiento } from "./api"
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
 import { NovedadesEntrenamiento } from "./novedades"
 
+let mockFoco = 0
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
-    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
+    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto, mockFoco]),
 }))
 
-const novedad = {
+const novedad: NovedadEntrenamiento = {
   id: "10000000-0000-4000-8000-000000000000",
   sesionId: "20000000-0000-4000-8000-000000000000",
   clienteId: "30000000-0000-4000-8000-000000000000",
@@ -19,6 +21,44 @@ const novedad = {
   creadaEn: "2026-09-24T10:00:00.000Z",
   leidaEn: null,
 }
+
+it("no duplica la lectura ni la apertura y permite volver a abrir tras recuperar el foco", async () => {
+  let confirmar!: () => void
+  const novedades = jest.fn(async () => ({ novedades: [novedad], total: 1, sinLeer: 1 }))
+  const leerNovedades = jest.fn(
+    () =>
+      new Promise<{ leidas: number }>((resolve) => {
+        confirmar = () => resolve({ leidas: 1 })
+      }),
+  )
+  const abrir = jest.fn()
+  const propiedades = {
+    clienteId: novedad.clienteId,
+    api: { novedades, leerNovedades } as unknown as ApiEntrenamiento,
+    abrir,
+  }
+  const vista = await render(<NovedadesEntrenamiento {...propiedades} />)
+  const boton = await screen.findByRole("button", { name: /revisó Fuerza A/ })
+  await fireEvent.press(boton)
+  await fireEvent.press(boton)
+  expect(leerNovedades).toHaveBeenCalledTimes(1)
+
+  await vista.rerender(<NovedadesEntrenamiento {...propiedades} api={{ ...propiedades.api }} />)
+  await fireEvent.press(await screen.findByRole("button", { name: /revisó Fuerza A/ }))
+  expect(leerNovedades).toHaveBeenCalledTimes(1)
+  await act(async () => confirmar())
+  expect(abrir).toHaveBeenCalledTimes(1)
+
+  novedades.mockResolvedValue({
+    novedades: [{ ...novedad, leidaEn: novedad.creadaEn }],
+    total: 1,
+    sinLeer: 0,
+  })
+  mockFoco += 1
+  await vista.rerender(<NovedadesEntrenamiento {...propiedades} />)
+  await fireEvent.press(await screen.findByRole("button", { name: /revisó Fuerza A/ }))
+  expect(abrir).toHaveBeenCalledTimes(2)
+})
 
 it("muestra la revisión y guarda la lectura al abrir la sesión", async () => {
   const novedades = jest.fn(async () => ({ novedades: [novedad], total: 1, sinLeer: 1 }))

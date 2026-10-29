@@ -6,6 +6,24 @@ import { objetivoDeSerie } from "../sesion/modelo"
 import { BloqueDelPlan } from "./bloque"
 import { Guia } from "./guia"
 import { RutinaDeLaSemana, type DiaDelPlan } from "./rutina"
+import { PlanCliente } from "./plan-cliente"
+import type { ApiEntrenamiento } from "../api"
+import { lunesDeSemana } from "../fechas"
+
+let mockFoco = 0
+jest.mock("expo-router", () => ({
+  useFocusEffect: (efecto: () => void) =>
+    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto, mockFoco]),
+}))
+jest.mock("../almacen-dispositivo", () => ({
+  almacenDispositivo: { leer: jest.fn(), guardar: jest.fn(async () => undefined) },
+}))
+jest.mock("../../catalogo-ejercicios/use-catalogo", () => ({
+  useCatalogo: () => ({ leer: jest.fn() }),
+}))
+jest.mock("../../catalogo-ejercicios/figura-ejercicio", () => ({
+  useAccesoAFiguras: () => ({ base: "http://api", token: "t", renovar: jest.fn() }),
+}))
 
 const u = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
 
@@ -65,6 +83,30 @@ function dia(id: number, fecha: string, nombre: string, enviado = false): DiaDel
     prescripcion: { ...empuje, nombre },
   }
 }
+
+it("el plan abre una sola sesión por foco y deja volver a abrirla", async () => {
+  const sesion = dia(2, lunesDeSemana(), "Empuje")
+  const api = {
+    semana: jest.fn(async () => ({ sesiones: [sesion.resumen], total: 1 })),
+    plan: jest.fn(async () => ({ plan: null })),
+    leerCliente: jest.fn(async () => ({ agenda: sesion.resumen.agenda, prescripcion: empuje })),
+  } as unknown as ApiEntrenamiento
+  const abrir = jest.fn()
+  const vista = await render(<PlanCliente clienteId={u(99)} api={api} abrir={abrir} />)
+  const boton = await screen.findByRole("button", { name: "Abrir sesión" })
+  await fireEvent.press(boton)
+  await fireEvent.press(boton)
+  expect(abrir).toHaveBeenCalledTimes(1)
+
+  await vista.rerender(<PlanCliente clienteId={u(99)} api={{ ...api }} abrir={abrir} />)
+  await fireEvent.press(await screen.findByRole("button", { name: "Abrir sesión" }))
+  expect(abrir).toHaveBeenCalledTimes(1)
+
+  mockFoco += 1
+  await vista.rerender(<PlanCliente clienteId={u(99)} api={api} abrir={abrir} />)
+  await fireEvent.press(await screen.findByRole("button", { name: "Abrir sesión" }))
+  expect(abrir).toHaveBeenCalledTimes(2)
+})
 
 describe("RutinaDeLaSemana", () => {
   it("enseña el día elegido por partes, con dosis, RIR y descanso", async () => {

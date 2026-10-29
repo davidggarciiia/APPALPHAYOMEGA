@@ -39,6 +39,12 @@ export function NovedadesEntrenamiento({
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState("")
   const consulta = useRef(0)
+  const abriendo = useRef(false)
+  useFocusEffect(
+    useCallback(() => {
+      abriendo.current = false
+    }, []),
+  )
   useFocusEffect(
     useCallback(() => {
       let vigente = true
@@ -98,6 +104,8 @@ export function NovedadesEntrenamiento({
           accessibilityLabel={`${descripcion(novedad)}${novedad.leidaEn ? "" : ", sin leer"}`}
           style={[s.fila, !novedad.leidaEn && s.nueva]}
           onPress={() => {
+            if (abriendo.current) return
+            abriendo.current = true
             void (async () => {
               if (!novedad.leidaEn) {
                 try {
