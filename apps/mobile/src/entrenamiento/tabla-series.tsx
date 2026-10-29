@@ -155,7 +155,13 @@ export function TablaSeries({
         <Text style={[s.etiqueta, s.marca]} />
       </View>
       {ejercicio.series.map((prescrita, n) => {
-        const real = series.find((serie) => serie.serieId === prescrita.id)!
+        const real = series.find((serie) => serie.serieId === prescrita.id)
+        if (!real)
+          return (
+            <Text key={prescrita.id} style={[s.resumen, s.aviso]} accessibilityRole="alert">
+              Serie {n + 1}: registro no disponible en esta copia.
+            </Text>
+          )
         const unidad = UNIDADES[prescrita.tipoMedicion].nombre
         const objetivo = cantidadObjetivo(prescrita)
         const actual = enCurso === prescrita.id
@@ -331,6 +337,7 @@ const s = StyleSheet.create({
   titulos: { flex: 1, gap: 4 },
   nombre: { fontFamily: tema.fuenteBoton, fontSize: 20, lineHeight: 25, color: tema.texto },
   resumen: { fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18, color: tema.textoTenue },
+  aviso: { color: tema.aviso },
   tecnica: { minHeight: 44, justifyContent: "center" },
   textoTecnica: { fontFamily: tema.fuenteBoton, fontSize: 15, color: tema.acento },
   anterior: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },

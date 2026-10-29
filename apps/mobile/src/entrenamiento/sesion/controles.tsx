@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import {
   KeyboardAvoidingView,
   Modal,
@@ -144,6 +144,7 @@ export function Deslizador({
   etiqueta: string
 }): React.JSX.Element {
   const [ancho, setAncho] = useState(0)
+  const gesto = useRef<{ x: number; y: number; movido: boolean } | null>(null)
   const desde = (evento: GestureResponderEvent): void => {
     if (ancho <= 0) return
     const x = Math.min(Math.max(evento.nativeEvent.locationX, 0), ancho)
@@ -154,10 +155,39 @@ export function Deslizador({
     <View
       style={s.deslizador}
       onLayout={(e: LayoutChangeEvent) => setAncho(e.nativeEvent.layout.width)}
-      onStartShouldSetResponder={() => true}
-      onMoveShouldSetResponder={() => true}
-      onResponderGrant={desde}
+      onTouchStart={(e) => {
+        gesto.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, movido: false }
+      }}
+      onMoveShouldSetResponder={(e) => {
+        const inicio = gesto.current
+        if (!inicio) return false
+        const dx = Math.abs(e.nativeEvent.pageX - inicio.x)
+        const dy = Math.abs(e.nativeEvent.pageY - inicio.y)
+        if (Math.max(dx, dy) > 5) inicio.movido = true
+        return dx > 5 && dx > dy
+      }}
+      onResponderGrant={(e) => {
+        if (gesto.current) gesto.current.movido = true
+        desde(e)
+      }}
       onResponderMove={desde}
+      onTouchEnd={(e) => {
+        const inicio = gesto.current
+        gesto.current = null
+        if (
+          inicio &&
+          !inicio.movido &&
+          Math.abs(e.nativeEvent.pageX - inicio.x) <= 5 &&
+          Math.abs(e.nativeEvent.pageY - inicio.y) <= 5
+        )
+          desde(e)
+      }}
+      onTouchCancel={() => {
+        gesto.current = null
+      }}
+      onResponderTerminate={() => {
+        gesto.current = null
+      }}
       accessible
       accessibilityRole="adjustable"
       accessibilityLabel={etiqueta}

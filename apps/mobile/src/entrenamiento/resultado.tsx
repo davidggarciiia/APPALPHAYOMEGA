@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native"
 import type { ResultadoEntrenamiento, ValoresEjecutados } from "@alpha-omega/shared"
 import type { PrescripcionConDistancia, SerieConDistancia } from "./registro-modelo"
-import { seriesDeTrabajo } from "./sesion/modelo"
+import { kg, seriesDeTrabajo } from "./sesion/modelo"
 import { Icono } from "../componentes/iconos"
 import { degradadoExito, tema } from "../tema"
 
@@ -9,7 +9,7 @@ export type ResultadoConDistancia = ResultadoEntrenamiento
 
 /** «8 rep · 60 kg», «30 s» o «20 m · 32 kg»: cada cantidad en su unidad. */
 export function valoresLegibles(serie: SerieConDistancia | ValoresEjecutados): string {
-  const peso = serie.pesoKg === null ? "" : ` · ${serie.pesoKg} kg`
+  const peso = serie.pesoKg === null ? "" : ` · ${kg(serie.pesoKg)}`
   switch (serie.tipoMedicion) {
     case "repeticiones":
       return `${serie.repeticiones} rep${peso}`
@@ -85,7 +85,11 @@ export function PrescripcionVisible({
                   </Text>
                   {real && (
                     <Text style={real.hecha ? estilos.hecha : estilos.omitida}>
-                      {real.hecha ? `Hecho: ${valoresLegibles(real.valores)}` : "Omitida"}
+                      {real.hecha
+                        ? `Hecho: ${valoresLegibles(real.valores)}`
+                        : real.omitida
+                          ? "Omitida"
+                          : "Sin hacer"}
                     </Text>
                   )}
                 </View>

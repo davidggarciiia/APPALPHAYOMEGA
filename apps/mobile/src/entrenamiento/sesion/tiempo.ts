@@ -1,5 +1,8 @@
 import type { EdicionRegistro } from "../registro-modelo"
 
+// Una app cerrada durante horas no debe inflar el último tramo del entrenamiento.
+const MAXIMO_TRAMO_SEGUNDOS = 4 * 3600
+
 /** Un tramo abierto continúa mientras el móvil está bloqueado o hay otra app delante. */
 export function iniciarTramo(edicion: EdicionRegistro, instante: string): EdicionRegistro {
   if (edicion.tramoActivoDesde) return edicion
@@ -20,7 +23,8 @@ export function pausarTramo(edicion: EdicionRegistro, instante: string): Edicion
   )
   return {
     ...edicion,
-    tiempoActivoSegundos: (edicion.tiempoActivoSegundos ?? 0) + tramo,
+    tiempoActivoSegundos:
+      (edicion.tiempoActivoSegundos ?? 0) + Math.min(tramo, MAXIMO_TRAMO_SEGUNDOS),
     tramoActivoDesde: null,
   }
 }
@@ -33,7 +37,10 @@ export function duracionDeSesion(
     const tramo = edicion.tramoActivoDesde
       ? Math.max(0, Math.floor((ahora - Date.parse(edicion.tramoActivoDesde)) / 1000))
       : 0
-    return { segundos: edicion.tiempoActivoSegundos + tramo, legado: false }
+    return {
+      segundos: edicion.tiempoActivoSegundos + Math.min(tramo, MAXIMO_TRAMO_SEGUNDOS),
+      legado: false,
+    }
   }
   return {
     segundos: edicion.inicio

@@ -78,12 +78,108 @@ function preparar() {
   return { control, api, almacen, persistencia, cifrado }
 }
 
+it("no vuelve a cifrar ni escribir una lectura sin cambios y conserva el documento", async () => {
+  const { api, almacen, persistencia, cifrado } = preparar()
+  const cambio = jest.fn()
+  const control = new RegistroControl(cuenta, id, api, almacen, randomUUID, cambio)
+  await control.abrir()
+  const documento = control.documento
+  const escribir = jest.spyOn(persistencia, "escribir")
+  const cifrar = jest.spyOn(cifrado, "cifrar")
+  cambio.mockClear()
+
+  await control.actualizar()
+  await control.actualizar()
+
+  expect(control.documento).toBe(documento)
+  expect(escribir).not.toHaveBeenCalled()
+  expect(cifrar).not.toHaveBeenCalled()
+  expect(cambio).not.toHaveBeenCalled()
+})
+
+it("notifica que recupera red y consentimiento aunque el documento no cambie", async () => {
+  const { api, almacen, persistencia } = preparar()
+  const cambio = jest.fn()
+  const control = new RegistroControl(cuenta, id, api, almacen, randomUUID, cambio)
+  await control.abrir()
+  control.sinRed = true
+  control.sinConsentimiento = true
+  const escribir = jest.spyOn(persistencia, "escribir")
+  cambio.mockClear()
+
+  await control.actualizar()
+
+  expect(control.sinRed).toBe(false)
+  expect(control.sinConsentimiento).toBe(false)
+  expect(cambio).toHaveBeenCalledTimes(1)
+  expect(escribir).not.toHaveBeenCalled()
+})
+
+it("notifica el conflicto remoto aunque la edición pendiente no cambie", async () => {
+  const { api, almacen, persistencia } = preparar()
+  const cambio = jest.fn()
+  const control = new RegistroControl(cuenta, id, api, almacen, randomUUID, cambio)
+  await control.abrir()
+  await control.editar({ ...control.documento!.edicion, notas: "Pendiente" })
+  jest.mocked(api.leerCliente).mockResolvedValue({ ...sesion, revisionPrescripcion: 1 })
+  const escribir = jest.spyOn(persistencia, "escribir")
+  cambio.mockClear()
+
+  await control.actualizar()
+
+  expect(control.conflicto).toBe(true)
+  expect(control.documento?.edicion.notas).toBe("Pendiente")
+  expect(cambio).toHaveBeenCalledTimes(1)
+  expect(escribir).not.toHaveBeenCalled()
+})
+
+it("persiste un cambio real de la agenda", async () => {
+  const { control, api, persistencia, cifrado } = preparar()
+  await control.abrir()
+  jest.mocked(api.leerCliente).mockResolvedValue({
+    ...sesion,
+    agenda: { ...sesion.agenda, revision: 1, fechaActual: "2026-09-15" },
+  })
+  const escribir = jest.spyOn(persistencia, "escribir")
+  const cifrar = jest.spyOn(cifrado, "cifrar")
+
+  await control.actualizar()
+
+  expect(control.documento?.sesion.agenda.fechaActual).toBe("2026-09-15")
+  expect(escribir).toHaveBeenCalledTimes(1)
+  expect(cifrar).toHaveBeenCalledTimes(1)
+})
+
+it("reintenta una escritura fallida aunque la siguiente lectura no cambie", async () => {
+  const { control, api, persistencia } = preparar()
+  await control.abrir()
+  jest.mocked(api.leerCliente).mockResolvedValue({
+    ...sesion,
+    agenda: { ...sesion.agenda, revision: 1 },
+  })
+  const escribir = jest
+    .spyOn(persistencia, "escribir")
+    .mockRejectedValueOnce(new Error("Disco lleno"))
+  await expect(control.actualizar()).rejects.toThrow()
+  expect(control.errorLocal).toBe(true)
+  escribir.mockClear()
+
+  await control.actualizar()
+
+  expect(escribir).toHaveBeenCalledTimes(1)
+  expect(control.errorLocal).toBe(false)
+})
+
 it("un fallo de disco al reabrir no se confunde con red y una caída posterior sí se reconoce", async () => {
   const { control, api, almacen, persistencia } = preparar()
   await control.abrir()
   control.cerrar()
   const anterior = await persistencia.leer(cuenta, claveSesion(id))
   const reabierta = new RegistroControl(cuenta, id, api, almacen, randomUUID, () => undefined)
+  jest.mocked(api.leerCliente).mockResolvedValue({
+    ...sesion,
+    agenda: { ...sesion.agenda, revision: 1 },
+  })
   jest.spyOn(persistencia, "escribir").mockRejectedValueOnce(new Error("Disco lleno"))
   await reabierta.abrir()
   expect(reabierta.errorLocal).toBe(true)

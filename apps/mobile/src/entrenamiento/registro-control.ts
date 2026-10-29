@@ -181,6 +181,8 @@ export class RegistroControl {
         (!sesion.enviadoEn && (sesion.borrador?.revision ?? 0) < conocido.revisionBorrador))
     )
       return
+    const recuperado = this.sinRed || this.sinConsentimiento
+    const conflictoAnterior = this.conflicto
     this.sinRed = false
     this.sinConsentimiento = false
     if (sesion.enviadoEn) {
@@ -243,6 +245,11 @@ export class RegistroControl {
         descansoHasta: local?.descansoHasta ?? null,
         descansoTotal: local?.descansoTotal ?? null,
       }
+    }
+    if (!this.errorLocal && JSON.stringify(this.documento) === JSON.stringify(local)) {
+      this.documento = local
+      if (recuperado || this.conflicto !== conflictoAnterior) this.cambio()
+      return
     }
     await this.persistir()
   }

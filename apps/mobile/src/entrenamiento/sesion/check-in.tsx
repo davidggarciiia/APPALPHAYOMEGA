@@ -2,8 +2,9 @@ import { useState } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 import type { Checkin } from "@alpha-omega/shared"
 
+import { BotonPrincipal } from "../../componentes/botones"
 import { tema } from "../../tema"
-import { BotonAtras, BotonDorado, Chips, Opciones, Pregunta } from "./controles"
+import { BotonAtras, Chips, Opciones, Pregunta } from "./controles"
 
 const SENSACIONES = [1, 2, 3, 4, 5].map((valor) => ({ valor, texto: String(valor) }))
 const MOLESTIAS = [
@@ -58,13 +59,21 @@ export function CheckIn({
           </Text>
         )}
       </View>
-      {!listo && <Text style={s.ayuda}>Responde las dos preguntas para empezar.</Text>}
-      <BotonDorado
+      {!listo && (
+        <Text style={s.ayuda}>
+          {sensacion === null && molestia === null
+            ? "Responde las dos preguntas para empezar."
+            : sensacion === null
+              ? "Responde cómo te sientes para empezar."
+              : "Responde si algo te molesta para empezar."}
+        </Text>
+      )}
+      <BotonPrincipal
         texto="Empezar"
+        deshabilitado={!listo}
         onPress={() => {
           if (sensacion !== null && molestia !== null) empezar({ sensacion, molestia })
         }}
-        ocupado={false}
       />
     </ScrollView>
   )

@@ -45,4 +45,34 @@ it("identifica el tiempo de un borrador antiguo como transcurrido", () => {
     segundos: 120,
     legado: true,
   })
+  expect(duracionDeSesion({ ...base, inicio: t0 }, Date.parse(t0) + 10 * 3_600_000)).toEqual({
+    segundos: 36_000,
+    legado: true,
+  })
+})
+
+it("muestra como máximo cuatro horas del tramo abierto sin perder el acumulado", () => {
+  const activa = iniciarTramo({ ...base, tiempoActivoSegundos: 120 }, t0)
+  expect(duracionDeSesion(activa, Date.parse(t0) + 10 * 3_600_000)).toEqual({
+    segundos: 14_520,
+    legado: false,
+  })
+})
+
+it("al pausar un tramo de diez horas suma solo cuatro al tiempo ya acumulado", () => {
+  const activa = iniciarTramo({ ...base, tiempoActivoSegundos: 120 }, t0)
+  const pausada = pausarTramo(activa, "2026-09-24T20:00:00.000Z")
+  expect(pausada.tiempoActivoSegundos).toBe(14_520)
+  expect(pausada.tramoActivoDesde).toBeNull()
+})
+
+it("reanudar tras un tramo limitado permite acumular el nuevo tramo", () => {
+  const activa = iniciarTramo({ ...base, tiempoActivoSegundos: 120 }, t0)
+  const pausada = pausarTramo(activa, "2026-09-24T20:00:00.000Z")
+  const reanudada = iniciarTramo(pausada, "2026-09-24T21:00:00.000Z")
+  expect(duracionDeSesion(reanudada, Date.parse("2026-09-24T21:00:30.000Z"))).toEqual({
+    segundos: 14_550,
+    legado: false,
+  })
+  expect(pausarTramo(reanudada, "2026-09-24T21:00:30.000Z").tiempoActivoSegundos).toBe(14_550)
 })

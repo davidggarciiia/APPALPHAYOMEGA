@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals"
 import { AppState } from "react-native"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native"
 import type {
   Borrador,
   EnviarEntrenamiento,
@@ -13,7 +13,10 @@ import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import { claveSesion, nuevoDocumento } from "./documento-local"
 import { RegistroCliente } from "./registro-cliente"
-import { registroParaEnviar } from "./registro-modelo"
+import { desdePrescripcion, registroParaEnviar } from "./registro-modelo"
+import * as tablaSeries from "./tabla-series"
+import * as cierreSesion from "./sesion/cierre"
+import * as molestiaSesion from "./sesion/molestia"
 import { ErrorDeRed } from "../lib/http"
 
 jest.mock("expo-router", () => ({
@@ -181,6 +184,152 @@ describe("RegistroCliente · cierre comprometido", () => {
     AppState.currentState = "active"
   })
 
+  it("el reloj avanza sin repintar la tabla ni interrumpir lo escrito", async () => {
+    jest.useFakeTimers()
+    const tabla = jest.spyOn(tablaSeries, "TablaSeries")
+    try {
+      const { comoApi } = crearApi()
+      const copia = nuevoDocumento(sesion)
+      copia.edicion.inicio = new Date().toISOString()
+      copia.edicion.tiempoActivoSegundos = 0
+      copia.edicion.tramoActivoDesde = copia.edicion.inicio
+      copia.descansoHasta = new Date(Date.now() + 90000).toISOString()
+      copia.descansoTotal = 90
+      await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
+      const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await screen.findByRole("timer", { name: "Tiempo de sesión: 0 minutos 0 segundos" })
+      await fireEvent.changeText(screen.getByLabelText("Peso — Press banca, serie 1"), "42,5")
+      await screen.findByText(/Guardado en el dispositivo/)
+      tabla.mockClear()
+      await act(async () => {
+        jest.advanceTimersByTime(1000)
+      })
+      expect(
+        screen.getByRole("timer", { name: "Tiempo de sesión: 0 minutos 1 segundos" }),
+      ).toBeTruthy()
+      expect(screen.getByLabelText("Quedan 89 segundos de descanso")).toBeTruthy()
+      expect(screen.getByDisplayValue("42,5")).toBeTruthy()
+      expect(tabla).not.toHaveBeenCalled()
+      await vista.unmount()
+    } finally {
+      tabla.mockRestore()
+      jest.useRealTimers()
+    }
+  })
+
+  it.each(["cierre", "molestia"] as const)(
+    "el reloj no repinta el formulario de %s",
+    async (fase) => {
+      jest.useFakeTimers()
+      const formulario =
+        fase === "cierre"
+          ? jest.spyOn(cierreSesion, "CierreDeSesion")
+          : jest.spyOn(molestiaSesion, "RegistrarMolestiaPantalla")
+      try {
+        const { comoApi } = crearApi()
+        const copia = nuevoDocumento(sesion)
+        copia.edicion.inicio = new Date().toISOString()
+        copia.edicion.tiempoActivoSegundos = 0
+        copia.edicion.tramoActivoDesde = copia.edicion.inicio
+        await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
+        const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+        await screen.findByRole("button", { name: "Terminar" })
+        if (fase === "cierre") {
+          await abrirCierre()
+          await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
+          await fireEvent.changeText(
+            screen.getByLabelText("Nota para tu entrenador"),
+            "Sin interrupciones",
+          )
+        } else await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia" }))
+        formulario.mockClear()
+        await act(async () => {
+          jest.advanceTimersByTime(1000)
+        })
+        expect(
+          screen.getByText(fase === "cierre" ? "Empuje · Tiempo activo: 0:00" : "0:01"),
+        ).toBeTruthy()
+        expect(formulario).not.toHaveBeenCalled()
+        if (fase === "cierre") expect(screen.getByDisplayValue("Sin interrupciones")).toBeTruthy()
+        await vista.unmount()
+      } finally {
+        formulario.mockRestore()
+        jest.useRealTimers()
+      }
+    },
+  )
+
+  it("la copia no enviada identifica cada ejercicio y conserva sus unidades", async () => {
+    const { comoApi } = crearApi()
+    const copia = nuevoDocumento(sesion)
+    copia.resultado = resultado({
+      operacionId: ID,
+      revisionPrescripcion: 0,
+      revisionBorrador: 1,
+      registro: registroParaEnviar(sesion.prescripcion, copia.edicion),
+    })
+    const pauta: SesionCliente["prescripcion"] = {
+      nombre: "Cardio",
+      ejercicios: [
+        {
+          ...sesion.prescripcion.ejercicios[0]!,
+          nombre: "Carrera",
+          series: [{ id: SERIE, tipoMedicion: "tiempo", segundos: 60, pesoKg: null }],
+        },
+        {
+          ...sesion.prescripcion.ejercicios[0]!,
+          id: "40000000-0000-4000-8000-000000000002",
+          nombre: "Paseo del granjero",
+          series: [
+            {
+              id: "30000000-0000-4000-8000-000000000002",
+              tipoMedicion: "distancia",
+              metros: 40,
+              pesoKg: 12.5,
+            },
+          ],
+        },
+      ],
+    }
+    const edicion = desdePrescripcion(pauta)
+    edicion.series = edicion.series.map((serie, i) => ({
+      ...serie,
+      valor: i === 0 ? "30" : "20",
+      peso: i === 0 ? "" : "12,5",
+    }))
+    copia.respaldo = { prescripcion: pauta, edicion }
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByText("Copia · Carrera · serie 1: 30 s")).toBeTruthy()
+    expect(screen.getByText("Copia · Paseo del granjero · serie 1: 20 m · 12,5 kg")).toBeTruthy()
+  })
+
+  it("permite avisar de una molestia junto a las series con su contexto", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      borrador: {
+        ...sesion.borrador!,
+        registro: {
+          ...sesion.borrador!.registro,
+          series: sesion.borrador!.registro.series.map((s) => ({ ...s, hecha: false })),
+        },
+      },
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    const series = await screen.findByTestId("series-del-ejercicio")
+    await fireEvent.press(within(series).getByRole("button", { name: "Tengo una molestia" }))
+    expect(screen.getByRole("header", { name: "Molestia" })).toBeTruthy()
+    expect(screen.getByText("Press banca · serie 1")).toBeTruthy()
+  })
+
+  it("el guardado habitual no anuncia cada pulsación al lector de pantalla", async () => {
+    const { comoApi } = crearApi()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    const estado = await screen.findByText(/Guardado en el dispositivo/)
+    expect(estado.props.accessibilityLiveRegion).toBe("none")
+  })
+
   it("un fallo al leer la copia local conserva los datos y no pide conexión", async () => {
     const { api, comoApi } = crearApi()
     const copia = "copia local ilegible"
@@ -200,6 +349,7 @@ describe("RegistroCliente · cierre comprometido", () => {
     const { api, comoApi } = crearApi()
     await almacenDispositivo.guardar(CUENTA, claveSesion(ID), nuevoDocumento(sesion))
     const anterior = mockFilas.get(claveSesion(ID))
+    api.leerCliente.mockResolvedValue({ ...sesion, agenda: { ...sesion.agenda, revision: 1 } })
     mockFalloDeDisco = true
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
     await fireEvent.press(await screen.findByRole("button", { name: "Reintentar guardado local" }))

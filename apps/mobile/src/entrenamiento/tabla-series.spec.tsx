@@ -26,6 +26,37 @@ const ejercicio: EjercicioPrescrito = {
   series: [{ id: serieId, tipoMedicion: "tiempo", segundos: 30, pesoKg: null }],
 }
 
+it("avisa si falta una serie en la copia y mantiene las otras disponibles", async () => {
+  const segunda = "20000000-0000-4000-8000-000000000001"
+  const cambiar = jest.fn()
+  await render(
+    <TablaSeries
+      ejercicio={{
+        ...ejercicio,
+        series: [
+          ejercicio.series[0]!,
+          { id: segunda, tipoMedicion: "tiempo", segundos: 45, pesoKg: null },
+        ],
+      }}
+      series={[{ serieId: segunda, peso: "", valor: "", hecha: false }]}
+      bloqueado={false}
+      cambiar={cambiar}
+      enCurso={serieId}
+    />,
+  )
+  expect(screen.getByText("Serie 1: registro no disponible en esta copia.")).toBeOnTheScreen()
+  expect(screen.queryByLabelText("Segundos — Plancha, serie 1")).toBeNull()
+  expect(screen.queryByRole("checkbox", { name: "Hecha — Plancha, serie 1" })).toBeNull()
+  expect(screen.queryByRole("button", { name: "Omitir serie 1 — Plancha" })).toBeNull()
+  await fireEvent.changeText(screen.getByLabelText("Segundos — Plancha, serie 2"), "40")
+  expect(cambiar).toHaveBeenLastCalledWith(segunda, { valor: "40" })
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Hecha — Plancha, serie 2" }))
+  expect(cambiar).toHaveBeenLastCalledWith(
+    segunda,
+    expect.objectContaining({ hecha: true, valor: "45" }),
+  )
+})
+
 it("el ejercicio sin carga y por tiempo muestra segundos, omitir y una marca de un toque", async () => {
   const cambiar = jest.fn()
   await render(

@@ -12,14 +12,45 @@ describe("CheckIn", () => {
     const empezar = jest.fn<(c: Checkin) => void>()
     await render(<CheckIn nombre="Empuje" empezar={empezar} volver={() => undefined} />)
 
+    expect(screen.getByRole("button", { name: "Empezar" }).props.accessibilityState.disabled).toBe(
+      true,
+    )
     await fireEvent.press(screen.getByRole("button", { name: "Empezar" }))
     expect(empezar).not.toHaveBeenCalled()
     expect(screen.getByText("Responde las dos preguntas para empezar.")).toBeTruthy()
 
     await fireEvent.press(screen.getByRole("radio", { name: "4" }))
+    expect(screen.getByRole("button", { name: "Empezar" }).props.accessibilityState.disabled).toBe(
+      true,
+    )
+    expect(screen.getByText("Responde si algo te molesta para empezar.")).toBeTruthy()
     await fireEvent.press(screen.getByRole("radio", { name: "Agujetas" }))
+    expect(screen.getByRole("button", { name: "Empezar" }).props.accessibilityState.disabled).toBe(
+      false,
+    )
+    expect(screen.queryByText(/para empezar\./)).toBeNull()
     await fireEvent.press(screen.getByRole("button", { name: "Empezar" }))
     expect(empezar).toHaveBeenCalledWith({ sensacion: 4, molestia: "agujetas" })
+  })
+
+  it("indica que falta la sensación si primero responde sobre molestias", async () => {
+    const empezar = jest.fn<(c: Checkin) => void>()
+    await render(<CheckIn nombre="Empuje" empezar={empezar} volver={() => undefined} />)
+
+    await fireEvent.press(screen.getByRole("radio", { name: "Nada" }))
+    expect(screen.getByRole("button", { name: "Empezar" }).props.accessibilityState.disabled).toBe(
+      true,
+    )
+    expect(screen.getByText("Responde cómo te sientes para empezar.")).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Empezar" }))
+    expect(empezar).not.toHaveBeenCalled()
+
+    await fireEvent.press(screen.getByRole("radio", { name: "3" }))
+    expect(screen.getByRole("button", { name: "Empezar" }).props.accessibilityState.disabled).toBe(
+      false,
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Empezar" }))
+    expect(empezar).toHaveBeenCalledWith({ sensacion: 3, molestia: "nada" })
   })
 
   it("con dolor recuerda no entrenar la zona", async () => {

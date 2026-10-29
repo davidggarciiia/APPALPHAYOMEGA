@@ -112,6 +112,20 @@ describe("Lógica de la sesión en curso", () => {
     }
     expect(ejercicioParaRirFinal(conRirFinal, resuelto, u(22))).toBe(u(2))
   })
+  it("interpreta los descansos sin unidad menores de diez como minutos", () => {
+    expect(segundosDeDescanso("2")).toBe(120)
+    expect(segundosDeDescanso("9")).toBe(540)
+    expect(segundosDeDescanso("1,5")).toBe(90)
+    expect(segundosDeDescanso("10")).toBe(10)
+    expect(segundosDeDescanso("90")).toBe(90)
+  })
+
+  it("respeta los segundos explícitos aunque el descanso sea menor de diez", () => {
+    expect(segundosDeDescanso("2 s")).toBe(2)
+    expect(segundosDeDescanso("2 segundos")).toBe(2)
+    expect(segundosDeDescanso("10 min")).toBe(600)
+  })
+
   it("lee el descanso del texto del entrenador", () => {
     expect(segundosDeDescanso("2–3 min")).toBe(120)
     expect(segundosDeDescanso("90–120 s")).toBe(90)

@@ -16,6 +16,7 @@ export function kg(valor: number): string {
 /**
  * Segundos de descanso a partir de lo que escribió el entrenador. Se toma el
  * primer número del rango: «2–3 min» → 120, «90–120 s» → 90, «1:30» → 90.
+ * Sin unidad, los valores menores de diez son minutos; el resto, segundos.
  */
 export function segundosDeDescanso(texto: string | undefined): number | null {
   if (texto === undefined) return null
@@ -24,7 +25,8 @@ export function segundosDeDescanso(texto: string | undefined): number | null {
   const cifra = texto.match(/\d+(?:[.,]\d+)?/)
   if (!cifra) return null
   const valor = Number(cifra[0].replace(",", "."))
-  return Math.round(/min/i.test(texto) ? valor * 60 : valor)
+  const minutos = /min/i.test(texto) || (valor < 10 && /^\d+(?:[.,]\d+)?$/.test(texto.trim()))
+  return Math.round(minutos ? valor * 60 : valor)
 }
 
 /** «34:12» o, pasada la hora, «1:02:05». */

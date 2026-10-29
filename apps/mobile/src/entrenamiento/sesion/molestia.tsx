@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { ScrollView, StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_SINTOMA,
@@ -35,7 +35,7 @@ export function RegistrarMolestiaPantalla({
   registrarSalida,
 }: {
   lugar: LugarDeMolestia
-  reloj: string | null
+  reloj: ReactNode
   uuid: () => string
   avisar: (datos: RegistrarMolestia) => Promise<unknown>
   volver: () => void

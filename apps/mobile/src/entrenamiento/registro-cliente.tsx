@@ -104,6 +104,43 @@ function magnitudes(prescripcion: PrescripcionConDistancia | undefined): string 
   return metros ? "repeticiones, segundos y metros" : "repeticiones y segundos"
 }
 
+/** El tic solo repinta el reloj o el descanso, sin interrumpir los campos de las series. */
+function useAhora(): number {
+  const [ahora, setAhora] = useState(() => Date.now())
+  useEffect(() => {
+    const tic = setInterval(() => setAhora(Date.now()), 1000)
+    return () => clearInterval(tic)
+  }, [])
+  return ahora
+}
+
+function RelojDeSesion({
+  edicion,
+  children,
+}: {
+  edicion: EdicionRegistro
+  children: (duracion: ReturnType<typeof duracionDeSesion>) => React.JSX.Element
+}): React.JSX.Element {
+  const ahora = useAhora()
+  return children(duracionDeSesion(edicion, ahora))
+}
+
+function DescansoVivo({
+  hasta,
+  total,
+  saltar,
+}: {
+  hasta: string
+  total: number | null | undefined
+  saltar: () => void
+}): React.JSX.Element | null {
+  const ahora = useAhora()
+  const restante = Math.max(0, Math.round((Date.parse(hasta) - ahora) / 1000))
+  return restante > 0 ? (
+    <Descanso restante={restante} total={total ?? restante} saltar={saltar} />
+  ) : null
+}
+
 /**
  * El entrenamiento del cliente con el recorrido de Design.html: check-in,
  * sesión en curso (cronómetro, descanso, RIR, técnica y molestias), cierre y
@@ -132,7 +169,6 @@ export function RegistroCliente({
   const [fase, setFase] = useState<Fase>("sesion")
   const [dialogo, setDialogo] = useState<"salir" | "terminar" | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
-  const [ahora, setAhora] = useState(() => Date.now())
   const [anteriores, setAnteriores] = useState<Map<string, ValoresEjecutados>>(new Map())
   const [fichas, setFichas] = useState<Map<string, Ejercicio>>(new Map())
   const [nota, setNota] = useState(false)
@@ -195,12 +231,6 @@ export function RegistroCliente({
       }
     }, [cuenta, id, api, intento]),
   )
-
-  // Cronómetro y descanso: un tic por segundo basta.
-  useEffect(() => {
-    const tic = setInterval(() => setAhora(Date.now()), 1000)
-    return () => clearInterval(tic)
-  }, [])
 
   // «Anterior» sirve como referencia. Sin red, la sesión sigue sin él.
   useEffect(() => {
@@ -300,11 +330,21 @@ export function RegistroCliente({
                 onPress={() => void accion(() => control.elegirCopiaLocal(indice))}
               />
             ))}
-            {documento.respaldo.edicion.series.map((s, i) => (
-              <Text key={s.serieId} style={e.texto}>
-                Copia · serie {i + 1}: {s.peso || "—"} kg · {s.valor || "—"}
-              </Text>
-            ))}
+            {documento.respaldo.prescripcion.ejercicios.flatMap((ejercicio) =>
+              ejercicio.series.map((prescrita, i) => {
+                const serie = documento.respaldo?.edicion.series.find(
+                  (s) => s.serieId === prescrita.id,
+                )
+                const unidad = { repeticiones: "rep", tiempo: "s", distancia: "m" }[
+                  prescrita.tipoMedicion
+                ]
+                return (
+                  <Text key={prescrita.id} style={e.texto}>
+                    {`Copia · ${ejercicio.nombre} · serie ${i + 1}: ${serie?.valor || "—"} ${unidad}${serie?.peso ? ` · ${serie.peso} kg` : ""}`}
+                  </Text>
+                )
+              }),
+            )}
             <Text style={e.texto}>{documento.respaldo.edicion.notas}</Text>
             <BotonSecundario
               texto="Descartar esta copia no enviada"
@@ -397,11 +437,9 @@ export function RegistroCliente({
   const trabajo = seriesDeTrabajo(prescripcion)
   const hechasTrabajo = edicion.series.filter((s) => s.hecha && trabajo.includes(s.serieId)).length
   const empezada = edicion.checkin || edicion.inicio || edicion.series.some((s) => s.hecha)
+  const ahora = Date.now()
   const duracion = duracionDeSesion(edicion, ahora)
   const segundos = duracion.segundos
-  const restante = documento.descansoHasta
-    ? Math.max(0, Math.round((Date.parse(documento.descansoHasta) - ahora) / 1000))
-    : 0
 
   if (!empezada && !documento.envioPendiente)
     return (
@@ -429,7 +467,13 @@ export function RegistroCliente({
         <RegistrarMolestiaPantalla
           registrarSalida={registrarSalida}
           lugar={lugar}
-          reloj={segundos === null ? null : reloj(segundos)}
+          reloj={
+            segundos === null ? null : (
+              <RelojDeSesion edicion={edicion}>
+                {({ segundos }) => <Text>{reloj(segundos ?? 0)}</Text>}
+              </RelojDeSesion>
+            )
+          }
           uuid={randomUUID}
           avisar={async (datos) => {
             await api.avisarMolestia(id, datos)
@@ -507,14 +551,18 @@ export function RegistroCliente({
   return (
     <View style={e.contenedor}>
       {pausaDeNavegacion}
-      <CabeceraSesion
-        nombre={prescripcion.nombre}
-        hechas={hechasTrabajo}
-        total={trabajo.length}
-        segundos={segundos}
-        salir={salir && (() => setDialogo("salir"))}
-        terminar={documento.envioPendiente ? undefined : terminar}
-      />
+      <RelojDeSesion edicion={edicion}>
+        {({ segundos }) => (
+          <CabeceraSesion
+            nombre={prescripcion.nombre}
+            hechas={hechasTrabajo}
+            total={trabajo.length}
+            segundos={segundos}
+            salir={salir && (() => setDialogo("salir"))}
+            terminar={documento.envioPendiente ? undefined : terminar}
+          />
+        )}
+      </RelojDeSesion>
       {duracion.legado && <Text style={e.tenue}>Tiempo transcurrido de un registro anterior</Text>}
       {pausado && !bloqueadoPorEnvio && (
         <BotonPrincipal
@@ -524,7 +572,7 @@ export function RegistroCliente({
           }
         />
       )}
-      <Text accessibilityLiveRegion="polite" style={e.tenue}>
+      <Text accessibilityLiveRegion={control.errorLocal ? "polite" : "none"} style={e.tenue}>
         {control.errorLocal
           ? "Error de guardado"
           : control.guardando > 0
@@ -626,13 +674,12 @@ export function RegistroCliente({
         </View>
       )}
       <View style={e.acciones}>
-        <Enlace texto="Tengo una molestia" onPress={() => setFase("molestia")} />
         <Enlace texto="Añadir nota" onPress={() => setNota(!nota)} />
       </View>
-      {documento.descansoHasta && restante > 0 && (
-        <Descanso
-          restante={restante}
-          total={documento.descansoTotal ?? restante}
+      {documento.descansoHasta && (
+        <DescansoVivo
+          hasta={documento.descansoHasta}
+          total={documento.descansoTotal}
           saltar={() => void control.guardarVista({ descansoHasta: null, descansoTotal: null })}
         />
       )}
@@ -658,6 +705,7 @@ export function RegistroCliente({
               anterior={anteriores.get(ejercicioActual.ejercicioId)}
             />
           )}
+          <BotonSecundario texto="Tengo una molestia" onPress={() => setFase("molestia")} />
           {errorSerie !== "" && <AvisoDeError mensaje={errorSerie} />}
         </View>
       )}
