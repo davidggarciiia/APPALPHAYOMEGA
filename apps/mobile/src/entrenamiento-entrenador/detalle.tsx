@@ -5,6 +5,7 @@ import type { SesionEntrenador, ResultadoEntrenamiento } from "@alpha-omega/shar
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { FechaSesion } from "../entrenamiento/fecha-sesion"
 import { PrescripcionVisible } from "../entrenamiento/resultado"
+import { seriesDeTrabajo } from "../entrenamiento/sesion/modelo"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { tema } from "../tema"
 
@@ -24,6 +25,7 @@ export function DetalleEntrenador({
   const completada = Boolean(
     sesion?.agenda.id === id && sesion.enviadoEn && sesion.revisadaEn && resultado && !error,
   )
+  const trabajo = new Set(resultado ? seriesDeTrabajo(resultado.prescripcion) : [])
   useFocusEffect(
     useCallback(() => {
       if (completada) return
@@ -103,6 +105,13 @@ export function DetalleEntrenador({
             <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
               Pendiente de envío. Los registros del cliente son privados hasta que termine el
               entrenamiento.
+            </Text>
+          )}
+          {resultado && (
+            <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 13 }}>
+              {resultado.series.filter((serie) => serie.hecha && trabajo.has(serie.serieId)).length}
+              {" de "}
+              {trabajo.size} series
             </Text>
           )}
           <PrescripcionVisible prescripcion={sesion.prescripcion} resultado={resultado} />

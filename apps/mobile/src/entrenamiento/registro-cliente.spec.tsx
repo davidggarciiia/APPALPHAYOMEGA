@@ -15,7 +15,6 @@ import { claveSesion, nuevoDocumento } from "./documento-local"
 import { RegistroCliente } from "./registro-cliente"
 import { desdePrescripcion, registroParaEnviar } from "./registro-modelo"
 import * as tablaSeries from "./tabla-series"
-import * as cierreSesion from "./sesion/cierre"
 import * as molestiaSesion from "./sesion/molestia"
 import { ErrorDeRed } from "../lib/http"
 
@@ -111,6 +110,9 @@ const resultado = (envio: EnviarEntrenamiento): ResultadoEntrenamiento => ({
   enviadoEn: "2026-09-14T11:00:00.000Z",
   notas: envio.registro.notas,
   cierre: envio.registro.cierre ?? null,
+  checkin: envio.registro.checkin ?? null,
+  inicio: envio.registro.inicio ?? null,
+  tiempoActivoSegundos: envio.registro.tiempoActivoSegundos,
   series: [
     {
       serieId: SERIE,
@@ -140,43 +142,23 @@ function crearApi() {
   return { api, comoApi: api as unknown as ApiEntrenamiento }
 }
 
-async function abrirCierre(): Promise<void> {
-  await fireEvent.press(await screen.findByRole("button", { name: "Terminar" }))
-  await fireEvent.press(screen.getByRole("button", { name: "Terminar sesión" }))
-  expect(await screen.findByText("¿Cómo ha ido?")).toBeTruthy()
+async function anotarNota(texto = "Me cansé"): Promise<void> {
+  await fireEvent.press(await screen.findByRole("button", { name: "Añadir nota" }))
+  await fireEvent.changeText(screen.getByLabelText("Nota para tu entrenador"), texto)
+  await waitFor(() =>
+    expect(screen.getByTestId("estado-guardado").props.children).toContain("Guardado"),
+  )
 }
 
-async function responderCierre(): Promise<void> {
-  const deslizador = screen.getByRole("adjustable", { name: "Cuánto te ha costado, de 0 a 10" })
-  for (let i = 0; i < 3; i++)
-    await fireEvent(deslizador, "accessibilityAction", {
-      nativeEvent: { actionName: "increment" },
-    })
-  await fireEvent.press(screen.getByRole("radio", { name: "2" }))
-  await fireEvent.press(screen.getByRole("radio", { name: "Algo incómodo" }))
-  await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
-  await fireEvent.changeText(screen.getByLabelText("Nota para tu entrenador"), "Me cansé")
-  await fireEvent.press(screen.getByRole("button", { name: "Enviar a tu entrenador" }))
+function copiaGuardada() {
+  return JSON.parse(mockFilas.get(claveSesion(ID))!).datos
 }
 
-/** Lo visible coincide con la intención guardada y no queda nada editable. */
-function muestraElCierreComprometido(): void {
-  expect(screen.getByText("8 de 10")).toBeTruthy()
-  expect(screen.getByText("2 de 5")).toBeTruthy()
-  expect(screen.getByText("Algo incómodo")).toBeTruthy()
-  expect(screen.getByText("Me cansé")).toBeTruthy()
-  expect(screen.queryAllByRole("radio")).toHaveLength(0)
-  expect(screen.queryByRole("adjustable")).toBeNull()
-  expect(screen.queryByDisplayValue(/./)).toBeNull()
-}
-
-describe("RegistroCliente · cierre comprometido", () => {
+describe("RegistroCliente · sesión y envío en un toque", () => {
   beforeEach(async () => {
     mockFalloDeDisco = false
     await almacenDispositivo.limpiar(CUENTA)
     almacenDispositivo.habilitar(CUENTA)
-    // La comprobación automática cada 5 s solo actúa con la app activa: así cada
-    // reintento de la prueba es explícito y el número de envíos, exacto.
     AppState.currentState = "background"
   })
   afterEach(() => {
@@ -184,7 +166,18 @@ describe("RegistroCliente · cierre comprometido", () => {
     AppState.currentState = "active"
   })
 
-  it("el reloj avanza sin repintar la tabla ni interrumpir lo escrito", async () => {
+  it("abre directamente la sesión e inicia el reloj sin inventar check-in ni cierre", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByRole("button", { name: "Terminar" })).toBeTruthy()
+    expect(screen.queryByText("¿Cómo llegas?")).toBeNull()
+    await waitFor(() => expect(copiaGuardada().edicion.tramoActivoDesde).toBeTruthy())
+    expect(copiaGuardada().edicion.checkin).toBeNull()
+    expect(copiaGuardada().edicion.cierre).toBeNull()
+  })
+
+  it("el reloj avanza sin repintar la tabla ni interrumpir el ajuste", async () => {
     jest.useFakeTimers()
     const tabla = jest.spyOn(tablaSeries, "TablaSeries")
     try {
@@ -198,17 +191,15 @@ describe("RegistroCliente · cierre comprometido", () => {
       await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
       const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
       await screen.findByRole("timer", { name: "Tiempo de sesión: 0 minutos 0 segundos" })
-      await fireEvent.changeText(screen.getByLabelText("Peso — Press banca, serie 1"), "42,5")
-      await screen.findByText(/Guardado en el dispositivo/)
+      await fireEvent.press(screen.getByRole("button", { name: /^Peso — Press banca/ }))
+      await fireEvent.press(screen.getByRole("button", { name: "Aumentar" }))
       tabla.mockClear()
-      await act(async () => {
-        jest.advanceTimersByTime(1000)
-      })
+      await act(async () => jest.advanceTimersByTime(1000))
       expect(
         screen.getByRole("timer", { name: "Tiempo de sesión: 0 minutos 1 segundos" }),
       ).toBeTruthy()
       expect(screen.getByLabelText("Quedan 89 segundos de descanso")).toBeTruthy()
-      expect(screen.getByDisplayValue("42,5")).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Escribir KG: 42,5" })).toBeTruthy()
       expect(tabla).not.toHaveBeenCalled()
       await vista.unmount()
     } finally {
@@ -217,47 +208,325 @@ describe("RegistroCliente · cierre comprometido", () => {
     }
   })
 
-  it.each(["cierre", "molestia"] as const)(
-    "el reloj no repinta el formulario de %s",
-    async (fase) => {
-      jest.useFakeTimers()
-      const formulario =
-        fase === "cierre"
-          ? jest.spyOn(cierreSesion, "CierreDeSesion")
-          : jest.spyOn(molestiaSesion, "RegistrarMolestiaPantalla")
-      try {
-        const { comoApi } = crearApi()
-        const copia = nuevoDocumento(sesion)
-        copia.edicion.inicio = new Date().toISOString()
-        copia.edicion.tiempoActivoSegundos = 0
-        copia.edicion.tramoActivoDesde = copia.edicion.inicio
-        await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
-        const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-        await screen.findByRole("button", { name: "Terminar" })
-        if (fase === "cierre") {
-          await abrirCierre()
-          await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
-          await fireEvent.changeText(
-            screen.getByLabelText("Nota para tu entrenador"),
-            "Sin interrupciones",
-          )
-        } else await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia" }))
-        formulario.mockClear()
-        await act(async () => {
-          jest.advanceTimersByTime(1000)
-        })
-        expect(
-          screen.getByText(fase === "cierre" ? "Empuje · Tiempo activo: 0:00" : "0:01"),
-        ).toBeTruthy()
-        expect(formulario).not.toHaveBeenCalled()
-        if (fase === "cierre") expect(screen.getByDisplayValue("Sin interrupciones")).toBeTruthy()
-        await vista.unmount()
-      } finally {
-        formulario.mockRestore()
-        jest.useRealTimers()
-      }
-    },
-  )
+  it("el reloj no repinta el formulario de molestia", async () => {
+    jest.useFakeTimers()
+    const formulario = jest.spyOn(molestiaSesion, "RegistrarMolestiaPantalla")
+    try {
+      const { comoApi } = crearApi()
+      const copia = nuevoDocumento(sesion)
+      copia.edicion.inicio = new Date().toISOString()
+      copia.edicion.tiempoActivoSegundos = 0
+      copia.edicion.tramoActivoDesde = copia.edicion.inicio
+      await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
+      const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await fireEvent.press(
+        await screen.findByRole("button", { name: "Tengo una molestia — Press banca" }),
+      )
+      formulario.mockClear()
+      await act(async () => jest.advanceTimersByTime(1000))
+      expect(screen.getByRole("header", { name: /MOLESTIA/i })).toBeTruthy()
+      expect(formulario).not.toHaveBeenCalled()
+      await vista.unmount()
+    } finally {
+      formulario.mockRestore()
+      jest.useRealTimers()
+    }
+  })
+
+  it("muestra todos los ejercicios y sus series, con el contexto de molestia propio", async () => {
+    const { api, comoApi } = crearApi()
+    const segundo = {
+      ...sesion.prescripcion.ejercicios[0]!,
+      id: "40000000-0000-4000-8000-000000000002",
+      nombre: "Remo",
+      series: [
+        {
+          id: "30000000-0000-4000-8000-000000000002",
+          tipoMedicion: "repeticiones" as const,
+          pesoKg: 20,
+          repeticiones: 10,
+        },
+      ],
+    }
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      prescripcion: {
+        ...sesion.prescripcion,
+        ejercicios: [...sesion.prescripcion.ejercicios, segundo],
+      },
+      borrador: null,
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(
+      await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+    ).toBeTruthy()
+    expect(screen.getByRole("checkbox", { name: "Hecha — Remo, serie 1" })).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia — Remo" }))
+    expect(screen.getByRole("header", { name: /MOLESTIA/i })).toBeTruthy()
+    expect(screen.getByText("Remo · serie 1")).toBeTruthy()
+  })
+
+  it("oculta el estado de guardado sin anunciar cada pulsación al lector", async () => {
+    const { comoApi } = crearApi()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    const estado = await screen.findByTestId("estado-guardado")
+    expect(estado.props.accessibilityLiveRegion).toBe("none")
+    expect(estado.props.style).toEqual(expect.objectContaining({ height: 0, opacity: 0 }))
+  })
+
+  it("un fallo al leer la copia local conserva los datos y no pide conexión", async () => {
+    const { api, comoApi } = crearApi()
+    mockFilas.set(claveSesion(ID), "copia local ilegible")
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(
+      await screen.findByText(
+        "No se pudo leer la copia guardada en este dispositivo. La copia se conserva; reintenta para recuperarla.",
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByText(/Necesitas conexión/)).toBeNull()
+    expect(api.leerCliente).not.toHaveBeenCalled()
+    expect(mockFilas.get(claveSesion(ID))).toBe("copia local ilegible")
+  })
+
+  it("reintentar un guardado local fallido indica el problema del dispositivo", async () => {
+    const { api, comoApi } = crearApi()
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), nuevoDocumento(sesion))
+    const anterior = mockFilas.get(claveSesion(ID))
+    api.leerCliente.mockResolvedValue({ ...sesion, agenda: { ...sesion.agenda, revision: 1 } })
+    mockFalloDeDisco = true
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(await screen.findByRole("button", { name: "Reintentar guardado local" }))
+    expect(
+      await screen.findByText(
+        "No se pudo guardar la sesión en este dispositivo. Reintenta antes de salir.",
+      ),
+    ).toBeTruthy()
+    expect(mockFilas.get(claveSesion(ID))).toBe(anterior)
+    expect(api.guardar).not.toHaveBeenCalled()
+  })
+
+  it("salir guarda y sale en un toque; un fallo de disco conserva nota y permite reintentar", async () => {
+    const { comoApi } = crearApi()
+    const salir = jest.fn()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
+    await anotarNota("No perder")
+    mockFalloDeDisco = true
+    await fireEvent.press(screen.getByRole("button", { name: "Salir de la sesión" }))
+    expect(await screen.findByText(/No se pudo guardar la sesión en este dispositivo/)).toBeTruthy()
+    expect(salir).not.toHaveBeenCalled()
+    expect(screen.getByDisplayValue("No perder")).toBeTruthy()
+    mockFalloDeDisco = false
+    await fireEvent.press(screen.getByRole("button", { name: "Salir de la sesión" }))
+    await waitFor(() => expect(salir).toHaveBeenCalledTimes(1))
+  })
+
+  it("sin red conserva el envío; reabrir y reintentar entrega exactamente lo comprometido", async () => {
+    const { api, comoApi } = crearApi()
+    api.guardar.mockRejectedValue(new ErrorDeRed("Sin conexión"))
+    const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await anotarNota()
+    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    expect(await screen.findByText("GUARDADO")).toBeTruthy()
+    expect(api.enviar).not.toHaveBeenCalled()
+    expect(screen.queryByRole("checkbox")).toBeNull()
+    const original = copiaGuardada().intencionEnvio
+    expect(original.registro.cierre).toBeNull()
+    expect(original.registro.notas).toBe("Me cansé")
+    await vista.unmount()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByText("GUARDADO")).toBeTruthy()
+    api.guardar.mockImplementation(borradorGuardado)
+    api.enviar.mockRejectedValueOnce(new ErrorDeRed("Sin conexión"))
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar ahora" }))
+    await waitFor(() => expect(api.enviar).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Reintentar ahora" }).props.accessibilityState.busy,
+      ).toBeFalsy(),
+    )
+    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar ahora" }))
+    expect(await screen.findByText("ENVIADO")).toBeTruthy()
+    expect(api.enviar.mock.calls[1]![1]).toEqual(api.enviar.mock.calls[0]![1])
+    expect(api.enviar.mock.calls[1]![1].operacionId).toBe(original.operacionId)
+  })
+
+  it("la nota se guarda en la lista y se recupera sin cuestionario ni envío", async () => {
+    const { api, comoApi } = crearApi()
+    const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await anotarNota("No perder nota")
+    await vista.unmount()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByDisplayValue("No perder nota")).toBeTruthy()
+    expect(copiaGuardada().edicion.cierre).toBeNull()
+    expect(api.enviar).not.toHaveBeenCalled()
+  })
+
+  it("una respuesta lenta bloquea la edición y preserva el contenido del envío", async () => {
+    const { api, comoApi } = crearApi()
+    let responder!: () => void
+    const lenta = new Promise<void>((resolve) => {
+      responder = resolve
+    })
+    api.guardar.mockImplementation(async (id, datos) => {
+      await lenta
+      return borradorGuardado(id, datos)
+    })
+    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await anotarNota()
+    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    await screen.findByText("GUARDADO")
+    expect(screen.queryByRole("checkbox")).toBeNull()
+    expect(screen.queryByDisplayValue(/./)).toBeNull()
+    responder()
+    expect(await screen.findByText("ENVIADO")).toBeTruthy()
+    expect(api.enviar).toHaveBeenCalledTimes(1)
+    expect(api.enviar.mock.calls[0]![1].registro.cierre).toBeNull()
+    expect(api.enviar.mock.calls[0]![1].registro.notas).toBe("Me cansé")
+  })
+
+  it("Terminar envía directamente sin cierre y Listo vuelve a Hoy", async () => {
+    const { api, comoApi } = crearApi()
+    const salir = jest.fn()
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      borrador: { ...sesion.borrador!, registro: { ...sesion.borrador!.registro, checkin: null } },
+    })
+    api.guardar.mockImplementation(borradorGuardado)
+    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
+    await fireEvent.press(await screen.findByRole("button", { name: "Terminar" }))
+    expect(await screen.findByText("ENVIADO")).toBeTruthy()
+    expect(screen.queryByText("¿Cómo ha ido?")).toBeNull()
+    expect(api.enviar.mock.calls[0]![1].registro).toMatchObject({ checkin: null, cierre: null })
+    await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+    expect(salir).toHaveBeenCalledTimes(1)
+  })
+
+  it("no envía los valores anteriores si el ajuste manual es inválido", async () => {
+    const { api, comoApi } = crearApi()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Peso — Press banca/ }))
+    await fireEvent.press(screen.getByRole("button", { name: "Escribir KG: 40" }))
+    await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "1,2,3")
+    const terminar = screen.getByRole("button", { name: "Terminar" })
+    expect(terminar.props.accessibilityState.disabled).toBe(true)
+    await fireEvent.press(terminar)
+    expect(api.enviar).not.toHaveBeenCalled()
+    expect(screen.getByLabelText("Valor manual KG").props.value).toBe("1,2,3")
+    await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "42,5")
+    expect(screen.getByRole("button", { name: "Terminar" }).props.accessibilityState.disabled).toBe(
+      false,
+    )
+  })
+
+  it("no afirma GUARDADO si falla persistir la intención de envío", async () => {
+    const { api, comoApi } = crearApi()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await screen.findByRole("button", { name: "Terminar" })
+    mockFalloDeDisco = true
+    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    expect(
+      await screen.findByText(
+        "No se pudo guardar la sesión en este dispositivo. Reintenta antes de salir.",
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByText("GUARDADO")).toBeNull()
+    expect(api.enviar).not.toHaveBeenCalled()
+  })
+
+  it("un envío pendiente anterior conserva cierre y UUID sin inventar ni reemplazar datos", async () => {
+    const documento = nuevoDocumento(sesion)
+    const operacionId = "60000000-0000-4000-8000-000000000001"
+    const registro = {
+      ...registroParaEnviar(sesion.prescripcion, documento.edicion),
+      cierre: { esfuerzo: 8, energia: 2, incomodo: true },
+    }
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), {
+      ...documento,
+      intencionEnvio: { operacionId, revisionPrescripcion: 0, registro },
+    })
+    const { api, comoApi } = crearApi()
+    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByText("GUARDADO")).toBeTruthy()
+    expect(screen.queryAllByRole("radio")).toHaveLength(0)
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar ahora" }))
+    expect(await screen.findByText("ENVIADO")).toBeTruthy()
+    expect(api.enviar.mock.calls[0]![1]).toMatchObject({ operacionId, registro })
+  })
+
+  it("un envío pendiente sin cierre se reintenta tal cual con null", async () => {
+    const documento = nuevoDocumento(sesion)
+    const operacionId = "60000000-0000-4000-8000-000000000001"
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), {
+      ...documento,
+      intencionEnvio: {
+        operacionId,
+        revisionPrescripcion: 0,
+        registro: registroParaEnviar(sesion.prescripcion, documento.edicion),
+      },
+    })
+    const { api, comoApi } = crearApi()
+    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(await screen.findByRole("button", { name: "Reintentar ahora" }))
+    expect(await screen.findByText("ENVIADO")).toBeTruthy()
+    expect(api.enviar.mock.calls[0]![1]).toMatchObject({
+      operacionId,
+      registro: { cierre: null, notas: null },
+    })
+  })
+
+  it("cuenta solo las series de trabajo en progreso y confirmación", async () => {
+    const { api, comoApi } = crearApi()
+    const calentamiento = "30000000-0000-4000-8000-000000000002"
+    const pauta = {
+      ...sesion.prescripcion,
+      ejercicios: [
+        {
+          ...sesion.prescripcion.ejercicios[0]!,
+          id: "40000000-0000-4000-8000-000000000002",
+          nombre: "Movilidad",
+          seccion: "calentamiento" as const,
+          series: [
+            { id: calentamiento, tipoMedicion: "tiempo" as const, pesoKg: null, segundos: 60 },
+          ],
+        },
+        ...sesion.prescripcion.ejercicios,
+      ],
+    }
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      prescripcion: pauta,
+      borrador: {
+        ...sesion.borrador!,
+        registro: {
+          ...sesion.borrador!.registro,
+          series: [
+            {
+              serieId: calentamiento,
+              tipoMedicion: "tiempo",
+              pesoKg: null,
+              segundos: 60,
+              hecha: true,
+            },
+            ...sesion.borrador!.registro.series,
+          ],
+        },
+      },
+    })
+    api.guardar.mockImplementation(borradorGuardado)
+    api.enviar.mockImplementation(async (_id, envio) => ({
+      ...resultado(envio),
+      prescripcion: pauta,
+    }))
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByRole("progressbar", { value: { now: 1, max: 1 } })).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    expect(await screen.findByLabelText(/1 de 1 series/)).toBeTruthy()
+  })
 
   it("la copia no enviada identifica cada ejercicio y conserva sus unidades", async () => {
     const { comoApi } = crearApi()
@@ -292,8 +561,8 @@ describe("RegistroCliente · cierre comprometido", () => {
       ],
     }
     const edicion = desdePrescripcion(pauta)
-    edicion.series = edicion.series.map((serie, i) => ({
-      ...serie,
+    edicion.series = edicion.series.map((s, i) => ({
+      ...s,
       valor: i === 0 ? "30" : "20",
       peso: i === 0 ? "" : "12,5",
     }))
@@ -304,373 +573,135 @@ describe("RegistroCliente · cierre comprometido", () => {
     expect(screen.getByText("Copia · Paseo del granjero · serie 1: 20 m · 12,5 kg")).toBeTruthy()
   })
 
-  it("permite avisar de una molestia junto a las series con su contexto", async () => {
-    const { api, comoApi } = crearApi()
-    api.leerCliente.mockResolvedValue({
-      ...sesion,
-      borrador: {
-        ...sesion.borrador!,
-        registro: {
-          ...sesion.borrador!.registro,
-          series: sesion.borrador!.registro.series.map((s) => ({ ...s, hecha: false })),
-        },
-      },
-    })
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    const series = await screen.findByTestId("series-del-ejercicio")
-    await fireEvent.press(within(series).getByRole("button", { name: "Tengo una molestia" }))
-    expect(screen.getByRole("header", { name: "Molestia" })).toBeTruthy()
-    expect(screen.getByText("Press banca · serie 1")).toBeTruthy()
-  })
-
-  it("el guardado habitual no anuncia cada pulsación al lector de pantalla", async () => {
+  it("ajusta y salta el descanso persistiendo ambos campos de vista", async () => {
     const { comoApi } = crearApi()
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    const estado = await screen.findByText(/Guardado en el dispositivo/)
-    expect(estado.props.accessibilityLiveRegion).toBe("none")
-  })
-
-  it("un fallo al leer la copia local conserva los datos y no pide conexión", async () => {
-    const { api, comoApi } = crearApi()
-    const copia = "copia local ilegible"
-    mockFilas.set(claveSesion(ID), copia)
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    expect(
-      await screen.findByText(
-        "No se pudo leer la copia guardada en este dispositivo. La copia se conserva; reintenta para recuperarla.",
-      ),
-    ).toBeTruthy()
-    expect(screen.queryByText(/Necesitas conexión/)).toBeNull()
-    expect(api.leerCliente).not.toHaveBeenCalled()
-    expect(mockFilas.get(claveSesion(ID))).toBe(copia)
-  })
-
-  it("reintentar un guardado local fallido indica el problema del dispositivo", async () => {
-    const { api, comoApi } = crearApi()
-    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), nuevoDocumento(sesion))
-    const anterior = mockFilas.get(claveSesion(ID))
-    api.leerCliente.mockResolvedValue({ ...sesion, agenda: { ...sesion.agenda, revision: 1 } })
-    mockFalloDeDisco = true
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await fireEvent.press(await screen.findByRole("button", { name: "Reintentar guardado local" }))
-    expect(
-      await screen.findByText(
-        "No se pudo guardar la sesión en este dispositivo. Reintenta antes de salir.",
-      ),
-    ).toBeTruthy()
-    expect(screen.queryByText(/Reintenta cuando tengas conexión/)).toBeNull()
-    expect(mockFilas.get(claveSesion(ID))).toBe(anterior)
-    expect(api.guardar).not.toHaveBeenCalled()
-  })
-
-  it("no abandona la sesión si falla persistir la pausa y permite reintentar", async () => {
-    const { comoApi } = crearApi()
-    const salir = jest.fn()
     const copia = nuevoDocumento(sesion)
-    copia.edicion.tiempoActivoSegundos = 0
-    copia.edicion.tramoActivoDesde = new Date().toISOString()
+    copia.descansoHasta = new Date(Date.now() + 90000).toISOString()
+    copia.descansoTotal = 90
     await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
-    await screen.findByRole("button", { name: "Terminar" })
-    await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
-    await fireEvent.changeText(screen.getByLabelText("Nota para tu entrenador"), "No perder")
-    await waitFor(() => expect(screen.getByText(/Guardado en el dispositivo/)).toBeTruthy())
-    mockFalloDeDisco = true
-    await fireEvent.press(screen.getByRole("button", { name: "Salir de la sesión" }))
-    await fireEvent.press(screen.getByRole("button", { name: "Salir" }))
-    expect(await screen.findByText(/No se pudo guardar la sesión en este dispositivo/)).toBeTruthy()
-    expect(salir).not.toHaveBeenCalled()
-    expect(screen.getByDisplayValue("No perder")).toBeTruthy()
-    mockFalloDeDisco = false
-    await fireEvent.press(screen.getByRole("button", { name: "Salir de la sesión" }))
-    await fireEvent.press(screen.getByRole("button", { name: "Salir" }))
-    await waitFor(() => expect(salir).toHaveBeenCalledTimes(1))
-  })
-
-  it("sin red conserva el cierre enviado; al volver y reintentar se entrega lo que se ve", async () => {
-    const { api, comoApi } = crearApi()
-    api.guardar.mockRejectedValue(new ErrorDeRed("Sin conexión"))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await abrirCierre()
-    await responderCierre()
-
-    const reintento = (): ReturnType<typeof screen.getByRole> =>
-      screen.getByRole("button", { name: "Reintentar envío pendiente" })
-    expect(await screen.findByRole("button", { name: "Reintentar envío pendiente" })).toBeTruthy()
-    expect(api.enviar).not.toHaveBeenCalled()
-    muestraElCierreComprometido()
-
-    // Cerrar y volver a abrir el resumen no cambia lo comprometido.
-    await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
-    expect(screen.getByText(/Pendiente de envío/)).toBeTruthy()
-    await abrirCierre()
-    muestraElCierreComprometido()
-
-    // Se guarda el borrador, pero la respuesta del envío se pierde.
-    api.guardar.mockImplementation(borradorGuardado)
-    api.enviar.mockRejectedValueOnce(new ErrorDeRed("Sin conexión"))
-    await fireEvent.press(reintento())
-    await waitFor(() => expect(api.enviar).toHaveBeenCalledTimes(1))
-    await waitFor(() =>
-      screen.getByRole("button", { name: "Reintentar envío pendiente", busy: false }),
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Añadir 15 segundos de descanso" }),
     )
-    muestraElCierreComprometido()
-
-    // Desde la sesión se reintenta el mismo envío.
-    await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
-    expect(screen.getByText(/Pendiente de envío/)).toBeTruthy()
-    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
-    await fireEvent.press(reintento())
-    expect(await screen.findByText("Enviado al entrenador")).toBeTruthy()
-
-    expect(api.enviar).toHaveBeenCalledTimes(2)
-    const [[, original], [, repetido]] = api.enviar.mock.calls as [
-      Parameters<ApiEntrenamiento["enviar"]>,
-      Parameters<ApiEntrenamiento["enviar"]>,
-    ]
-    expect(repetido).toEqual(original)
-    expect(original.registro.cierre).toEqual({ esfuerzo: 8, energia: 2, incomodo: true })
-    expect(original.registro.notas).toBe("Me cansé")
+    await waitFor(() => expect(copiaGuardada().descansoTotal).toBe(105))
+    await fireEvent.press(screen.getByRole("button", { name: "Restar 15 segundos de descanso" }))
+    await waitFor(() => expect(copiaGuardada().descansoTotal).toBe(90))
+    await fireEvent.press(screen.getByRole("button", { name: "Saltar descanso" }))
+    await waitFor(() =>
+      expect(copiaGuardada()).toMatchObject({ descansoHasta: null, descansoTotal: null }),
+    )
   })
 
-  it("Volver del cierre guarda el feedback completo y lo recupera sin enviarlo", async () => {
-    const { comoApi } = crearApi()
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await abrirCierre()
-    await fireEvent.press(screen.getByRole("radio", { name: "2" }))
-    await fireEvent.press(screen.getByRole("radio", { name: "Algo incómodo" }))
-    await fireEvent.press(screen.getByRole("button", { name: "Añadir nota" }))
-    await fireEvent.changeText(screen.getByLabelText("Nota para tu entrenador"), "No perder cierre")
-    mockFalloDeDisco = true
-    await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
-    expect(
-      await screen.findByText(
-        "No se pudo guardar el cierre en este dispositivo. Reintenta antes de salir.",
-      ),
-    ).toBeTruthy()
-    expect(screen.getByDisplayValue("No perder cierre")).toBeTruthy()
-    mockFalloDeDisco = false
-    await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
-    await abrirCierre()
-    expect(screen.getByDisplayValue("No perder cierre")).toBeTruthy()
-    expect(screen.getByRole("radio", { name: "2", checked: true })).toBeTruthy()
-    expect(screen.getByRole("radio", { name: "Algo incómodo", checked: true })).toBeTruthy()
-    const copia = JSON.parse(mockFilas.get(claveSesion(ID))!) as {
-      datos: { edicion: { cierre: unknown } }
-    }
-    expect(copia.datos.edicion.cierre).toEqual({ esfuerzo: 5, energia: 2, incomodo: true })
-  })
-
-  it("con una respuesta lenta muestra lo que se está enviando y no deja cambiarlo", async () => {
+  it("Terminar avisa si no hay series hechas y confirma solo las pendientes", async () => {
     const { api, comoApi } = crearApi()
-    let responder!: () => void
-    const lenta = new Promise<void>((resolve) => {
-      responder = resolve
-    })
-    api.guardar.mockImplementation(async (id, datos) => {
-      await lenta
-      return borradorGuardado(id, datos)
-    })
+    api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+    api.guardar.mockImplementation(borradorGuardado)
     api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await abrirCierre()
-    await responderCierre()
-
-    expect(await screen.findByText("8 de 10")).toBeTruthy()
-    muestraElCierreComprometido()
-    expect(screen.queryByRole("button", { name: "Enviar a tu entrenador" })).toBeNull()
-
-    responder()
-    expect(await screen.findByText("Enviado al entrenador")).toBeTruthy()
-    expect(api.enviar).toHaveBeenCalledTimes(1)
-    const [, envio] = api.enviar.mock.calls[0]!
-    expect(envio.registro.cierre).toEqual({ esfuerzo: 8, energia: 2, incomodo: true })
-    expect(envio.registro.notas).toBe("Me cansé")
+    await fireEvent.press(await screen.findByRole("button", { name: "Terminar" }))
+    expect(screen.getByText("Marca al menos una serie")).toBeTruthy()
+    expect(api.enviar).not.toHaveBeenCalled()
   })
 
-  it("cuenta solo las series de la parte principal tanto en sesión como en cierre", async () => {
+  it("marcar toma las sugerencias y deshacer conserva un ajuste posterior de peso", async () => {
     const { api, comoApi } = crearApi()
-    const calentamiento = "30000000-0000-4000-8000-000000000002"
+    api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(
+      await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+    )
+    await waitFor(() =>
+      expect(copiaGuardada().edicion.series[0]).toMatchObject({
+        hecha: true,
+        peso: "40",
+        valor: "8",
+      }),
+    )
+    await fireEvent.press(screen.getByRole("button", { name: /^Peso — Press banca/ }))
+    await fireEvent.press(screen.getByRole("button", { name: "Aumentar" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Deshacer" }, { timeout: 2500 }),
+    )
+    await waitFor(() =>
+      expect(copiaGuardada().edicion.series[0]).toMatchObject({
+        hecha: false,
+        peso: "42,5",
+        valor: "8",
+      }),
+    )
+  })
+
+  it("con series pendientes pide confirmar antes de enviar en un toque", async () => {
+    const { api, comoApi } = crearApi()
+    const segundoId = "30000000-0000-4000-8000-000000000002"
     api.leerCliente.mockResolvedValue({
       ...sesion,
       prescripcion: {
         ...sesion.prescripcion,
         ejercicios: [
           {
-            id: "40000000-0000-4000-8000-000000000002",
-            ejercicioId: "50000000-0000-4000-8000-000000000002",
-            nombre: "Movilidad",
-            indicaciones: null,
-            seccion: "calentamiento",
-            series: [{ id: calentamiento, tipoMedicion: "tiempo", pesoKg: null, segundos: 60 }],
+            ...sesion.prescripcion.ejercicios[0]!,
+            series: [
+              ...sesion.prescripcion.ejercicios[0]!.series,
+              { id: segundoId, tipoMedicion: "repeticiones", pesoKg: 40, repeticiones: 8 },
+            ],
           },
-          ...sesion.prescripcion.ejercicios,
         ],
       },
-      borrador: {
-        ...sesion.borrador!,
-        registro: {
-          ...sesion.borrador!.registro,
-          series: [
-            {
-              serieId: calentamiento,
-              tipoMedicion: "tiempo",
-              pesoKg: null,
-              segundos: 60,
-              hecha: true,
-            },
-            ...sesion.borrador!.registro.series,
-          ],
-        },
-      },
     })
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    expect(await screen.findByText("1 de 1 series de la parte principal")).toBeTruthy()
-    await abrirCierre()
-    expect(screen.getByText("Series de la parte principal")).toBeTruthy()
-    expect(screen.getByText("1 hechas · 0 omitidas · 0 pendientes")).toBeTruthy()
-  })
-
-  it("ofrece volver al plan después de confirmar el envío", async () => {
-    const { api, comoApi } = crearApi()
-    const salir = jest.fn()
     api.guardar.mockImplementation(borradorGuardado)
     api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
-    await abrirCierre()
-    await responderCierre()
-    await fireEvent.press(await screen.findByRole("button", { name: "Volver al plan" }))
-    expect(salir).toHaveBeenCalledTimes(1)
-  })
-
-  it("un envío pendiente sin cierre se reintenta tal cual, sin inventar respuestas", async () => {
-    const documento = nuevoDocumento(sesion)
-    const operacionId = "60000000-0000-4000-8000-000000000001"
-    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), {
-      ...documento,
-      intencionEnvio: {
-        operacionId,
-        revisionPrescripcion: 0,
-        registro: registroParaEnviar(sesion.prescripcion, documento.edicion),
-      },
-    })
-    const { api, comoApi } = crearApi()
-    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await abrirCierre()
-
-    expect(screen.getByText("Sin feedback registrado")).toBeTruthy()
-    expect(screen.queryByText(/de 10/)).toBeNull()
-    expect(screen.queryAllByRole("radio")).toHaveLength(0)
-    expect(screen.queryByDisplayValue(/./)).toBeNull()
-
-    await fireEvent.press(screen.getByRole("button", { name: "Reintentar envío pendiente" }))
-    expect(await screen.findByText("Enviado al entrenador")).toBeTruthy()
-    const [, envio] = api.enviar.mock.calls[0]!
-    expect(envio.operacionId).toBe(operacionId)
-    expect(envio.registro.cierre ?? null).toBeNull()
-    expect(envio.registro.notas).toBeNull()
-  })
-})
-
-describe("RegistroCliente · serie sin el peso que pide el ejercicio", () => {
-  beforeEach(async () => {
-    mockFalloDeDisco = false
-    await almacenDispositivo.limpiar(CUENTA)
-    almacenDispositivo.habilitar(CUENTA)
-    AppState.currentState = "background"
-  })
-  afterEach(() => {
-    AppState.currentState = "active"
+    await fireEvent.press(await screen.findByRole("button", { name: "Terminar" }))
+    expect(screen.getByText("¿Terminar ya?")).toBeTruthy()
+    expect(screen.getByText("Quedan 1 series sin hacer.")).toBeTruthy()
+    expect(api.enviar).not.toHaveBeenCalled()
+    await fireEvent.press(screen.getByRole("button", { name: "Terminar y enviar" }))
+    expect(await screen.findByText("ENVIADO")).toBeTruthy()
+    expect(api.enviar.mock.calls[0]![1].registro.cierre).toBeNull()
   })
 
-  // Un ejercicio con carga externa y sin peso prescrito ni escrito: «Hecha» no puede
-  // marcarse, y el motivo tiene que verse junto a las series, no al pie de la pantalla.
-  const sinPeso: SesionCliente = {
-    ...sesion,
-    prescripcion: {
-      ...sesion.prescripcion,
-      ejercicios: [
-        {
-          ...sesion.prescripcion.ejercicios[0]!,
-          tipoCarga: "conCargaExterna",
-          calibrar: true,
-          series: [{ id: SERIE, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 }],
-        },
-      ],
-    },
-    borrador: {
-      ...sesion.borrador!,
-      registro: {
-        ...sesion.borrador!.registro,
-        series: [
+  it("la cabecera fija es la única acción Terminar, también al acabar la última serie", async () => {
+    const { comoApi } = crearApi()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByRole("button", { name: "Terminar" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Terminar entreno" })).toBeNull()
+  })
+
+  it("mientras falten series mantiene Terminar en la cabecera", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByRole("button", { name: "Terminar" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Terminar entreno" })).toBeNull()
+  })
+
+  it("el peso obligatorio se valida junto a la tabla y no marca la serie", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      prescripcion: {
+        ...sesion.prescripcion,
+        ejercicios: [
           {
-            serieId: SERIE,
-            tipoMedicion: "repeticiones",
-            pesoKg: null,
-            repeticiones: 8,
-            hecha: false,
+            ...sesion.prescripcion.ejercicios[0]!,
+            tipoCarga: "conCargaExterna",
+            calibrar: true,
+            series: [{ id: SERIE, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 }],
           },
         ],
       },
-    },
-  }
-
-  it("el aviso de que falta el peso aparece junto a las series y no se pierde al pie", async () => {
-    const { api, comoApi } = crearApi()
-    api.leerCliente.mockResolvedValue(sinPeso)
+      borrador: null,
+    })
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
     await fireEvent.press(await screen.findByRole("checkbox", { name: /Hecha — Press banca/ }))
-
-    const series = within(screen.getByTestId("series-del-ejercicio"))
-    expect(await series.findByRole("alert")).toBeTruthy()
-    expect(series.getByText(/Escribe los valores realizados y el peso indicado/)).toBeTruthy()
-    expect(screen.getAllByText(/Escribe los valores realizados/)).toHaveLength(1)
-  })
-})
-
-describe("RegistroCliente · terminar la sesión", () => {
-  beforeEach(async () => {
-    mockFalloDeDisco = false
-    await almacenDispositivo.limpiar(CUENTA)
-    almacenDispositivo.habilitar(CUENTA)
-    AppState.currentState = "background"
-  })
-  afterEach(() => {
-    AppState.currentState = "active"
-  })
-
-  it("al acabar la última serie hay un botón para terminar al pie, no solo en la cabecera", async () => {
-    const { comoApi } = crearApi()
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    // La cabecera (arriba, fuera de la vista tras bajar) ya no es la única vía.
-    await fireEvent.press(await screen.findByRole("button", { name: "Terminar entreno" }))
-    expect(await screen.findByRole("button", { name: "Terminar sesión" })).toBeTruthy()
-  })
-
-  it("mientras falten series no empuja a terminar", async () => {
-    const { api, comoApi } = crearApi()
-    const pendiente: SesionCliente = {
-      ...sesion,
-      borrador: {
-        ...sesion.borrador!,
-        registro: {
-          ...sesion.borrador!.registro,
-          series: [
-            {
-              serieId: SERIE,
-              tipoMedicion: "repeticiones",
-              pesoKg: 40,
-              repeticiones: 8,
-              hecha: false,
-            },
-          ],
-        },
-      },
-    }
-    api.leerCliente.mockResolvedValue(pendiente)
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await screen.findByRole("button", { name: "Terminar" })
-    expect(screen.queryByRole("button", { name: "Terminar entreno" })).toBeNull()
+    const tabla = within(screen.getByTestId("series-del-ejercicio"))
+    expect(tabla.getByRole("alert")).toBeTruthy()
+    expect(tabla.getByText("Falta el peso")).toBeTruthy()
+    expect(
+      screen.getByRole("checkbox", { name: /Hecha — Press banca/ }).props.accessibilityState
+        .checked,
+    ).toBe(false)
   })
 })

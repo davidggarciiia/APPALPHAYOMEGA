@@ -60,3 +60,48 @@ it("con movimiento reducido actualiza el progreso y conserva la háptica sin ani
   expect(Haptics.notificationAsync).toHaveBeenCalledWith("success")
   expect(withTiming).not.toHaveBeenCalled()
 })
+
+it("demora el movimiento y el encendido de Ω sin retrasar el valor accesible", async () => {
+  jest.useFakeTimers()
+  try {
+    const vista = await render(<RecorridoSesion hechas={1} total={4} demora={420} />)
+    jest.mocked(withTiming).mockClear()
+    await vista.rerender(<RecorridoSesion hechas={4} total={4} demora={420} />)
+    expect(screen.getByRole("progressbar").props.accessibilityValue.now).toBe(4)
+    expect(withTiming).not.toHaveBeenCalled()
+    await act(() => jest.advanceTimersByTime(419))
+    expect(withTiming).not.toHaveBeenCalled()
+    await act(() => jest.advanceTimersByTime(1))
+    expect(withTiming).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 260 }))
+    jest.mocked(withTiming).mockClear()
+    await act(() => jest.advanceTimersByTime(259))
+    expect(withTiming).not.toHaveBeenCalled()
+    await act(() => jest.advanceTimersByTime(1))
+    expect(withTiming).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 160 }))
+    await vista.unmount()
+  } finally {
+    jest.useRealTimers()
+  }
+})
+
+it("ignora la demora con movimiento reducido y cancela el movimiento pendiente al desmontar", async () => {
+  jest.useFakeTimers()
+  try {
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true)
+    const vista = await render(<RecorridoSesion hechas={1} total={4} demora={420} />)
+    jest.mocked(withTiming).mockClear()
+    await vista.rerender(<RecorridoSesion hechas={4} total={4} demora={420} />)
+    expect(screen.getByRole("progressbar").props.accessibilityValue.now).toBe(4)
+    await act(() => jest.advanceTimersByTime(1000))
+    expect(withTiming).not.toHaveBeenCalled()
+    await vista.unmount()
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
+    await render(<RecorridoSesion hechas={1} total={4} demora={420} />)
+    jest.mocked(withTiming).mockClear()
+    await screen.unmount()
+    await act(() => jest.advanceTimersByTime(1000))
+    expect(withTiming).not.toHaveBeenCalled()
+  } finally {
+    jest.useRealTimers()
+  }
+})

@@ -98,3 +98,48 @@ it("comparte la entrada y opacidad para mantener dos animaciones como máximo", 
   await render(<AvisoDeshacer mensaje="Serie hecha" alDeshacer={jest.fn()} />)
   expect(withTiming).toHaveBeenCalledTimes(2)
 })
+
+it("puede aparecer sin movimiento conservando deshacer y el plazo original", async () => {
+  jest.mocked(useMovimientoReducido).mockReturnValue(false)
+  const expirar = jest.fn()
+  const deshacer = jest.fn()
+  await render(<AvisoDeshacer mensaje="Serie hecha" alDeshacer={deshacer} alExpirar={expirar} />)
+  await act(() => jest.advanceTimersByTime(2000))
+  jest.mocked(withTiming).mockClear()
+  await screen.rerender(
+    <AvisoDeshacer
+      mensaje="Serie hecha"
+      alDeshacer={deshacer}
+      alExpirar={expirar}
+      animar={false}
+    />,
+  )
+  expect(withTiming).not.toHaveBeenCalled()
+  await act(() => jest.advanceTimersByTime(2999))
+  expect(expirar).not.toHaveBeenCalled()
+  await act(() => jest.advanceTimersByTime(1))
+  expect(expirar).toHaveBeenCalledTimes(1)
+  expect(withTiming).not.toHaveBeenCalled()
+})
+
+it("permite animar solo la entrada con el plazo discreto y deshacer sigue disponible", async () => {
+  jest.mocked(useMovimientoReducido).mockReturnValue(false)
+  jest.mocked(withTiming).mockClear()
+  const deshacer = jest.fn()
+  const expirar = jest.fn()
+  await render(
+    <AvisoDeshacer
+      mensaje="Serie hecha"
+      alDeshacer={deshacer}
+      alExpirar={expirar}
+      animarPlazo={false}
+    />,
+  )
+  expect(withTiming).toHaveBeenCalledTimes(1)
+  expect(withTiming).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 220 }))
+  await act(() => jest.advanceTimersByTime(4000))
+  await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+  await act(() => jest.advanceTimersByTime(2000))
+  expect(deshacer).toHaveBeenCalledTimes(1)
+  expect(expirar).not.toHaveBeenCalled()
+})

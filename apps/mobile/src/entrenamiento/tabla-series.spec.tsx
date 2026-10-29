@@ -1,5 +1,6 @@
-import { useState } from "react"
-import { fireEvent, render, screen, within } from "@testing-library/react-native"
+﻿import { useState, type ComponentProps } from "react"
+import { Dimensions } from "react-native"
+import { act, fireEvent, render, screen, userEvent, within } from "@testing-library/react-native"
 import {
   mantieneUnidadYCarga,
   SerieRegistradaDistanciaSchema,
@@ -12,7 +13,53 @@ import {
   type PrescripcionConDistancia,
 } from "./registro-modelo"
 import { PrescripcionVisible, type ResultadoConDistancia } from "./resultado"
-import { TablaSeries } from "./tabla-series"
+import { ajusteDeSerie, TablaSeries, type FocoSerie } from "./tabla-series"
+import { BarraAjuste } from "../componentes/barra-ajuste"
+
+const ventanaOriginal = Dimensions.get("window")
+beforeEach(() => Dimensions.set({ window: { ...ventanaOriginal, fontScale: 1 } }))
+afterEach(() => {
+  Dimensions.set({ window: ventanaOriginal })
+  jest.useRealTimers()
+})
+
+function TablaConBarra(props: ComponentProps<typeof TablaSeries>): React.JSX.Element {
+  const [foco, enfocar] = useState<FocoSerie | null>(null)
+  const real = props.series.find((serie) => serie.serieId === foco?.serieId)
+  const ajuste = real && foco && ajusteDeSerie(props.ejercicio, real, foco.celda)
+  return (
+    <>
+      <TablaSeries
+        {...props}
+        enfocada={foco}
+        enfocar={(serieId, celda) => enfocar({ serieId, celda })}
+      />
+      {ajuste && real && foco && (
+        <BarraAjuste
+          key={`${foco.serieId}:${foco.celda}`}
+          {...ajuste}
+          alListo={() => enfocar(null)}
+          cambiar={(valor) =>
+            props.cambiar(
+              real.serieId,
+              foco.celda === "peso"
+                ? { peso: String(valor).replace(".", ",") }
+                : foco.celda === "rir"
+                  ? { rir: valor }
+                  : { valor: String(valor) },
+            )
+          }
+        />
+      )}
+    </>
+  )
+}
+
+async function escribir(celda: RegExp, unidad: string, texto: string): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: celda }))
+  await fireEvent.press(screen.getByRole("button", { name: new RegExp(`^Escribir ${unidad}:`) }))
+  await fireEvent.changeText(screen.getByLabelText(`Valor manual ${unidad}`), texto)
+}
 
 const id = "10000000-0000-4000-8000-000000000000"
 const serieId = "20000000-0000-4000-8000-000000000000"
@@ -26,11 +73,236 @@ const ejercicio: EjercicioPrescrito = {
   series: [{ id: serieId, tipoMedicion: "tiempo", segundos: 30, pesoKg: null }],
 }
 
+describe("D2 · tabla completa y barra compartida", () => {
+  it.each([
+    ["repeticiones", "cantidad", "reps", 8, 1, 10000],
+    ["tiempo", "cantidad", "seg", 30, 1, 86400],
+    ["distancia", "cantidad", "m", 20, 1, 100000],
+    ["repeticiones", "peso", "kg", 20, 0, 1000],
+    ["repeticiones", "rir", "rir", 2, 0, 5],
+  ] as const)(
+    "prepara %s/%s con sugerencia, unidad y límites del contrato",
+    (tipoMedicion, celda, unidad, valor, minimo, maximo) => {
+      const prescrita =
+        tipoMedicion === "repeticiones"
+          ? { id: serieId, tipoMedicion, repeticiones: 8, pesoKg: 20 }
+          : tipoMedicion === "tiempo"
+            ? { id: serieId, tipoMedicion, segundos: 30, pesoKg: 20 }
+            : { id: serieId, tipoMedicion, metros: 20, pesoKg: 20 }
+      expect(typeof ajusteDeSerie).toBe("function")
+      expect(
+        ajusteDeSerie(
+          { ...ejercicio, series: [prescrita], rir: { min: 2, max: 2 }, subidaKg: 1 },
+          { serieId, peso: "", valor: "", hecha: false },
+          celda,
+        ),
+      ).toMatchObject({ unidad, valor, minimo, maximo })
+    },
+  )
+
+  it("conserva el cero y la coma decimal escritos en lugar de la sugerencia", () => {
+    expect(typeof ajusteDeSerie).toBe("function")
+    expect(
+      ajusteDeSerie(ejercicio, { serieId, peso: "0", valor: "", hecha: false }, "peso")?.valor,
+    ).toBe(0)
+    expect(
+      ajusteDeSerie(ejercicio, { serieId, peso: "12,75", valor: "", hecha: false }, "peso")?.valor,
+    ).toBe(12.75)
+    expect(
+      ajusteDeSerie(ejercicio, { serieId, peso: "", valor: "NaN", hecha: false }, "cantidad")
+        ?.valor,
+    ).toBeNull()
+    expect(
+      ajusteDeSerie(ejercicio, { serieId: "ajena", peso: "", valor: "", hecha: false }, "cantidad"),
+    ).toBeNull()
+  })
+
+  it("usa una FilaSerie para cada prescrita y repite su referencia anterior", async () => {
+    const segunda = "20000000-0000-4000-8000-000000000001"
+    await render(
+      <TablaSeries
+        ejercicio={{
+          ...ejercicio,
+          series: [ejercicio.series[0]!, { ...ejercicio.series[0]!, id: segunda }],
+        }}
+        series={[
+          { serieId, peso: "", valor: "", hecha: false },
+          { serieId: segunda, peso: "", valor: "", hecha: false },
+        ]}
+        bloqueado={false}
+        cambiar={jest.fn()}
+        anterior={{ tipoMedicion: "tiempo", pesoKg: null, segundos: 25 }}
+      />,
+    )
+    expect(screen.getAllByTestId("fila-serie")).toHaveLength(2)
+    expect(screen.getAllByLabelText("Anterior: 25 s")).toHaveLength(2)
+    expect(screen.queryByText(/^Anterior /)).toBeNull()
+    expect(screen.queryByText("+ Serie")).toBeNull()
+  })
+
+  it("delegar foco abre una sola barra común sin teclado ni TextInput en la tabla", async () => {
+    const enfocar = jest.fn()
+    await render(
+      <TablaSeries
+        ejercicio={ejercicio}
+        series={[{ serieId, peso: "", valor: "", hecha: false }]}
+        bloqueado={false}
+        cambiar={jest.fn()}
+        enfocar={enfocar}
+        enfocada={{ serieId, celda: "cantidad" }}
+      />,
+    )
+    const celda = screen.getByRole("button", { name: "Segundos — Plancha, serie 1: 30" })
+    expect(celda).toHaveProp("accessibilityState", { disabled: false, selected: true })
+    await fireEvent.press(celda)
+    expect(enfocar).toHaveBeenCalledWith(serieId, "cantidad")
+    expect(screen.queryByTestId("barra-ajuste")).toBeNull()
+    expect(screen.queryByLabelText(/Valor manual/)).toBeNull()
+  })
+
+  it("técnica y molestia son iconos con objetivos de 44 px", async () => {
+    const verTecnica = jest.fn()
+    const verMolestia = jest.fn()
+    await render(
+      <TablaSeries
+        ejercicio={ejercicio}
+        series={[]}
+        bloqueado={false}
+        cambiar={jest.fn()}
+        verTecnica={verTecnica}
+        verMolestia={verMolestia}
+      />,
+    )
+    const tecnica = screen.getByRole("button", { name: "Ver técnica — Plancha" })
+    const molestia = screen.getByRole("button", { name: "Tengo una molestia — Plancha" })
+    expect(tecnica).toHaveStyle({ width: 44, minHeight: 44 })
+    expect(molestia).toHaveStyle({ width: 44, minHeight: 44 })
+    expect(screen.queryByText("Ver técnica")).toBeNull()
+    await fireEvent.press(tecnica)
+    await fireEvent.press(molestia)
+    expect(verTecnica).toHaveBeenCalledTimes(1)
+    expect(verMolestia).toHaveBeenCalledTimes(1)
+  })
+
+  it("omitir con 500 ms publica un deshacer que restaura el estado", async () => {
+    jest.useFakeTimers()
+    const cambiar = jest.fn()
+    const avisarDeshacer = jest.fn()
+    const real = { serieId, peso: "", valor: "28", hecha: false, rir: 2 }
+    await render(
+      <TablaSeries
+        ejercicio={ejercicio}
+        series={[real]}
+        bloqueado={false}
+        cambiar={cambiar}
+        avisarDeshacer={avisarDeshacer}
+      />,
+    )
+    const check = screen.getByRole("checkbox", { name: "Hecha — Plancha, serie 1" })
+    await userEvent.setup().longPress(check, { duration: 500 })
+    expect(cambiar).toHaveBeenLastCalledWith(serieId, { hecha: false, omitida: true })
+    const aviso = avisarDeshacer.mock.calls[0]![0]
+    expect(aviso.mensaje).toBe("Serie omitida")
+    aviso.deshacer()
+    expect(cambiar).toHaveBeenLastCalledWith(serieId, { hecha: false, omitida: undefined })
+  })
+
+  it("recupera la serie omitida tocando una celda o mediante la acción accesible", async () => {
+    const cambiar = jest.fn()
+    await render(
+      <TablaSeries
+        ejercicio={ejercicio}
+        series={[{ serieId, peso: "", valor: "28", hecha: false, omitida: true }]}
+        bloqueado={false}
+        cambiar={cambiar}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Segundos — Plancha, serie 1: 28" }))
+    expect(cambiar).toHaveBeenLastCalledWith(serieId, { hecha: false, omitida: undefined })
+    await fireEvent(screen.getByRole("checkbox", { name: /Hecha —/ }), "accessibilityAction", {
+      nativeEvent: { actionName: "recuperar" },
+    })
+    expect(cambiar).toHaveBeenCalledTimes(2)
+  })
+
+  it("muestra la validación bajo la tabla sin cambiar las series", async () => {
+    const cambiar = jest.fn()
+    await render(
+      <TablaSeries
+        ejercicio={ejercicio}
+        series={[{ serieId, peso: "", valor: "", hecha: false }]}
+        bloqueado={false}
+        cambiar={cambiar}
+        error="Falta el peso"
+        intentoError={1}
+      />,
+    )
+    expect(screen.getByRole("alert", { name: "Falta el peso" })).toBeOnTheScreen()
+    expect(cambiar).not.toHaveBeenCalled()
+  })
+
+  it("no ofrece deshacer una serie que la validación del padre rechaza", async () => {
+    const avisarDeshacer = jest.fn()
+    await render(
+      <TablaSeries
+        ejercicio={ejercicio}
+        series={[{ serieId, peso: "", valor: "", hecha: false }]}
+        bloqueado={false}
+        cambiar={() => false}
+        avisarDeshacer={avisarDeshacer}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha —/ }))
+    expect(avisarDeshacer).not.toHaveBeenCalled()
+  })
+
+  it.each(["marcar", "omitir"] as const)(
+    "deshacer %s conserva las cifras corregidas después",
+    async (operacion) => {
+      let reales: EdicionRegistro["series"] = [
+        { serieId, peso: "", valor: "30", hecha: false, rir: 2 },
+      ]
+      const avisarDeshacer = jest.fn()
+      function Controlada(): React.JSX.Element {
+        const [actuales, actualizar] = useState(reales)
+        return (
+          <TablaConBarra
+            ejercicio={ejercicio}
+            series={actuales}
+            bloqueado={false}
+            avisarDeshacer={avisarDeshacer}
+            cambiar={(id, cambio) => {
+              reales = reales.map((serie) =>
+                serie.serieId === id ? { ...serie, ...cambio } : serie,
+              )
+              actualizar(reales)
+            }}
+          />
+        )
+      }
+      await render(<Controlada />)
+      const check = screen.getByRole("checkbox", { name: /Hecha —/ })
+      if (operacion === "marcar") await fireEvent.press(check)
+      else {
+        await fireEvent(check, "longPress")
+        await fireEvent.press(screen.getByRole("button", { name: /^Segundos —/ }))
+      }
+      const aviso = avisarDeshacer.mock.calls[0]![0]
+      await escribir(/^Segundos —/, "SEG", "45")
+      expect(reales[0]?.valor).toBe("45")
+      await act(() => aviso.deshacer())
+      expect(reales[0]).toEqual(
+        expect.objectContaining({ valor: "45", hecha: false, omitida: undefined, rir: 2 }),
+      )
+    },
+  )
+})
+
 it("avisa si falta una serie en la copia y mantiene las otras disponibles", async () => {
   const segunda = "20000000-0000-4000-8000-000000000001"
   const cambiar = jest.fn()
   await render(
-    <TablaSeries
+    <TablaConBarra
       ejercicio={{
         ...ejercicio,
         series: [
@@ -48,7 +320,7 @@ it("avisa si falta una serie en la copia y mantiene las otras disponibles", asyn
   expect(screen.queryByLabelText("Segundos — Plancha, serie 1")).toBeNull()
   expect(screen.queryByRole("checkbox", { name: "Hecha — Plancha, serie 1" })).toBeNull()
   expect(screen.queryByRole("button", { name: "Omitir serie 1 — Plancha" })).toBeNull()
-  await fireEvent.changeText(screen.getByLabelText("Segundos — Plancha, serie 2"), "40")
+  await escribir(/^Segundos — Plancha, serie 2:/, "SEG", "40")
   expect(cambiar).toHaveBeenLastCalledWith(segunda, { valor: "40" })
   await fireEvent.press(screen.getByRole("checkbox", { name: "Hecha — Plancha, serie 2" }))
   expect(cambiar).toHaveBeenLastCalledWith(
@@ -60,7 +332,7 @@ it("avisa si falta una serie en la copia y mantiene las otras disponibles", asyn
 it("el ejercicio sin carga y por tiempo muestra segundos, omitir y una marca de un toque", async () => {
   const cambiar = jest.fn()
   await render(
-    <TablaSeries
+    <TablaConBarra
       ejercicio={ejercicio}
       series={[{ serieId, peso: "", valor: "", hecha: false }]}
       bloqueado={false}
@@ -76,7 +348,7 @@ it("el ejercicio sin carga y por tiempo muestra segundos, omitir y una marca de 
     serieId,
     expect.objectContaining({ hecha: true, valor: "30" }),
   )
-  await fireEvent.press(screen.getByRole("button", { name: /Omitir serie/ }))
+  await fireEvent(screen.getByRole("checkbox", { name: /Hecha —/ }), "longPress")
   expect(cambiar).toHaveBeenCalledWith(serieId, { hecha: false, omitida: true })
 })
 
@@ -88,7 +360,7 @@ it("RIR se pide en cada serie solo cuando el entrenador lo configuró", async ()
     series: [{ id: serieId, tipoMedicion: "repeticiones" as const, repeticiones: 8, pesoKg: 20 }],
   }
   await render(
-    <TablaSeries
+    <TablaConBarra
       ejercicio={conRir}
       series={[{ serieId, peso: "", valor: "", hecha: false }]}
       bloqueado={false}
@@ -97,7 +369,8 @@ it("RIR se pide en cada serie solo cuando el entrenador lo configuró", async ()
     />,
   )
   expect(screen.getByLabelText(/Peso —/)).toBeTruthy()
-  expect(screen.getByText("¿Cuántas te quedaban?")).toBeTruthy()
+  await fireEvent.press(screen.getByRole("button", { name: /RIR — Plancha, serie 1:/ }))
+  expect(screen.getByLabelText("Repeticiones en reserva")).toBeOnTheScreen()
 })
 
 it("una serie hecha permite corregir el RIR o dejarlo sin anotar sin tocar lo demás", async () => {
@@ -114,7 +387,7 @@ it("una serie hecha permite corregir el RIR o dejarlo sin anotar sin tocar lo de
   }
   const cambiar = jest.fn()
   await render(
-    <TablaSeries
+    <TablaConBarra
       ejercicio={conRir}
       series={[
         { serieId, peso: "20", valor: "8", hecha: true, rir: 1 },
@@ -127,13 +400,14 @@ it("una serie hecha permite corregir el RIR o dejarlo sin anotar sin tocar lo de
   )
   expect(screen.queryByLabelText("Repeticiones que te quedaban, serie 1")).toBeNull()
 
-  await fireEvent.press(screen.getByRole("button", { name: /RIR, serie 1: 1/ }))
-  const pregunta = screen.getByLabelText("Repeticiones que te quedaban, serie 1")
-  await fireEvent.press(within(pregunta).getByRole("radio", { name: "3" }))
+  await fireEvent.press(screen.getByRole("button", { name: /RIR — Plancha, serie 1: 1/ }))
+  const pregunta = screen.getByLabelText("Repeticiones en reserva")
+  await fireEvent.press(within(pregunta).getByRole("radio", { name: "RIR 3" }))
   expect(cambiar).toHaveBeenLastCalledWith(serieId, { rir: 3 })
-  expect(screen.queryByLabelText("Repeticiones que te quedaban, serie 1")).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+  expect(screen.queryByLabelText("Repeticiones en reserva")).toBeNull()
 
-  await fireEvent.press(screen.getByRole("button", { name: /RIR, serie 1: 1/ }))
+  await fireEvent.press(screen.getByRole("button", { name: /RIR — Plancha, serie 1: 1/ }))
   await fireEvent.press(screen.getByRole("button", { name: "Sin anotar el RIR de la serie 1" }))
   expect(cambiar).toHaveBeenLastCalledWith(serieId, { rir: null })
 })
@@ -145,29 +419,31 @@ it("con el registro bloqueado el RIR de una serie hecha no se puede corregir", a
     series: [{ id: serieId, tipoMedicion: "repeticiones" as const, repeticiones: 8, pesoKg: null }],
   }
   await render(
-    <TablaSeries
+    <TablaConBarra
       ejercicio={conRir}
       series={[{ serieId, peso: "", valor: "8", hecha: true, rir: 2 }]}
       bloqueado
       cambiar={jest.fn()}
     />,
   )
-  await fireEvent.press(screen.getByLabelText(/RIR, serie 1: 2/))
-  expect(screen.queryByLabelText("Repeticiones que te quedaban, serie 1")).toBeNull()
+  const rir = screen.getByLabelText(/RIR — Plancha, serie 1: 2/)
+  expect(rir).toBeDisabled()
+  await fireEvent.press(rir)
+  expect(screen.queryByLabelText("Repeticiones en reserva")).toBeNull()
 })
 
 it("pregunta el RIR opcional al resolver el ejercicio completo", async () => {
   const cambiar = jest.fn()
   await render(
-    <TablaSeries
+    <TablaConBarra
       ejercicio={{ ...ejercicio, modoRir: "alFinalizarEjercicio", rir: { min: 2, max: 2 } }}
       series={[{ serieId, peso: "", valor: "30", hecha: true }]}
       bloqueado={false}
       cambiar={cambiar}
     />,
   )
-  expect(screen.getByText(/Al terminar este ejercicio/)).toBeOnTheScreen()
-  await fireEvent.press(screen.getByRole("radio", { name: "2" }))
+  expect(screen.getByText("RIR del ejercicio")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("radio", { name: "RIR 2, objetivo" }))
   expect(cambiar).toHaveBeenCalledWith(serieId, { rir: 2 })
 })
 
@@ -200,7 +476,7 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
   it("con carga pide kg y metros, sugiere lo pautado y marca en metros", async () => {
     const cambiar = jest.fn()
     await render(
-      <TablaSeries
+      <TablaConBarra
         ejercicio={transporte}
         series={vacias(transporte)}
         bloqueado={false}
@@ -210,16 +486,15 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
       />,
     )
     expect(screen.getByText("2 × 20 m")).toBeOnTheScreen()
-    expect(screen.getByText("Kg")).toBeOnTheScreen()
-    expect(screen.getByText("Metros")).toBeOnTheScreen()
-    expect(screen.getByText("Anterior 30 kg × 18 m")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Serie 1, serie en curso: 20 m · 32 kg")).toBeOnTheScreen()
-    const metros = screen.getByLabelText("Metros — Paseo del granjero, serie 1")
-    expect(metros).toHaveProp("placeholder", "20")
-    expect(metros).toHaveProp("accessibilityHint", "Sugerencia de tu entrenador: 32 kg, 20 metros.")
+    expect(screen.getByText("KG")).toBeOnTheScreen()
+    expect(screen.getByText("M")).toBeOnTheScreen()
+    expect(screen.getAllByLabelText("Anterior: 30×18 m")).toHaveLength(2)
+    const metros = screen.getByLabelText("Metros — Paseo del granjero, serie 1: 20")
+    expect(metros).toHaveProp("accessibilityHint", "Abre la barra de ajuste; sugerencia 20")
+    expect(screen.getByLabelText("Peso — Paseo del granjero, serie 1: 32")).toBeOnTheScreen()
     expect(screen.queryByLabelText(/Repeticiones —|Segundos —/)).toBeNull()
 
-    await fireEvent.changeText(metros, "25")
+    await escribir(/^Metros — Paseo del granjero, serie 1:/, "M", "25")
     expect(cambiar).toHaveBeenLastCalledWith(u(11), { valor: "25" })
     // Con el campo aún vacío (las series no cambian aquí), «Hecha» toma lo pautado.
     await fireEvent.press(
@@ -236,7 +511,7 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
   it("sin carga no pide kg; marcar y omitir conservan los metros", async () => {
     const cambiar = jest.fn()
     await render(
-      <TablaSeries
+      <TablaConBarra
         ejercicio={zancadas}
         series={vacias(zancadas)}
         bloqueado={false}
@@ -246,11 +521,11 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
       />,
     )
     expect(screen.queryByLabelText(/Peso —/)).toBeNull()
-    expect(screen.queryByText("Kg")).toBeNull()
-    expect(screen.getByText("Anterior 30 m")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Metros — Zancadas caminando, serie 1")).toHaveProp(
+    expect(screen.queryByText("KG")).toBeNull()
+    expect(screen.getByLabelText("Anterior: 30 m")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Metros — Zancadas caminando, serie 1: 30")).toHaveProp(
       "accessibilityHint",
-      "Sugerencia de tu entrenador: 30 metros.",
+      "Abre la barra de ajuste; sugerencia 30",
     )
     await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha —/ }))
     expect(cambiar).toHaveBeenLastCalledWith(u(21), {
@@ -258,7 +533,7 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
       omitida: undefined,
       valor: "30",
     })
-    await fireEvent.press(screen.getByRole("button", { name: /Omitir serie 1/ }))
+    await fireEvent(screen.getByRole("checkbox", { name: /Hecha —/ }), "longPress")
     expect(cambiar).toHaveBeenLastCalledWith(u(21), { hecha: false, omitida: true })
   })
 
@@ -267,11 +542,14 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
       nombre: "Transportes",
       ejercicios: [transporte],
     }
-    let series = vacias(transporte)
+    // Una copia local antigua también debe superar la validación actual.
+    let series = vacias(transporte).map((serie, n) =>
+      n === 0 ? { ...serie, valor: "20,5" } : serie,
+    )
     function Tabla(): React.JSX.Element {
       const [actuales, setActuales] = useState(series)
       return (
-        <TablaSeries
+        <TablaConBarra
           ejercicio={transporte}
           series={actuales}
           bloqueado={false}
@@ -293,17 +571,16 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
       }
     }
     await render(<Tabla />)
-    const campo = (): ReturnType<typeof screen.getByLabelText> =>
-      screen.getByLabelText("Metros — Paseo del granjero, serie 1")
     const hecha = (): ReturnType<typeof screen.getByRole> =>
       screen.getByRole("checkbox", { name: "Hecha — Paseo del granjero, serie 1" })
 
     // Los metros son enteros, igual que repeticiones y segundos.
-    await fireEvent.changeText(campo(), "20,5")
     await fireEvent.press(hecha())
     expect(primera().valida).toBe(false)
-
-    await fireEvent.changeText(campo(), "18")
+    await escribir(/^Metros — Paseo del granjero, serie 1:/, "M", "20,5")
+    expect(screen.getByRole("button", { name: "Listo" })).toBeDisabled()
+    expect(series[0]?.valor).toBe("20,5")
+    await fireEvent.changeText(screen.getByLabelText("Valor manual M"), "18")
     expect(primera()).toEqual({
       serie: { serieId: u(11), tipoMedicion: "distancia", pesoKg: 32, metros: 18, hecha: true },
       valida: true,
@@ -338,7 +615,7 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
       ],
     }
     const vista = await render(
-      <TablaSeries
+      <TablaConBarra
         ejercicio={remo}
         series={[
           { serieId: u(31), peso: "", valor: "", hecha: false },
@@ -350,18 +627,21 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
         anterior={{ tipoMedicion: "repeticiones", pesoKg: 55, repeticiones: 6 }}
       />,
     )
-    expect(screen.getByText("Reps / s")).toBeOnTheScreen()
-    expect(screen.getByText("Anterior 55 kg × 6")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Serie 1, serie en curso: 8 rep · 60 kg")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Serie 2: 30 s · 60 kg")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Repeticiones — Remo, serie 1")).toHaveProp(
+    expect(screen.getByText("REPS / S")).toBeOnTheScreen()
+    expect(screen.getAllByLabelText("Anterior: 55×6")).toHaveLength(2)
+    expect(screen.getByLabelText("Peso — Remo, serie 1: 60")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Peso — Remo, serie 2: 60")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Repeticiones — Remo, serie 1: 8")).toHaveProp(
       "accessibilityHint",
-      "Sugerencia de tu entrenador: 60 kg, 8 repeticiones.",
+      "Abre la barra de ajuste; sugerencia 8",
     )
-    expect(screen.getByLabelText("Segundos — Remo, serie 2")).toHaveProp("placeholder", "30")
+    expect(screen.getByLabelText("Segundos — Remo, serie 2: 30")).toHaveProp(
+      "accessibilityHint",
+      "Abre la barra de ajuste; sugerencia 30",
+    )
 
     await vista.rerender(
-      <TablaSeries
+      <TablaConBarra
         ejercicio={{ ...remo, series: [remo.series[0]!] }}
         series={[{ serieId: u(31), peso: "", valor: "", hecha: false }]}
         bloqueado={false}
@@ -369,11 +649,11 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
         anterior={{ tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 6 }}
       />,
     )
-    expect(screen.getByText("Reps")).toBeOnTheScreen()
-    expect(screen.getByText("Anterior 6 reps")).toBeOnTheScreen()
+    expect(screen.getByText("REPS")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Anterior: 6")).toBeOnTheScreen()
 
     await vista.rerender(
-      <TablaSeries
+      <TablaConBarra
         ejercicio={{ ...transporte, series: [remo.series[0]!, transporte.series[0]!] }}
         series={[
           { serieId: u(31), peso: "", valor: "", hecha: false },
@@ -383,9 +663,9 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
         cambiar={jest.fn()}
       />,
     )
-    expect(screen.getByText("Reps / m")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Repeticiones — Paseo del granjero, serie 1")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Metros — Paseo del granjero, serie 2")).toBeOnTheScreen()
+    expect(screen.getByText("REPS / M")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Repeticiones — Paseo del granjero, serie 1: 8")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Metros — Paseo del granjero, serie 2: 20")).toBeOnTheScreen()
   })
 
   // resultado.tsx no tiene prueba propia: su resumen se comprueba aquí, junto a la tabla.
@@ -416,14 +696,24 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
       ],
     }
     await render(<PrescripcionVisible prescripcion={prescripcion} resultado={resultado} />)
-    expect(screen.getByText("3/4")).toBeOnTheScreen()
-    expect(screen.getByText("Serie 1 · Objetivo: 20 m · 32 kg")).toBeOnTheScreen()
-    expect(screen.getByText("Serie 2 · Objetivo: 20 m · 32 kg")).toBeOnTheScreen()
-    expect(screen.getByText("Hecho: 18 m · 32 kg")).toBeOnTheScreen()
-    expect(screen.getByText("Omitida")).toBeOnTheScreen()
-    expect(screen.getByText("Serie 1 · Objetivo: 30 m")).toBeOnTheScreen()
-    expect(screen.getByText("Hecho: 30 m")).toBeOnTheScreen()
-    expect(screen.getByText("Serie 1 · Objetivo: 30 s")).toBeOnTheScreen()
-    expect(screen.getByText("Hecho: 30 s")).toBeOnTheScreen()
+    const filas = screen.getAllByRole("text", { name: /^Serie \d+\. Hecho:/ })
+    expect(filas).toHaveLength(4)
+    expect(
+      screen.getAllByRole("text", { name: /^Serie \d+\. Hecho: (?!Omitida|Sin hacer)/ }),
+    ).toHaveLength(3)
+    expect(
+      screen.getByLabelText(
+        "Serie 1. Hecho: 32 kg × 18 m. Objetivo: 32 kg × 20 m. RIR sin registrar",
+      ),
+    ).toBeOnTheScreen()
+    expect(
+      screen.getByLabelText("Serie 2. Hecho: Omitida. Objetivo: 32 kg × 20 m. RIR sin registrar"),
+    ).toBeOnTheScreen()
+    expect(
+      screen.getByLabelText("Serie 1. Hecho: 30 m. Objetivo: 30 m. RIR sin registrar"),
+    ).toBeOnTheScreen()
+    expect(
+      screen.getByLabelText("Serie 1. Hecho: 30 s. Objetivo: 30 s. RIR sin registrar"),
+    ).toBeOnTheScreen()
   })
 })

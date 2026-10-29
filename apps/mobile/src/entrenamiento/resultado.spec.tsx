@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react-native"
+import { tema } from "../tema"
 import { PrescripcionVisible, valoresLegibles, type ResultadoConDistancia } from "./resultado"
 
 jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
-it("el resultado mantiene el recuento de la parte principal aunque también se hizo el calentamiento", async () => {
+it("muestra todas las series de lectura, incluidas las del calentamiento, sin duplicar la confirmación", async () => {
   const resultado: ResultadoConDistancia = {
     sesionId: "sesion",
     revisionPrescripcion: 0,
@@ -42,8 +43,11 @@ it("el resultado mantiene el recuento de la parte principal aunque también se h
     ],
   }
   await render(<PrescripcionVisible prescripcion={resultado.prescripcion} resultado={resultado} />)
-  expect(screen.getByText("1/1")).toBeTruthy()
-  expect(screen.getByText("series de la parte principal completadas")).toBeTruthy()
+  expect(screen.getAllByText("60 s")).toHaveLength(2)
+  expect(screen.getAllByText("20 kg × 8")).toHaveLength(2)
+  expect(screen.getAllByText("1")).toHaveLength(2)
+  expect(screen.queryByText("Entrenamiento enviado")).toBeNull()
+  expect(screen.queryAllByRole("button")).toHaveLength(0)
 })
 
 it("muestra los kilos con coma también en las etiquetas de las series", () => {
@@ -94,7 +98,110 @@ it("distingue una serie pendiente de una omitida expresamente", async () => {
     ],
   }
   await render(<PrescripcionVisible prescripcion={prescripcion} resultado={resultado} />)
-  expect(screen.getByText("Hecho: 8 rep · 20 kg")).toBeTruthy()
+  expect(screen.getAllByText("20 kg × 8")).toHaveLength(4)
   expect(screen.getByText("Sin hacer")).toBeTruthy()
   expect(screen.getAllByText("Omitida")).toHaveLength(1)
+})
+
+it("compara el registro con su prescripción congelada y distingue el RIR bajo y la omisión", async () => {
+  const prescripcion: ResultadoConDistancia["prescripcion"] = {
+    nombre: "Fuerza",
+    ejercicios: [
+      {
+        id: "e",
+        ejercicioId: "catalogo",
+        nombre: "Remo original",
+        indicaciones: null,
+        rir: { min: 3, max: 4 },
+        modoRir: "cadaSerie",
+        series: ["hecha", "omitida"].map((id) => ({
+          id,
+          tipoMedicion: "repeticiones",
+          pesoKg: 20,
+          repeticiones: 8,
+          repeticionesMax: 10,
+        })),
+      },
+    ],
+  }
+  const resultado: ResultadoConDistancia = {
+    sesionId: "s",
+    revisionPrescripcion: 0,
+    enviadoEn: "2026-10-01T10:00:00.000Z",
+    notas: "Buena técnica",
+    prescripcion,
+    series: [
+      {
+        serieId: "hecha",
+        hecha: true,
+        valores: { tipoMedicion: "repeticiones", pesoKg: 22.5, repeticiones: 9, rir: 1 },
+      },
+      { serieId: "omitida", hecha: false, omitida: true },
+    ],
+  }
+  await render(
+    <PrescripcionVisible
+      prescripcion={{ nombre: "Plan cambiado", ejercicios: [] }}
+      resultado={resultado}
+    />,
+  )
+  expect(screen.getByRole("header", { name: "Remo original" })).toBeTruthy()
+  expect(screen.getByText("22,5 kg × 9")).toBeTruthy()
+  expect(screen.getAllByText("20 kg × 8–10")).toHaveLength(2)
+  expect(screen.getByRole("text", { name: /Serie 1.*RIR 1.*objetivo 3–4/ })).toHaveStyle({
+    backgroundColor: tema.exitoFila,
+  })
+  expect(screen.getByLabelText("RIR 1, objetivo 3–4")).toHaveStyle({ color: tema.aviso })
+  expect(screen.getByRole("text", { name: /Serie 2.*Omitida/ })).toHaveStyle({ opacity: 0.5 })
+  expect(screen.getByText("Buena técnica")).toBeTruthy()
+})
+
+it("presenta el registro comprometido sin conexión sin fabricar un resultado enviado", async () => {
+  const prescripcion: ResultadoConDistancia["prescripcion"] = {
+    nombre: "Carrera",
+    ejercicios: [
+      {
+        id: "e",
+        ejercicioId: "catalogo",
+        nombre: "Paseo",
+        indicaciones: null,
+        series: [
+          { id: "s", tipoMedicion: "distancia", pesoKg: null, metros: 20 },
+          { id: "pendiente", tipoMedicion: "tiempo", pesoKg: null, segundos: 30 },
+        ],
+      },
+    ],
+  }
+  await render(
+    <PrescripcionVisible
+      prescripcion={prescripcion}
+      registro={{
+        checkin: null,
+        cierre: null,
+        notas: "Sin conexión",
+        series: [
+          {
+            serieId: "s",
+            hecha: true,
+            tipoMedicion: "distancia",
+            pesoKg: null,
+            metros: 25,
+            rir: 3,
+          },
+          {
+            serieId: "pendiente",
+            hecha: false,
+            tipoMedicion: "tiempo",
+            pesoKg: null,
+            segundos: null,
+          },
+        ],
+      }}
+    />,
+  )
+  expect(screen.getByText("25 m")).toBeTruthy()
+  expect(screen.getByText("20 m")).toBeTruthy()
+  expect(screen.getByText("Sin hacer")).toBeTruthy()
+  expect(screen.getByText("Sin conexión")).toBeTruthy()
+  expect(screen.queryByText(/enviado/i)).toBeNull()
 })

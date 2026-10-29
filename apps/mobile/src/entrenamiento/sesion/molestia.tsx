@@ -11,9 +11,10 @@ import {
 } from "@alpha-omega/shared"
 
 import { AvisoDeError } from "../../componentes/formulario"
+import { BotonPrincipal } from "../../componentes/botones"
 import { faltaDe } from "../../lib/errores"
-import { tema } from "../../tema"
-import { BotonAtras, BotonDorado, Chips, Deslizador, Dialogo, Pregunta } from "./controles"
+import { espacio, tema, tipo } from "../../tema"
+import { BotonAtras, Chips, Deslizador, Dialogo } from "./controles"
 
 const ZONAS = ZONAS_DE_MOLESTIA.map((valor) => ({ valor, texto: ETIQUETA_DE_ZONA[valor] }))
 const SINTOMAS = SINTOMAS_DE_MOLESTIA.map((valor) => ({ valor, texto: ETIQUETA_DE_SINTOMA[valor] }))
@@ -28,7 +29,6 @@ export type LugarDeMolestia = {
 /** «Molestia», como en el diseño: zona, intensidad, qué notas y avisar al entrenador. */
 export function RegistrarMolestiaPantalla({
   lugar,
-  reloj,
   uuid,
   avisar,
   volver,
@@ -101,14 +101,13 @@ export function RegistrarMolestiaPantalla({
   }
 
   return (
-    <ScrollView contentContainerStyle={s.contenido}>
+    <ScrollView contentContainerStyle={s.contenido} keyboardShouldPersistTaps="handled">
       <View style={s.barra}>
         <BotonAtras etiqueta="Volver a la sesión" onPress={() => proteger(volver)} />
-        {reloj !== null && <Text style={s.reloj}>{reloj}</Text>}
       </View>
       <View style={s.titulos}>
         <Text style={s.titulo} accessibilityRole="header">
-          Molestia
+          MOLESTIA
         </Text>
         {contexto.ejercicio !== null && (
           <Text style={s.subtitulo}>
@@ -122,7 +121,7 @@ export function RegistrarMolestiaPantalla({
           <Text style={s.confirmacion} accessibilityLiveRegion="polite">
             Aviso enviado. Tu entrenador te dirá cómo seguir. Mientras, pasa al siguiente ejercicio.
           </Text>
-          <BotonDorado texto="Volver a la sesión" onPress={volver} />
+          <BotonPrincipal texto="Volver a la sesión" onPress={volver} sinMargen />
         </View>
       ) : (
         <>
@@ -145,7 +144,6 @@ export function RegistrarMolestiaPantalla({
           ) : (
             <>
               <View style={s.grupo}>
-                <Pregunta>Zona</Pregunta>
                 <Chips
                   etiqueta="Zona"
                   opciones={ZONAS}
@@ -154,7 +152,9 @@ export function RegistrarMolestiaPantalla({
                 />
               </View>
               <View style={s.grupo}>
-                <Pregunta valor={`${intensidad} de 10`}>Intensidad</Pregunta>
+                <Text style={s.intensidad} accessible={false}>
+                  {intensidad} / 10
+                </Text>
                 <Deslizador
                   valor={intensidad}
                   cambiar={setIntensidad}
@@ -163,7 +163,6 @@ export function RegistrarMolestiaPantalla({
                 />
               </View>
               <View style={s.grupo}>
-                <Pregunta>Qué notas (puedes marcar varias)</Pregunta>
                 <Chips
                   etiqueta="Qué notas"
                   opciones={SINTOMAS}
@@ -176,12 +175,12 @@ export function RegistrarMolestiaPantalla({
           )}
           {error !== null && <AvisoDeError mensaje={error} />}
           <View style={s.grupo}>
-            <BotonDorado
+            <BotonPrincipal
               texto={intentada === null ? "Avisar a tu entrenador" : "Reintentar el mismo aviso"}
               onPress={() => void enviar()}
               ocupado={enviando}
+              sinMargen
             />
-            <Text style={s.ayuda}>Mientras, pasa al siguiente ejercicio.</Text>
           </View>
         </>
       )}
@@ -210,24 +209,21 @@ export function RegistrarMolestiaPantalla({
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 28, paddingBottom: 24 },
-  barra: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  reloj: { color: tema.acento, fontFamily: tema.fuenteTitulo, fontSize: 30, lineHeight: 34 },
-  titulos: { gap: 6 },
+  contenido: { gap: espacio[28], paddingBottom: espacio[24] },
+  barra: { minHeight: 44, flexDirection: "row", alignItems: "center" },
+  titulos: { gap: espacio[4] },
   titulo: {
     color: tema.texto,
+    ...tipo.tituloPantalla,
+  },
+  subtitulo: tipo.secundario,
+  grupo: { gap: espacio[12] },
+  intensidad: {
+    ...tipo.cifras,
     fontFamily: tema.fuenteTitulo,
-    fontSize: 34,
-    lineHeight: 38,
-    textTransform: "uppercase",
+    fontSize: 22,
+    lineHeight: 26,
+    color: tema.texto,
   },
-  subtitulo: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15 },
-  grupo: { gap: 12 },
-  confirmacion: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 16, lineHeight: 23 },
-  ayuda: {
-    color: tema.textoTenue,
-    fontFamily: tema.fuenteTexto,
-    fontSize: 13,
-    textAlign: "center",
-  },
+  confirmacion: { ...tipo.cuerpo, color: tema.texto },
 })

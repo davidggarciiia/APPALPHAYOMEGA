@@ -2,9 +2,9 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { NavigationContext, usePreventRemove } from "expo-router/react-navigation"
 import { randomUUID } from "expo-crypto"
-import { AppState, Image, Pressable, StyleSheet, Text, View } from "react-native"
+import { AppState, Keyboard, ScrollView, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
-import type { Checkin, Ejercicio, EjercicioPrescrito, ValoresEjecutados } from "@alpha-omega/shared"
+import type { EjercicioPrescrito, ValoresEjecutados } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import { ErrorDeCopiaLocal } from "./almacen-local"
@@ -15,19 +15,13 @@ import {
   type EjercicioConDistancia,
   type PrescripcionConDistancia,
 } from "./registro-modelo"
-import { TablaSeries } from "./tabla-series"
-import { PrescripcionVisible } from "./resultado"
+import { ajusteDeSerie, TablaSeries, type DeshacerSerie, type FocoSerie } from "./tabla-series"
+import { ConfirmacionSesion, PrescripcionVisible } from "./resultado"
 import { VerTecnica } from "./ver-tecnica"
-import { CheckIn } from "./sesion/check-in"
-import { CierreDeSesion } from "./sesion/cierre"
 import { Dialogo, Enlace } from "./sesion/controles"
 import {
-  duracionLegible,
-  ejercicioEnCurso,
   ejercicioParaRirFinal,
   ejerciciosOrdenados,
-  estadoDeEjercicio,
-  reloj,
   segundosDeDescanso,
   seriesDeTrabajo,
 } from "./sesion/modelo"
@@ -35,14 +29,19 @@ import { RegistrarMolestiaPantalla, type LugarDeMolestia } from "./sesion/molest
 import { CabeceraSesion, Descanso, ListaMarcable, seriesMarcadas } from "./sesion/partes"
 import { duracionDeSesion, iniciarTramo } from "./sesion/tiempo"
 import { RespuestasDelEntrenador } from "./sesion/respuestas"
-import { FiguraDeEjercicio, useAccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
+import { useAccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
 import { useCatalogo } from "../catalogo-ejercicios/use-catalogo"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
 import { tema } from "../tema"
-import fotoDeEntrenamiento from "../../assets/entrenamiento.webp"
+import { SafeAreaView } from "react-native-safe-area-context"
+import { Aviso } from "../componentes/aviso"
+import { AvisoDeshacer } from "../componentes/aviso-deshacer"
+import { BarraAjuste } from "../componentes/barra-ajuste"
+import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
+import { useMovimientoReducido } from "../componentes/movimiento"
 
 type Serie = EdicionRegistro["series"][number]
-type Fase = "sesion" | "molestia" | "cierre"
+type Fase = "sesion" | "molestia"
 
 const TITULOS_DE_SECCION = {
   calentamiento: "Calentamiento",
@@ -129,50 +128,81 @@ function DescansoVivo({
   hasta,
   total,
   saltar,
+  ajustar,
+  animar,
 }: {
   hasta: string
   total: number | null | undefined
   saltar: () => void
+  ajustar: (segundos: -15 | 15) => void
+  animar: boolean
 }): React.JSX.Element | null {
   const ahora = useAhora()
   const restante = Math.max(0, Math.round((Date.parse(hasta) - ahora) / 1000))
-  return restante > 0 ? (
-    <Descanso restante={restante} total={total ?? restante} saltar={saltar} />
-  ) : null
+  return (
+    <Descanso
+      restante={restante}
+      total={total ?? restante}
+      saltar={saltar}
+      ajustar={ajustar}
+      animar={animar}
+    />
+  )
 }
 
-/**
- * El entrenamiento del cliente con el recorrido de Design.html: check-in,
- * sesión en curso (cronómetro, descanso, RIR, técnica y molestias), cierre y
- * envío. Todo lo que se escribe se guarda en el dispositivo al momento.
- */
 export function RegistroCliente({
   cuenta,
   id,
   api,
   salir,
+  listo,
 }: {
   cuenta: string
   id: string
   api: ApiEntrenamiento
   /** Volver a la semana. El borrador ya está guardado en el dispositivo. */
   salir?: () => void
+  listo?: () => void
 }): React.JSX.Element {
   const [control, setControl] = useState<RegistroControl | null>(null)
   const [, repintar] = useState(0)
   const [error, setError] = useState("")
   // Al marcar «Hecha» sin lo necesario el motivo sale junto a las series: el aviso
   // general queda al pie de la pantalla, normalmente fuera de la vista.
-  const [errorSerie, setErrorSerie] = useState("")
+  const [errorSerie, setErrorSerie] = useState<{
+    ejercicioId: string
+    mensaje: string
+    intento: number
+  } | null>(null)
   const [intento, setIntento] = useState(0)
   const [ocupado, setOcupado] = useState(false)
   const [fase, setFase] = useState<Fase>("sesion")
-  const [dialogo, setDialogo] = useState<"salir" | "terminar" | null>(null)
+  const [dialogo, setDialogo] = useState<"terminar" | null>(null)
+  const [salidaPendiente, setSalidaPendiente] = useState<(() => void) | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
   const [anteriores, setAnteriores] = useState<Map<string, ValoresEjecutados>>(new Map())
-  const [fichas, setFichas] = useState<Map<string, Ejercicio>>(new Map())
   const [nota, setNota] = useState(false)
-  const [listaAbierta, setListaAbierta] = useState(false)
+  const [ajusteValido, setAjusteValido] = useState(true)
+  const [lugarMolestia, setLugarMolestia] = useState<LugarDeMolestia>({
+    ejercicioPrescritoId: null,
+    ejercicio: null,
+    serie: null,
+  })
+  const [foco, setFoco] = useState<(FocoSerie & { ejercicioId: string }) | null>(null)
+  const [deshacer, setDeshacer] = useState<(DeshacerSerie & { id: number }) | null>(null)
+  const avisoId = useRef(0)
+  const intentoSerie = useRef(0)
+  const reducido = useMovimientoReducido()
+  const [pausaMovimiento, setPausaMovimiento] = useState(false)
+  const [mostrarDeshacer, setMostrarDeshacer] = useState(true)
+  const turnosMovimiento = useRef<ReturnType<typeof setTimeout>[]>([])
+  useEffect(() => () => turnosMovimiento.current.forEach(clearTimeout), [])
+  useEffect(() => {
+    if (!reducido) return
+    turnosMovimiento.current.forEach(clearTimeout)
+    setPausaMovimiento(false)
+    setMostrarDeshacer(true)
+  }, [reducido])
   const antesDeSalir = useRef<((salir: () => void) => void) | null>(null)
   const registrarSalida = useCallback((preparar: ((salir: () => void) => void) | null) => {
     antesDeSalir.current = preparar
@@ -189,14 +219,29 @@ export function RegistroCliente({
       })
       setControl(c)
       setError("")
-      void c.abrir().catch((fallo: unknown) => {
-        if (vigente)
-          setError(
-            fallo instanceof ErrorDeCopiaLocal
-              ? MENSAJES_DE_COPIA_LOCAL[fallo.operacion]
-              : "No se pudo abrir la sesión. Necesitas conexión para descargarla por primera vez; si ya la tenías, reintenta para recuperar su copia local.",
+      void c
+        .abrir()
+        .then(async () => {
+          const local = c.documento
+          if (
+            vigente &&
+            local &&
+            !local.edicion.inicio &&
+            !local.resultado &&
+            !local.intencionEnvio &&
+            !local.envioPendiente &&
+            !c.conflicto
           )
-      })
+            await c.editar(iniciarTramo(local.edicion, new Date().toISOString()))
+        })
+        .catch((fallo: unknown) => {
+          if (vigente)
+            setError(
+              fallo instanceof ErrorDeCopiaLocal
+                ? MENSAJES_DE_COPIA_LOCAL[fallo.operacion]
+                : "No se pudo abrir la sesión. Necesitas conexión para descargarla por primera vez; si ya la tenías, reintenta para recuperar su copia local.",
+            )
+        })
       const comprobar = async (): Promise<void> => {
         if (
           comprobando ||
@@ -248,36 +293,6 @@ export function RegistroCliente({
   }, [api, id, cuenta])
 
   const documento = control?.documento
-  const sugerido = documento
-    ? ejercicioEnCurso(documento.sesion.prescripcion, documento.edicion)
-    : null
-  const ejercicioElegido = documento?.ejercicioElegidoId ?? null
-  const ejercicioActual =
-    documento?.sesion.prescripcion.ejercicios.find((e) => e.id === ejercicioElegido) ??
-    sugerido ??
-    documento?.sesion.prescripcion.ejercicios.at(-1)
-  const enCurso =
-    ejercicioActual?.series.find((s) => {
-      const real = documento?.edicion.series.find((r) => r.serieId === s.id)
-      return !real?.hecha && !real?.omitida
-    })?.id ?? null
-
-  // La ficha del ejercicio en curso, para su animación.
-  const idActual = ejercicioActual?.ejercicioId
-  useEffect(() => {
-    if (idActual === undefined || fichas.has(idActual)) return
-    let vigente = true
-    catalogo
-      .leer(idActual)
-      .then((ficha) => {
-        if (vigente) setFichas((actual) => new Map(actual).set(idActual, ficha))
-      })
-      .catch(() => undefined)
-    return () => {
-      vigente = false
-    }
-  }, [catalogo, idActual, fichas])
-
   const accion = async (operacion: () => Promise<void>): Promise<void> => {
     setOcupado(true)
     setError("")
@@ -298,69 +313,96 @@ export function RegistroCliente({
 
   if (!documento || !control)
     return (
-      <View>
-        {error ? (
-          <>
-            <AvisoDeError mensaje={error} />
-            <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
-          </>
-        ) : (
-          <Text style={e.texto}>Abriendo entrenamiento…</Text>
-        )}
-      </View>
+      <SafeAreaView edges={["bottom"]} style={e.pantalla}>
+        <View style={e.contenido}>
+          {error ? (
+            <>
+              <AvisoDeError mensaje={error} />
+              <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
+            </>
+          ) : (
+            <GrupoEsqueletos>
+              {[0, 1].map((n) => (
+                <View key={n} style={e.esqueleto}>
+                  <Esqueleto ancho="65%" alto={24} />
+                  {[0, 1, 2, 3].map((fila) => (
+                    <Esqueleto key={fila} alto={52} />
+                  ))}
+                </View>
+              ))}
+            </GrupoEsqueletos>
+          )}
+        </View>
+      </SafeAreaView>
     )
   if (documento.resultado)
     return (
-      <View style={e.contenedor}>
-        <Text accessibilityLiveRegion="polite" style={e.nota}>
-          {documento.sesion.revisadaEn ? "Revisado por el entrenador" : "Enviado al entrenador"}
-        </Text>
-        <PrescripcionVisible
-          prescripcion={documento.resultado.prescripcion}
-          resultado={documento.resultado}
-        />
-        <RespuestasDelEntrenador cuenta={cuenta} sesionId={id} api={api} />
-        {documento.respaldo && (
-          <View>
-            <AvisoDeError mensaje="La sesión ya está enviada. Conservamos aquí otra copia no enviada; el resultado del entrenador ya está cerrado." />
-            {(documento.respaldosLocales ?? []).map((copia, indice) => (
+      <SafeAreaView edges={["bottom"]} style={e.pantalla}>
+        <ScrollView contentContainerStyle={e.contenido} keyboardShouldPersistTaps="handled">
+          <ConfirmacionSesion
+            estado="enviado"
+            hechas={
+              documento.resultado.series.filter(
+                (s) =>
+                  s.hecha && seriesDeTrabajo(documento.resultado!.prescripcion).includes(s.serieId),
+              ).length
+            }
+            total={seriesDeTrabajo(documento.resultado.prescripcion).length}
+            duracion={documento.resultado.tiempoActivoSegundos ?? null}
+            revisada={Boolean(documento.sesion.revisadaEn)}
+            salir={listo ?? salir}
+          />
+          <PrescripcionVisible
+            prescripcion={documento.resultado.prescripcion}
+            resultado={documento.resultado}
+          />
+          <RespuestasDelEntrenador cuenta={cuenta} sesionId={id} api={api} />
+          {documento.respaldo && (
+            <View>
+              <AvisoDeError mensaje="La sesión ya está enviada. Conservamos aquí otra copia no enviada; el resultado del entrenador ya está cerrado." />
+              {(documento.respaldosLocales ?? []).map((copia, indice) => (
+                <BotonSecundario
+                  key={indice}
+                  texto={`Ver otra copia ${indice + 1}${copia.edicion.notas ? `: ${copia.edicion.notas.slice(0, 40)}` : ""}`}
+                  onPress={() => void accion(() => control.elegirCopiaLocal(indice))}
+                />
+              ))}
+              {documento.respaldo.prescripcion.ejercicios.flatMap((ejercicio) =>
+                ejercicio.series.map((prescrita, i) => {
+                  const serie = documento.respaldo?.edicion.series.find(
+                    (s) => s.serieId === prescrita.id,
+                  )
+                  const unidad = { repeticiones: "rep", tiempo: "s", distancia: "m" }[
+                    prescrita.tipoMedicion
+                  ]
+                  return (
+                    <Text key={prescrita.id} style={e.texto}>
+                      {`Copia · ${ejercicio.nombre} · serie ${i + 1}: ${serie?.valor || "—"} ${unidad}${serie?.peso ? ` · ${serie.peso} kg` : ""}`}
+                    </Text>
+                  )
+                }),
+              )}
+              <Text style={e.texto}>{documento.respaldo.edicion.notas}</Text>
               <BotonSecundario
-                key={indice}
-                texto={`Ver otra copia ${indice + 1}${copia.edicion.notas ? `: ${copia.edicion.notas.slice(0, 40)}` : ""}`}
-                onPress={() => void accion(() => control.elegirCopiaLocal(indice))}
+                texto="Descartar esta copia no enviada"
+                onPress={() => void accion(() => control.descartarCopia())}
               />
-            ))}
-            {documento.respaldo.prescripcion.ejercicios.flatMap((ejercicio) =>
-              ejercicio.series.map((prescrita, i) => {
-                const serie = documento.respaldo?.edicion.series.find(
-                  (s) => s.serieId === prescrita.id,
-                )
-                const unidad = { repeticiones: "rep", tiempo: "s", distancia: "m" }[
-                  prescrita.tipoMedicion
-                ]
-                return (
-                  <Text key={prescrita.id} style={e.texto}>
-                    {`Copia · ${ejercicio.nombre} · serie ${i + 1}: ${serie?.valor || "—"} ${unidad}${serie?.peso ? ` · ${serie.peso} kg` : ""}`}
-                  </Text>
-                )
-              }),
-            )}
-            <Text style={e.texto}>{documento.respaldo.edicion.notas}</Text>
-            <BotonSecundario
-              texto="Descartar esta copia no enviada"
-              onPress={() => void accion(() => control.descartarCopia())}
-            />
-          </View>
-        )}
-        {error !== "" && <AvisoDeError mensaje={error} />}
-        {salir && <BotonPrincipal texto="Volver al plan" onPress={salir} />}
-      </View>
+            </View>
+          )}
+          {error !== "" && <AvisoDeError mensaje={error} />}
+        </ScrollView>
+      </SafeAreaView>
     )
 
   const { prescripcion } = documento.sesion
   const pausaDeNavegacion = (
     <PausaDeNavegacion
-      solicitar={(seguir) => (antesDeSalir.current ? antesDeSalir.current(seguir) : seguir())}
+      solicitar={(seguir) => {
+        if (antesDeSalir.current) antesDeSalir.current(seguir)
+        else if (documento.intencionEnvio || documento.envioPendiente)
+          setSalidaPendiente(() => seguir)
+        else seguir()
+      }}
       guardar={async () => {
         await control.pausar(new Date().toISOString())
         await control.reintentarGuardado()
@@ -382,6 +424,7 @@ export function RegistroCliente({
     documento.intencionEnvio != null ||
     documento.envioPendiente !== null
   const bloqueado = bloqueadoPorEnvio || pausado
+  const seriesBloqueadas = bloqueado || !ajusteValido
   const cambiar = (
     nueva: EdicionRegistro,
     vista: {
@@ -391,7 +434,7 @@ export function RegistroCliente({
     } = {},
   ): void => {
     setError("")
-    // La sesión empieza con la primera anotación si no pasó por el check-in.
+    // Una copia antigua sin inicio también arranca al anotar.
     const conInicio = nueva.inicio ? nueva : iniciarTramo(nueva, new Date().toISOString())
     void control
       .editar(conInicio, vista)
@@ -401,20 +444,34 @@ export function RegistroCliente({
         ),
       )
   }
-  const serie = (serieId: string, cambio: Partial<Serie>): void => {
-    setErrorSerie("")
-    const anterior = edicion.series.find((s) => s.serieId === serieId)
+  const serie = (serieId: string, cambio: Partial<Serie>): boolean => {
+    setErrorSerie(null)
+    const actual = control.documento!.edicion
+    const anterior = actual.series.find((s) => s.serieId === serieId)
     const nueva = {
-      ...edicion,
-      series: edicion.series.map((s) => (s.serieId === serieId ? { ...s, ...cambio } : s)),
+      ...actual,
+      series: actual.series.map((s) => (s.serieId === serieId ? { ...s, ...cambio } : s)),
     }
     let nuevoDescanso: { descansoHasta: string; descansoTotal: number } | undefined
     if (cambio.hecha) {
       try {
         registroParaEnviar(prescripcion, nueva)
       } catch {
-        setErrorSerie("Escribe los valores realizados y el peso indicado antes de marcar la serie.")
-        return
+        const ejercicio = prescripcion.ejercicios.find((e) =>
+          e.series.some((s) => s.id === serieId),
+        )
+        const prescrita = ejercicio?.series.find((s) => s.id === serieId)
+        const sinPeso =
+          ejercicio?.tipoCarga !== "sinCarga" &&
+          (ejercicio?.tipoCarga === "conCargaExterna" || prescrita?.pesoKg != null) &&
+          !nueva.series.find((s) => s.serieId === serieId)?.peso.trim()
+        if (ejercicio)
+          setErrorSerie({
+            ejercicioId: ejercicio.id,
+            mensaje: sinPeso ? "Falta el peso" : "Revisa los valores de la serie",
+            intento: ++intentoSerie.current,
+          })
+        return false
       }
       // Tras una serie hecha empieza el descanso que prescribió el entrenador.
       const ejercicio = prescripcion.ejercicios.find((e) => e.series.some((s) => s.id === serieId))
@@ -426,176 +483,106 @@ export function RegistroCliente({
         }
     }
     const retener = ejercicioParaRirFinal(prescripcion, nueva, serieId)
+    if ((cambio.hecha && !anterior?.hecha) || cambio.omitida) {
+      turnosMovimiento.current.forEach(clearTimeout)
+      if (!reducido) {
+        // Fila, recorrido y aviso se relevan; el descanso cuenta sin interpolar entre tanto.
+        const espera = cambio.hecha ? 1100 : 0
+        setPausaMovimiento(true)
+        setMostrarDeshacer(false)
+        turnosMovimiento.current = [
+          setTimeout(() => setMostrarDeshacer(true), espera),
+          setTimeout(() => setPausaMovimiento(false), espera + 220),
+        ]
+      }
+    }
     cambiar(nueva, {
       ...nuevoDescanso,
       ...(retener && { ejercicioElegidoId: retener }),
     })
+    if (cambio.hecha || cambio.omitida) {
+      Keyboard.dismiss()
+      setFoco(null)
+    }
+    return true
   }
   const marcarLista = (ejercicio: EjercicioConDistancia, hecho: boolean): void =>
     cambiar({ ...edicion, series: seriesMarcadas(ejercicio, edicion.series, hecho) })
 
   const trabajo = seriesDeTrabajo(prescripcion)
   const hechasTrabajo = edicion.series.filter((s) => s.hecha && trabajo.includes(s.serieId)).length
-  const empezada = edicion.checkin || edicion.inicio || edicion.series.some((s) => s.hecha)
-  const ahora = Date.now()
-  const duracion = duracionDeSesion(edicion, ahora)
-  const segundos = duracion.segundos
-
-  if (!empezada && !documento.envioPendiente)
-    return (
-      <CheckIn
-        nombre={prescripcion.nombre}
-        volver={() => salir?.()}
-        empezar={(checkin: Checkin) =>
-          cambiar(iniciarTramo({ ...edicion, checkin }, new Date().toISOString()))
-        }
-      />
-    )
-
   if (fase === "molestia") {
-    const numero = ejercicioActual
-      ? ejercicioActual.series.findIndex((s) => s.id === enCurso) + 1
-      : 0
-    const lugar: LugarDeMolestia = {
-      ejercicioPrescritoId: ejercicioActual?.id ?? null,
-      ejercicio: ejercicioActual?.nombre ?? null,
-      serie: numero > 0 ? numero : null,
-    }
     return (
-      <>
-        {pausaDeNavegacion}
-        <RegistrarMolestiaPantalla
-          registrarSalida={registrarSalida}
-          lugar={lugar}
-          reloj={
-            segundos === null ? null : (
-              <RelojDeSesion edicion={edicion}>
-                {({ segundos }) => <Text>{reloj(segundos ?? 0)}</Text>}
-              </RelojDeSesion>
-            )
-          }
-          uuid={randomUUID}
-          avisar={async (datos) => {
-            await api.avisarMolestia(id, datos)
-          }}
-          volver={() => setFase("sesion")}
-        />
-      </>
+      <SafeAreaView edges={["bottom"]} style={e.pantalla}>
+        <ScrollView contentContainerStyle={e.contenido} keyboardShouldPersistTaps="handled">
+          {pausaDeNavegacion}
+          <RegistrarMolestiaPantalla
+            registrarSalida={registrarSalida}
+            lugar={lugarMolestia}
+            reloj={null}
+            uuid={randomUUID}
+            avisar={async (datos) => {
+              await api.avisarMolestia(id, datos)
+            }}
+            volver={() => setFase("sesion")}
+          />
+        </ScrollView>
+      </SafeAreaView>
     )
   }
 
-  if (fase === "cierre") {
-    // Con un envío guardado se enseña exactamente su contenido: la edición ya no viajaría.
-    const comprometido = documento.envioPendiente?.registro ?? documento.intencionEnvio?.registro
-    const series = (comprometido?.series ?? edicion.series).filter((s) =>
-      trabajo.includes(s.serieId),
-    )
-    return (
-      <>
-        {pausaDeNavegacion}
-        <CierreDeSesion
-          registrarSalida={registrarSalida}
-          guardar={async (cierre, notas) => {
-            await control.editar({ ...edicion, cierre, notas })
-          }}
-          subtitulo={[
-            prescripcion.nombre,
-            segundos === null
-              ? null
-              : duracion.legado && edicion.inicio
-                ? `Tiempo transcurrido: ${duracionLegible(edicion.inicio, new Date(ahora))}`
-                : `Tiempo activo: ${reloj(segundos)}`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-          resumen={{
-            hechas: series.filter((s) => s.hecha).length,
-            omitidas: series.filter((s) => s.omitida).length,
-            pendientes: series.filter((s) => !s.hecha && !s.omitida).length,
-          }}
-          cierreInicial={comprometido ? (comprometido.cierre ?? null) : (edicion.cierre ?? null)}
-          notas={comprometido ? (comprometido.notas ?? "") : edicion.notas}
-          enviando={ocupado}
-          pendiente={comprometido !== undefined}
-          error={error}
-          volver={() => setFase("sesion")}
-          enviar={(cierre, notas) =>
-            void accion(async () => {
-              if (!control.documento?.intencionEnvio && !control.documento?.envioPendiente)
-                await control.editar({ ...edicion, cierre, notas })
-              await control.enviar()
-            })
-          }
-          // Mismo UUID y mismo contenido: el controlador reenvía la intención guardada.
-          reintentar={() => void accion(() => control.enviar())}
-        />
-      </>
-    )
+  const enviar = (): void => {
+    Keyboard.dismiss()
+    setFoco(null)
+    setDialogo(null)
+    void accion(async () => {
+      await control.pausar(new Date().toISOString())
+      await control.enviar()
+    })
   }
-
-  const figura = idActual === undefined ? null : (fichas.get(idActual)?.figura ?? null)
+  const pendientes = edicion.series.filter((s) => !s.hecha && !s.omitida).length
   const terminar = (): void => {
+    if (!ajusteValido) return
+    if (!edicion.series.some((s) => s.hecha)) {
+      setError("Marca al menos una serie")
+      return
+    }
     try {
-      const registro = registroParaEnviar(prescripcion, edicion)
-      if (!registro.series.some((s) => s.hecha)) {
-        setError("Completa al menos una serie para terminar.")
-        return
-      }
+      registroParaEnviar(prescripcion, edicion)
       setError("")
-      setDialogo("terminar")
+      if (pendientes > 0) setDialogo("terminar")
+      else enviar()
     } catch {
       setError("Revisa los valores escritos antes de terminar.")
     }
   }
-
-  return (
-    <View style={e.contenedor}>
-      {pausaDeNavegacion}
-      <RelojDeSesion edicion={edicion}>
-        {({ segundos }) => (
-          <CabeceraSesion
-            nombre={prescripcion.nombre}
-            hechas={hechasTrabajo}
-            total={trabajo.length}
-            segundos={segundos}
-            salir={salir && (() => setDialogo("salir"))}
-            terminar={documento.envioPendiente ? undefined : terminar}
-          />
-        )}
-      </RelojDeSesion>
-      {duracion.legado && <Text style={e.tenue}>Tiempo transcurrido de un registro anterior</Text>}
-      {pausado && !bloqueadoPorEnvio && (
-        <BotonPrincipal
-          texto="Continuar entrenamiento"
-          onPress={() =>
-            void accion(() => control.editar(iniciarTramo(edicion, new Date().toISOString())))
-          }
-        />
-      )}
-      <Text accessibilityLiveRegion={control.errorLocal ? "polite" : "none"} style={e.tenue}>
-        {control.errorLocal
-          ? "Error de guardado"
-          : control.guardando > 0
-            ? "Guardando…"
-            : "Guardado en el dispositivo"}
-        {" · "}
-        {documento.intencionEnvio || documento.envioPendiente ? "Pendiente de envío" : "En curso"}
-      </Text>
-      {control.sinRed && (
-        <Text style={e.nota}>
-          {documento.intencionEnvio || documento.envioPendiente
-            ? "Tu envío está guardado en este dispositivo y se reintentará al recuperar conexión."
-            : "Conservas una copia local. El entrenador verá los resultados cuando confirmes el envío con conexión."}
-        </Text>
-      )}
+  const guardarYSalir = (destino: (() => void) | undefined): void => {
+    void accion(async () => {
+      await control.pausar(new Date().toISOString())
+      await control.reintentarGuardado()
+      destino?.()
+    })
+  }
+  const salirGuardando = (): void => guardarYSalir(salir)
+  const avisos = (
+    <>
       {control.errorLocal && (
-        <BotonSecundario
-          texto="Reintentar guardado local"
-          onPress={() => void accion(() => control.reintentarGuardado())}
+        <>
+          <AvisoDeError mensaje="No se pudo guardar. Tus datos siguen en el móvil." />
+          <BotonSecundario
+            texto="Reintentar guardado local"
+            onPress={() => void accion(() => control.reintentarGuardado())}
+          />
+        </>
+      )}
+      {control.sinRed && (
+        <Aviso
+          mensaje="Sin conexión. Conservas tu copia local."
+          alReintentar={() => void accion(() => control.actualizar())}
         />
       )}
       {control.sinConsentimiento && (
-        <AvisoDeError mensaje="Tu consentimiento de datos de salud no está vigente, así que de momento no se puede guardar ni enviar la sesión. Acéptalo desde tu perfil y vuelve a intentarlo: lo que has escrito se conserva en este dispositivo." />
+        <AvisoDeError mensaje="Acepta el consentimiento de salud en tu perfil para enviar; conservas tu copia local." />
       )}
       {control.conflicto && (
         <View>
@@ -606,7 +593,7 @@ export function RegistroCliente({
                 : "Hay otra versión de esta sesión. Puedes cargarla conservando una copia de lo que has escrito."
             }
           />
-          <BotonPrincipal
+          <BotonSecundario
             texto={
               documento.conflictoLocal
                 ? "Continuar con esta edición"
@@ -643,139 +630,230 @@ export function RegistroCliente({
           />
         </View>
       )}
-      {ejercicioActual && (
-        <View style={e.medio}>
-          {figura !== null && idActual !== undefined ? (
-            <FiguraDeEjercicio
-              acceso={acceso}
-              ejercicioId={idActual}
-              figura={figura}
-              nombre={ejercicioActual.nombre}
-              alto={184}
-            />
+    </>
+  )
+  const comprometido = documento.envioPendiente?.registro ?? documento.intencionEnvio?.registro
+  if (comprometido)
+    return (
+      <SafeAreaView edges={["bottom"]} style={e.pantalla}>
+        <ScrollView contentContainerStyle={e.contenido} keyboardShouldPersistTaps="handled">
+          {pausaDeNavegacion}
+          {control.errorLocal || control.guardando > 0 ? (
+            <View>
+              <Text accessibilityRole="header" style={e.titulo}>
+                ENVÍO PENDIENTE
+              </Text>
+              <BotonSecundario
+                texto="Reintentar ahora"
+                ocupado={ocupado}
+                onPress={() => void accion(() => control.enviar())}
+              />
+            </View>
           ) : (
-            <Image
-              source={fotoDeEntrenamiento}
-              style={e.foto}
-              resizeMode="cover"
-              accessible={false}
+            <ConfirmacionSesion
+              estado="guardado"
+              hechas={
+                comprometido.series.filter((s) => s.hecha && trabajo.includes(s.serieId)).length
+              }
+              total={trabajo.length}
+              duracion={comprometido.tiempoActivoSegundos ?? null}
+              salir={() => guardarYSalir(listo ?? salir)}
+              reintentar={() => void accion(() => control.enviar())}
+              ocupado={ocupado}
             />
           )}
-          <View style={e.detalleActual}>
-            <Text style={e.nombreActual} numberOfLines={2}>
-              {ejercicioActual.nombre}
-            </Text>
-            <Enlace
-              texto="Ver técnica"
-              etiqueta={`Ver técnica de ${ejercicioActual.nombre}`}
-              onPress={() => setTecnica(ejercicioActual)}
-            />
-          </View>
-        </View>
-      )}
-      <View style={e.acciones}>
-        <Enlace texto="Añadir nota" onPress={() => setNota(!nota)} />
-      </View>
-      {documento.descansoHasta && (
-        <DescansoVivo
-          hasta={documento.descansoHasta}
-          total={documento.descansoTotal}
-          saltar={() => void control.guardarVista({ descansoHasta: null, descansoTotal: null })}
+          {avisos}
+          <PrescripcionVisible prescripcion={prescripcion} registro={comprometido} />
+          {error !== "" && !control.sinRed && <AvisoDeError mensaje={error} />}
+        </ScrollView>
+        <Dialogo
+          visible={salidaPendiente !== null}
+          titulo="¿Salir de la sesión?"
+          texto="El envío sigue pendiente; conservas tu copia local."
+          confirmar="Salir"
+          cancelar="Seguir aquí"
+          alConfirmar={() => {
+            const seguir = salidaPendiente
+            setSalidaPendiente(null)
+            seguir?.()
+          }}
+          alCancelar={() => setSalidaPendiente(null)}
         />
-      )}
-      {ejercicioActual && (
-        <View testID="series-del-ejercicio" style={e.series}>
-          {ejercicioActual.seccion === "calentamiento" || ejercicioActual.seccion === "final" ? (
-            <ListaMarcable
-              titulo={TITULOS_DE_SECCION[ejercicioActual.seccion]}
-              ejercicios={[ejercicioActual]}
-              series={edicion.series}
-              bloqueado={bloqueado || pausado}
-              marcar={marcarLista}
-              cambiarPeso={(serieId, peso) => serie(serieId, { peso })}
-            />
-          ) : (
-            <TablaSeries
-              ejercicio={ejercicioActual}
-              series={edicion.series}
-              bloqueado={bloqueado || pausado}
-              cambiar={serie}
-              verTecnica={() => setTecnica(ejercicioActual)}
-              enCurso={enCurso}
-              anterior={anteriores.get(ejercicioActual.ejercicioId)}
+      </SafeAreaView>
+    )
+  const ejercicioEnFoco = foco && prescripcion.ejercicios.find((e) => e.id === foco.ejercicioId)
+  const realEnFoco = foco && edicion.series.find((s) => s.serieId === foco.serieId)
+  const ajuste =
+    ejercicioEnFoco && realEnFoco && foco
+      ? ajusteDeSerie(ejercicioEnFoco, realEnFoco, foco.celda)
+      : null
+  const abrirMolestia = (ejercicio: EjercicioPrescrito): void => {
+    const indice = ejercicio.series.findIndex((s) => {
+      const real = edicion.series.find((r) => r.serieId === s.id)
+      return !real?.hecha && !real?.omitida
+    })
+    Keyboard.dismiss()
+    setFoco(null)
+    setLugarMolestia({
+      ejercicioPrescritoId: ejercicio.id,
+      ejercicio: ejercicio.nombre,
+      serie: indice < 0 ? null : indice + 1,
+    })
+    setFase("molestia")
+  }
+  return (
+    <SafeAreaView edges={["bottom"]} style={e.pantalla}>
+      {pausaDeNavegacion}
+      <View style={e.cabecera}>
+        <RelojDeSesion edicion={edicion}>
+          {({ segundos }) => (
+            <CabeceraSesion
+              hechas={hechasTrabajo}
+              total={trabajo.length}
+              segundos={segundos}
+              salir={salir && salirGuardando}
+              terminar={terminar}
+              ocupado={ocupado}
+              deshabilitado={seriesBloqueadas}
+              demoraProgreso={420}
             />
           )}
-          <BotonSecundario texto="Tengo una molestia" onPress={() => setFase("molestia")} />
-          {errorSerie !== "" && <AvisoDeError mensaje={errorSerie} />}
-        </View>
-      )}
-      {ejercicioElegido &&
-        ejercicioParaRirFinal(prescripcion, edicion, ejercicioActual?.series.at(-1)?.id ?? "") ===
-          ejercicioElegido && (
-          <BotonSecundario
-            texto="Ir al siguiente ejercicio"
-            onPress={() => void control.guardarVista({ ejercicioElegidoId: null })}
+        </RelojDeSesion>
+        {error !== "" && <AvisoDeError mensaje={error} />}
+        {documento.descansoHasta && (
+          <DescansoVivo
+            hasta={documento.descansoHasta}
+            total={documento.descansoTotal}
+            animar={!pausaMovimiento}
+            saltar={() =>
+              void accion(() => control.guardarVista({ descansoHasta: null, descansoTotal: null }))
+            }
+            ajustar={(delta) => {
+              const restante = Math.max(
+                0,
+                Math.round((Date.parse(control.documento!.descansoHasta!) - Date.now()) / 1000),
+              )
+              const total = Math.max(0, (control.documento!.descansoTotal ?? restante) + delta)
+              void accion(() =>
+                control.guardarVista({
+                  descansoHasta: new Date(
+                    Date.now() + Math.max(0, restante + delta) * 1000,
+                  ).toISOString(),
+                  descansoTotal: total,
+                }),
+              )
+            }}
           />
         )}
-      {/* El botón de la cabecera queda arriba, fuera de la vista y del pulgar, justo
-          cuando se acaba la última serie. */}
-      {!documento.envioPendiente &&
-        !documento.intencionEnvio &&
-        trabajo.length > 0 &&
-        hechasTrabajo >= trabajo.length && (
-          <BotonPrincipal texto="Terminar entreno" onPress={terminar} />
-        )}
-      <View style={e.listaEjercicios}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: listaAbierta }}
-          onPress={() => setListaAbierta(!listaAbierta)}
-          style={e.cabeceraLista}
-        >
-          <Text style={e.tituloSeccion}>Ejercicios de la sesión</Text>
-          <Text style={e.tenue}>{listaAbierta ? "Ocultar" : "Ver todos"}</Text>
-        </Pressable>
-        {listaAbierta &&
-          ejerciciosOrdenados(prescripcion).map((ejercicio, indice) => (
-            <Pressable
-              key={ejercicio.id}
-              accessibilityRole="button"
-              accessibilityLabel={`${indice + 1}. ${ejercicio.nombre}, ${estadoDeEjercicio(ejercicio, edicion)}`}
-              onPress={() => {
-                void control.guardarVista({ ejercicioElegidoId: ejercicio.id })
-                setListaAbierta(false)
-              }}
-              style={e.filaEjercicio}
-            >
-              <Text style={e.texto}>
-                {indice + 1}. {ejercicio.nombre}
-              </Text>
-              <Text style={e.tenue}>{estadoDeEjercicio(ejercicio, edicion)}</Text>
-            </Pressable>
-          ))}
       </View>
-      {ejercicioElegido && (
-        <Enlace
-          texto="Ir al siguiente pendiente"
-          onPress={() => void control.guardarVista({ ejercicioElegidoId: null })}
-        />
+      <ScrollView
+        testID="lista-sesion"
+        contentContainerStyle={[e.contenido, e.lista]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {pausado && !bloqueadoPorEnvio && (
+          <BotonPrincipal
+            texto="Continuar entrenamiento"
+            onPress={() =>
+              void accion(() => control.editar(iniciarTramo(edicion, new Date().toISOString())))
+            }
+          />
+        )}
+        <Text
+          testID="estado-guardado"
+          accessibilityLiveRegion={control.errorLocal ? "polite" : "none"}
+          style={e.estadoOculto}
+        >
+          {control.errorLocal
+            ? "Error de guardado"
+            : control.guardando > 0
+              ? "Guardando…"
+              : "Guardado"}
+        </Text>
+        {avisos}
+        {ejerciciosOrdenados(prescripcion).map((ejercicio, indice, ordenados) => {
+          const enCurso =
+            ejercicio.series.find((s) => {
+              const real = edicion.series.find((r) => r.serieId === s.id)
+              return !real?.hecha && !real?.omitida
+            })?.id ?? null
+          const deLista = ejercicio.seccion === "calentamiento" || ejercicio.seccion === "final"
+          if (deLista && ordenados[indice - 1]?.seccion === ejercicio.seccion) return null
+          return (
+            <View key={ejercicio.id} testID="series-del-ejercicio">
+              {deLista ? (
+                <ListaMarcable
+                  titulo={TITULOS_DE_SECCION[ejercicio.seccion as "calentamiento" | "final"]}
+                  ejercicios={ordenados.filter((e) => e.seccion === ejercicio.seccion)}
+                  series={edicion.series}
+                  bloqueado={seriesBloqueadas}
+                  marcar={marcarLista}
+                  cambiarPeso={(serieId, peso) => serie(serieId, { peso })}
+                />
+              ) : (
+                <TablaSeries
+                  ejercicio={ejercicio}
+                  series={edicion.series}
+                  bloqueado={seriesBloqueadas}
+                  cambiar={serie}
+                  enCurso={enCurso}
+                  anterior={anteriores.get(ejercicio.ejercicioId)}
+                  verTecnica={() => setTecnica(ejercicio)}
+                  verMolestia={() => abrirMolestia(ejercicio)}
+                  enfocada={foco?.ejercicioId === ejercicio.id ? foco : null}
+                  enfocar={(serieId, celda) =>
+                    setFoco({ ejercicioId: ejercicio.id, serieId, celda })
+                  }
+                  avisarDeshacer={(aviso) => setDeshacer({ ...aviso, id: ++avisoId.current })}
+                  error={errorSerie?.ejercicioId === ejercicio.id ? errorSerie.mensaje : undefined}
+                  intentoError={errorSerie?.intento}
+                />
+              )}
+            </View>
+          )
+        })}
+        <Enlace texto="Añadir nota" onPress={() => setNota(!nota)} />
+        {(nota || edicion.notas !== "") && (
+          <Campo
+            etiqueta="Nota para tu entrenador"
+            value={edicion.notas}
+            editable={!bloqueado}
+            onChangeText={(notas) => cambiar({ ...control.documento!.edicion, notas })}
+            multiline
+            maxLength={2000}
+          />
+        )}
+      </ScrollView>
+      {deshacer && mostrarDeshacer && (
+        <View style={[e.deshacer, foco && e.deshacerConAjuste]}>
+          <AvisoDeshacer
+            key={deshacer.id}
+            id={deshacer.id}
+            mensaje={deshacer.mensaje}
+            alDeshacer={deshacer.deshacer}
+            alExpirar={() => setDeshacer(null)}
+            animarPlazo={false}
+          />
+        </View>
       )}
-      {(nota || edicion.notas !== "") && (
-        <Campo
-          etiqueta="Nota para tu entrenador"
-          value={edicion.notas}
-          editable={!bloqueado}
-          onChangeText={(notas) => cambiar({ ...edicion, notas })}
-          multiline
-          maxLength={2000}
-        />
-      )}
-      {error !== "" && <AvisoDeError mensaje={error} />}
-      {(documento.intencionEnvio || documento.envioPendiente) && (
-        <BotonPrincipal
-          texto="Reintentar envío pendiente"
-          ocupado={ocupado}
-          onPress={() => void accion(() => control.enviar())}
+      {ajuste && foco && (
+        <BarraAjuste
+          key={`${foco.serieId}-${foco.celda}`}
+          {...ajuste}
+          deshabilitado={bloqueado}
+          alCambiarValidez={setAjusteValido}
+          alListo={() => setFoco(null)}
+          cambiar={(valor) =>
+            serie(
+              foco.serieId,
+              foco.celda === "peso"
+                ? { peso: String(valor).replace(".", ",") }
+                : foco.celda === "cantidad"
+                  ? { valor: String(valor) }
+                  : { rir: valor },
+            )
+          }
         />
       )}
       {tecnica && (
@@ -791,80 +869,28 @@ export function RegistroCliente({
       )}
       <Dialogo
         visible={dialogo === "terminar"}
-        titulo="¿Terminar la sesión?"
-        texto={`Llevas ${hechasTrabajo} de ${trabajo.length} series de la parte principal. Las que faltan quedarán sin hacer.`}
-        confirmar="Terminar sesión"
+        titulo="¿Terminar ya?"
+        texto={`Quedan ${pendientes} series sin hacer.`}
+        confirmar="Terminar y enviar"
         cancelar="Seguir entrenando"
         ocupado={ocupado}
-        alConfirmar={() => {
-          setDialogo(null)
-          void accion(async () => {
-            await control.pausar(new Date().toISOString())
-            setFase("cierre")
-          })
-        }}
+        alConfirmar={enviar}
         alCancelar={() => setDialogo(null)}
       />
-      <Dialogo
-        visible={dialogo === "salir"}
-        titulo="¿Salir de la sesión?"
-        texto="Lo que has registrado se guarda y puedes seguir después."
-        confirmar="Salir"
-        cancelar="Seguir entrenando"
-        ocupado={ocupado}
-        alConfirmar={() => {
-          setDialogo(null)
-          void accion(async () => {
-            await control.pausar(new Date().toISOString())
-            await control.reintentarGuardado()
-            salir?.()
-          })
-        }}
-        alCancelar={() => setDialogo(null)}
-      />
-    </View>
+    </SafeAreaView>
   )
 }
 
 const e = StyleSheet.create({
-  contenedor: { gap: 24 },
-  series: { gap: 12 },
-  listaEjercicios: { backgroundColor: tema.superficie, borderRadius: 16, padding: 14 },
-  cabeceraLista: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  filaEjercicio: {
-    minHeight: 48,
-    borderTopWidth: 1,
-    borderColor: tema.borde,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  tituloSeccion: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
-  tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
+  pantalla: { flex: 1 },
+  cabecera: { paddingHorizontal: 20 },
+  contenido: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 24 },
+  lista: { paddingBottom: 230, gap: 26 },
+  esqueleto: { gap: 8, marginBottom: 26 },
+  estadoOculto: { height: 0, opacity: 0, position: "absolute" },
+  deshacer: { marginHorizontal: 20, marginBottom: 20 },
+  deshacerConAjuste: { marginBottom: 160 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
+  titulo: { color: tema.acento, fontFamily: tema.fuenteTitulo, fontSize: 34, lineHeight: 38 },
   nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14, lineHeight: 20 },
-  medio: { height: 184, borderRadius: 20, overflow: "hidden", backgroundColor: tema.hundido },
-  foto: { width: "100%", height: "100%" },
-  nombreActual: {
-    flex: 1,
-    color: tema.textoSecundario,
-    fontFamily: tema.fuenteTexto,
-    fontSize: 13,
-  },
-  detalleActual: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  acciones: { flexDirection: "row", gap: 24 },
 })

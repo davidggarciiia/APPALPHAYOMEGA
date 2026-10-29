@@ -163,7 +163,7 @@ describe("La tabla de series", () => {
           { serieId: "3f2b8c1e-4d5a-4f6b-8a9c-0d1e2f3a4b03", peso: "", valor: "", hecha: false },
         ]}
         bloqueado
-        cambiar={jest.fn()}
+        cambiar={jest.fn<() => void>()}
         verTecnica={verTecnica}
       />,
     )

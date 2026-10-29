@@ -105,11 +105,8 @@ it("Atrás conserva el entrenamiento cuando falla el disco y permite reintentarl
   try {
     await vista
     await fireEvent.press(await screen.findByRole("button", { name: "Entrenar" }))
-    await fireEvent.press(await screen.findByRole("radio", { name: "4" }))
-    await fireEvent.press(screen.getByRole("radio", { name: "Nada" }))
-    await fireEvent.press(screen.getByRole("button", { name: "Empezar" }))
-    await screen.findByText("Guardado en el dispositivo", { exact: false })
-    await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia" }))
+    await screen.findByRole("button", { name: "Terminar" })
+    await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia — Press" }))
     await fireEvent.press(screen.getByRole("radio", { name: "Hombro" }))
     await act(() => router.back())
     expect(vista.getPathname()).toBe("/entrenando")
@@ -117,13 +114,13 @@ it("Atrás conserva el entrenamiento cuando falla el disco y permite reintentarl
     expect(screen.getByRole("radio", { name: "Hombro", checked: true })).toBeTruthy()
     await fireEvent.press(screen.getByRole("button", { name: "Volver a la sesión" }))
     await fireEvent.press(screen.getByRole("button", { name: "Descartar" }))
-    await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia — Press" }))
     await fireEvent.press(screen.getByRole("radio", { name: "Hombro" }))
     await act(() => router.back())
     await fireEvent.press(await screen.findByRole("button", { name: "Descartar" }))
     await waitFor(() => expect(vista.getPathname()).toBe("/"))
     await fireEvent.press(screen.getByRole("button", { name: "Entrenar" }))
-    await screen.findByText("Guardado en el dispositivo", { exact: false })
+    await screen.findByRole("button", { name: "Terminar" })
     mockFalloDeDisco = true
     await act(() => router.back())
     await screen.findByText(

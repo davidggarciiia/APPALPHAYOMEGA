@@ -12,6 +12,28 @@ const lugar = {
   serie: 1,
 }
 
+it("muestra contexto e intensidad y conserva etiquetas accesibles sin rótulos repetidos", async () => {
+  await render(
+    <RegistrarMolestiaPantalla
+      lugar={lugar}
+      reloj={null}
+      uuid={() => operacionId}
+      avisar={jest.fn()}
+      volver={jest.fn()}
+    />,
+  )
+  expect(screen.getByRole("header", { name: "MOLESTIA" })).toBeTruthy()
+  expect(screen.getByText("Press · serie 1")).toBeTruthy()
+  expect(screen.getByText("0 / 10")).toBeTruthy()
+  expect(screen.queryByText("Zona")).toBeNull()
+  expect(screen.queryByText(/Qué notas/)).toBeNull()
+  expect(screen.queryByText("Intensidad")).toBeNull()
+  expect(screen.getByLabelText("Zona")).toHaveProp("accessibilityRole", "radiogroup")
+  expect(screen.getByRole("adjustable", { name: "Intensidad de la molestia" })).toBeTruthy()
+  await fireEvent.press(screen.getByRole("button", { name: "Avisar a tu entrenador" }))
+  expect(screen.getByText("Elige la zona.")).toBeTruthy()
+})
+
 async function preparar(avisar: (datos: RegistrarMolestia) => Promise<unknown>) {
   const volver = jest.fn()
   const vista = await render(

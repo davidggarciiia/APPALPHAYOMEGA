@@ -4,6 +4,7 @@ import {
   SeriePrescritaDistanciaSchema,
   ValoresEjecutadosDistanciaSchema,
 } from "@alpha-omega/shared"
+import type { ResultadoEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { PrescripcionVisible } from "../entrenamiento/resultado"
 import { DetalleEntrenador } from "./detalle"
@@ -25,11 +26,44 @@ const sesion = {
     estado: "cerrada",
     revision: 1,
   },
-  prescripcion: { nombre: "Fuerza", ejercicios: [] },
+  prescripcion: {
+    nombre: "Fuerza",
+    ejercicios: [
+      {
+        id: "30000000-0000-4000-8000-000000000010",
+        ejercicioId: "30000000-0000-4000-8000-000000000011",
+        nombre: "Plancha",
+        indicaciones: null,
+        series: [
+          {
+            id: "30000000-0000-4000-8000-000000000012",
+            tipoMedicion: "tiempo" as const,
+            pesoKg: null,
+            segundos: 30,
+          },
+        ],
+      },
+    ],
+  },
   revisionPrescripcion: 1,
   permiteAjuste: false,
   enviadoEn: "2026-09-24T10:00:00.000Z",
   revisadaEn: null,
+}
+
+const resultadoBase: ResultadoEntrenamiento = {
+  sesionId: sesion.agenda.id,
+  prescripcion: sesion.prescripcion,
+  revisionPrescripcion: sesion.revisionPrescripcion,
+  enviadoEn: sesion.enviadoEn,
+  notas: null,
+  series: [
+    {
+      serieId: "30000000-0000-4000-8000-000000000012",
+      hecha: true,
+      valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 30 },
+    },
+  ],
 }
 
 it("solo marca revisada la sesión cuando el entrenador lo solicita", async () => {
@@ -39,7 +73,7 @@ it("solo marca revisada la sesión cuando el entrenador lo solicita", async () =
   const api = {
     leerEntrenador,
     revisar,
-    resultado: jest.fn(async () => ({})),
+    resultado: jest.fn(async () => resultadoBase),
   } as unknown as ApiEntrenamiento
   await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
   await waitFor(() => expect(screen.getByText("Fuerza")).toBeTruthy())
@@ -104,11 +138,11 @@ it("lee un resultado en metros como metros, con su carga (D01, aún sin publicar
   } as unknown as ApiEntrenamiento
   try {
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
-    await waitFor(() => expect(screen.getByText("Hecho: 18 m · 34 kg")).toBeTruthy())
-    expect(screen.getByText("Serie 1 · Objetivo: 20 m · 32 kg")).toBeTruthy()
-    expect(screen.getByText("Serie 2 · Objetivo: 20 m · 32 kg")).toBeTruthy()
+    await waitFor(() => expect(screen.getByText("34 kg × 18 m")).toBeTruthy())
+    expect(screen.getByRole("text", { name: /Serie 1.*Objetivo: 32 kg × 20 m/ })).toBeTruthy()
+    expect(screen.getByRole("text", { name: /Serie 2.*Objetivo: 32 kg × 20 m/ })).toBeTruthy()
     expect(screen.getByText("Omitida")).toBeTruthy()
-    expect(screen.getByText("1/2")).toBeTruthy()
+    expect(screen.getByText("1 de 2 series")).toBeTruthy()
     expect(screen.queryByText(/rep/)).toBeNull()
   } finally {
     resumen.mockImplementation(vacio)
@@ -129,7 +163,7 @@ describe("sondeo del detalle (T-18)", () => {
   it("deja de sondear y de recargar al activar la app si ya está enviada y revisada", async () => {
     const actividad = jest.spyOn(AppState, "addEventListener")
     const leerEntrenador = jest.fn(async () => ({ ...sesion, revisadaEn: sesion.enviadoEn }))
-    const resultado = jest.fn(async () => ({}))
+    const resultado = jest.fn(async () => resultadoBase)
     const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
     await waitFor(() => expect(screen.getByText("Revisado")).toBeTruthy())
@@ -145,7 +179,7 @@ describe("sondeo del detalle (T-18)", () => {
 
   it("deja de sondear cuando el entrenador marca la revisión desde el detalle", async () => {
     const leerEntrenador = jest.fn(async () => sesion)
-    const resultado = jest.fn(async () => ({}))
+    const resultado = jest.fn(async () => resultadoBase)
     const revisar = jest.fn(async () => ({ ...sesion, revisadaEn: sesion.enviadoEn }))
     const api = { leerEntrenador, resultado, revisar } as unknown as ApiEntrenamiento
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
@@ -163,7 +197,7 @@ describe("sondeo del detalle (T-18)", () => {
       .fn()
       .mockResolvedValueOnce({ ...sesion, enviadoEn: null })
       .mockResolvedValue(sesion)
-    const resultado = jest.fn(async () => ({}))
+    const resultado = jest.fn(async () => resultadoBase)
     const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
     expect(screen.getByText(/Pendiente de envío/)).toBeTruthy()
@@ -195,8 +229,8 @@ describe("sondeo del detalle (T-18)", () => {
       .fn()
       .mockResolvedValueOnce(sesion)
       .mockImplementationOnce(() => new Promise((_, reject) => (rechazar = reject)))
-    const actualizado = { notas: "Resultado actualizado" }
-    const resultado = jest.fn().mockResolvedValueOnce({}).mockResolvedValue(actualizado)
+    const actualizado = { ...resultadoBase, notas: "Resultado actualizado" }
+    const resultado = jest.fn().mockResolvedValueOnce(resultadoBase).mockResolvedValue(actualizado)
     const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
 
@@ -214,7 +248,7 @@ describe("sondeo del detalle (T-18)", () => {
     const resultado = jest
       .fn()
       .mockRejectedValueOnce(new Error("Sin conexión"))
-      .mockResolvedValue({})
+      .mockResolvedValue(resultadoBase)
     const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
     expect(screen.getByText("No se pudo actualizar el entrenamiento.")).toBeTruthy()
@@ -233,7 +267,7 @@ describe("sondeo del detalle (T-18)", () => {
     const leerEntrenador = jest.fn(
       () => new Promise<typeof sesion>((resolve) => (resolver = resolve)),
     )
-    const resultado = jest.fn(async () => ({}))
+    const resultado = jest.fn(async () => resultadoBase)
     const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
     const vista = await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
 
@@ -250,7 +284,7 @@ describe("sondeo del detalle (T-18)", () => {
     const leerEntrenador = jest.fn(async () => sesion)
     const api = {
       leerEntrenador,
-      resultado: jest.fn(async () => ({})),
+      resultado: jest.fn(async () => resultadoBase),
     } as unknown as ApiEntrenamiento
     const vista = await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
 

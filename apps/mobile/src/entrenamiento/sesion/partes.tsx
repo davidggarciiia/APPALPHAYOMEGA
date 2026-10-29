@@ -1,8 +1,19 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated"
 
+import { vibrar } from "../../componentes/botones"
 import { Icono } from "../../componentes/iconos"
-import { degradadoExito, degradadoOro, tema } from "../../tema"
+import { caida, CURVA, RAYO, useMovimientoReducido } from "../../componentes/movimiento"
+import { RecorridoSesion } from "../../componentes/recorrido-sesion"
+import { alto, espacio, radio, tema, tipo } from "../../tema"
 import type { EdicionRegistro, EjercicioConDistancia } from "../registro-modelo"
 import { cantidadObjetivo } from "../tabla-series"
 import { BotonAtras, Enlace } from "./controles"
@@ -10,20 +21,25 @@ import { reloj, resumenPrescrito } from "./modelo"
 
 /** Cabecera de «Sesión en curso»: salir, cronómetro, terminar y progreso de series. */
 export function CabeceraSesion({
-  nombre,
   hechas,
   total,
   segundos,
   salir,
   terminar,
+  ocupado = false,
+  deshabilitado = false,
+  demoraProgreso = 0,
 }: {
-  nombre: string
+  nombre?: string
   hechas: number
   total: number
   /** Segundos desde el inicio; `null` si aún no ha empezado. */
   segundos: number | null
   salir?: () => void
   terminar?: () => void
+  ocupado?: boolean
+  deshabilitado?: boolean
+  demoraProgreso?: number
 }): React.JSX.Element {
   const minutos = segundos === null ? 0 : Math.floor(segundos / 60)
   return (
@@ -45,6 +61,8 @@ export function CabeceraSesion({
               style={({ pressed }) => [s.terminar, pressed && s.pulsado]}
               accessibilityRole="button"
               accessibilityLabel="Terminar"
+              accessibilityState={{ busy: ocupado, disabled: ocupado || deshabilitado }}
+              disabled={ocupado || deshabilitado}
               onPress={terminar}
             >
               <Text style={s.textoTerminar}>Terminar</Text>
@@ -52,49 +70,92 @@ export function CabeceraSesion({
           )}
         </View>
       </View>
-      <View style={s.progresoTexto}>
-        <Text style={s.nombre} accessibilityRole="header">
-          {nombre}
-        </Text>
-        <Text style={s.tenue}>
-          {hechas} de {total} series de la parte principal
-        </Text>
-      </View>
-      <View
-        style={s.pista}
-        accessibilityRole="progressbar"
-        accessibilityLabel="Series hechas"
-        accessibilityValue={{ min: 0, max: total, now: hechas }}
-      >
-        <View style={[s.relleno, { width: `${total === 0 ? 0 : (hechas / total) * 100}%` }]} />
-      </View>
+      <RecorridoSesion hechas={hechas} total={total} demora={demoraProgreso} />
     </View>
   )
 }
 
-/** «Descanso 1:24 · Saltar descanso», con la barra que se vacía. */
+const salidaDescanso = () => {
+  "worklet"
+  return {
+    initialValues: { opacity: 1, transform: [{ translateX: 0 }, { translateY: 0 }] },
+    animations: {
+      opacity: withTiming(0, { duration: 160, easing: CURVA.salida }),
+      transform: [
+        { translateX: withTiming(RAYO.x, { duration: 160, easing: CURVA.salida }) },
+        { translateY: withTiming(RAYO.y, { duration: 160, easing: CURVA.salida }) },
+      ],
+    },
+  }
+}
+
+/** Franja en el flujo de la lista; el caller persiste los ajustes del descanso. */
 export function Descanso({
   restante,
   total,
   saltar,
+  ajustar,
+  animar = true,
 }: {
   restante: number
   total: number
   saltar: () => void
-}): React.JSX.Element {
+  ajustar: (segundos: -15 | 15) => void
+  animar?: boolean
+}): React.JSX.Element | null {
+  const reducido = useMovimientoReducido()
+  const estatico = reducido || !animar
+  const proporcion = total > 0 ? Math.min(1, Math.max(0, restante / total)) : 0
+  const avance = useSharedValue(proporcion)
+  const pulso = useSharedValue(1)
+  const previo = useRef(restante)
+  useEffect(() => {
+    cancelAnimation(avance)
+    avance.value = proporcion
+    if (!estatico && restante > 0)
+      avance.value = withTiming(0, { duration: restante * 1000, easing: Easing.linear })
+    return () => cancelAnimation(avance)
+  }, [proporcion, restante, estatico, avance])
+  useEffect(() => {
+    const cambio = previo.current !== restante
+    const termino = previo.current > 0 && restante <= 0
+    previo.current = restante
+    if (termino) vibrar("aviso")
+    if (cambio && restante > 0 && restante <= 3) vibrar("suave")
+    cancelAnimation(pulso)
+    pulso.value = 1
+    if (cambio && restante > 0 && restante <= 3 && !estatico)
+      pulso.value = withSequence(
+        withTiming(1.12, { duration: 60 }),
+        withTiming(1, { duration: 60 }),
+      )
+    return () => cancelAnimation(pulso)
+  }, [restante, estatico, pulso])
+  const relleno = useAnimatedStyle(() => ({ transform: [{ scaleX: avance.value }] }))
+  const cuenta = useAnimatedStyle(() => ({ transform: [{ scale: pulso.value }] }))
+  if (restante <= 0) return null
   return (
-    <View style={s.tarjeta} accessibilityLiveRegion="polite">
-      <View style={s.filaDescanso}>
-        <Text style={s.tituloTarjeta}>Descanso</Text>
-        <Text style={s.cuenta} accessibilityLabel={`Quedan ${restante} segundos de descanso`}>
+    <Animated.View
+      style={s.descanso}
+      entering={caida(0, estatico)}
+      exiting={estatico ? undefined : salidaDescanso}
+    >
+      <View style={s.medidaDescanso}>
+        <Animated.Text
+          style={[s.cuenta, cuenta]}
+          accessibilityRole="timer"
+          accessibilityLabel={`Quedan ${restante} segundos de descanso`}
+        >
           {reloj(restante)}
-        </Text>
-        <Enlace texto="Saltar descanso" onPress={saltar} />
+        </Animated.Text>
+        <View style={s.pistaDescanso}>
+          <Animated.View style={[s.rellenoDescanso, relleno]} />
+        </View>
       </View>
-      <View style={s.pistaDescanso}>
-        <View style={[s.relleno, { width: `${total === 0 ? 0 : (restante / total) * 100}%` }]} />
-      </View>
-    </View>
+      <Enlace texto="−15" etiqueta="Restar 15 segundos de descanso" onPress={() => ajustar(-15)} />
+      <Enlace texto="+15" etiqueta="Añadir 15 segundos de descanso" onPress={() => ajustar(15)} />
+      <Enlace texto="Saltar" etiqueta="Saltar descanso" onPress={saltar} />
+    </Animated.View>
   )
 }
 
@@ -155,7 +216,7 @@ export function ListaMarcable({
         accessibilityLabel={`${titulo}, ${hechos} de ${ejercicios.length} hechos`}
         onPress={() => setAbierta(!abierta)}
       >
-        <View style={[s.circulo, completo && [s.circuloHecho, degradadoExito]]}>
+        <View style={[s.casilla, completo && s.casillaHecha]}>
           {completo && <Icono nombre="hecho" color={tema.sobreExito} tamano={14} />}
         </View>
         <Text style={s.tituloTarjeta}>{titulo}</Text>
@@ -191,7 +252,7 @@ export function ListaMarcable({
                 disabled={bloqueado || (!listo && faltaPeso)}
                 onPress={() => marcar(ejercicio, !listo)}
               >
-                <View style={[s.circulo, listo && [s.circuloHecho, degradadoExito]]}>
+                <View style={[s.casilla, listo && s.casillaHecha]}>
                   {listo && <Icono nombre="hecho" color={tema.sobreExito} tamano={14} />}
                 </View>
                 <View style={s.textos}>
@@ -231,53 +292,79 @@ export function ListaMarcable({
 }
 
 const s = StyleSheet.create({
-  cabecera: { gap: 12 },
-  barra: { flexDirection: "row", alignItems: "center" },
-  lado: { width: 100 },
+  cabecera: { gap: espacio[8] },
+  barra: { minHeight: alto.barraSuperior, flexDirection: "row", alignItems: "center" },
+  lado: { flex: 1, minWidth: 88 },
   derecha: { alignItems: "flex-end" },
   reloj: {
-    flex: 1,
+    ...tipo.reloj,
     textAlign: "center",
     color: tema.acento,
-    fontFamily: tema.fuenteTitulo,
-    fontSize: 30,
-    lineHeight: 34,
   },
   terminar: {
-    ...degradadoOro,
-    height: 44,
-    paddingHorizontal: 14,
-    borderRadius: 12,
+    backgroundColor: tema.acentoSuave,
+    borderColor: tema.acento,
+    borderWidth: 1,
+    minHeight: alto.tactil,
+    paddingHorizontal: espacio[12],
+    borderRadius: radio.pastilla,
     justifyContent: "center",
   },
   pulsado: { opacity: 0.8 },
-  textoTerminar: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 15 },
-  progresoTexto: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
-  nombre: { color: tema.textoTenue, fontFamily: tema.fuenteSemi, fontSize: 13 },
-  tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  pista: { height: 3, backgroundColor: tema.borde, overflow: "hidden" },
-  relleno: { height: 3, ...degradadoOro },
-  tarjeta: { backgroundColor: tema.superficie, borderRadius: 20, padding: 16, gap: 12 },
-  filaDescanso: { flexDirection: "row", alignItems: "center", gap: 12 },
-  tituloTarjeta: { flex: 1, color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 16 },
-  cuenta: { color: tema.acento, fontFamily: tema.fuenteTitulo, fontSize: 30, lineHeight: 34 },
+  textoTerminar: {
+    color: tema.acento,
+    fontFamily: tema.fuenteSemi,
+    fontSize: 12,
+    textTransform: "uppercase",
+  },
+  tenue: tipo.secundario,
+  tarjeta: {
+    backgroundColor: tema.superficie,
+    borderRadius: radio.tarjeta,
+    padding: espacio[16],
+    gap: espacio[12],
+  },
+  descanso: {
+    backgroundColor: tema.barraAjuste,
+    minHeight: alto.filaSerie,
+    borderRadius: radio.campo,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacio[12],
+    paddingHorizontal: espacio[12],
+    marginVertical: espacio[8],
+  },
+  medidaDescanso: { flex: 1, minWidth: 64, gap: espacio[4] },
+  tituloTarjeta: { ...tipo.titulo, flex: 1, color: tema.texto },
+  cuenta: {
+    ...tipo.cifras,
+    color: tema.acento,
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 26,
+    lineHeight: 30,
+  },
   pistaDescanso: {
     height: 4,
     borderRadius: 2,
     backgroundColor: tema.superficieAlta,
     overflow: "hidden",
   },
+  rellenoDescanso: {
+    height: 4,
+    backgroundColor: tema.acento,
+    transformOrigin: "0% 50%",
+  },
   filaLista: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44 },
-  circulo: {
+  casilla: {
     width: 28,
     height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
+    borderRadius: 8,
+    borderWidth: 1.5,
     borderColor: tema.bordeFuerte,
     alignItems: "center",
     justifyContent: "center",
   },
-  circuloHecho: { borderColor: "transparent" },
+  casillaHecha: { borderColor: tema.exito, backgroundColor: tema.exito },
   bloqueLista: { gap: 8, borderTopWidth: 1, borderTopColor: tema.borde, paddingTop: 10 },
   elemento: {
     flexDirection: "row",

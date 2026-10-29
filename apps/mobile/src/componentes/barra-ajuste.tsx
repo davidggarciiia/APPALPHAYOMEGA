@@ -30,6 +30,8 @@ export type BarraAjusteProps = {
   valor: number | null
   cambiar: (valor: number) => void
   alListo: () => void
+  /** Impide confirmar la sesión mientras la entrada manual tiene texto sin aceptar. */
+  alCambiarValidez?: (valida: boolean) => void
   subidaKg?: number | null
   objetivo?: number | null
   minimo?: number
@@ -50,6 +52,7 @@ export function BarraAjuste({
   valor,
   cambiar,
   alListo,
+  alCambiarValidez,
   subidaKg,
   objetivo,
   minimo = 0,
@@ -70,6 +73,8 @@ export function BarraAjuste({
   const gestoCancelado = useRef(false)
   const pasos = useRef(0)
   const actual = useRef(valor)
+  const avisarValidez = useRef(alCambiarValidez)
+  avisarValidez.current = alCambiarValidez
   const paso =
     unidad === "kg"
       ? subidaKg !== null && subidaKg !== undefined && Number.isFinite(subidaKg) && subidaKg > 0
@@ -212,6 +217,10 @@ export function BarraAjuste({
       : null
   }
   const invalido = manual && leer(texto) === null
+  useEffect(() => {
+    alCambiarValidez?.(!invalido)
+  }, [alCambiarValidez, invalido])
+  useEffect(() => () => avisarValidez.current?.(true), [])
   const listo = (): void => {
     if (deshabilitado || invalido) return
     cancelar()

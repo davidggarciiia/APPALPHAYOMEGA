@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, userEvent, within } from "@testing-library/react-native"
+import { useState } from "react"
 import { AccessibilityInfo, StyleSheet } from "react-native"
-import { withTiming } from "react-native-reanimated"
+import { cancelAnimation, withTiming } from "react-native-reanimated"
+import * as Reanimated from "react-native-reanimated"
 
 import { tema } from "../tema"
 import { FilaSerie } from "./fila-serie"
@@ -13,6 +15,7 @@ jest.mock("react-native-reanimated", () => {
   )
   return {
     ...doble,
+    cancelAnimation: jest.fn(doble.cancelAnimation),
     withTiming: jest.fn(doble.withTiming),
     interpolateColor: (valor: number, _entrada: number[], salida: string[]) =>
       salida[valor >= 1 ? 1 : 0],
@@ -37,6 +40,49 @@ const props = {
   alCambiarHecha: jest.fn(),
 }
 
+it("espera a que el padre acepte la serie antes de anunciar éxito", async () => {
+  await render(<FilaSerie {...props} />)
+  await fireEvent.press(screen.getByRole("checkbox"))
+  expect(props.alCambiarHecha).toHaveBeenCalledWith(true)
+  expect(vibrar).not.toHaveBeenCalled()
+  // Una validación puede rechazar el marcado y mantener la misma fila pendiente.
+  await screen.rerender(<FilaSerie {...props} />)
+  expect(vibrar).not.toHaveBeenCalled()
+  await screen.rerender(<FilaSerie {...props} hecha />)
+  expect(vibrar).toHaveBeenCalledTimes(1)
+  expect(vibrar).toHaveBeenCalledWith("exito")
+  await screen.rerender(<FilaSerie {...props} hecha enfocada="peso" />)
+  expect(vibrar).toHaveBeenCalledTimes(1)
+})
+
+it("al marcar dos filas seguidas termina la fase de la primera antes de animar la segunda", async () => {
+  // El doble oficial recrea el objeto; en nativo useSharedValue conserva su identidad.
+  const crearCompartido = Reanimated.useSharedValue
+  jest.spyOn(Reanimated, "useSharedValue").mockImplementation(function useCompartidoEstable(valor) {
+    return useState(() => crearCompartido(valor))[0]
+  })
+  const filas = (primera: boolean, segunda: boolean): React.JSX.Element => (
+    <>
+      <FilaSerie {...props} numero={1} hecha={primera} />
+      <FilaSerie {...props} numero={2} hecha={segunda} />
+    </>
+  )
+  await render(filas(false, false))
+  jest.mocked(cancelAnimation).mockClear()
+  await screen.rerender(filas(true, false))
+  const fasePrimera = jest.mocked(cancelAnimation).mock.calls[0]![0]
+  expect(fasePrimera.value).toBe(1)
+  jest.mocked(cancelAnimation).mockClear()
+  await screen.rerender(filas(true, true))
+  expect(jest.mocked(cancelAnimation).mock.calls.some(([fase]) => fase === fasePrimera)).toBe(true)
+  expect(fasePrimera.value).toBe(1)
+  await screen.unmount()
+  jest.mocked(cancelAnimation).mockClear()
+  await render(<FilaSerie {...props} />)
+  await screen.rerender(<FilaSerie {...props} hecha />)
+  expect(jest.mocked(cancelAnimation).mock.calls.some(([fase]) => fase === fasePrimera)).toBe(false)
+})
+
 it("muestra sugerencias, conserva cero y enfoca celdas sin campos de teclado", async () => {
   await render(<FilaSerie {...props} peso={0} cantidad={null} />)
   expect(screen.getByText("0")).toBeOnTheScreen()
@@ -58,8 +104,8 @@ it("marca y desmarca mediante callbacks con háptica solo al completar", async (
   const check = screen.getByRole("checkbox", { name: "Hecha — Sentadilla, serie 1" })
   await fireEvent.press(check)
   expect(props.alCambiarHecha).toHaveBeenCalledWith(true)
-  expect(vibrar).toHaveBeenCalledWith("exito")
   await screen.rerender(<FilaSerie {...props} hecha />)
+  expect(vibrar).toHaveBeenCalledWith("exito")
   expect(screen.getByRole("checkbox")).toBeChecked()
   expect(screen.getByTestId("fila-serie")).toHaveStyle({ backgroundColor: tema.exitoFila })
   await fireEvent.press(screen.getByRole("checkbox"))

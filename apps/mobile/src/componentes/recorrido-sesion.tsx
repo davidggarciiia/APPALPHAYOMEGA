@@ -16,15 +16,19 @@ export function RecorridoSesion({
   hechas,
   total,
   estilo,
+  demora = 0,
 }: {
   hechas: number
   total: number
   estilo?: StyleProp<ViewStyle>
+  /** Permite que termine la animación de la serie antes de mover el recorrido. */
+  demora?: number
 }): React.JSX.Element {
   const maximo = Math.max(0, Number.isFinite(total) ? total : 0)
   const actual = Math.min(maximo, Math.max(0, Number.isFinite(hechas) ? hechas : 0))
   const proporcion = maximo > 0 ? actual / maximo : 0
   const completo = maximo > 0 && actual >= maximo
+  const retraso = Number.isFinite(demora) ? Math.max(0, demora) : 0
   const reducido = useMovimientoReducido()
   const ancho = useSharedValue(0)
   const avance = useSharedValue(proporcion)
@@ -35,27 +39,32 @@ export function RecorridoSesion({
   useEffect(() => {
     cancelAnimation(avance)
     cancelAnimation(luz)
-    avance.value = reducido
-      ? proporcion
-      : withTiming(proporcion, { duration: 260, easing: CURVA.entrada })
+    let inicio: ReturnType<typeof setTimeout> | undefined
+    const avanzar = (): void => {
+      avance.value = withTiming(proporcion, { duration: 260, easing: CURVA.entrada })
+    }
+    if (reducido) avance.value = proporcion
+    else if (retraso > 0) inicio = setTimeout(avanzar, retraso)
+    else avanzar()
     const llego = completo && !previo.current
     previo.current = completo
     if (llego) vibrar("exito")
     let cierre: ReturnType<typeof setTimeout> | undefined
     if (reducido || !completo) luz.value = completo ? 1 : 0
-    else if (llego) {
+    else if (llego || luz.value < 1) {
       // Acaba el relleno antes de encender Ω y barrer: nunca hay tres animaciones propias.
       cierre = setTimeout(() => {
         luz.value = withTiming(1, { duration: 160, easing: CURVA.entrada })
         disparar()
-      }, 260)
+      }, retraso + 260)
     }
     return () => {
+      clearTimeout(inicio)
       clearTimeout(cierre)
       cancelAnimation(avance)
       cancelAnimation(luz)
     }
-  }, [proporcion, completo, reducido, avance, luz, disparar])
+  }, [proporcion, completo, reducido, retraso, avance, luz, disparar])
 
   const relleno = useAnimatedStyle(() => ({ transform: [{ scaleX: avance.value }] }))
   const cabeza = useAnimatedStyle(() => ({

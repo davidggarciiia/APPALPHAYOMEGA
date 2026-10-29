@@ -1,35 +1,43 @@
-import { useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+﻿import { useEffect } from "react"
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native"
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated"
+import Svg, { Path } from "react-native-svg"
 import type { ValoresEjecutados } from "@alpha-omega/shared"
-import type { EdicionRegistro, EjercicioConDistancia, SerieConDistancia } from "./registro-modelo"
-import { valoresLegibles } from "./resultado"
+
+import type { BarraAjusteProps } from "../componentes/barra-ajuste"
+import { ChipsRir } from "../componentes/chips-rir"
+import { FilaSerie, type CeldaSerie } from "../componentes/fila-serie"
 import { Icono } from "../componentes/iconos"
-import { degradadoExito, tema } from "../tema"
-import { Opciones } from "./sesion/controles"
-import { kg, resumenPrescrito } from "./sesion/modelo"
+import { useMovimientoReducido } from "../componentes/movimiento"
+import { tema } from "../tema"
+import type { EdicionRegistro, EjercicioConDistancia, SerieConDistancia } from "./registro-modelo"
+import { resumenPrescrito } from "./sesion/modelo"
 
 type SerieReal = EdicionRegistro["series"][number]
 type Unidad = SerieConDistancia["tipoMedicion"]
+export type FocoSerie = { serieId: string; celda: CeldaSerie }
+export type DeshacerSerie = { mensaje: string; deshacer: () => void }
 
-/** Cómo se nombra cada unidad: cabecera sola, cabecera mezclada y campo accesible. */
 const UNIDADES = {
-  repeticiones: { cabecera: "Reps", corta: "Reps", nombre: "Repeticiones" },
-  tiempo: { cabecera: "Seg", corta: "s", nombre: "Segundos" },
-  distancia: { cabecera: "Metros", corta: "m", nombre: "Metros" },
-} as const satisfies Record<Unidad, { cabecera: string; corta: string; nombre: string }>
+  repeticiones: { cabecera: "REPS", corta: "REPS", ajuste: "reps", maximo: 10000 },
+  tiempo: { cabecera: "SEG", corta: "S", ajuste: "seg", maximo: 86400 },
+  distancia: { cabecera: "M", corta: "M", ajuste: "m", maximo: 100000 },
+} as const satisfies Record<
+  Unidad,
+  { cabecera: string; corta: string; ajuste: "reps" | "seg" | "m"; maximo: number }
+>
 
-const RIRS = [0, 1, 2, 3, 4, 5].map((valor) => ({
-  valor,
-  texto: valor === 5 ? "5+" : String(valor),
-  accesible: valor === 5 ? "5 o más" : String(valor),
-}))
-
-/** «67,5»: el peso como se escribe en español. */
 function decimal(valor: number): string {
   return String(valor).replace(".", ",")
 }
 
-/** Lo que pauta la serie en su unidad; «Hecha» lo toma si no se escribió otra cosa. */
+/** La dosis prescrita es también la sugerencia al marcar una celda vacía. */
 export function cantidadObjetivo(serie: SerieConDistancia): number {
   switch (serie.tipoMedicion) {
     case "repeticiones":
@@ -41,9 +49,48 @@ export function cantidadObjetivo(serie: SerieConDistancia): number {
   }
 }
 
-/** «Reps», «Seg», «Metros» o, si el ejercicio mezcla unidades, «Reps / s». */
+/** La pantalla deriva su única barra fija de la serie enfocada. */
+export function ajusteDeSerie(
+  ejercicio: EjercicioConDistancia,
+  real: SerieReal,
+  celda: CeldaSerie,
+): Pick<
+  BarraAjusteProps,
+  "unidad" | "valor" | "subidaKg" | "objetivo" | "minimo" | "maximo"
+> | null {
+  const prescrita = ejercicio.series.find((serie) => serie.id === real.serieId)
+  if (!prescrita) return null
+  const numero = (texto: string, sugerido: number | null): number | null => {
+    if (texto.trim() === "") return sugerido
+    const valor = Number(texto.replace(",", "."))
+    return Number.isFinite(valor) ? valor : null
+  }
+  if (celda === "peso")
+    return {
+      unidad: "kg",
+      valor: numero(real.peso, prescrita.pesoKg),
+      subidaKg: ejercicio.subidaKg,
+      minimo: 0,
+      maximo: 1000,
+    }
+  if (celda === "rir")
+    return {
+      unidad: "rir",
+      valor: real.rir ?? ejercicio.rir?.min ?? null,
+      objetivo: ejercicio.rir?.min,
+      minimo: 0,
+      maximo: 5,
+    }
+  return {
+    unidad: UNIDADES[prescrita.tipoMedicion].ajuste,
+    valor: numero(real.valor, cantidadObjetivo(prescrita)),
+    minimo: 1,
+    maximo: UNIDADES[prescrita.tipoMedicion].maximo,
+  }
+}
+
 function cabecera(series: SerieConDistancia[]): string {
-  const unidades = new Set(series.map((s) => s.tipoMedicion))
+  const unidades = new Set(series.map((serie) => serie.tipoMedicion))
   if (unidades.size <= 1) return UNIDADES[series[0]?.tipoMedicion ?? "repeticiones"].cabecera
   return (["repeticiones", "tiempo", "distancia"] as const)
     .filter((unidad) => unidades.has(unidad))
@@ -51,75 +98,97 @@ function cabecera(series: SerieConDistancia[]): string {
     .join(" / ")
 }
 
-type Anterior = ValoresEjecutados
-
-function cantidadAnterior(valores: Anterior): string {
-  switch (valores.tipoMedicion) {
-    case "repeticiones":
-      return String(valores.repeticiones)
-    case "tiempo":
-      return `${valores.segundos} s`
-    case "distancia":
-      return `${valores.metros} m`
-  }
+function anteriorLegible(valores: ValoresEjecutados): string {
+  const cantidad =
+    valores.tipoMedicion === "repeticiones"
+      ? String(valores.repeticiones)
+      : valores.tipoMedicion === "tiempo"
+        ? `${valores.segundos} s`
+        : `${valores.metros} m`
+  return valores.pesoKg === null ? cantidad : `${decimal(valores.pesoKg)}×${cantidad}`
 }
 
-/** «Anterior 65 kg × 6», «6 reps», «30 s» o «30 kg × 20 m». */
-function anteriorLegible(valores: Anterior): string {
-  const cantidad = cantidadAnterior(valores)
-  if (valores.pesoKg !== null) return `${kg(valores.pesoKg)} × ${cantidad}`
-  return valores.tipoMedicion === "repeticiones" ? `${cantidad} reps` : cantidad
-}
-
-/** Un ejercicio de la sesión en curso, con el diseño de «Sesión en curso». */
+/** Todas las series visibles; el contenedor conserva foco, barra y deshacer comunes. */
 export function TablaSeries({
   ejercicio,
   series,
   bloqueado,
   cambiar,
   verTecnica,
+  verMolestia,
   enCurso = null,
   anterior,
+  enfocada = null,
+  enfocar,
+  avisarDeshacer,
+  error,
+  intentoError = 0,
 }: {
   ejercicio: EjercicioConDistancia
   series: SerieReal[]
   bloqueado: boolean
-  cambiar: (id: string, cambio: Partial<SerieReal>) => void
-  /** Ver la técnica no edita nada: sigue disponible con el registro bloqueado. */
+  cambiar: (id: string, cambio: Partial<SerieReal>) => boolean | void
+  /** La técnica sigue disponible con el registro bloqueado. */
   verTecnica?: () => void
-  /** La serie que toca ahora: se resalta y pregunta cuántas quedaban. */
+  verMolestia?: () => void
   enCurso?: string | null
-  /** La mejor serie de la última vez. */
-  anterior?: Anterior
+  /** La API entrega la mejor serie anterior: se repite en cada fila. */
+  anterior?: ValoresEjecutados
+  enfocada?: FocoSerie | null
+  enfocar?: (serieId: string, celda: CeldaSerie) => void
+  avisarDeshacer?: (aviso: DeshacerSerie) => void
+  error?: string
+  intentoError?: number
 }): React.JSX.Element {
-  const columna = cabecera(ejercicio.series)
-  const sugerida = ejercicio.series[0]?.pesoKg ?? null
-  const diferencia =
-    anterior?.pesoKg !== undefined && anterior.pesoKg !== null && sugerida !== null
-      ? sugerida - anterior.pesoKg
-      : null
-  const rirObjetivo = ejercicio.rir?.min
+  const { fontScale } = useWindowDimensions()
+  const reducido = useMovimientoReducido()
+  const sacudida = useSharedValue(0)
+  const validacion = useAnimatedStyle(() => ({ transform: [{ translateX: sacudida.value }] }))
+  useEffect(() => {
+    cancelAnimation(sacudida)
+    sacudida.value =
+      !error || reducido
+        ? 0
+        : withSequence(
+            withTiming(-4, { duration: 80 }),
+            withTiming(4, { duration: 80 }),
+            withTiming(0, { duration: 80 }),
+          )
+    return () => cancelAnimation(sacudida)
+  }, [error, intentoError, reducido, sacudida])
   const modoRir = ejercicio.modoRir ?? (ejercicio.rir ? "cadaSerie" : "desactivado")
-  const mostrarRirPorSerie = modoRir === "cadaSerie"
   const mostrarPeso =
-    ejercicio.tipoCarga === "conCargaExterna" ||
-    ejercicio.calibrar === true ||
-    (ejercicio.tipoCarga === undefined && ejercicio.series.some((serie) => serie.pesoKg !== null))
-  const ejercicioResuelto = ejercicio.series.every((s) => {
-    const real = series.find((r) => r.serieId === s.id)
-    return real?.hecha || real?.omitida
+    ejercicio.tipoCarga !== "sinCarga" &&
+    (ejercicio.tipoCarga === "conCargaExterna" ||
+      ejercicio.calibrar === true ||
+      ejercicio.series.some((serie) => serie.pesoKg !== null))
+  const pendientes = ejercicio.series.filter((prescrita) => {
+    const real = series.find((serie) => serie.serieId === prescrita.id)
+    return !real?.hecha && !real?.omitida
   })
   const ultimaHecha = [...ejercicio.series]
     .reverse()
-    .find((s) => series.find((r) => r.serieId === s.id)?.hecha)
-  // La serie hecha cuyo RIR se está corrigiendo: la pregunta solo acompaña a la serie en curso.
-  const [corrigiendo, setCorrigiendo] = useState<string | null>(null)
+    .find((prescrita) => series.find((serie) => serie.serieId === prescrita.id)?.hecha)
+  const rirEnfocado =
+    enfocada?.celda === "rir" && series.find((serie) => serie.serieId === enfocada.serieId)
+  const conDeshacer = (real: SerieReal, cambio: Partial<SerieReal>, mensaje: string): void => {
+    if (bloqueado) return
+    if (cambiar(real.serieId, cambio) === false) return
+    const previa = {
+      hecha: real.hecha,
+      ...(cambio.omitida === true && { omitida: real.omitida }),
+    }
+    avisarDeshacer?.({
+      mensaje,
+      deshacer: () => cambiar(real.serieId, previa),
+    })
+  }
   return (
     <View style={s.bloque}>
       <View style={s.cabecera}>
         <View style={s.titulos}>
           <Text accessibilityRole="header" style={s.nombre}>
-            {ejercicio.nombre}
+            {ejercicio.nombre.toUpperCase()}
           </Text>
           <Text style={s.resumen}>{resumenPrescrito(ejercicio)}</Text>
           {ejercicio.indicaciones && <Text style={s.resumen}>{ejercicio.indicaciones}</Text>}
@@ -129,286 +198,158 @@ export function TablaSeries({
             accessibilityRole="button"
             accessibilityLabel={`Ver técnica — ${ejercicio.nombre}`}
             onPress={verTecnica}
-            style={s.tecnica}
-            hitSlop={4}
+            style={s.icono}
           >
-            <Text style={s.textoTecnica}>Ver técnica</Text>
+            <Icono nombre="reproducir" color={tema.acento} tamano={22} />
+          </Pressable>
+        )}
+        {verMolestia && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Tengo una molestia — ${ejercicio.nombre}`}
+            accessibilityState={{ disabled: bloqueado }}
+            disabled={bloqueado}
+            onPress={verMolestia}
+            style={s.icono}
+          >
+            <View aria-hidden>
+              <Svg width={24} height={24} viewBox="0 0 24 24">
+                <Path
+                  d="M12 3L2 21h20L12 3zM12 9v5M12 17v1"
+                  fill="none"
+                  stroke={tema.aviso}
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            </View>
           </Pressable>
         )}
       </View>
-      {anterior && (
-        <View style={s.anterior}>
-          <Text style={s.resumen}>Anterior {anteriorLegible(anterior)}</Text>
-          {diferencia !== null && diferencia !== 0 && (
-            <Text style={s.diferencia}>
-              {diferencia > 0 ? "+" : "−"}
-              {kg(Math.abs(diferencia))}
-            </Text>
-          )}
-        </View>
-      )}
-      <View style={s.fila} accessible={false}>
-        <Text style={[s.etiqueta, s.numero]}>Serie</Text>
-        {mostrarPeso && <Text style={[s.etiqueta, s.valor]}>Kg</Text>}
-        <Text style={[s.etiqueta, s.valor]}>{columna}</Text>
-        {mostrarRirPorSerie && <Text style={[s.etiqueta, s.rir]}>RIR</Text>}
-        <Text style={[s.etiqueta, s.marca]} />
+      <View style={s.columnas} accessible={false}>
+        <Text style={[s.etiqueta, s.numero]}>SERIE</Text>
+        {fontScale <= 1.3 && <Text style={[s.etiqueta, s.anterior]}>ANT.</Text>}
+        {mostrarPeso && <Text style={[s.etiqueta, s.valor]}>KG</Text>}
+        <Text style={[s.etiqueta, s.valor]}>{cabecera(ejercicio.series)}</Text>
+        {modoRir === "cadaSerie" && <Text style={[s.etiqueta, s.marca]}>RIR</Text>}
+        <View style={s.marca} />
       </View>
-      {ejercicio.series.map((prescrita, n) => {
-        const real = series.find((serie) => serie.serieId === prescrita.id)
-        if (!real)
+      <Animated.View style={validacion}>
+        {ejercicio.series.map((prescrita, n) => {
+          const real = series.find((serie) => serie.serieId === prescrita.id)
+          if (!real)
+            return (
+              <Text key={prescrita.id} style={[s.resumen, s.aviso]} accessibilityRole="alert">
+                Serie {n + 1}: registro no disponible en esta copia.
+              </Text>
+            )
           return (
-            <Text key={prescrita.id} style={[s.resumen, s.aviso]} accessibilityRole="alert">
-              Serie {n + 1}: registro no disponible en esta copia.
-            </Text>
+            <FilaSerie
+              key={prescrita.id}
+              numero={n + 1}
+              etiqueta={ejercicio.nombre}
+              tipoMedicion={prescrita.tipoMedicion}
+              tipoCarga={mostrarPeso ? "conCargaExterna" : "sinCarga"}
+              modoRir={modoRir}
+              anterior={anterior && anteriorLegible(anterior)}
+              peso={real.peso}
+              pesoSugerido={prescrita.pesoKg}
+              cantidad={real.valor}
+              cantidadSugerida={cantidadObjetivo(prescrita)}
+              rir={real.rir}
+              rirObjetivo={ejercicio.rir?.min}
+              hecha={real.hecha}
+              omitida={real.omitida}
+              primeraPendiente={prescrita.id === (enCurso ?? pendientes[0]?.id)}
+              enfocada={enfocada?.serieId === prescrita.id ? enfocada.celda : null}
+              deshabilitado={bloqueado}
+              alEnfocar={(celda) => {
+                if (!bloqueado) enfocar?.(prescrita.id, celda)
+              }}
+              alCambiarHecha={(hecha) => {
+                if (bloqueado) return
+                if (!hecha) {
+                  cambiar(prescrita.id, { hecha: false })
+                  return
+                }
+                conDeshacer(
+                  real,
+                  {
+                    hecha: true,
+                    omitida: undefined,
+                    ...(real.valor.trim() === "" && { valor: String(cantidadObjetivo(prescrita)) }),
+                    ...(real.peso.trim() === "" &&
+                      mostrarPeso &&
+                      prescrita.pesoKg !== null && { peso: decimal(prescrita.pesoKg) }),
+                  },
+                  "Serie hecha",
+                )
+              }}
+              alOmitir={() => conDeshacer(real, { hecha: false, omitida: true }, "Serie omitida")}
+              alRecuperar={() => {
+                if (!bloqueado) cambiar(prescrita.id, { hecha: false, omitida: undefined })
+              }}
+            />
           )
-        const unidad = UNIDADES[prescrita.tipoMedicion].nombre
-        const objetivo = cantidadObjetivo(prescrita)
-        const actual = enCurso === prescrita.id
-        const rir = real.rir ?? null
-        const fueraDeObjetivo = rir !== null && rirObjetivo !== undefined && rir < rirObjetivo
-        const corregible = mostrarRirPorSerie && real.hecha && !actual && !bloqueado
-        const preguntar =
-          mostrarRirPorSerie &&
-          !bloqueado &&
-          (actual || (corregible && corrigiendo === prescrita.id))
-        const anotar = (valor: number | null): void => {
-          cambiar(prescrita.id, { rir: valor })
-          if (!actual) setCorrigiendo(null)
-        }
-        const sugerencia = `Sugerencia de tu entrenador: ${[
-          prescrita.pesoKg === null ? null : kg(prescrita.pesoKg),
-          `${objetivo} ${unidad.toLowerCase()}`,
-          rirObjetivo === undefined ? null : `RIR ${rirObjetivo}`,
-        ]
-          .filter(Boolean)
-          .join(", ")}.`
-        return (
-          <View key={prescrita.id} style={[s.serie, actual && s.serieActual]}>
-            <View style={s.fila}>
-              <Text
-                style={[s.numero, s.numeroTexto, actual && s.numeroActual]}
-                accessibilityLabel={`Serie ${n + 1}${actual ? ", serie en curso" : ""}: ${valoresLegibles(prescrita)}`}
-              >
-                {n + 1}
-              </Text>
-              {mostrarPeso && (
-                <TextInput
-                  accessibilityLabel={`Peso — ${ejercicio.nombre}, serie ${n + 1}`}
-                  accessibilityHint={sugerencia}
-                  editable={!bloqueado}
-                  value={real.peso}
-                  onChangeText={(peso) => cambiar(prescrita.id, { peso })}
-                  placeholder={prescrita.pesoKg === null ? "—" : decimal(prescrita.pesoKg)}
-                  placeholderTextColor={tema.marcador}
-                  selectionColor={tema.acento}
-                  keyboardType="decimal-pad"
-                  maxLength={30}
-                  style={[s.valor, s.campo, actual && s.campoActual, real.hecha && s.campoHecho]}
-                />
-              )}
-              <TextInput
-                accessibilityLabel={`${unidad} — ${ejercicio.nombre}, serie ${n + 1}`}
-                accessibilityHint={sugerencia}
-                editable={!bloqueado}
-                value={real.valor}
-                onChangeText={(valor) => cambiar(prescrita.id, { valor })}
-                placeholder={String(objetivo)}
-                placeholderTextColor={tema.marcador}
-                selectionColor={tema.acento}
-                keyboardType="number-pad"
-                maxLength={30}
-                style={[s.valor, s.campo, real.hecha && s.campoHecho]}
-              />
-              {mostrarRirPorSerie && (
-                <Pressable
-                  accessibilityRole={corregible ? "button" : undefined}
-                  accessibilityLabel={`RIR, serie ${n + 1}: ${rir === null ? "sin anotar" : rir === 5 ? "5 o más" : rir}${fueraDeObjetivo ? ", menos del objetivo" : ""}`}
-                  accessibilityHint={
-                    corregible ? "Corrige o quita las repeticiones que te quedaban" : undefined
-                  }
-                  disabled={!corregible}
-                  onPress={() => setCorrigiendo(corrigiendo === prescrita.id ? null : prescrita.id)}
-                  style={[s.rir, s.campo, s.celdaRir, fueraDeObjetivo && s.rirFuera]}
-                >
-                  <Text
-                    style={[
-                      s.textoRir,
-                      rir === null && s.textoRirObjetivo,
-                      fueraDeObjetivo && s.textoRirFuera,
-                    ]}
-                  >
-                    {rir === null ? (rirObjetivo ?? "—") : rir === 5 ? "5+" : rir}
-                  </Text>
-                </Pressable>
-              )}
-              <Pressable
-                accessibilityRole="checkbox"
-                aria-checked={real.hecha}
-                accessibilityLabel={`Hecha — ${ejercicio.nombre}, serie ${n + 1}`}
-                accessibilityState={{ checked: real.hecha, disabled: bloqueado }}
-                disabled={bloqueado}
-                onPress={() =>
-                  cambiar(
-                    prescrita.id,
-                    real.hecha
-                      ? { hecha: false }
-                      : {
-                          hecha: true,
-                          omitida: undefined,
-                          // La sugerencia del entrenador vale si no se escribió otra cosa.
-                          ...(real.valor.trim() === "" && { valor: String(objetivo) }),
-                          ...(real.peso.trim() === "" &&
-                            mostrarPeso &&
-                            prescrita.pesoKg !== null && { peso: decimal(prescrita.pesoKg) }),
-                        },
-                  )
-                }
-                style={[s.casilla, real.hecha && [s.marcada, degradadoExito]]}
-              >
-                {real.hecha && <Icono nombre="hecho" color={tema.sobreExito} tamano={18} />}
-              </Pressable>
-            </View>
-            {!real.hecha && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${real.omitida ? "Recuperar" : "Omitir"} serie ${n + 1} — ${ejercicio.nombre}`}
-                disabled={bloqueado}
-                onPress={() =>
-                  cambiar(prescrita.id, { hecha: false, omitida: real.omitida ? undefined : true })
-                }
-                style={s.omitir}
-              >
-                <Text style={s.textoOmitir}>
-                  {real.omitida ? "Recuperar serie" : "Omitir serie"}
-                </Text>
-              </Pressable>
-            )}
-            {real.omitida && <Text style={s.resumen}>Serie omitida</Text>}
-            {fueraDeObjetivo && rir !== null && rirObjetivo !== undefined && (
-              <Text style={s.notaRir}>
-                {rirObjetivo - rir === 1 ? "Una menos" : `${rirObjetivo - rir} menos`} del objetivo
-              </Text>
-            )}
-            {preguntar && (
-              <View style={s.pregunta}>
-                <Text style={s.textoPregunta}>¿Cuántas te quedaban?</Text>
-                <Opciones
-                  etiqueta={`Repeticiones que te quedaban, serie ${n + 1}`}
-                  opciones={RIRS}
-                  valor={rir}
-                  cambiar={anotar}
-                />
-                {rir !== null && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Sin anotar el RIR de la serie ${n + 1}`}
-                    onPress={() => anotar(null)}
-                    style={s.omitir}
-                  >
-                    <Text style={s.textoOmitir}>Sin anotar</Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
-          </View>
-        )
-      })}
-      {modoRir === "alFinalizarEjercicio" && ejercicioResuelto && ultimaHecha && !bloqueado && (
-        <View style={s.pregunta}>
-          <Text style={s.textoPregunta}>
-            Al terminar este ejercicio, ¿cuántas te quedaban? (opcional)
-          </Text>
-          <Opciones
-            etiqueta={`Repeticiones que te quedaban al terminar ${ejercicio.nombre}`}
-            opciones={RIRS}
-            valor={series.find((r) => r.serieId === ultimaHecha.id)?.rir ?? null}
-            cambiar={(valor) => cambiar(ultimaHecha.id, { rir: valor })}
-          />
-        </View>
+        })}
+      </Animated.View>
+      {error && (
+        <Text accessibilityRole="alert" style={[s.resumen, s.aviso]}>
+          {error}
+        </Text>
       )}
+      {modoRir === "cadaSerie" &&
+        rirEnfocado &&
+        typeof rirEnfocado.rir === "number" &&
+        !bloqueado && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Sin anotar el RIR de la serie ${ejercicio.series.findIndex((serie) => serie.id === rirEnfocado.serieId) + 1}`}
+            onPress={() => cambiar(rirEnfocado.serieId, { rir: null })}
+            style={s.enlace}
+          >
+            <Text style={s.resumen}>Sin anotar</Text>
+          </Pressable>
+        )}
+      {modoRir === "alFinalizarEjercicio" &&
+        pendientes.length === 0 &&
+        ultimaHecha &&
+        !bloqueado && (
+          <View style={s.rirFinal}>
+            <Text style={s.resumen}>RIR del ejercicio</Text>
+            <ChipsRir
+              etiqueta={`Repeticiones que te quedaban al terminar ${ejercicio.nombre}`}
+              objetivo={ejercicio.rir?.min}
+              valor={series.find((serie) => serie.serieId === ultimaHecha.id)?.rir ?? null}
+              cambiar={(rir) => cambiar(ultimaHecha.id, { rir })}
+            />
+          </View>
+        )}
     </View>
   )
 }
 
 const s = StyleSheet.create({
-  bloque: { gap: 12 },
-  cabecera: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  bloque: { gap: 8 },
+  cabecera: { flexDirection: "row", alignItems: "flex-start", gap: 4 },
   titulos: { flex: 1, gap: 4 },
-  nombre: { fontFamily: tema.fuenteBoton, fontSize: 20, lineHeight: 25, color: tema.texto },
+  nombre: { fontFamily: tema.fuenteTitulo, fontSize: 20, lineHeight: 24, color: tema.texto },
   resumen: { fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18, color: tema.textoTenue },
   aviso: { color: tema.aviso },
-  tecnica: { minHeight: 44, justifyContent: "center" },
-  textoTecnica: { fontFamily: tema.fuenteBoton, fontSize: 15, color: tema.acento },
-  anterior: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
-  diferencia: { fontFamily: tema.fuenteSemi, fontSize: 13, color: tema.acento },
-  fila: { flexDirection: "row", gap: 8, alignItems: "center" },
-  serie: { gap: 8 },
-  serieActual: {
-    backgroundColor: tema.superficie,
-    borderRadius: 14,
-    padding: 10,
-    marginHorizontal: -10,
-  },
+  icono: { width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  columnas: { flexDirection: "row", gap: 6, alignItems: "center", paddingHorizontal: 8 },
   etiqueta: {
-    fontFamily: tema.fuenteTexto,
-    fontSize: 12,
-    color: tema.textoTenue,
-    textAlign: "center",
-  },
-  numero: { width: 28 },
-  numeroTexto: {
     fontFamily: tema.fuenteSemi,
-    fontSize: 15,
-    textAlign: "center",
+    fontSize: 11,
+    letterSpacing: 1.2,
     color: tema.textoTenue,
-  },
-  numeroActual: { color: tema.acento, fontFamily: tema.fuenteBoton },
-  valor: { flex: 1, minWidth: 0 },
-  rir: { width: 56 },
-  marca: { width: 44 },
-  campo: {
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: tema.bordeFuerte,
-    backgroundColor: tema.superficie,
-    color: tema.texto,
-    fontSize: 17,
-    fontFamily: tema.fuenteBoton,
     textAlign: "center",
-    paddingHorizontal: 2,
   },
-  campoActual: { borderColor: tema.acento },
-  campoHecho: { color: tema.texto },
-  celdaRir: { alignItems: "center", justifyContent: "center" },
-  textoRir: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 17 },
-  rirFuera: {
-    borderStyle: "dashed",
-    borderWidth: 1.5,
-    borderColor: tema.aviso,
-    backgroundColor: tema.acentoSuave,
-  },
-  textoRirObjetivo: { color: tema.marcador },
-  textoRirFuera: { color: tema.aviso },
-  notaRir: {
-    fontFamily: tema.fuenteTexto,
-    fontSize: 12,
-    color: tema.aviso,
-    textAlign: "right",
-  },
-  casilla: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: tema.bordeFuerte,
-  },
-  marcada: { borderColor: "transparent" },
-  pregunta: { gap: 8 },
-  omitir: { minHeight: 36, alignSelf: "flex-end", justifyContent: "center" },
-  textoOmitir: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  textoPregunta: { fontFamily: tema.fuenteTexto, fontSize: 13, color: tema.textoTenue },
+  numero: { width: 22 },
+  anterior: { width: 52 },
+  valor: { flex: 1, minWidth: 52 },
+  marca: { width: 44 },
+  enlace: { minHeight: 44, alignSelf: "flex-end", justifyContent: "center" },
+  rirFinal: { gap: 8 },
 })

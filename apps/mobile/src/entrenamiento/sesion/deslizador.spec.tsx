@@ -56,3 +56,14 @@ it("mantiene las acciones accesibles para subir y bajar", async () => {
   await fireEvent(deslizador, "accessibilityAction", { nativeEvent: { actionName: "decrement" } })
   expect(cambiar.mock.calls).toEqual([[6], [4]])
 })
+
+it("el tirador permanece dentro de la pista en el máximo y el lector no lo rebasa", async () => {
+  const cambiar = jest.fn()
+  await render(<Deslizador valor={10} cambiar={cambiar} maximo={10} etiqueta="Intensidad" />)
+  const deslizador = screen.getByRole("adjustable")
+  await fireEvent(deslizador, "layout", { nativeEvent: { layout: { width: 100 } } })
+  const tirador = deslizador.queryAll((elemento) => elemento.props.pointerEvents === "none")[1]!
+  expect(tirador).toHaveStyle({ left: 92 })
+  await fireEvent(deslizador, "accessibilityAction", { nativeEvent: { actionName: "increment" } })
+  expect(cambiar).toHaveBeenCalledWith(10)
+})

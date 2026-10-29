@@ -20,6 +20,8 @@ export function AvisoDeshacer({
   alExpirar,
   visible = true,
   id,
+  animar = true,
+  animarPlazo = true,
 }: {
   mensaje: string
   alDeshacer: () => void
@@ -27,8 +29,14 @@ export function AvisoDeshacer({
   visible?: boolean
   /** Identifica otra operación cuando se repite el mismo mensaje. */
   id?: string | number
+  /** Permite reservar el movimiento para otra operación de la pantalla. */
+  animar?: boolean
+  /** La línea puede avanzar por segundos mientras otro componente interpola. */
+  animarPlazo?: boolean
 }): React.JSX.Element | null {
   const reducido = useMovimientoReducido()
+  const estatico = reducido || !animar
+  const plazoDiscreto = estatico || !animarPlazo
   const [fase, fijarFase] = useState<"activa" | "saliendo" | "oculta">(
     visible ? "activa" : "oculta",
   )
@@ -38,7 +46,7 @@ export function AvisoDeshacer({
   callbacks.current = { alDeshacer, alExpirar }
   const plazo = useRef<ReturnType<typeof setTimeout> | null>(null)
   const avance = useSharedValue(1)
-  const apertura = useSharedValue(reducido ? 1 : 0)
+  const apertura = useSharedValue(estatico ? 1 : 0)
 
   useEffect(() => {
     resuelta.current = false
@@ -63,23 +71,23 @@ export function AvisoDeshacer({
       avance.value = Math.max(0, 1 - (Date.now() - inicio.current) / PLAZO)
     }
     actualizar()
-    if (!reducido)
+    if (!plazoDiscreto)
       avance.value = withTiming(0, {
         duration: Math.max(0, PLAZO - (Date.now() - inicio.current)),
         easing: Easing.linear,
       })
-    const intervalo = reducido ? setInterval(actualizar, 1000) : undefined
+    const intervalo = plazoDiscreto ? setInterval(actualizar, 1000) : undefined
     return () => {
       cancelAnimation(avance)
       if (intervalo !== undefined) clearInterval(intervalo)
     }
-  }, [fase, reducido, mensaje, id, avance])
+  }, [fase, plazoDiscreto, mensaje, id, avance])
 
   useEffect(() => {
     cancelAnimation(apertura)
     const entrando = fase === "activa"
-    if (entrando && !reducido) apertura.value = 0
-    apertura.value = reducido
+    if (entrando && !estatico) apertura.value = 0
+    apertura.value = estatico
       ? entrando
         ? 1
         : 0
@@ -88,16 +96,16 @@ export function AvisoDeshacer({
           easing: entrando ? CURVA.entrada : CURVA.salida,
         })
     const salida =
-      fase === "saliendo" ? setTimeout(() => fijarFase("oculta"), reducido ? 0 : 160) : undefined
+      fase === "saliendo" ? setTimeout(() => fijarFase("oculta"), estatico ? 0 : 160) : undefined
     return () => {
       cancelAnimation(apertura)
       if (salida !== undefined) clearTimeout(salida)
     }
-  }, [fase, reducido, apertura])
+  }, [fase, estatico, apertura])
 
   const entrada = useAnimatedStyle(() => ({
     opacity: apertura.value,
-    transform: [{ translateY: reducido ? 0 : 24 * (1 - apertura.value) }],
+    transform: [{ translateY: estatico ? 0 : 24 * (1 - apertura.value) }],
   }))
   const linea = useAnimatedStyle(() => ({ transform: [{ scaleX: avance.value }] }))
   if (!visible || fase === "oculta") return null

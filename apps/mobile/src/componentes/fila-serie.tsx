@@ -1,5 +1,5 @@
 import type { EjercicioPrescrito, SeriePrescrita } from "@alpha-omega/shared"
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { Pressable, StyleSheet, Text, useWindowDimensions } from "react-native"
 import Animated, {
   cancelAnimation,
@@ -43,6 +43,7 @@ export type FilaSerieProps = {
 
 const Trazo = Animated.createAnimatedComponent(Path)
 const UNIDADES = { repeticiones: "Repeticiones", tiempo: "Segundos", distancia: "Metros" } as const
+let terminarFaseActiva: (() => void) | undefined
 
 function legible(valor: number | string | null | undefined): string {
   if (
@@ -83,9 +84,21 @@ export function FilaSerie({
   const { fontScale } = useWindowDimensions()
   const ancho = useSharedValue(0)
   const destello = useDestello(ancho)
+  const dispararDestello = destello.disparar
   // Una fase mueve fondo, check y tick; el destello es la segunda animación.
   const fase = useSharedValue(hecha ? 1 : 0)
   const previa = useRef(hecha)
+  const terminarFase = useCallback(() => {
+    cancelAnimation(fase)
+    fase.value = Number(previa.current)
+  }, [fase])
+  useEffect(
+    () => () => {
+      terminarFase()
+      if (terminarFaseActiva === terminarFase) terminarFaseActiva = undefined
+    },
+    [terminarFase],
+  )
   const filaAnimada = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(
       Math.min(1, (fase.value * 220) / 180),
@@ -110,13 +123,21 @@ export function FilaSerie({
   }))
   useEffect(() => {
     cancelAnimation(fase)
+    if (previa.current !== hecha && !reducido) {
+      if (terminarFaseActiva !== terminarFase) terminarFaseActiva?.()
+      terminarFaseActiva = terminarFase
+    }
+    if (hecha && !previa.current) {
+      vibrar("exito")
+      dispararDestello()
+    }
     fase.value =
       reducido || previa.current === hecha
         ? Number(hecha)
         : withTiming(Number(hecha), { duration: hecha ? 220 : 120, easing: CURVA.entrada })
     previa.current = hecha
     return () => cancelAnimation(fase)
-  }, [hecha, reducido, fase])
+  }, [hecha, reducido, fase, dispararDestello, terminarFase])
   const omitir = (): void => {
     if (deshabilitado || omitida || !alOmitir) return
     vibrar("aviso")
@@ -130,10 +151,6 @@ export function FilaSerie({
     if (omitida) {
       recuperar()
       return
-    }
-    if (!hecha) {
-      vibrar("exito")
-      destello.disparar()
     }
     alCambiarHecha(!hecha)
   }

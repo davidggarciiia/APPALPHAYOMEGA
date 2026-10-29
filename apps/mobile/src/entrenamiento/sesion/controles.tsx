@@ -200,7 +200,7 @@ export function Deslizador({
       </View>
       <View
         pointerEvents="none"
-        style={[s.tirador, { left: Math.max(0, proporcion * ancho - 4) }]}
+        style={[s.tirador, { left: Math.max(0, Math.min(ancho - 8, proporcion * ancho - 4)) }]}
       />
     </View>
   )
@@ -318,7 +318,7 @@ const s = StyleSheet.create({
     backgroundColor: tema.acento,
     top: 8,
   },
-  enlace: { minHeight: 44, justifyContent: "center" },
+  enlace: { minWidth: 44, minHeight: 44, justifyContent: "center" },
   textoEnlace: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 15 },
   atras: {
     width: 44,

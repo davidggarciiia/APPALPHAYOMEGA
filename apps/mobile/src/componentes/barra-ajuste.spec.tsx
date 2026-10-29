@@ -148,6 +148,34 @@ it("abre entrada manual solo al tocar la cifra, valida y acepta coma decimal y c
   expect(alListo).toHaveBeenCalledTimes(1)
 })
 
+it("notifica la validez manual y la libera al desmontarse", async () => {
+  const alCambiarValidez = jest.fn()
+  const vista = await render(
+    <BarraAjuste
+      unidad="kg"
+      valor={10}
+      cambiar={jest.fn()}
+      alListo={jest.fn()}
+      alCambiarValidez={alCambiarValidez}
+    />,
+  )
+  expect(alCambiarValidez.mock.calls).toEqual([[true]])
+  await fireEvent.press(screen.getByRole("button", { name: "Escribir KG: 10" }))
+  const campo = screen.getByLabelText("Valor manual KG")
+  alCambiarValidez.mockClear()
+  await fireEvent.changeText(campo, "")
+  expect(alCambiarValidez.mock.calls).toEqual([[false]])
+  expect(screen.getByRole("button", { name: "Listo" })).toBeDisabled()
+  await fireEvent.changeText(campo, "1,2,3")
+  expect(alCambiarValidez.mock.calls).toEqual([[false]])
+  await fireEvent.changeText(campo, "12,5")
+  expect(alCambiarValidez.mock.calls).toEqual([[false], [true]])
+  await fireEvent.changeText(campo, "")
+  expect(alCambiarValidez).toHaveBeenLastCalledWith(false)
+  await vista.unmount()
+  expect(alCambiarValidez).toHaveBeenLastCalledWith(true)
+})
+
 it("mantiene salida 160 ms sin controles accesibles y cancela al desmontar", async () => {
   jest.useFakeTimers()
   const props = { unidad: "kg" as const, valor: 10, cambiar: jest.fn(), alListo: jest.fn() }
