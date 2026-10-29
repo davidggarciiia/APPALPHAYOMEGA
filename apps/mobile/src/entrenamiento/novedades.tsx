@@ -3,7 +3,16 @@ import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import type { NovedadEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
-import { tema } from "../tema"
+import { AvisoDeError, BotonEnlace } from "../componentes/formulario"
+import { espacio, radio, tema, tipo } from "../tema"
+
+function cuando(fecha: string): string {
+  const minutos = Math.max(0, Math.floor((Date.now() - Date.parse(fecha)) / 60_000))
+  const formato = new Intl.RelativeTimeFormat("es", { numeric: "auto" })
+  if (minutos < 60) return formato.format(-minutos, "minute")
+  if (minutos < 1440) return formato.format(-Math.floor(minutos / 60), "hour")
+  return formato.format(-Math.floor(minutos / 1440), "day")
+}
 
 function descripcion(novedad: NovedadEntrenamiento): string {
   const sesion = novedad.sesionNombre
@@ -93,10 +102,10 @@ export function NovedadesEntrenamiento({
   if (novedades.length === 0 && !error) return null
   return (
     <View style={s.contenedor}>
-      <Text style={s.titulo} accessibilityRole="header">
-        Novedades{sinLeer > 0 ? ` · ${sinLeer} sin leer` : ""}
+      <Text style={s.anuncio} accessibilityLiveRegion="polite">
+        {sinLeer > 0 ? `${sinLeer} novedades sin leer` : "Sin novedades pendientes de leer"}
       </Text>
-      {error !== "" && <Text style={s.error}>{error}</Text>}
+      {error !== "" && <AvisoDeError mensaje={error} />}
       {novedades.map((novedad) => (
         <Pressable
           key={novedad.id}
@@ -126,42 +135,42 @@ export function NovedadesEntrenamiento({
             })()
           }}
         >
-          <Text style={s.texto}>{descripcion(novedad)}</Text>
-          {!novedad.leidaEn && <Text style={s.indicador}>Nueva</Text>}
+          <View style={s.textos}>
+            <Text style={s.texto}>{descripcion(novedad)}</Text>
+            <Text style={s.atribucion}>
+              {novedad.autor.rol === "entrenador" ? "Tu entrenador" : novedad.autor.nombre} ·{" "}
+              {cuando(novedad.creadaEn)}
+            </Text>
+          </View>
+          {!novedad.leidaEn && <View style={s.indicador} />}
         </Pressable>
       ))}
       {novedades.length < total && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ver más novedades"
-          accessibilityState={{ disabled: cargando, busy: cargando }}
-          disabled={cargando}
+        <BotonEnlace
+          texto="Ver más novedades"
+          ocupado={cargando}
           onPress={() => void cargarMas()}
-          style={s.mas}
-        >
-          <Text style={s.textoMas}>{cargando ? "Cargando…" : "Ver más novedades"}</Text>
-        </Pressable>
+        />
       )}
     </View>
   )
 }
 
 const s = StyleSheet.create({
-  contenedor: { gap: 8 },
-  titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
+  contenedor: { gap: espacio[12] },
   fila: {
     backgroundColor: tema.superficie,
-    borderRadius: 14,
-    minHeight: 48,
-    padding: 14,
+    borderRadius: radio.tarjeta,
+    minHeight: 64,
+    padding: espacio[16],
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: espacio[12],
   },
   nueva: { borderWidth: 1, borderColor: tema.bordeDestacado },
-  texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 14, flex: 1 },
-  indicador: { color: tema.acento, fontFamily: tema.fuenteSemi, fontSize: 12 },
-  error: { color: tema.aviso, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  mas: { alignSelf: "flex-start", paddingVertical: 10, paddingHorizontal: 4 },
-  textoMas: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  textos: { flex: 1, gap: espacio[8] },
+  texto: { ...tipo.cuerpo, color: tema.texto },
+  atribucion: tipo.secundario,
+  indicador: { width: 8, height: 8, borderRadius: 2, backgroundColor: tema.acento },
+  anuncio: { position: "absolute", left: -10000, width: 1, height: 1, overflow: "hidden" },
 })

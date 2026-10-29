@@ -7,23 +7,28 @@ import { SemanaEntrenamiento } from "../../src/entrenamiento/semana"
 import { useEntrenamiento } from "../../src/entrenamiento/use-entrenamiento"
 import { useSesion } from "../../src/sesion"
 import { tema } from "../../src/tema"
+import { Pestanas } from "../../src/componentes/piezas"
+
+const VISTAS = [
+  { valor: "semana", texto: "Semana" },
+  { valor: "rutina", texto: "Rutina" },
+  { valor: "bloque", texto: "Bloque" },
+  { valor: "guia", texto: "Guía" },
+] as const
 
 export default function MiEntrenamiento(): React.JSX.Element {
   const { estado, salir, reintentar } = useSesion()
   const api = useEntrenamiento()
   const router = useRouter()
-  const [vista, setVista] = useState<"calendario" | "plan">("calendario")
+  const [vista, setVista] = useState<"semana" | "rutina" | "bloque" | "guia">("semana")
   const abrir = (id: string): void =>
     router.push({ pathname: "/entrenamiento/[id]", params: { id } })
   return (
     <PantallaDeFormulario sinTarjeta>
       {"usuario" in estado && estado.usuario.rol === "cliente" ? (
         <View style={{ gap: 16 }}>
-          <BotonSecundario
-            texto={vista === "calendario" ? "Ver plan" : "Ver calendario"}
-            onPress={() => setVista(vista === "calendario" ? "plan" : "calendario")}
-          />
-          {vista === "calendario" ? (
+          <Pestanas opciones={VISTAS} activa={vista} cambiar={setVista} variante="pil" />
+          {vista === "semana" ? (
             <SemanaEntrenamiento
               clienteId={estado.usuario.id}
               api={api}
@@ -32,7 +37,7 @@ export default function MiEntrenamiento(): React.JSX.Element {
               detectarEmpezadas
             />
           ) : (
-            <PlanCliente clienteId={estado.usuario.id} api={api} abrir={abrir} />
+            <PlanCliente clienteId={estado.usuario.id} api={api} abrir={abrir} pestana={vista} />
           )}
         </View>
       ) : (

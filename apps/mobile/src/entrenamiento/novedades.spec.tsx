@@ -72,6 +72,9 @@ it("muestra la revisión y guarda la lectura al abrir la sesión", async () => {
     />,
   )
   await waitFor(() => expect(screen.getByText(/revisó Fuerza A/)).toBeTruthy())
+  expect(screen.queryByRole("header", { name: /Novedades/ })).toBeNull()
+  expect(screen.queryByText("Nueva")).toBeNull()
+  expect(screen.getByRole("button", { name: /revisó Fuerza A, sin leer/ })).toBeTruthy()
   await fireEvent.press(screen.getByRole("button", { name: /revisó Fuerza A/ }))
   await waitFor(() =>
     expect(leerNovedades).toHaveBeenCalledWith(novedad.sesionId, { novedadIds: [novedad.id] }),
@@ -122,3 +125,37 @@ it("envía el desplazamiento y el límite de página al API", async () => {
     expect.anything(),
   )
 })
+
+it.each([
+  [30, "hace 30 minutos"],
+  [120, "hace 2 horas"],
+  [4320, "hace 3 días"],
+])(
+  "atribuye el comentario al entrenador con fecha relativa de %s minutos",
+  async (minutos, fecha) => {
+    const ahora = jest
+      .spyOn(Date, "now")
+      .mockReturnValue(Date.parse(novedad.creadaEn) + Number(minutos) * 60_000)
+    try {
+      await render(
+        <NovedadesEntrenamiento
+          clienteId={novedad.clienteId}
+          api={
+            {
+              novedades: jest.fn(async () => ({
+                novedades: [{ ...novedad, tipo: "comentario" }],
+                total: 1,
+                sinLeer: 1,
+              })),
+            } as unknown as ApiEntrenamiento
+          }
+          abrir={jest.fn()}
+        />,
+      )
+      expect(await screen.findByText(`Tu entrenador · ${fecha}`)).toBeOnTheScreen()
+      expect(screen.getByText("Ana comentó Fuerza A")).toBeOnTheScreen()
+    } finally {
+      ahora.mockRestore()
+    }
+  },
+)

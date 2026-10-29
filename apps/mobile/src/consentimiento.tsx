@@ -9,12 +9,17 @@ import {
   type EstadoConsentimiento,
 } from "@alpha-omega/shared"
 
-import { AvisoDeError, BotonPrincipal, BotonSecundario } from "./componentes/formulario"
+import {
+  AvisoDeError,
+  BotonEnlace,
+  BotonPrincipal,
+  BotonSecundario,
+} from "./componentes/formulario"
 import { Icono } from "./componentes/iconos"
 import { faltaDe } from "./lib/errores"
 import { ErrorDeRed } from "./lib/http"
 import type { PeticionAutenticada } from "./lib/peticion-autenticada"
-import { degradadoOro, tema } from "./tema"
+import { degradadoOro, radio, tema } from "./tema"
 
 /** La puerta sustituye a la pila entera, así que no hereda la zona segura de `Armazon`. */
 const BORDES = ["top", "bottom", "left", "right"] as const
@@ -226,9 +231,14 @@ export function TarjetaConsentimiento(): React.JSX.Element | null {
   }
   return (
     <View style={s.tarjeta}>
-      <Text accessibilityRole="header" style={s.tituloTarjeta}>
-        {TEXTO_CONSENTIMIENTO.titulo}
-      </Text>
+      <View style={s.fila}>
+        <View style={[s.casilla, s.consentimientoAceptado]}>
+          <Icono nombre="hecho" color={tema.sobreExito} tamano={18} />
+        </View>
+        <Text accessibilityRole="header" style={[s.tituloTarjeta, s.flexible]}>
+          {TEXTO_CONSENTIMIENTO.titulo}
+        </Text>
+      </View>
       <Text style={s.ayuda}>
         {consentimiento.aceptadoEn
           ? `Diste tu consentimiento el ${diaConAnio.format(new Date(consentimiento.aceptadoEn))}.`
@@ -253,7 +263,7 @@ export function TarjetaConsentimiento(): React.JSX.Element | null {
           />
         </>
       ) : (
-        <BotonSecundario texto="Retirar consentimiento" onPress={() => setConfirmando(true)} />
+        <BotonEnlace texto="Retirar consentimiento" onPress={() => setConfirmando(true)} />
       )}
     </View>
   )
@@ -285,12 +295,13 @@ const s = StyleSheet.create({
   casillaMarcada: { borderColor: "transparent" },
   tarjeta: {
     padding: 16,
-    borderRadius: 18,
+    borderRadius: radio.tarjeta,
     borderColor: tema.borde,
     borderWidth: 1,
     backgroundColor: tema.superficie,
     gap: 8,
   },
   tituloTarjeta: { color: tema.texto, fontSize: 15, fontFamily: tema.fuenteBoton },
+  consentimientoAceptado: { backgroundColor: tema.exito, borderColor: tema.exito },
   ayuda: { color: tema.textoTenue, fontSize: 13, lineHeight: 18, fontFamily: tema.fuenteTexto },
 })

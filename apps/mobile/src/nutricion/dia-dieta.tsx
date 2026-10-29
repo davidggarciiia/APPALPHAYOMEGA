@@ -7,31 +7,33 @@ import {
   type TipoDeDia,
 } from "@alpha-omega/shared"
 import { tema } from "../tema"
+import { miles } from "../seguimiento/modelo"
+import { repartoDeMacros } from "./hoy-modelo"
 
-const miles = new Intl.NumberFormat("es-ES")
-
-/** Como en el diseño: hidratos en dorado, proteína en crema y grasas en naranja. */
 const MACROS = [
-  { clave: "hidratosG", nombre: "Hidratos", color: tema.acento },
-  { clave: "proteinaG", nombre: "Proteína", color: tema.texto },
-  { clave: "grasaG", nombre: "Grasas", color: tema.naranja },
+  { clave: "hidratosG", reparto: "hidratos", nombre: "Carbohidratos", color: tema.acento },
+  { clave: "proteinaG", reparto: "proteina", nombre: "Proteínas", color: tema.naranja },
+  { clave: "grasaG", reparto: "grasas", nombre: "Grasas", color: "#7FE08F" },
 ] as const
 
 /** Los números tal cual los escribió el profesional; los ausentes no se muestran. */
 export function Objetivo({
   macros,
   compacto = false,
+  margenKcal,
 }: {
   macros: Macros
   compacto?: boolean
+  margenKcal?: number
 }): React.JSX.Element {
   const presentes = MACROS.filter((m) => macros[m.clave] !== null)
+  const reparto = repartoDeMacros(macros)
   if (compacto) {
     return (
       <Text style={s.compacto}>
         {[
-          ...(macros.kcal !== null ? [`${miles.format(macros.kcal)} kcal`] : []),
-          ...presentes.map((m) => `${m.nombre} ${miles.format(macros[m.clave] ?? 0)} g`),
+          ...(macros.kcal !== null ? [`${miles(macros.kcal)} kcal`] : []),
+          ...presentes.map((m) => `${m.nombre} ${miles(macros[m.clave] ?? 0)} g`),
         ].join(" · ")}
       </Text>
     )
@@ -40,8 +42,22 @@ export function Objetivo({
     <View style={s.objetivo}>
       {macros.kcal !== null && (
         <View style={s.kcalBloque}>
-          <Text style={s.kcal}>{miles.format(macros.kcal)}</Text>
-          <Text style={s.unidad}>kcal al día</Text>
+          <Text style={s.kcal} accessibilityLabel={`${macros.kcal} kilocalorías al día`}>
+            {miles(macros.kcal)}
+          </Text>
+          <Text style={s.unidad}>
+            kcal al día
+            {margenKcal
+              ? ` · entre ${miles(macros.kcal - margenKcal)} y ${miles(macros.kcal + margenKcal)}`
+              : ""}
+          </Text>
+        </View>
+      )}
+      {reparto && (
+        <View style={s.barraMacros} accessible={false}>
+          {reparto.map((m, n) => (
+            <View key={m.clave} style={{ flex: m.pct, backgroundColor: MACROS[n]!.color }} />
+          ))}
         </View>
       )}
       {presentes.length > 0 && (
@@ -50,7 +66,12 @@ export function Objetivo({
             <View key={m.clave} style={s.macro}>
               <View style={[s.linea, { backgroundColor: m.color }]} />
               <Text style={s.nombreMacro}>{m.nombre}</Text>
-              <Text style={s.gramos}>{miles.format(macros[m.clave] ?? 0)} g</Text>
+              <Text style={s.gramos}>{miles(macros[m.clave] ?? 0)} g</Text>
+              {reparto && (
+                <Text style={s.porcentaje}>
+                  {reparto.find((r) => r.clave === m.reparto)?.pct} %
+                </Text>
+              )}
             </View>
           ))}
         </View>
@@ -152,7 +173,7 @@ export function DiaDieta({ tipo }: { tipo: TipoDeDia }): React.JSX.Element {
     <View style={s.dia}>
       {tieneAlgunNumero(tipo.objetivo) && tipo.objetivo && (
         <View style={s.tarjetaObjetivo}>
-          <Objetivo macros={tipo.objetivo} />
+          <Objetivo macros={tipo.objetivo} margenKcal={tipo.margenKcal} />
         </View>
       )}
       {tipo.comidas.map((comida) => (
@@ -169,17 +190,25 @@ const s = StyleSheet.create({
     borderColor: tema.bordeDestacado,
     borderWidth: 1,
     borderRadius: 20,
-    padding: 20,
+    padding: 16,
   },
   objetivo: { gap: 20 },
   kcalBloque: { alignItems: "center", gap: 4 },
-  kcal: { color: tema.acento, fontFamily: tema.fuenteTitulo, fontSize: 72, lineHeight: 80 },
+  kcal: {
+    color: tema.acento,
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 64,
+    lineHeight: 68,
+    fontVariant: ["tabular-nums"],
+  },
   unidad: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15 },
+  barraMacros: { height: 10, flexDirection: "row", overflow: "hidden", borderRadius: 5 },
   macros: { flexDirection: "row", gap: 12 },
   macro: { flex: 1, gap: 6 },
   linea: { height: 3, borderRadius: 2 },
   nombreMacro: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   gramos: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 22 },
+  porcentaje: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 12 },
   compacto: { color: tema.textoTenue, fontFamily: tema.fuenteSemi, fontSize: 13, marginTop: 4 },
   tarjeta: { backgroundColor: tema.superficie, borderRadius: 20, padding: 16, gap: 12 },
   cabeceraComida: { flexDirection: "row", alignItems: "center", gap: 12 },

@@ -112,6 +112,37 @@ it("sin suplementos publicados conserva Peso, Pasos y Sueño, sin creatina fija"
   expect(screen.getByRole("button", { name: "Pasos: sin apuntar. Cambiar" })).toBeTruthy()
   expect(screen.getByRole("button", { name: "Sueño: sin apuntar. Cambiar" })).toBeTruthy()
   expect(screen.queryByRole("checkbox", { name: "Creatina tomada" })).toBeNull()
+  expect(screen.queryByText("Hoy")).toBeNull()
+})
+
+it("espera la configuración y el día con un esqueleto, sin mostrar una tarjeta vacía", async () => {
+  const { nutricion, seguimiento } = apis(dieta())
+  let terminar!: () => void
+  const pendiente = new Promise<void>((resolver) => {
+    terminar = resolver
+  })
+  seguimiento.configuracion.mockImplementationOnce(async () => {
+    await pendiente
+    return CONFIGURACION_SEGUIMIENTO_INICIAL
+  })
+  await render(
+    <HoyInicio
+      clienteId={CLIENTE}
+      nutricion={nutricion}
+      seguimiento={seguimiento}
+      objetivoPasos={7000}
+    />,
+  )
+  expect(screen.getByLabelText("Cargando registros de hoy")).toHaveProp("accessibilityState", {
+    busy: true,
+  })
+  expect(
+    screen.getAllByTestId("esqueleto", { includeHiddenElements: true }).length,
+  ).toBeGreaterThan(0)
+  expect(screen.queryByRole("button", { name: /^Peso:/ })).toBeNull()
+  await act(async () => terminar())
+  expect(await screen.findByRole("button", { name: /^Peso:/ })).toBeEnabled()
+  expect(screen.queryByLabelText("Cargando registros de hoy")).toBeNull()
 })
 
 it("sin dieta publicada no inventa suplementos y permite apuntar el peso", async () => {
@@ -349,7 +380,9 @@ it("espera el registro del día antes de permitir cambiar suplementos", async ()
       objetivoPasos={null}
     />,
   )
-  expect(await screen.findByRole("checkbox", { name: "Omega 3 tomada" })).toBeDisabled()
+  expect(screen.getByLabelText("Cargando registros de hoy")).toBeTruthy()
+  expect(screen.queryByRole("checkbox", { name: "Omega 3 tomada" })).toBeNull()
+  expect(seguimiento.cambiarDia).not.toHaveBeenCalled()
   await act(async () => terminar())
   expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
   await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
@@ -546,8 +579,9 @@ describe("cintura desde Inicio", () => {
     await fireEvent.press(await screen.findByRole("button", { name: /^Cintura:/ }))
     await fireEvent.changeText(screen.getByLabelText("Cintura (cm)"), "91")
     await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
-    await fireEvent.press(screen.getByRole("button", { name: "Guardando…" }))
-    await fireEvent.press(screen.getByRole("button", { name: "Guardando…" }))
+    expect(screen.getByRole("button", { name: "Guardar" })).toBeDisabled()
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
     expect(screen.getByLabelText("Cintura (cm)")).toBeDisabled()
     await act(async () => terminar())
     expect(await screen.findByRole("button", { name: "Cintura: 91 cm. Cambiar" })).toBeTruthy()

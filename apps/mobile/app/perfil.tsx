@@ -2,19 +2,23 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
+import { Pressable, StyleSheet, Text, View } from "react-native"
 import { CambiosDePerfilSchema, type CambiosDePerfil, type PerfilPropio } from "@alpha-omega/shared"
 import {
   AvisoDeError,
+  BotonEnlace,
   BotonPrincipal,
   BotonSecundario,
   Campo,
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
+import { EntradaMarca } from "../src/componentes/entrada-marca"
+import { Esqueleto, GrupoEsqueletos } from "../src/componentes/esqueleto"
+import { Icono } from "../src/componentes/iconos"
 import { TarjetaConsentimiento } from "../src/consentimiento"
 import { ErrorDeRed, guardarPerfil, leerPerfil } from "../src/lib/api"
 import { useSesion } from "../src/sesion"
-import { tema } from "../src/tema"
+import { alto, espacio, radio, tema, tipo } from "../src/tema"
 
 const campos = [
   { nombre: "nombre", etiqueta: "Nombre", teclado: "default", placeholder: "Tu nombre" },
@@ -98,18 +102,46 @@ export default function Perfil(): React.JSX.Element {
       )
     }
   })
+  const volver = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Volver"
+      onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+      style={s.volver}
+    >
+      <Icono nombre="atras" color={tema.texto} />
+    </Pressable>
+  )
   if (errorCarga)
     return (
-      <PantallaDeFormulario>
-        <AvisoDeError mensaje="No hemos podido cargar tu perfil. Comprueba tu conexión." />
-        <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
+      <PantallaDeFormulario sinTarjeta>
+        <View style={s.contenido}>
+          {volver}
+          <AvisoDeError mensaje="No hemos podido cargar tu perfil. Comprueba tu conexión." />
+          <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
+        </View>
       </PantallaDeFormulario>
     )
   if (!perfil)
     return (
-      <View style={s.centrado}>
-        <ActivityIndicator color={tema.acento} accessibilityLabel="Cargando tu perfil" />
-      </View>
+      <PantallaDeFormulario sinTarjeta>
+        <View style={s.contenido}>
+          {volver}
+          <View
+            accessible
+            accessibilityLabel="Cargando tu perfil"
+            accessibilityState={{ busy: true }}
+          >
+            <GrupoEsqueletos>
+              <View style={s.contenido}>
+                <Esqueleto alto={112} radio={radio.tarjeta} />
+                <Esqueleto alto={80} radio={radio.tarjeta} />
+                <Esqueleto alto={216} radio={radio.tarjeta} />
+              </View>
+            </GrupoEsqueletos>
+          </View>
+        </View>
+      </PantallaDeFormulario>
     )
 
   const nombreCompleto = [perfil.nombre, perfil.apellidos].filter(Boolean).join(" ")
@@ -126,142 +158,148 @@ export default function Perfil(): React.JSX.Element {
   return (
     <PantallaDeFormulario sinTarjeta>
       <View style={s.contenido}>
-        <View style={[s.tarjeta, s.identidad]}>
-          <View style={s.avatar}>
-            <Text style={s.iniciales}>{iniciales}</Text>
+        {volver}
+        <EntradaMarca style={s.contenido}>
+          <View style={[s.tarjeta, s.identidad]}>
+            <View style={s.avatar}>
+              <Text style={s.iniciales}>{iniciales}</Text>
+            </View>
+            <View style={s.textos}>
+              <Text accessibilityRole="header" style={s.nombre}>
+                {nombreCompleto}
+              </Text>
+              <View style={s.insignias}>
+                <Text style={s.insignia}>{perfil.rol}</Text>
+                <Text style={[s.insignia, perfil.estado === "activo" && s.activo]}>
+                  {perfil.estado}
+                </Text>
+              </View>
+            </View>
           </View>
-          <View style={s.textos}>
-            <Text accessibilityRole="header" style={s.nombre}>
-              {nombreCompleto}
-            </Text>
-            <Text style={s.rol}>
-              {perfil.rol} · {perfil.estado}
-            </Text>
+          <View style={s.tarjeta}>
+            <Text style={s.etiqueta}>CORREO</Text>
+            <Text style={s.valor}>{perfil.email}</Text>
           </View>
-        </View>
-        <View style={s.tarjeta}>
-          <Text style={s.etiqueta}>CORREO</Text>
-          <Text style={s.valor}>{perfil.email}</Text>
-          <Text style={s.ayuda}>Para cambiar tu correo, contacta con tu entrenador.</Text>
-        </View>
-        <View style={s.tarjeta}>
-          <Text accessibilityRole="header" style={s.titulo}>
-            Datos personales
-          </Text>
-          {editando ? (
-            <>
-              {campos.map((campo) => (
-                <Controller
-                  key={campo.nombre}
-                  control={control}
-                  name={campo.nombre}
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <Campo
-                      etiqueta={campo.etiqueta}
-                      value={value ?? ""}
-                      editable={!isSubmitting}
-                      onChangeText={(texto) =>
-                        onChange(campo.nombre === "fechaNacimiento" && texto === "" ? null : texto)
-                      }
-                      onBlur={onBlur}
-                      keyboardType={campo.teclado}
-                      placeholder={campo.placeholder}
-                      error={errors[campo.nombre]?.message}
-                    />
-                  )}
+        </EntradaMarca>
+        <EntradaMarca indice={1} style={s.contenido}>
+          <View style={s.tarjeta}>
+            <View style={s.cabeceraDatos}>
+              <Text accessibilityRole="header" style={s.titulo}>
+                Datos personales
+              </Text>
+              {!editando && (
+                <BotonEnlace
+                  texto="Editar"
+                  etiquetaAccesible="Editar datos personales"
+                  onPress={() => {
+                    setEditando(true)
+                    setGuardado(false)
+                  }}
                 />
-              ))}
-              {errorGeneral && <AvisoDeError mensaje={errorGeneral} />}
-              <BotonPrincipal
-                texto="Guardar cambios"
-                onPress={() => void enviar()}
-                ocupado={isSubmitting}
-              />
-              <BotonSecundario
-                texto="Cancelar"
-                ocupado={isSubmitting}
-                onPress={() => {
-                  setEditando(false)
-                  setErrorGeneral(null)
-                  reset(datosEditables(perfil))
-                }}
-              />
-            </>
-          ) : (
-            <>
-              <Text style={s.etiqueta}>TELÉFONO</Text>
-              <Text style={s.valor}>{perfil.telefono || "Sin completar"}</Text>
-              <View style={s.separador} />
-              <Text style={s.etiqueta}>FECHA DE NACIMIENTO</Text>
-              <Text style={s.valor}>{nacimiento}</Text>
-              <BotonSecundario
-                texto="Editar datos personales"
-                onPress={() => {
-                  setEditando(true)
-                  setGuardado(false)
-                }}
-              />
-            </>
+              )}
+            </View>
+            {editando ? (
+              <>
+                {campos.map((campo) => (
+                  <Controller
+                    key={campo.nombre}
+                    control={control}
+                    name={campo.nombre}
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <Campo
+                        etiqueta={campo.etiqueta}
+                        value={value ?? ""}
+                        editable={!isSubmitting}
+                        onChangeText={(texto) =>
+                          onChange(
+                            campo.nombre === "fechaNacimiento" && texto === "" ? null : texto,
+                          )
+                        }
+                        onBlur={onBlur}
+                        keyboardType={campo.teclado}
+                        placeholder={campo.placeholder}
+                        error={errors[campo.nombre]?.message}
+                      />
+                    )}
+                  />
+                ))}
+                {errorGeneral && <AvisoDeError mensaje={errorGeneral} />}
+                <BotonPrincipal
+                  texto="Guardar cambios"
+                  onPress={() => void enviar()}
+                  ocupado={isSubmitting}
+                />
+                <BotonSecundario
+                  texto="Cancelar"
+                  ocupado={isSubmitting}
+                  onPress={() => {
+                    setEditando(false)
+                    setErrorGeneral(null)
+                    reset(datosEditables(perfil))
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={s.etiqueta}>TELÉFONO</Text>
+                <Text style={s.valor}>{perfil.telefono || "Sin completar"}</Text>
+                <View style={s.separador} />
+                <Text style={s.etiqueta}>FECHA DE NACIMIENTO</Text>
+                <Text style={s.valor}>{nacimiento}</Text>
+              </>
+            )}
+          </View>
+          {guardado && (
+            <Text style={s.confirmacion} accessibilityLiveRegion="polite">
+              Datos guardados
+            </Text>
           )}
-        </View>
-        {guardado && (
-          <Text style={s.confirmacion} accessibilityLiveRegion="polite">
-            Datos guardados
-          </Text>
-        )}
-        {perfil.rol === "cliente" && (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push("/entrenamiento")}
-            style={[s.tarjeta, s.enlace]}
-          >
-            <Text style={s.titulo}>Mis entrenamientos</Text>
-            <Text style={s.flecha}>›</Text>
-          </Pressable>
-        )}
-        {perfil.rol === "cliente" && <TarjetaConsentimiento />}
-        <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
-        <Pressable accessibilityRole="button" onPress={() => router.replace("/")} style={s.volver}>
-          <Text style={s.ayuda}>Volver al inicio</Text>
-        </Pressable>
+          {perfil.rol === "cliente" && <TarjetaConsentimiento />}
+          <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
+        </EntradaMarca>
       </View>
     </PantallaDeFormulario>
   )
 }
 const s = StyleSheet.create({
-  centrado: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: tema.fondo,
-  },
-  contenido: { gap: 14 },
+  contenido: { gap: espacio[24] },
   tarjeta: {
-    padding: 16,
-    borderRadius: 18,
+    padding: espacio[16],
+    borderRadius: radio.tarjeta,
     borderColor: tema.borde,
     borderWidth: 1,
     backgroundColor: tema.superficie,
-    gap: 8,
+    gap: espacio[8],
   },
-  identidad: { flexDirection: "row", alignItems: "center", gap: 14 },
+  identidad: { flexDirection: "row", alignItems: "center", gap: espacio[16] },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 72,
+    height: 72,
+    borderRadius: 16,
     backgroundColor: tema.acentoSuave,
     alignItems: "center",
     justifyContent: "center",
   },
-  iniciales: { fontSize: 20, fontFamily: tema.fuenteBoton, color: tema.acento },
-  textos: { flex: 1, gap: 4 },
-  nombre: { fontSize: 20, fontFamily: tema.fuenteBoton, color: tema.texto },
-  rol: {
-    fontSize: 13,
-    fontFamily: tema.fuenteTexto,
+  iniciales: { fontSize: 24, fontFamily: tema.fuenteBoton, color: tema.acento },
+  textos: { flex: 1, gap: espacio[8] },
+  nombre: {
+    fontSize: 28,
+    lineHeight: 32,
+    fontFamily: tema.fuenteTitulo,
+    color: tema.texto,
+    textTransform: "uppercase",
+  },
+  insignias: { flexDirection: "row", flexWrap: "wrap", gap: espacio[8] },
+  insignia: {
+    ...tipo.secundario,
     color: tema.textoTenue,
+    backgroundColor: tema.superficieAlta,
+    borderRadius: radio.pastilla,
+    paddingVertical: espacio[4],
+    paddingHorizontal: espacio[8],
     textTransform: "capitalize",
   },
+  activo: { color: tema.exito, backgroundColor: tema.exitoSuave },
   etiqueta: {
     color: tema.textoTenue,
     fontFamily: tema.fuenteBoton,
@@ -270,16 +308,19 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
   valor: { color: tema.texto, fontSize: 16, fontFamily: tema.fuenteTexto },
-  ayuda: { color: tema.textoTenue, fontSize: 13, lineHeight: 18, fontFamily: tema.fuenteTexto },
   titulo: { color: tema.texto, fontSize: 15, fontFamily: tema.fuenteBoton },
+  cabeceraDatos: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: espacio[12],
+  },
   separador: { height: 1, backgroundColor: tema.borde, marginVertical: 6 },
   confirmacion: { color: tema.exito, fontFamily: tema.fuenteBoton, textAlign: "center" },
-  enlace: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  volver: {
+    width: alto.tactil,
+    minHeight: alto.tactil,
     alignItems: "center",
-    minHeight: 52,
+    justifyContent: "center",
   },
-  flecha: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 24 },
-  volver: { minHeight: 44, alignItems: "center", justifyContent: "center" },
 })

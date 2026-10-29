@@ -95,3 +95,31 @@ it("mantiene los campos en un scroll que esquiva el teclado con cierre fijo", as
   expect(screen.getByLabelText("Series")).toBeOnTheScreen()
   expect(screen.getByRole("button", { name: "Cerrar" })).toBeOnTheScreen()
 })
+
+it("conserva la altura del contenido durante la salida aunque el padre quite la selección", async () => {
+  jest.useFakeTimers()
+  jest.mocked(useMovimientoReducido).mockReturnValue(false)
+  const cerrar = jest.fn()
+  await render(
+    <Hoja visible alCerrar={cerrar}>
+      <Text>Días de la sesión</Text>
+    </Hoja>,
+  )
+  await screen.rerender(
+    <Hoja visible={false} alCerrar={cerrar}>
+      {null}
+    </Hoja>,
+  )
+  await act(() => jest.advanceTimersByTime(100))
+  expect(screen.getByText("Días de la sesión")).toBeOnTheScreen()
+  await act(() => jest.advanceTimersByTime(100))
+  expect(screen.queryByText("Días de la sesión")).toBeNull()
+  await screen.rerender(
+    <Hoja visible alCerrar={cerrar}>
+      <Text>Otra sesión</Text>
+    </Hoja>,
+  )
+  expect(screen.getByText("Otra sesión")).toBeOnTheScreen()
+  expect(screen.queryByText("Días de la sesión")).toBeNull()
+  jest.useRealTimers()
+})

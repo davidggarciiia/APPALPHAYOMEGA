@@ -2,7 +2,7 @@ import { AgendaSemanal } from "./agenda-semanal"
 import type { DetalleDeHoy } from "./hoy-toca"
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { AppState, Text, View } from "react-native"
+import { AppState, View } from "react-native"
 import {
   ListadoSesionesSchema,
   type DeporteDelPlan,
@@ -14,8 +14,9 @@ import { claveSesion, DocumentoSesionSchema } from "./documento-local"
 import { lunesDeSemana, sumarDias } from "./fechas"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { faltaDe } from "../lib/errores"
-import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
-import { tema } from "../tema"
+import { ErrorDePermiso, ErrorDeSesion, ErrorDeRed } from "../lib/http"
+import { Aviso } from "../componentes/aviso"
+import { CambioDeContenido } from "../componentes/entrada-marca"
 
 async function empezadasLocales(
   clienteId: string,
@@ -74,6 +75,7 @@ export function SemanaEntrenamiento({
   const ultimaCopia = useRef<{ clave: string; contenido: string } | null>(null)
   const [empezadas, setEmpezadas] = useState<Record<string, string>>({})
   const [error, setError] = useState("")
+  const [sinConexion, setSinConexion] = useState(false)
   const [reintentable, setReintentable] = useState(true)
   const [intento, setIntento] = useState(0)
   const guardarCopia = useCallback(
@@ -147,6 +149,7 @@ export function SemanaEntrenamiento({
           if (!vigente) return
           setCargado({ clave, datos })
           setError("")
+          setSinConexion(false)
           await guardarCopia(datos)
           if (!vigente) return
           if ((resumenHoy && semana === actual) || detectarEmpezadas) {
@@ -198,6 +201,7 @@ export function SemanaEntrenamiento({
             "No se pudo actualizar la semana. Revisa la conexión y vuelve a intentarlo.",
           )
           setError(falta.texto)
+          setSinConexion(error instanceof ErrorDeRed)
           setReintentable(falta.reintentable)
         } finally {
           enCurso = false
@@ -235,30 +239,35 @@ export function SemanaEntrenamiento({
     <View style={{ gap: 14 }}>
       {error !== "" && (
         <>
-          <AvisoDeError mensaje={error} />
+          {listado && sinConexion ? (
+            <Aviso
+              mensaje={`Sin conexión · copia de la semana del ${semana.slice(8, 10)}/${semana.slice(5, 7)}`}
+              tipo="conexion"
+            />
+          ) : (
+            <AvisoDeError mensaje={error} />
+          )}
           {reintentable && (
-            <BotonSecundario texto="Actualizar semana" onPress={() => setIntento((n) => n + 1)} />
+            <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
           )}
         </>
       )}
-      {listado === null && error === "" && (
-        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.textoTenue }}>
-          Cargando entrenamientos…
-        </Text>
-      )}
-      <AgendaSemanal
-        key={semana}
-        semana={semana}
-        listado={listado}
-        abrir={abrir}
-        resumenHoy={resumenHoy}
-        detalle={detalle}
-        deportes={deportes}
-        empezadas={empezadas}
-        api={api}
-        actualizado={actualizar}
-        cambiarSemana={(dias) => setSemana((actual) => sumarDias(actual, dias))}
-      />
+      <CambioDeContenido clave={semana}>
+        <AgendaSemanal
+          key={semana}
+          semana={semana}
+          listado={listado}
+          cargando={listado === null && error === ""}
+          abrir={abrir}
+          resumenHoy={resumenHoy}
+          detalle={detalle}
+          deportes={deportes}
+          empezadas={empezadas}
+          api={api}
+          actualizado={actualizar}
+          cambiarSemana={(dias) => setSemana((actual) => sumarDias(actual, dias))}
+        />
+      </CambioDeContenido>
     </View>
   )
 }

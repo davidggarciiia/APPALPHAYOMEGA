@@ -57,16 +57,21 @@ export function Pestanas<T extends string>({
   const [ancho, fijarAncho] = useState(0)
   const x = useSharedValue(0)
   const largo = useSharedValue(0)
+  const colocado = useRef(false)
   const medida = medidas[activa]
+  const pil = variante === "pil"
+  const anchoBase = pil ? (medida?.width ?? 0) : 1
   useEffect(() => {
     cancelAnimation(x)
     cancelAnimation(largo)
     if (!medida) return
-    x.value = reducido ? medida.x : withSpring(medida.x, INDICADOR)
-    largo.value = reducido ? medida.width : withSpring(medida.width, INDICADOR)
+    const animar = !reducido && colocado.current
+    x.value = animar ? withSpring(medida.x, INDICADOR) : medida.x
+    largo.value = animar ? withSpring(medida.width, INDICADOR) : medida.width
+    colocado.current = true
     scroll.current?.scrollTo({
       x: Math.max(0, medida.x - (ancho - medida.width) / 2),
-      animated: !reducido,
+      animated: animar,
     })
     return () => {
       cancelAnimation(x)
@@ -74,9 +79,8 @@ export function Pestanas<T extends string>({
     }
   }, [medida, ancho, reducido, x, largo])
   const indicador = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { scaleX: largo.value }],
+    transform: [{ translateX: x.value }, { scaleX: anchoBase > 0 ? largo.value / anchoBase : 0 }],
   }))
-  const pil = variante === "pil"
   return (
     <ScrollView
       ref={scroll}
@@ -87,6 +91,12 @@ export function Pestanas<T extends string>({
       contentContainerStyle={[s.filaPestanas, pil && s.filaSegmentada]}
       accessibilityRole="tablist"
     >
+      <Animated.View
+        testID={pil ? "pestanas-segmento" : "pestanas-indicador"}
+        pointerEvents="none"
+        accessible={false}
+        style={[s.indicador, pil && s.segmentoActivo, { width: anchoBase }, indicador]}
+      />
       {opciones.map((opcion) => {
         const elegida = opcion.valor === activa
         return (
@@ -105,20 +115,12 @@ export function Pestanas<T extends string>({
                   : { ...previas, [opcion.valor]: { x: posicion, width } },
               )
             }}
-            style={[s.pestana, pil && s.pestanaSegmentada, pil && elegida && s.segmentoActivo]}
+            style={[s.pestana, pil && s.pestanaSegmentada]}
           >
             <Text style={[s.textoPestana, elegida && s.textoActivo]}>{opcion.texto}</Text>
           </Pressable>
         )
       })}
-      {!pil && (
-        <Animated.View
-          testID="pestanas-indicador"
-          pointerEvents="none"
-          accessible={false}
-          style={[s.indicador, indicador]}
-        />
-      )}
     </ScrollView>
   )
 }
@@ -201,7 +203,12 @@ const s = StyleSheet.create({
     paddingHorizontal: espacio[12],
     borderRadius: radio.campo,
   },
-  segmentoActivo: { backgroundColor: tema.superficieAlta },
+  segmentoActivo: {
+    backgroundColor: tema.superficieAlta,
+    top: 0,
+    height: "100%",
+    borderRadius: radio.campo,
+  },
   tarjeta: { backgroundColor: tema.superficie, borderRadius: radio.tarjeta, padding: espacio[16] },
   lista: { padding: 0, paddingHorizontal: espacio[16] },
   destacada: { borderWidth: 1, borderColor: tema.bordeDestacado },

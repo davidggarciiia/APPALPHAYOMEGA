@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { AppState, Pressable, StyleSheet, Text, View } from "react-native"
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import type {
   Comida,
   ComidaRegistrada,
@@ -19,13 +19,55 @@ import { hoyAgenda } from "../entrenamiento/fechas"
 import { ErrorDePermiso, ErrorDeRed, ErrorDeSesion } from "../lib/http"
 import { EstadoVacio } from "../componentes/estado-vacio"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
-import { degradadoOro, tema } from "../tema"
+import { Aviso } from "../componentes/aviso"
+import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
+import { Pestanas } from "../componentes/piezas"
+import { tema, tipo as tipografia } from "../tema"
 import type { ApiNutricion } from "./api"
 import { guardarCopia, leerCopia } from "./copia-local"
 import { DiaDieta } from "./dia-dieta"
 
 const DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] as const
 const INICIALES = ["L", "M", "X", "J", "V", "S", "D"] as const
+
+function TiraDias({
+  documento,
+  dia,
+  seleccionar,
+}: {
+  documento: DocumentoDieta
+  dia: number
+  seleccionar: (dia: number) => void
+}): React.JSX.Element {
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.semana}
+      accessibilityRole="tablist"
+    >
+      {INICIALES.map((inicial, n) => {
+        const tipo = documento.tiposDeDia.find((t) => t.id === documento.semana[n])
+        return (
+          <Pressable
+            key={n}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: dia === n }}
+            accessibilityLabel={`${DIAS[n]}: ${tipo?.nombre ?? "sin tipo"}`}
+            onPress={() => seleccionar(n)}
+            style={[s.dia, dia === n && s.diaActivo]}
+          >
+            <Text style={[s.inicial, dia === n && s.inicialActiva]}>{inicial}</Text>
+            <Text numberOfLines={1} style={s.tipoDia}>
+              {tipo?.nombre ?? "—"}
+            </Text>
+            {dia === n && <View style={s.marcaDia} />}
+          </Pressable>
+        )
+      })}
+    </ScrollView>
+  )
+}
 
 /** 0 = lunes. La fecha es de calendario en Europe/Madrid, sin zona del teléfono. */
 export function diaDeLaSemana(fecha: string): number {
@@ -65,50 +107,21 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
   const tipo = documento.tiposDeDia.find((t) => t.id === documento.semana[indice])
   return (
     <View style={s.contenido}>
-      <View style={s.pestanas} accessibilityRole="tablist">
-        {(["hoy", "semana"] as const).map((valor) => (
-          <Pressable
-            key={valor}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: pestana === valor }}
-            onPress={() => setPestana(valor)}
-            style={[s.pestana, pestana === valor && [s.pestanaActiva, degradadoOro]]}
-          >
-            <Text style={[s.textoPestana, pestana === valor && s.textoActivo]}>
-              {valor === "hoy" ? "Hoy" : "Semana"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      {pestana === "semana" && (
-        <View style={s.semana}>
-          {INICIALES.map((inicial, n) => {
-            const delDia = documento.tiposDeDia.find((t) => t.id === documento.semana[n])
-            return (
-              <Pressable
-                key={inicial}
-                accessibilityRole="button"
-                accessibilityState={{ selected: dia === n }}
-                accessibilityLabel={`${DIAS[n]}: ${delDia?.nombre ?? "sin tipo"}`}
-                onPress={() => setDia(n)}
-                style={[s.dia, dia === n && s.diaActivo]}
-              >
-                <Text style={s.inicial}>{inicial}</Text>
-                <Text numberOfLines={1} style={s.tipoDia}>
-                  {delDia?.nombre ?? "—"}
-                </Text>
-              </Pressable>
-            )
-          })}
-        </View>
-      )}
+      <Pestanas
+        opciones={[
+          { valor: "hoy", texto: "Hoy" },
+          { valor: "semana", texto: "Semana" },
+        ]}
+        activa={pestana}
+        cambiar={setPestana}
+      />
+      {pestana === "semana" && <TiraDias documento={documento} dia={dia} seleccionar={setDia} />}
       <Text style={s.titulo} accessibilityRole="header">
         {pestana === "hoy" ? "Hoy" : DIAS[indice]} · {tipo?.nombre ?? "Sin pauta"}
       </Text>
       {tipo && <DiaDieta tipo={tipo} />}
       {documento.indicaciones.length > 0 && (
         <View style={s.pautas}>
-          <Text style={s.titulo}>Pautas</Text>
           <View style={s.indicaciones}>
             {documento.indicaciones.map((indicacion, n) => (
               <View key={`${indicacion.titulo}-${n}`} style={s.indicacion}>
@@ -152,6 +165,9 @@ export function VistaDieta({
   const [guardandoSuplemento, setGuardandoSuplemento] = useState(false)
   const guardando = useRef(false)
   const hoy = hoyAgenda()
+  const [diaElegido, setDiaElegido] = useState<number | null>(null)
+  const diaActual = diaDeLaSemana(hoy)
+  const diaVisible = diaElegido ?? diaActual
 
   useFocusEffect(
     useCallback(() => {
@@ -224,7 +240,22 @@ export function VistaDieta({
   )
 
   if (estado.fase === "cargando") {
-    return <Text style={s.tenue}>Cargando tu dieta…</Text>
+    return (
+      <View
+        style={s.contenido}
+        accessibilityLabel="Cargando dieta"
+        accessibilityState={{ busy: true }}
+      >
+        <GrupoEsqueletos>
+          <View style={s.contenido}>
+            <Esqueleto alto={248} radio={20} />
+            {Array.from({ length: 5 }, (_, n) => (
+              <Esqueleto key={n} alto={64} radio={14} />
+            ))}
+          </View>
+        </GrupoEsqueletos>
+      </View>
+    )
   }
   if (estado.fase === "error") {
     return (
@@ -235,6 +266,9 @@ export function VistaDieta({
     )
   }
   const dieta = estado.dieta
+  const tipoVisible = dieta?.documento.tiposDeDia.find(
+    (t) => t.id === dieta.documento.semana[diaVisible],
+  )
   const enLinea = estado.copiaDel === null
   const tomarSuplemento = async (suplemento: Suplemento, tomado: boolean): Promise<void> => {
     if (!seguimiento || !diaCargado || guardando.current) return
@@ -255,10 +289,10 @@ export function VistaDieta({
   return (
     <View style={s.contenido}>
       {estado.copiaDel !== null && (
-        <View style={s.sinRed}>
-          <Text style={s.textoSinRed}>Sin conexión · copia del {fechaCorta(estado.copiaDel)}</Text>
-          <BotonSecundario texto="Actualizar" onPress={() => setIntento((n) => n + 1)} />
-        </View>
+        <Aviso
+          mensaje={`Sin conexión · copia del ${fechaCorta(estado.copiaDel)}`}
+          alReintentar={() => setIntento((n) => n + 1)}
+        />
       )}
       {dieta === null ? (
         <EstadoVacio
@@ -268,7 +302,13 @@ export function VistaDieta({
         />
       ) : semana ? (
         <>
-          <Enlace texto="‹ Volver a hoy" onPress={() => setSemana(false)} />
+          <Enlace
+            texto="‹ Volver a hoy"
+            onPress={() => {
+              setDiaElegido(null)
+              setSemana(false)
+            }}
+          />
           <View>
             <Text style={s.nombre}>{dieta.documento.nombre}</Text>
             <Text style={s.tenue}>Publicada el {fechaCorta(dieta.publicadaEn)}</Text>
@@ -277,25 +317,39 @@ export function VistaDieta({
         </>
       ) : (
         <>
+          <TiraDias documento={dieta.documento} dia={diaVisible} seleccionar={setDiaElegido} />
           {aviso !== "" && <AvisoDeError mensaje={aviso} />}
           {guardandoSuplemento && (
             <Text style={s.tenue} accessibilityLiveRegion="polite">
               Guardando suplemento…
             </Text>
           )}
-          <HoyNutricion
-            documento={dieta.documento}
-            deNutricionista={estado.deNutricionista}
-            hoy={hoy}
-            hora={horaActual()}
-            registradas={registradas}
-            dia={dia}
-            diaCargado={diaCargado}
-            puedeTomar={enLinea && seguimiento !== undefined && diaCargado && !guardandoSuplemento}
-            abrirComida={(comida) => (abrirComida ? abrirComida(comida) : setSemana(true))}
-            tomarSuplemento={(suplemento, tomado) => void tomarSuplemento(suplemento, tomado)}
-            verSemana={() => setSemana(true)}
-          />
+          {diaVisible !== diaActual ? (
+            <View style={s.contenido}>
+              {tipoVisible ? (
+                <DiaDieta tipo={tipoVisible} />
+              ) : (
+                <Text style={s.tenue}>Sin pauta para este día</Text>
+              )}
+              <BotonSecundario texto="Ver la semana completa" onPress={() => setSemana(true)} />
+            </View>
+          ) : (
+            <HoyNutricion
+              documento={dieta.documento}
+              deNutricionista={estado.deNutricionista}
+              hoy={hoy}
+              hora={horaActual()}
+              registradas={registradas}
+              dia={dia}
+              diaCargado={diaCargado}
+              puedeTomar={
+                enLinea && seguimiento !== undefined && diaCargado && !guardandoSuplemento
+              }
+              abrirComida={(comida) => (abrirComida ? abrirComida(comida) : setSemana(true))}
+              tomarSuplemento={(suplemento, tomado) => void tomarSuplemento(suplemento, tomado)}
+              verSemana={() => setSemana(true)}
+            />
+          )}
         </>
       )}
     </View>
@@ -304,27 +358,10 @@ export function VistaDieta({
 
 const s = StyleSheet.create({
   contenido: { gap: 20 },
-  pestanas: {
-    flexDirection: "row",
-    backgroundColor: tema.superficie,
-    borderRadius: 14,
-    padding: 4,
-    gap: 4,
-  },
-  pestana: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pestanaActiva: {},
-  textoPestana: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 15 },
-  textoActivo: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton },
-  semana: { flexDirection: "row", gap: 4 },
+  semana: { flexDirection: "row", flexGrow: 1, gap: 4 },
   dia: {
     flex: 1,
-    minWidth: 0,
+    minWidth: 44,
     minHeight: 60,
     borderRadius: 14,
     alignItems: "center",
@@ -333,13 +370,13 @@ const s = StyleSheet.create({
     gap: 4,
   },
   diaActivo: { backgroundColor: tema.superficieAlta },
+  marcaDia: { position: "absolute", bottom: 0, height: 3, width: 24, backgroundColor: tema.acento },
   inicial: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 16 },
+  inicialActiva: { color: tema.acento },
   tipoDia: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 10 },
-  titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
+  titulo: { ...tipografia.titulo, color: tema.texto },
   nombre: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  sinRed: { backgroundColor: tema.acentoSuave, borderRadius: 14, padding: 12 },
-  textoSinRed: { color: tema.aviso, fontFamily: tema.fuenteBoton, fontSize: 14 },
   pautas: { gap: 12 },
   indicaciones: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   indicacion: {

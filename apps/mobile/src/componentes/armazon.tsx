@@ -43,7 +43,6 @@ const PRINCIPALES = [
   "/catalogo",
   "/entrenamiento",
   "/nutricion",
-  "/perfil",
   "/progreso",
   "/mis-clientes",
 ]
@@ -190,7 +189,10 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
           ) : (
             <>
               {!sesionCompleta &&
-                (principal === "" && esCliente ? (
+                principal !== "perfil" &&
+                (esCliente &&
+                ["", "entrenamiento", "nutricion", "progreso"].includes(principal) &&
+                enPrincipal ? (
                   <View style={s.cabecera}>
                     <View style={s.fila}>
                       <Image
@@ -202,9 +204,6 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
                       />
                       {avatar}
                     </View>
-                    <Text accessibilityRole="header" style={s.titulo}>
-                      {titulo}
-                    </Text>
                     {sinConexion}
                   </View>
                 ) : (

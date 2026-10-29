@@ -3,10 +3,11 @@ import Perfil from "../../app/perfil"
 import { guardarPerfil, leerPerfil } from "../lib/api"
 import { useSesion } from "../sesion"
 
+const mockReplace = jest.fn()
 jest.mock("expo-router", () => ({
   useRouter: () => ({
     push: jest.fn(),
-    replace: jest.fn(),
+    replace: mockReplace,
     back: jest.fn(),
     canGoBack: () => false,
   }),
@@ -86,4 +87,34 @@ it("conserva la edición cuando guardar falla y permite cancelar sin cambiar el 
   expect(screen.getByText("Cliente Demo")).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: "Editar datos personales" }))
   expect(screen.getByDisplayValue("Cliente")).toBeOnTheScreen()
+})
+
+it("presenta un esqueleto mientras espera el perfil", async () => {
+  jest.mocked(leerPerfil).mockReturnValue(new Promise(() => undefined))
+  await render(<Perfil />)
+  expect(screen.getByLabelText("Cargando tu perfil")).toHaveProp("accessibilityState", {
+    busy: true,
+  })
+  expect(
+    screen.getAllByTestId("esqueleto", { includeHiddenElements: true }).length,
+  ).toBeGreaterThan(1)
+  expect(screen.queryByRole("progressbar")).toBeNull()
+})
+
+it("mantiene los teclados de teléfono y fecha al abrir la edición", async () => {
+  await render(<Perfil />)
+  await fireEvent.press(await screen.findByRole("button", { name: "Editar datos personales" }))
+  expect(screen.getByLabelText("Teléfono")).toHaveProp("keyboardType", "phone-pad")
+  expect(screen.getByLabelText("Fecha de nacimiento")).toHaveProp(
+    "keyboardType",
+    "numbers-and-punctuation",
+  )
+})
+
+it("permite volver al inicio aunque falle la carga del perfil", async () => {
+  jest.mocked(leerPerfil).mockRejectedValueOnce(new Error("Sin conexión"))
+  await render(<Perfil />)
+  expect(await screen.findByRole("alert")).toHaveTextContent(/No hemos podido cargar tu perfil/)
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(mockReplace).toHaveBeenCalledWith("/")
 })

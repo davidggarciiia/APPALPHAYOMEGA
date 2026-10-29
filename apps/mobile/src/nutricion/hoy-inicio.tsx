@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react"
 import { randomUUID } from "expo-crypto"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View } from "react-native"
+import { Pulsable } from "../componentes/pulsable"
 import type {
   CambiarDia,
   ConfiguracionSeguimiento,
@@ -11,13 +12,15 @@ import type {
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, Campo } from "../componentes/formulario"
+import { Aviso } from "../componentes/aviso"
+import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { Icono } from "../componentes/iconos"
 import { almacenDispositivo } from "../entrenamiento/almacen-dispositivo"
 import { hoyAgenda } from "../entrenamiento/fechas"
 import { Dialogo } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
-import { degradadoExito, tema } from "../tema"
+import { espacio, radio, tema, tipo } from "../tema"
 import type { ApiSeguimiento } from "../seguimiento/api"
 import { leerDecimal, leerSueno, miles, pesoLegible, suenoLegible } from "../seguimiento/modelo"
 import type { ApiNutricion } from "./api"
@@ -255,7 +258,7 @@ export function HoyInicio({
     primera: boolean,
     cargado = diaCargado,
   ): React.JSX.Element => (
-    <Pressable
+    <Pulsable
       key={dato}
       style={[s.fila, !primera && s.separada]}
       accessibilityRole="button"
@@ -264,86 +267,122 @@ export function HoyInicio({
       disabled={ocupado || !cargado}
       onPress={() => abrir(dato)}
     >
-      <Text style={s.nombre}>{nombre}</Text>
-      <Text style={valor === null ? s.apuntar : s.valor}>{valor ?? "Apuntar"}</Text>
-    </Pressable>
+      <View style={s.datosFila}>
+        <Text style={s.nombre}>{nombre}</Text>
+        <Text style={valor === null ? s.apuntar : s.valor}>{valor ?? "Apuntar"}</Text>
+      </View>
+      {dato === "pasos" && objetivoPasos !== null && objetivoPasos > 0 && (
+        <View style={s.pista} accessible={false}>
+          <View
+            style={[
+              s.progreso,
+              { width: `${Math.min(100, ((dia?.pasos ?? 0) / objetivoPasos) * 100)}%` },
+            ]}
+          />
+        </View>
+      )}
+    </Pulsable>
   )
   const edicion = editando ? EDICION[editando] : null
   const indicadoresHoy = configuracion ? pedidosDeHoy(configuracion, diaSemana) : []
+  const cargandoInicial = (!configuracion || !diaCargado) && error === ""
 
   return (
     <View style={s.contenido}>
-      <Text style={s.titulo} accessibilityRole="header">
-        Hoy
-      </Text>
-      <View style={s.tarjeta}>
-        {indicadoresHoy.map((indicador, n) => {
-          if (indicador === "peso")
-            return fila(
-              "pesoKg",
-              "Peso",
-              dia?.pesoKg != null ? pesoLegible(dia.pesoKg) : null,
-              n === 0,
-            )
-          if (indicador === "pasos")
-            return fila(
-              "pasos",
-              "Pasos",
-              dia?.pasos != null
-                ? `${miles(dia.pasos)}${objetivoPasos ? ` / ${miles(objetivoPasos)}` : ""}`
-                : null,
-              n === 0,
-            )
-          if (indicador === "sueno")
-            return fila(
-              "suenoMin",
-              "Sueño",
-              dia?.suenoMin != null ? suenoLegible(dia.suenoMin) : null,
-              n === 0,
-            )
-          return fila(
-            "cinturaCm",
-            "Cintura",
-            cintura != null ? cmLegible(cintura) : null,
-            n === 0,
-            cintura !== undefined,
-          )
-        })}
-        {suplementos.map((suplemento) => {
-          const tomado = suplementoTomado(suplemento, dia)
-          return (
-            <Pressable
-              key={suplemento.nombre}
-              style={[s.fila, s.separada]}
-              accessibilityRole="checkbox"
-              aria-checked={tomado}
-              accessibilityLabel={`${suplemento.nombre} tomada`}
-              accessibilityState={{
-                checked: tomado,
-                disabled: ocupado || !diaCargado || suplementosDeCopia,
-              }}
-              disabled={ocupado || !diaCargado || suplementosDeCopia}
-              onPress={() => void guardar(cambioDeSuplemento(suplemento, !tomado, dia))}
-            >
-              <View style={s.suplemento}>
-                <Text style={s.nombre}>{suplemento.nombre} tomada</Text>
-                {suplemento.dosis && <Text style={s.dosis}>{suplemento.dosis}</Text>}
-              </View>
-              <View style={[s.circulo, tomado && [s.circuloHecho, degradadoExito]]}>
-                {tomado && <Icono nombre="hecho" color={tema.sobreExito} tamano={16} />}
-              </View>
-            </Pressable>
-          )
-        })}
-      </View>
+      {cargandoInicial ? (
+        <View
+          accessible
+          accessibilityLabel="Cargando registros de hoy"
+          accessibilityState={{ busy: true }}
+        >
+          <GrupoEsqueletos>
+            <View style={s.carga}>
+              <Esqueleto alto={24} ancho="64%" />
+              <Esqueleto alto={24} ancho="82%" />
+              <Esqueleto alto={24} ancho="58%" />
+            </View>
+          </GrupoEsqueletos>
+        </View>
+      ) : (
+        (indicadoresHoy.length > 0 || suplementos.length > 0) && (
+          <View style={s.tarjeta}>
+            {indicadoresHoy.map((indicador, n) => {
+              if (indicador === "peso")
+                return fila(
+                  "pesoKg",
+                  "Peso",
+                  dia?.pesoKg != null ? pesoLegible(dia.pesoKg) : null,
+                  n === 0,
+                )
+              if (indicador === "pasos")
+                return fila(
+                  "pasos",
+                  "Pasos",
+                  dia?.pasos != null
+                    ? `${miles(dia.pasos)}${objetivoPasos ? ` / ${miles(objetivoPasos)}` : ""}`
+                    : null,
+                  n === 0,
+                )
+              if (indicador === "sueno")
+                return fila(
+                  "suenoMin",
+                  "Sueño",
+                  dia?.suenoMin != null ? suenoLegible(dia.suenoMin) : null,
+                  n === 0,
+                )
+              return fila(
+                "cinturaCm",
+                "Cintura",
+                cintura != null ? cmLegible(cintura) : null,
+                n === 0,
+                cintura !== undefined,
+              )
+            })}
+            {suplementos.map((suplemento, indice) => {
+              const tomado = suplementoTomado(suplemento, dia)
+              return (
+                <Pulsable
+                  key={suplemento.nombre}
+                  style={[
+                    s.fila,
+                    s.filaSuplemento,
+                    (indicadoresHoy.length > 0 || indice > 0) && s.separada,
+                  ]}
+                  accessibilityRole="checkbox"
+                  aria-checked={tomado}
+                  accessibilityLabel={`${suplemento.nombre} tomada`}
+                  accessibilityState={{
+                    checked: tomado,
+                    disabled: ocupado || !diaCargado || suplementosDeCopia,
+                  }}
+                  disabled={ocupado || !diaCargado || suplementosDeCopia}
+                  onPress={() => void guardar(cambioDeSuplemento(suplemento, !tomado, dia))}
+                >
+                  <View style={s.suplemento}>
+                    <Text style={s.nombre}>{suplemento.nombre}</Text>
+                    {suplemento.dosis && <Text style={s.dosis}>{suplemento.dosis}</Text>}
+                  </View>
+                  <View style={[s.casilla, tomado && s.casillaHecha]}>
+                    {tomado && <Icono nombre="hecho" color={tema.sobreExito} tamano={16} />}
+                  </View>
+                </Pulsable>
+              )
+            })}
+          </View>
+        )
+      )}
       {suplementosDeCopia && suplementos.length > 0 && (
-        <Text style={s.dosis}>Suplementos de la copia guardada · solo lectura.</Text>
+        <Aviso mensaje="Suplementos de la copia guardada · solo lectura." />
       )}
-      {configuracion && indicadoresHoy.length === 0 && suplementos.length === 0 && error === "" && (
-        <Text style={s.dosis}>Hoy no tienes registros pautados en esta pantalla.</Text>
-      )}
+      {!cargandoInicial &&
+        configuracion &&
+        indicadoresHoy.length === 0 &&
+        suplementos.length === 0 &&
+        error === "" && (
+          <Text style={s.dosis}>Hoy no tienes registros pautados en esta pantalla.</Text>
+        )}
       {ocupado && (
-        <Text style={s.dosis} accessibilityLiveRegion="polite">
+        <Text style={s.anuncio} accessibilityLiveRegion="polite">
           Guardando…
         </Text>
       )}
@@ -352,7 +391,8 @@ export function HoyInicio({
         visible={edicion !== null}
         titulo={edicion?.titulo ?? ""}
         texto={edicion?.texto ?? ""}
-        confirmar={ocupado ? "Guardando…" : "Guardar"}
+        confirmar="Guardar"
+        ocupado={ocupado}
         cancelar="Cancelar"
         alCancelar={() => setEditando(null)}
         alConfirmar={() => {
@@ -389,30 +429,53 @@ export function HoyInicio({
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 14 },
-  titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
-  tarjeta: { backgroundColor: tema.superficie, borderRadius: 20, paddingHorizontal: 16 },
+  contenido: { gap: espacio[12] },
+  tarjeta: {
+    backgroundColor: tema.superficie,
+    borderRadius: radio.tarjeta,
+    paddingHorizontal: espacio[16],
+  },
+  carga: {
+    backgroundColor: tema.superficie,
+    borderRadius: radio.tarjeta,
+    padding: espacio[16],
+    gap: espacio[24],
+  },
   fila: {
-    minHeight: 52,
+    minHeight: 56,
+    paddingVertical: espacio[12],
+    justifyContent: "center",
+    gap: espacio[8],
+  },
+  datosFila: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: espacio[12],
   },
+  filaSuplemento: { flexDirection: "row", alignItems: "center" },
+  pista: { height: 4, backgroundColor: tema.borde, borderRadius: 2, overflow: "hidden" },
+  progreso: { height: 4, backgroundColor: tema.acento },
   separada: { borderTopWidth: 1, borderTopColor: tema.borde },
-  nombre: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },
+  nombre: { ...tipo.cuerpo, color: tema.texto, flexShrink: 1 },
   suplemento: { flex: 1, gap: 2 },
   dosis: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  valor: { color: tema.textoSecundario, fontFamily: tema.fuenteTexto, fontSize: 15 },
+  valor: {
+    color: tema.textoSecundario,
+    fontFamily: tema.fuenteTexto,
+    fontSize: 15,
+    fontVariant: ["tabular-nums"],
+  },
   apuntar: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 15 },
-  circulo: {
+  casilla: {
     width: 28,
     height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
+    borderRadius: 8,
+    borderWidth: 1.5,
     borderColor: tema.bordeFuerte,
     alignItems: "center",
     justifyContent: "center",
   },
-  circuloHecho: { borderColor: "transparent" },
+  casillaHecha: { borderColor: tema.exito, backgroundColor: tema.exito },
+  anuncio: { position: "absolute", left: -10000, width: 1, height: 1, overflow: "hidden" },
 })

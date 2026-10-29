@@ -23,6 +23,8 @@ import { fechaCorta } from "./modelo"
 import { Guia } from "./guia"
 import { Pestanas } from "./piezas"
 import { RutinaDeLaSemana, type DiaDelPlan } from "./rutina"
+import { EsqueletoEntrenamiento } from "../esqueleto-entrenamiento"
+import { EntradaMarca, CambioDeContenido } from "../../componentes/entrada-marca"
 
 type Pestana = "rutina" | "bloque" | "guia"
 const PESTANAS = [
@@ -43,12 +45,15 @@ export function PlanCliente({
   clienteId,
   api,
   abrir,
+  pestana: controlada,
 }: {
   clienteId: string
   api: ApiEntrenamiento
   abrir: (id: string) => void
+  pestana?: Pestana
 }): React.JSX.Element {
-  const [pestana, setPestana] = useState<Pestana>("rutina")
+  const [interna, setPestana] = useState<Pestana>("rutina")
+  const pestana = controlada ?? interna
   const [semana, setSemana] = useState(lunesDeSemana)
   const [datos, setDatos] = useState<CopiaDelPlan | null>(null)
   const [elegido, setElegido] = useState<string | null>(null)
@@ -130,29 +135,39 @@ export function PlanCliente({
 
   return (
     <View style={s.contenido}>
-      <Pestanas opciones={PESTANAS} activa={pestana} cambiar={setPestana} />
+      {controlada === undefined && (
+        <Pestanas opciones={PESTANAS} activa={pestana} cambiar={setPestana} />
+      )}
       {error !== "" && (
         <View style={s.error}>
           <AvisoDeError mensaje={error} />
           <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
         </View>
       )}
-      {pestana === "guia" ? (
-        <Guia />
-      ) : datos === null ? (
-        error === "" && <Text style={s.tenue}>Cargando tu plan…</Text>
-      ) : pestana === "rutina" ? (
-        <RutinaDeLaSemana
-          dias={dias}
-          elegido={elegido ?? porDefecto?.resumen.agenda.id ?? null}
-          elegir={setElegido}
-          hoy={hoy}
-          verTecnica={setTecnica}
-          abrir={abrirSesion}
-        />
-      ) : (
-        <BloqueDelPlan plan={datos.plan} lunes={semana} dias={dias} hoy={hoy} />
-      )}
+      <CambioDeContenido clave={semana}>
+        {pestana === "guia" ? (
+          <EntradaMarca>
+            <Guia />
+          </EntradaMarca>
+        ) : datos === null ? (
+          error === "" && <EsqueletoEntrenamiento />
+        ) : pestana === "rutina" ? (
+          <EntradaMarca>
+            <RutinaDeLaSemana
+              dias={dias}
+              elegido={elegido ?? porDefecto?.resumen.agenda.id ?? null}
+              elegir={setElegido}
+              hoy={hoy}
+              verTecnica={setTecnica}
+              abrir={abrirSesion}
+            />
+          </EntradaMarca>
+        ) : (
+          <EntradaMarca>
+            <BloqueDelPlan plan={datos.plan} lunes={semana} dias={dias} hoy={hoy} />
+          </EntradaMarca>
+        )}
+      </CambioDeContenido>
       {pestana !== "guia" && (
         <View style={s.semanas}>
           <Enlace texto="‹ Semana anterior" onPress={() => cambiarSemana(-7)} />

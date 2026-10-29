@@ -467,7 +467,7 @@ describe("ProgresoCliente", () => {
       />,
     )
     await waitFor(() => expect(screen.getByText("111,9 kg")).toBeTruthy())
-    expect(screen.getByText(/−0,3 kg respecto al inicio/)).toBeTruthy()
+    expect(screen.getByText(/−0,3 kg desde el inicio/)).toBeTruthy()
     expect(screen.getByText("Masa libre de grasa")).toBeTruthy()
     expect(screen.getByText("79,4 kg")).toBeTruthy()
     expect(screen.getByText(/196 cm · \d+ años/)).toBeTruthy()
@@ -476,7 +476,7 @@ describe("ProgresoCliente", () => {
     expect(entrenamiento.plan).toHaveBeenCalledWith(CLIENTE, lunes)
 
     await fireEvent.press(screen.getByRole("tab", { name: "Fuerza" }))
-    expect(screen.getByText(/Cuando envíes sesiones con carga/)).toBeTruthy()
+    expect(screen.getByText("Aún sin sesiones con carga.")).toBeTruthy()
   })
 
   describe("punto de partida", () => {
@@ -691,7 +691,7 @@ describe("ProgresoCliente", () => {
     await fireEvent.press(await screen.findByRole("tab", { name: "Cintura" }))
     // La cifra grande de la gráfica y la fila «Cintura» del resumen de la semana.
     expect(screen.getAllByText("92,5 cm")).toHaveLength(2)
-    expect(screen.getByText(/Última medida.*−1,5 cm respecto al inicio/s)).toBeTruthy()
+    expect(screen.getByText(/Última medida.*−1,5 cm desde el inicio/s)).toBeTruthy()
   })
 })
 
@@ -819,7 +819,7 @@ describe("Progreso con más de 500 registros", () => {
     expect(await screen.findByRole("header", inicioDel(sumarDias(hoy, -500)))).toBeTruthy()
     expect(screen.getByText("90,0 kg")).toBeTruthy()
     await fireEvent.press(screen.getByRole("tab", { name: "Cintura" }))
-    expect(screen.getByText(/Última medida.*−14,5 cm respecto al inicio/s)).toBeTruthy()
+    expect(screen.getByText(/Última medida.*−14,5 cm desde el inicio/s)).toBeTruthy()
     // La cifra grande y la fila «Cintura» de la semana usan la medida de hoy.
     expect(screen.getAllByText("85,5 cm")).toHaveLength(2)
 

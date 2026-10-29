@@ -37,6 +37,10 @@ export function Hoja({
   const insets = useSafeAreaInsets()
   const { height } = useWindowDimensions()
   const [montada, fijarMontada] = useState(visible)
+  const contenido = useRef(children)
+  useEffect(() => {
+    if (visible) contenido.current = children
+  }, [children, visible])
   const anterior = useRef({ visible: false, reducido: true })
   const y = useSharedValue(height)
   const opacidad = useSharedValue(0)
@@ -57,7 +61,15 @@ export function Hoja({
         ? withSpring(0, HOJA)
         : withTiming(height, { duration: 200, easing: CURVA.salida })
     opacidad.value = reducido ? (visible ? 1 : 0) : withTiming(visible ? 1 : 0, { duration: 200 })
-    const salida = !visible ? setTimeout(() => fijarMontada(false), reducido ? 0 : 200) : undefined
+    const salida = !visible
+      ? setTimeout(
+          () => {
+            contenido.current = null
+            fijarMontada(false)
+          },
+          reducido ? 0 : 200,
+        )
+      : undefined
     return () => {
       cancelAnimation(y)
       cancelAnimation(opacidad)
@@ -126,7 +138,7 @@ export function Hoja({
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
-            {children}
+            {visible ? children : contenido.current}
           </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>

@@ -34,10 +34,10 @@ it.each([
       }}
       cambiarSemana={jest.fn()}
       abrir={jest.fn()}
-      resumenHoy={false}
+      resumenHoy
     />,
   )
-  expect(
-    screen.getByRole("button", { name: `${fechaLegible(lunes)} · ${texto}` }),
-  ).toBeOnTheScreen()
+  expect(screen.getByLabelText(new RegExp(`^${fechaLegible(lunes)}`)).props.accessibilityHint).toBe(
+    texto,
+  )
 })

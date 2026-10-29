@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native"
 import type { PlanVigente } from "@alpha-omega/shared"
 
-import { degradadoOro, tema } from "../../tema"
+import { tema } from "../../tema"
 import { diaDeLaSemana, type DiaDelPlan } from "./rutina"
 import {
   INICIALES_DE_DIA,
@@ -64,7 +64,7 @@ export function BloqueDelPlan({
           accessibilityValue={{ min: 1, max: plan.semanas, now: semana }}
         >
           {Array.from({ length: plan.semanas }, (_, n) => (
-            <View key={n} style={[s.tramo, n < semana && degradadoOro]} />
+            <View key={n} style={[s.tramo, n < semana && { backgroundColor: tema.acento }]} />
           ))}
         </View>
       </View>
@@ -89,7 +89,7 @@ export function BloqueDelPlan({
                   <View style={s.nombreFase}>
                     <Text style={s.fuerte}>{fase.nombre}</Text>
                     {ahora && (
-                      <View style={[s.ahora, degradadoOro]}>
+                      <View style={s.ahora}>
                         <Text style={s.textoAhora}>Ahora</Text>
                       </View>
                     )}
@@ -164,7 +164,7 @@ export function BloqueDelPlan({
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 32 },
+  contenido: { gap: 28 },
   vacio: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 22 },
   grupoCorto: { gap: 6 },
   grupo: { gap: 14 },
@@ -189,8 +189,15 @@ const s = StyleSheet.create({
   textos: { flex: 1, gap: 2 },
   nombreFase: { flexDirection: "row", alignItems: "center", gap: 8 },
   fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
-  ahora: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
-  textoAhora: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 11 },
+  ahora: {
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    backgroundColor: tema.acentoSuave,
+    borderWidth: 1,
+    borderColor: tema.acento,
+  },
+  textoAhora: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 11 },
   filaTabla: { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
   cabeceraTabla: { paddingTop: 14 },
   separada: { borderTopWidth: 1, borderTopColor: tema.borde },

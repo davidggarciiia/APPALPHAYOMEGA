@@ -20,6 +20,9 @@ jest.mock("./almacen-dispositivo", () => ({
 }))
 jest.mock("../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}))
 
 beforeEach(() => {
   mockVisita = 0
@@ -54,7 +57,7 @@ it("muestra la copia local sin esperar a que responda la red", async () => {
   const api = { semana: jest.fn(() => new Promise(() => undefined)) } as unknown as ApiEntrenamiento
   await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />)
   expect(await screen.findByText("Fuerza guardada")).toBeOnTheScreen()
-  expect(screen.queryByText("Cargando entrenamientos…")).toBeNull()
+  expect(screen.queryByRole("progressbar", { name: "Cargando entrenamientos" })).toBeNull()
   expect(api.semana).toHaveBeenCalledTimes(1)
 })
 
@@ -75,7 +78,7 @@ it("conserva la lista al volver a enfocar mientras actualiza", async () => {
     <SemanaEntrenamiento clienteId="cliente" api={api} abrir={abrir} copiaLocal />,
   )
   expect(screen.getByText("Fuerza guardada")).toBeOnTheScreen()
-  expect(screen.queryByText("Cargando entrenamientos…")).toBeNull()
+  expect(screen.queryByRole("progressbar", { name: "Cargando entrenamientos" })).toBeNull()
 })
 
 it("sondea al cliente cada 15 segundos y no vuelve a cifrar ni leer documentos iguales", async () => {
@@ -136,7 +139,8 @@ it("no presenta datos de otra semana mientras carga la elegida", async () => {
   await screen.findByText("Fuerza guardada")
   await fireEvent.press(screen.getByRole("button", { name: "Semana siguiente" }))
   expect(screen.queryByText("Fuerza guardada")).toBeNull()
-  expect(screen.getByText("Cargando entrenamientos…")).toBeOnTheScreen()
+  expect(screen.getByRole("progressbar", { name: "Cargando entrenamientos" })).toBeOnTheScreen()
+  expect(screen.getAllByTestId("esqueleto", { includeHiddenElements: true })).toHaveLength(5)
 })
 
 it.each([new ErrorDelServidor(503), new SyntaxError("Respuesta inválida")])(
@@ -161,7 +165,7 @@ it.each([new ErrorDeSesion(), new ErrorDePermiso()])(
     const api = { semana: jest.fn().mockRejectedValue(error) } as unknown as ApiEntrenamiento
     await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />)
     expect(screen.queryByText("Fuerza guardada")).toBeNull()
-    expect(screen.queryByRole("button", { name: "Actualizar semana" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull()
     expect(
       screen.getByText(
         error instanceof ErrorDeSesion
@@ -179,7 +183,7 @@ it("muestra la respuesta de red aunque falle el guardado de la copia", async () 
   } as unknown as ApiEntrenamiento
   await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} copiaLocal />)
   expect(await screen.findByText("Fuerza de red")).toBeOnTheScreen()
-  expect(screen.queryByRole("button", { name: "Actualizar semana" })).toBeNull()
+  expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull()
 })
 
 it("prioriza la sesión empezada más reciente aunque no sea la de hoy", async () => {
@@ -488,8 +492,8 @@ it("en el inicio marca fuerza y otro deporte, y tocar el día abre su sesión pe
       }}
     />,
   )
-  expect(screen.getByRole("header", { name: "Esta semana" })).toBeOnTheScreen()
-  expect(screen.getByText("Otro deporte")).toBeOnTheScreen()
+  expect(screen.queryByRole("header", { name: "Esta semana" })).toBeNull()
+  expect(screen.queryByText("Otro deporte")).toBeNull()
   expect(screen.queryByText("Últimos entrenos de la semana")).toBeNull()
   await fireEvent.press(
     screen.getByRole("button", {
@@ -551,17 +555,15 @@ it.each([0, 1, 2])("anuncia el número de sesiones del día con su plural: %i", 
       }}
       cambiarSemana={jest.fn()}
       abrir={jest.fn()}
-      resumenHoy={false}
+      resumenHoy
     />,
   )
-  expect(
-    screen.getByRole("button", {
-      name: `${fechaLegible(lunes)} · ${cantidad} ${cantidad === 1 ? "sesión" : "sesiones"}`,
-    }),
-  ).toBeOnTheScreen()
+  expect(screen.getByLabelText(new RegExp(`^${fechaLegible(lunes)}`)).props.accessibilityHint).toBe(
+    `${cantidad} ${cantidad === 1 ? "sesión" : "sesiones"}`,
+  )
 })
 
-it("filtra por la fecha actual, abre la sesión y limpia el filtro al cambiar semana", async () => {
+it("lista por la fecha actual, abre la sesión y cambia de semana sin conservar filas anteriores", async () => {
   AppState.currentState = "active"
   const lunes = lunesDeSemana()
   const martes = sumarDias(lunes, 1)
@@ -586,19 +588,20 @@ it("filtra por la fecha actual, abre la sesión y limpia el filtro al cambiar se
   })
   await render(<SemanaEntrenamiento clienteId="cliente" api={api} abrir={abrir} />)
   await screen.findByRole("button", { name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente` })
-  await fireEvent.press(screen.getByRole("button", { name: `${fechaLegible(lunes)} · 0 sesiones` }))
+  expect(screen.getByText(`Movido desde ${fechaLegible(lunes)}`)).toBeOnTheScreen()
   expect(
-    screen.queryByRole("button", { name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente` }),
+    screen.queryByRole("button", { name: `Empezar Fuerza, ${fechaLegible(lunes)}, pendiente` }),
   ).toBeNull()
-  await fireEvent.press(screen.getByRole("button", { name: `${fechaLegible(martes)} · 1 sesión` }))
   await fireEvent.press(
     screen.getByRole("button", { name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente` }),
   )
   expect(abrir).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000000")
   consultar.mockResolvedValue({ sesiones: [], total: 0 })
   await fireEvent.press(screen.getByRole("button", { name: "Semana siguiente" }))
-  expect(await screen.findByText("No hay entrenamientos asignados esta semana.")).toBeOnTheScreen()
-  expect(screen.queryByRole("button", { name: "Ver toda la semana" })).toBeNull()
+  expect(await screen.findByText("Sin entrenamientos esta semana")).toBeOnTheScreen()
+  expect(
+    screen.queryByRole("button", { name: `Empezar Fuerza, ${fechaLegible(martes)}, pendiente` }),
+  ).toBeNull()
 })
 
 it("el inicio sigue la semana actual al pasar de domingo a lunes", async () => {

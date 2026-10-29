@@ -178,7 +178,7 @@ it("«Hoy» sigue el día de Madrid al pasar de domingo a lunes", async () => {
   await render(
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
-  expect(await screen.findByRole("header", { name: "Hoy" })).toBeOnTheScreen()
+  expect(await screen.findByRole("tab", { name: "Lunes: Entreno" })).toBeSelected()
   expect(screen.getByText("0 de 2")).toBeOnTheScreen()
 })
 
@@ -193,8 +193,8 @@ it("muestra alternativas, intercambio e indicaciones tal como se escribieron", a
       almacen={almacenEnMemoria()}
     />,
   )
-  await fireEvent.press(await screen.findByRole("button", { name: "Ver la dieta de la semana" }))
-  expect(await screen.findByText("2300")).toBeOnTheScreen()
+  await fireEvent.press(await screen.findByRole("button", { name: "Ver la semana completa" }))
+  expect(await screen.findByText("2.300")).toBeOnTheScreen()
   expect(screen.getByText("160 g")).toBeOnTheScreen()
   expect(screen.getByText("Opciones dulces")).toBeOnTheScreen()
   expect(screen.getByText("60 g")).toBeOnTheScreen()
@@ -214,6 +214,60 @@ it("sin dieta publicada lo dice en lugar de enseñar un ejemplo", async () => {
     />,
   )
   expect(await screen.findByText(/Tu dieta aún no está publicada/)).toBeOnTheScreen()
+})
+
+it("muestra el esqueleto de objetivo y cinco comidas mientras llega la dieta", async () => {
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={api(() => new Promise(() => undefined))}
+      almacen={almacenEnMemoria()}
+    />,
+  )
+  expect(screen.getByLabelText("Cargando dieta")).toBeOnTheScreen()
+  expect(screen.getAllByTestId("esqueleto", { includeHiddenElements: true })).toHaveLength(6)
+  expect(screen.queryByText("Cargando tu dieta…")).toBeNull()
+})
+
+it("enseña el objetivo junto a las comidas y permite consultar otro día sin registrarlo", async () => {
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date("2026-09-21T08:00:00Z"))
+  const dieta = publicada()
+  dieta.documento.tiposDeDia[0]!.objetivo = {
+    kcal: 2300,
+    hidratosG: 288,
+    proteinaG: 144,
+    grasaG: 64,
+  }
+  dieta.documento.tiposDeDia[0]!.margenKcal = 100
+  const vigente = jest.fn().mockResolvedValue({ dieta, deNutricionista: true })
+  const registrarComida = jest.fn()
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={{ ...api(vigente), registrarComida }}
+      almacen={almacenEnMemoria()}
+    />,
+  )
+  expect(await screen.findByText("2.300")).toBeOnTheScreen()
+  expect(screen.getByText("kcal al día · entre 2.200 y 2.400")).toBeOnTheScreen()
+  expect(screen.getByText("Carbohidratos")).toBeOnTheScreen()
+  expect(screen.getByText("Proteínas")).toBeOnTheScreen()
+  expect(screen.getByText("Grasas")).toBeOnTheScreen()
+  expect(screen.getByText("50 %")).toBeOnTheScreen()
+  expect(screen.getAllByText("25 %")).toHaveLength(2)
+  expect(screen.getByRole("button", { name: /^Desayuno/ })).toBeOnTheScreen()
+  expect(screen.getByRole("tab", { name: "Lunes: Entreno" })).toBeSelected()
+  await fireEvent.press(screen.getByRole("tab", { name: "Domingo: Descanso" }))
+  expect(screen.getByText("2.100")).toBeOnTheScreen()
+  expect(screen.getByRole("tab", { name: "Domingo: Descanso" })).toBeSelected()
+  expect(screen.queryByRole("progressbar", { name: "Comidas hechas" })).toBeNull()
+  expect(registrarComida).not.toHaveBeenCalled()
+  expect(vigente).toHaveBeenCalledTimes(1)
+  await fireEvent.press(screen.getByRole("tab", { name: "Lunes: Entreno" }))
+  expect(screen.getByText("0 de 2")).toBeOnTheScreen()
 })
 
 it("sin conexión enseña la última copia y, si no hay, pide conexión", async () => {

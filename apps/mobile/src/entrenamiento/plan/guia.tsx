@@ -147,12 +147,12 @@ export function Guia(): React.JSX.Element {
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 32 },
+  contenido: { gap: 28 },
   grupo: { gap: 14 },
   valor: { width: 64, color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
   valorDorado: { color: tema.acento },
   texto: { flex: 1, color: tema.textoSecundario, fontFamily: tema.fuenteTexto, fontSize: 15 },
-  punto: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
+  punto: { width: 8, height: 8, borderRadius: 2, marginTop: 7 },
   textos: { flex: 1, gap: 2 },
   fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 },

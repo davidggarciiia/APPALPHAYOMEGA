@@ -144,7 +144,7 @@ export default function Inicio(): React.JSX.Element {
   )
 }
 const s = StyleSheet.create({
-  cliente: { gap: 32 },
+  cliente: { gap: 28 },
   contenido: { gap: 12 },
   leyenda: { color: tema.textoTenue, fontFamily: tema.fuenteSemi, fontSize: 13, marginBottom: 4 },
   tarjeta: { backgroundColor: tema.superficie, borderRadius: 20, padding: 20, gap: 8 },

@@ -81,6 +81,25 @@ describe("activar cuenta", () => {
 })
 
 describe("entrar", () => {
+  it("permite ver y ocultar la contraseña sin perder lo escrito", async () => {
+    jest.mocked(useSesion).mockReturnValue({
+      entrar: jest.fn(),
+      sesionCaducada: false,
+    } as unknown as ReturnType<typeof useSesion>)
+    await render(<Login />)
+    const contrasena = screen.getByLabelText("Contraseña")
+    await fireEvent.changeText(contrasena, "Mi contraseña")
+    expect(contrasena).toHaveProp("secureTextEntry", true)
+    await fireEvent.press(screen.getByRole("button", { name: "Mostrar contraseña" }))
+    expect(screen.getByDisplayValue("Mi contraseña")).toHaveProp("secureTextEntry", false)
+    await fireEvent.press(screen.getByRole("button", { name: "Ocultar contraseña" }))
+    expect(screen.getByDisplayValue("Mi contraseña")).toHaveProp("secureTextEntry", true)
+    expect(screen.getByLabelText("Correo")).toHaveProp("keyboardType", "email-address")
+    expect(screen.getByPlaceholderText("Correo")).toBeOnTheScreen()
+    expect(screen.getByPlaceholderText("Contraseña")).toBeOnTheScreen()
+    expect(screen.queryByText("TRAINING")).toBeNull()
+  })
+
   it("dos «Go» seguidos del teclado entran una sola vez", async () => {
     let terminar = (): void => undefined
     const entrar = jest.fn(

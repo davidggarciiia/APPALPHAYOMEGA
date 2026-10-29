@@ -78,6 +78,20 @@ it("ofrece los cuatro destinos del entrenador y selecciona Inicio solo en la ra�
   })
 })
 
+it.each(["/", "/entrenamiento", "/nutricion", "/progreso"])(
+  "el cliente ve %s sin títulos repetidos",
+  async (ruta) => {
+    jest.mocked(usePathname).mockReturnValue(ruta)
+    jest.mocked(useSesion).mockReturnValue({
+      estado: { fase: "dentro", usuario: { nombre: "David", rol: "cliente" } },
+    } as ReturnType<typeof useSesion>)
+    await render(<Pantalla />)
+    expect(screen.queryByRole("header")).toBeNull()
+    expect(screen.getByRole("button", { name: "D, tu perfil" })).toBeOnTheScreen()
+    expect(screen.getAllByRole("tab")).toHaveLength(4)
+  },
+)
+
 it.each([430, 1440])(
   "conserva la edición y la navegación al cruzar escritorio desde %i",
   async (ancho) => {

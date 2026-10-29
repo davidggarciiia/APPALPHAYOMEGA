@@ -13,12 +13,14 @@ import type {
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
+import { EntradaMarca } from "../componentes/entrada-marca"
+import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { hoyAgenda, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
-import { fechaCorta, semanaDelBloque } from "../entrenamiento/plan/modelo"
+import { fechaCorta } from "../entrenamiento/plan/modelo"
 import { Fila, Pestanas, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
 import { Enlace } from "../entrenamiento/sesion/controles"
-import { tema } from "../tema"
+import { espacio, radio, tema, tipo } from "../tema"
 import type { ApiSeguimiento } from "./api"
 import { EditorConfiguracionSeguimiento } from "./configuracion"
 import { AnadirMedida, AnadirPrueba } from "./formularios"
@@ -135,6 +137,53 @@ export function ProgresoCliente({
 
   return (
     <View style={s.contenido}>
+      {modo === "entrenador" && datos && (
+        <EditorConfiguracionSeguimiento
+          valor={datos.configuracion}
+          guardar={async (configuracion) => {
+            const guardada = await seguimiento.guardarConfiguracion(clienteId, configuracion)
+            setDatos((actual) => (actual ? { ...actual, configuracion: guardada } : actual))
+            return guardada
+          }}
+          recargar={recargar}
+        />
+      )}
+      {opciones.length > 0 && activa && (
+        <Pestanas opciones={opciones} activa={activa} cambiar={setPestana} />
+      )}
+      {error !== "" && (
+        <View style={s.grupo}>
+          <AvisoDeError mensaje={error} />
+          <BotonSecundario texto="Reintentar" onPress={recargar} />
+        </View>
+      )}
+      {datos === null ? (
+        error === "" && <CargaProgreso />
+      ) : (
+        <EntradaMarca style={s.contenido}>
+          {!activa && <Text style={s.vacio}>Aún sin indicadores activos.</Text>}
+          {activa === "peso" && <Peso datos={datos} hoy={hoy} />}
+          {activa === "pasos" && <DatoDiario datos={datos} tipo="pasos" />}
+          {activa === "sueno" && <DatoDiario datos={datos} tipo="sueno" />}
+          {activa === "cintura" && <Cintura datos={datos} />}
+          {activa === "fuerza" && <Fuerza ejercicios={datos.fuerza} />}
+          {activa === "pruebas" && (
+            <Pruebas
+              pruebas={datos.pruebas}
+              anadir={() => setFormulario("prueba")}
+              pautadas={datos.configuracion.pruebasPrescritas}
+              puedeAnadir={modo === "cliente" && datos.configuracion.pruebasPrescritas.length > 0}
+            />
+          )}
+          {(activa === "peso" || activa === "cintura") && (
+            <>
+              <Semana datos={datos} lunes={lunes} />
+              <Inicio datos={datos} hoy={hoy} anadir={() => setFormulario("medida")} />
+            </>
+          )}
+          {modo === "cliente" && <SiguientesRegistros datos={datos} hoy={hoy} />}
+        </EntradaMarca>
+      )}
       {modo === "cliente" && valoraciones && (
         <ValoracionesCliente clienteId={clienteId} api={valoraciones} />
       )}
@@ -165,55 +214,6 @@ export function ProgresoCliente({
       {modo === "cliente" && medios && (
         <SolicitudesFotos clienteId={clienteId} api={medios} modo="cliente" nuevoId={randomUUID} />
       )}
-      {modo === "entrenador" && datos && (
-        <EditorConfiguracionSeguimiento
-          valor={datos.configuracion}
-          guardar={async (configuracion) => {
-            const guardada = await seguimiento.guardarConfiguracion(clienteId, configuracion)
-            setDatos((actual) => (actual ? { ...actual, configuracion: guardada } : actual))
-            return guardada
-          }}
-          recargar={recargar}
-        />
-      )}
-      {opciones.length > 0 && activa && (
-        <Pestanas opciones={opciones} activa={activa} cambiar={setPestana} />
-      )}
-      {error !== "" && (
-        <View style={s.grupo}>
-          <AvisoDeError mensaje={error} />
-          <BotonSecundario texto="Reintentar" onPress={recargar} />
-        </View>
-      )}
-      {datos === null ? (
-        error === "" && <Text style={s.tenue}>Cargando tu progreso…</Text>
-      ) : (
-        <>
-          {!activa && (
-            <Text style={s.vacio}>Tu entrenador no ha elegido indicadores visibles todavía.</Text>
-          )}
-          {modo === "cliente" && <SiguientesRegistros datos={datos} hoy={hoy} />}
-          {activa === "peso" && <Peso datos={datos} hoy={hoy} />}
-          {activa === "pasos" && <DatoDiario datos={datos} tipo="pasos" />}
-          {activa === "sueno" && <DatoDiario datos={datos} tipo="sueno" />}
-          {activa === "cintura" && <Cintura datos={datos} />}
-          {activa === "fuerza" && <Fuerza ejercicios={datos.fuerza} />}
-          {activa === "pruebas" && (
-            <Pruebas
-              pruebas={datos.pruebas}
-              anadir={() => setFormulario("prueba")}
-              pautadas={datos.configuracion.pruebasPrescritas}
-              puedeAnadir={modo === "cliente" && datos.configuracion.pruebasPrescritas.length > 0}
-            />
-          )}
-          {(activa === "peso" || activa === "cintura") && (
-            <>
-              <Semana datos={datos} lunes={lunes} />
-              <Inicio datos={datos} hoy={hoy} anadir={() => setFormulario("medida")} />
-            </>
-          )}
-        </>
-      )}
       <AnadirMedida
         visible={formulario === "medida"}
         cerrar={() => setFormulario(null)}
@@ -235,22 +235,60 @@ export function ProgresoCliente({
   )
 }
 
+function CargaProgreso(): React.JSX.Element {
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel="Cargando progreso"
+      style={s.contenido}
+    >
+      <GrupoEsqueletos>
+        <Esqueleto alto={44} />
+        <View style={s.destacada}>
+          <Esqueleto ancho="55%" alto={60} />
+          <Esqueleto ancho="70%" alto={18} />
+          <Esqueleto alto={140} />
+        </View>
+        <Esqueleto alto={168} radio={radio.tarjeta} />
+      </GrupoEsqueletos>
+    </View>
+  )
+}
+
 function DatoDiario({ datos, tipo }: { datos: Datos; tipo: "pasos" | "sueno" }): React.JSX.Element {
   const valores = datos.dias.filter((dia) => dia[tipo === "pasos" ? "pasos" : "suenoMin"] !== null)
   const ultimo = valores[valores.length - 1]
   if (!ultimo)
     return (
-      <Text style={s.vacio}>
-        Todavía no hay registros de {tipo === "pasos" ? "pasos" : "sueño"}.
-      </Text>
+      <Tendencia
+        grande="—"
+        unidad={tipo === "pasos" ? "pasos" : "h"}
+        subtitulo="Sin registros"
+        cambio={null}
+      />
     )
   const valor = tipo === "pasos" ? miles(ultimo.pasos!) : suenoLegible(ultimo.suenoMin!)
+  const puntos = valores.map((dia) => ({
+    fecha: dia.fecha,
+    valor: tipo === "pasos" ? dia.pasos! : dia.suenoMin!,
+  }))
   return (
     <Tendencia
       grande={valor}
+      unidad={tipo === "pasos" ? "pasos" : undefined}
       subtitulo={`Último registro · ${fechaCorta(ultimo.fecha)}`}
       cambio={null}
-    />
+    >
+      <Grafica
+        animar
+        puntos={puntos}
+        tendencia={puntos}
+        descripcion={`${NOMBRE[tipo]} por día. Último registro: ${valor}${tipo === "pasos" ? " pasos" : ""}.`}
+        izquierda={fechaCorta(puntos[0]!.fecha)}
+        derecha={fechaCorta(ultimo.fecha)}
+      />
+    </Tendencia>
   )
 }
 
@@ -280,12 +318,14 @@ function SiguientesRegistros({
 
 function Tendencia({
   grande,
+  unidad,
   subtitulo,
   cambio,
   sentido = "neutral",
   children,
 }: {
   grande: string
+  unidad?: string
   subtitulo: string
   cambio: string | null
   sentido?: "neutral" | "favorable" | "desfavorable"
@@ -293,7 +333,10 @@ function Tendencia({
 }): React.JSX.Element {
   return (
     <View style={s.destacada}>
-      <Text style={s.grande}>{grande}</Text>
+      <Text style={s.grande}>
+        {grande}
+        {unidad && <Text style={s.unidad}> {unidad}</Text>}
+      </Text>
       <Text style={s.tenue}>
         {subtitulo}
         {cambio && (
@@ -315,12 +358,7 @@ function Tendencia({
 function Peso({ datos, hoy }: { datos: Datos; hoy: string }): React.JSX.Element {
   const conPeso = datos.dias.filter((d) => d.pesoKg !== null)
   if (conPeso.length === 0)
-    return (
-      <Text style={s.vacio}>
-        Apunta tu peso en ayunas desde «Hoy», en el Inicio: aquí verás la media de la semana y cómo
-        evoluciona.
-      </Text>
-    )
+    return <Tendencia grande="—" unidad="kg" subtitulo="Sin registros" cambio={null} />
   const tendencia = mediaMovil(datos.dias, 7)
   const actual = tendencia[tendencia.length - 1]!
   const inicio = datos.medidas.medidas.find((m) => m.pesoKg !== null)?.pesoKg ?? tendencia[0]!.valor
@@ -333,16 +371,18 @@ function Peso({ datos, hoy }: { datos: Datos; hoy: string }): React.JSX.Element 
   const desde = puntos[0]!.fecha
   return (
     <Tendencia
-      grande={pesoLegible(actual.valor)}
+      grande={decimal(actual.valor)}
+      unidad="kg"
       subtitulo="Media semanal"
       sentido={sentidoDelPeso(datos.configuracion.objetivoPeso, inicio, actual.valor)}
       cambio={
         actual.valor === inicio
           ? null
-          : `${diferencia(actual.valor - inicio, "kg")} respecto al inicio`
+          : `${diferencia(actual.valor - inicio, "kg")} desde el inicio`
       }
     >
       <Grafica
+        animar
         puntos={puntos}
         tendencia={tendencia.filter((p) => p.fecha >= desde)}
         descripcion={`Peso en ayunas por día. Media de la semana: ${pesoLegible(actual.valor)}. Último: ${pesoLegible(ultimo.pesoKg!)}.`}
@@ -364,22 +404,24 @@ function Peso({ datos, hoy }: { datos: Datos; hoy: string }): React.JSX.Element 
 function Cintura({ datos }: { datos: Datos }): React.JSX.Element {
   const medidas = datos.medidas.medidas.filter((m) => m.cinturaCm !== null)
   if (medidas.length === 0)
-    return <Text style={s.vacio}>Aún no hay medidas de cintura. Añade una abajo, en «Inicio».</Text>
+    return <Tendencia grande="—" unidad="cm" subtitulo="Sin medidas" cambio={null} />
   const puntos = medidas.map((m) => ({ fecha: m.fecha, valor: m.cinturaCm! }))
   const ultima = puntos[puntos.length - 1]!
   const primera = puntos[0]!
   return (
     <Tendencia
-      grande={`${decimal(ultima.valor).replace(",0", "")} cm`}
+      grande={decimal(ultima.valor).replace(",0", "")}
+      unidad="cm"
       subtitulo="Última medida"
       cambio={
         puntos.length > 1
-          ? `${diferencia(ultima.valor - primera.valor, "cm")} respecto al inicio`
+          ? `${diferencia(ultima.valor - primera.valor, "cm")} desde el inicio`
           : null
       }
     >
       {puntos.length > 1 && (
         <Grafica
+          animar
           puntos={puntos}
           tendencia={puntos}
           descripcion={`Cintura por medida. Primera: ${decimal(primera.valor)} cm. Última: ${decimal(ultima.valor)} cm.`}
@@ -392,12 +434,7 @@ function Cintura({ datos }: { datos: Datos }): React.JSX.Element {
 }
 
 function Fuerza({ ejercicios }: { ejercicios: ProgresionFuerza["ejercicios"] }): React.JSX.Element {
-  if (ejercicios.length === 0)
-    return (
-      <Text style={s.vacio}>
-        Cuando envíes sesiones con carga, aquí verás cómo sube tu mejor serie de cada ejercicio.
-      </Text>
-    )
+  if (ejercicios.length === 0) return <Text style={s.vacio}>Aún sin sesiones con carga.</Text>
   return (
     <View style={s.grupo}>
       {ejercicios.map((ejercicio) => {
@@ -515,8 +552,6 @@ function Semana({ datos, lunes }: { datos: Datos; lunes: string }): React.JSX.El
     .reverse()
     .find((m) => m.cinturaCm !== null && m.fecha <= sumarDias(lunes, 6))
   const objetivo = datos.plan?.bloque?.pasosDiarios
-  const hechas = datos.semana.sesiones.filter((s_) => s_.enviadoEn !== null).length
-  const titulo = datos.plan ? `Semana ${semanaDelBloque(datos.plan, lunes)}` : "Esta semana"
   const filas: Array<[string, string]> = [
     ["Cintura", cintura ? `${decimal(cintura.cinturaCm!).replace(",0", "")} cm` : "—"],
     [
@@ -526,11 +561,10 @@ function Semana({ datos, lunes }: { datos: Datos; lunes: string }): React.JSX.El
         : `${miles(resumen.pasos)}${objetivo ? ` / ${miles(objetivo)}` : ""}`,
     ],
     ["Sueño", resumen.suenoMin === null ? "—" : suenoLegible(resumen.suenoMin)],
-    ["Entrenos", `${hechas} fuerza`],
   ]
   return (
     <View style={s.grupo}>
-      <Titulo>{titulo}</Titulo>
+      <Titulo>Semana</Titulo>
       <Tarjeta>
         {filas.map(([nombre, valor], n) => (
           <Fila key={nombre} primera={n === 0}>
@@ -616,20 +650,27 @@ function Inicio({
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 28 },
-  grupo: { gap: 14 },
+  contenido: { gap: espacio[28] },
+  grupo: { gap: espacio[12] },
   cabecera: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 },
-  vacio: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 22 },
-  destacada: { backgroundColor: tema.superficie, borderRadius: 20, padding: 18, gap: 6 },
+  tenue: { ...tipo.secundario },
+  vacio: { ...tipo.cuerpo, color: tema.textoTenue },
+  destacada: {
+    backgroundColor: tema.superficie,
+    borderRadius: radio.tarjeta,
+    padding: espacio[16],
+    gap: espacio[8],
+  },
   grande: {
     color: tema.acento,
     fontFamily: tema.fuenteTitulo,
-    fontSize: 44,
-    lineHeight: 50,
+    fontSize: 56,
+    lineHeight: 60,
+    fontVariant: ["tabular-nums"],
   },
+  unidad: { fontSize: 22, lineHeight: 26 },
   sube: { color: tema.acento, fontFamily: tema.fuenteBoton },
-  baja: { color: tema.exito, fontFamily: tema.fuenteBoton },
+  baja: { color: tema.exito, backgroundColor: tema.exitoSuave, fontFamily: tema.fuenteBoton },
   error: { color: tema.error, fontFamily: tema.fuenteBoton },
   nombreEjercicio: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 17 },
   textos: { flex: 1 },

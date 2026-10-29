@@ -12,12 +12,14 @@ export function FechaSesion({
   actualizado,
   iniciarAbierta = false,
   onTerminar,
+  enHoja = false,
 }: {
   agenda: SesionProgramada
   api: Pick<ApiEntrenamiento, "mover" | "cambios">
   actualizado: () => Promise<void>
   iniciarAbierta?: boolean
   onTerminar?: () => void
+  enHoja?: boolean
 }): React.JSX.Element {
   const [eligiendo, setEligiendo] = useState(iniciarAbierta)
   const [ocupado, setOcupado] = useState(false)
@@ -58,21 +60,23 @@ export function FechaSesion({
     <View
       style={{
         gap: 6,
-        padding: 16,
+        padding: enHoja ? 0 : 16,
         backgroundColor: tema.superficie,
         borderRadius: 20,
       }}
     >
-      <Text style={{ color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 16 }}>
-        {fechaLegible(agenda.fechaActual)}
-      </Text>
+      {!enHoja && (
+        <Text style={{ color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 16 }}>
+          {fechaLegible(agenda.fechaActual)}
+        </Text>
+      )}
       {agenda.fechaActual !== agenda.fechaOriginal && (
         <Text style={{ color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 }}>
           Día original: {fechaLegible(agenda.fechaOriginal)}
         </Text>
       )}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-        {agenda.estado === "abierta" && (
+        {!enHoja && agenda.estado === "abierta" && (
           <BotonSecundario
             texto={eligiendo ? "Cancelar cambio de día" : "Cambiar día"}
             onPress={() => setEligiendo(!eligiendo)}
@@ -102,7 +106,9 @@ export function FechaSesion({
       {eligiendo && (
         <View style={{ gap: 4 }}>
           <Text style={{ color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14 }}>
-            Puedes elegir cualquier día de esta semana. Tu entrenador verá el cambio.
+            {enHoja
+              ? "Tu entrenador ve el cambio"
+              : "Puedes elegir cualquier día de esta semana. Tu entrenador verá el cambio."}
           </Text>
           {Array.from({ length: 7 }, (_, n) =>
             sumarDias(lunesDeSemana(agenda.fechaOriginal), n),

@@ -1,7 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import type { EjercicioPrescrito, Prescripcion, ResumenSesion } from "@alpha-omega/shared"
 
-import { degradadoOro, tema } from "../../tema"
+import { tema } from "../../tema"
 import { tamanoDelNombre } from "../hoy-toca"
 import { porSecciones } from "../sesion/modelo"
 import {
@@ -51,7 +51,13 @@ export function RutinaDeLaSemana({
   const minutos = (clave: (typeof PARTES)[number]["clave"]): string | undefined => partes?.[clave]
   return (
     <View style={s.contenido}>
-      <View style={s.dias} accessibilityRole="tablist" accessibilityLabel="Días de la semana">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.dias}
+        accessibilityRole="tablist"
+        accessibilityLabel="Días de la semana"
+      >
         {dias.map((d) => {
           const activo = d === dia
           const n = diaDeLaSemana(d.resumen.agenda.fechaActual)
@@ -62,7 +68,7 @@ export function RutinaDeLaSemana({
               accessibilityState={{ selected: activo }}
               accessibilityLabel={`${NOMBRES_DE_DIA[n - 1]}: ${d.resumen.nombre}`}
               onPress={() => elegir(d.resumen.agenda.id)}
-              style={[s.dia, activo && [s.diaActivo, degradadoOro]]}
+              style={[s.dia, activo && s.diaActivo]}
             >
               <Text style={[s.textoDia, activo && s.textoDiaActivo]}>
                 {INICIALES_DE_DIA[n - 1]}
@@ -71,7 +77,7 @@ export function RutinaDeLaSemana({
             </Pressable>
           )
         })}
-      </View>
+      </ScrollView>
       <View style={s.cabecera}>
         <Text style={s.nombreDia}>
           {NOMBRES_DE_DIA[numero - 1]}
@@ -188,9 +194,10 @@ export function RutinaDeLaSemana({
 const s = StyleSheet.create({
   contenido: { gap: 24 },
   vacio: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 22 },
-  dias: { flexDirection: "row", gap: 8 },
+  dias: { flexDirection: "row", flexGrow: 1, gap: 8 },
   dia: {
     flex: 1,
+    minWidth: 44,
     height: 46,
     maxWidth: 80,
     borderRadius: 12,
@@ -200,9 +207,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  diaActivo: { borderColor: "transparent" },
+  diaActivo: { borderColor: tema.acento, backgroundColor: tema.acentoSuave },
   textoDia: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
-  textoDiaActivo: { color: tema.sobreAcento },
+  textoDiaActivo: { color: tema.acento },
   hecho: {
     position: "absolute",
     bottom: 6,
@@ -211,7 +218,7 @@ const s = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: tema.exito,
   },
-  hechoActivo: { backgroundColor: tema.sobreAcento },
+  hechoActivo: { backgroundColor: tema.exito },
   cabecera: { gap: 2 },
   nombreDia: {
     color: tema.textoTenue,
