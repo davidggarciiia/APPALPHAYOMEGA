@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react-nativ
 import Perfil from "../../app/perfil"
 import { guardarPerfil, leerPerfil } from "../lib/api"
 import { useSesion } from "../sesion"
+import { TarjetaConsentimiento } from "../consentimiento"
 
 const mockReplace = jest.fn()
 jest.mock("expo-router", () => ({
@@ -22,6 +23,7 @@ jest.mock("../lib/api", () => ({
   guardarPerfil: jest.fn(),
 }))
 jest.mock("../sesion", () => ({ useSesion: jest.fn() }))
+jest.mock("../consentimiento", () => ({ TarjetaConsentimiento: jest.fn(() => null) }))
 
 const perfil = {
   id: "cliente",
@@ -117,4 +119,38 @@ it("permite volver al inicio aunque falle la carga del perfil", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent(/No hemos podido cargar tu perfil/)
   await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
   expect(mockReplace).toHaveBeenCalledWith("/")
+})
+
+it("el entrenador tiene su perfil común, sin consentimiento, y cierra sesión desde aquí", async () => {
+  const entrenador = { ...perfil, nombre: "Carlos", rol: "entrenador" as const }
+  const salir = jest.fn()
+  jest.mocked(useSesion).mockReturnValue({
+    estado: { fase: "dentro", usuario: entrenador, tokenAcceso: "token" },
+    salir,
+    pedir,
+  } as unknown as ReturnType<typeof useSesion>)
+  jest.mocked(leerPerfil).mockResolvedValue(entrenador)
+  await render(<Perfil />)
+  expect(await screen.findByRole("header", { name: "Carlos Demo" })).toBeOnTheScreen()
+  expect(screen.getByText("entrenador")).toBeOnTheScreen()
+  expect(screen.getByText("activo")).toBeOnTheScreen()
+  expect(TarjetaConsentimiento).not.toHaveBeenCalled()
+  await fireEvent.press(screen.getByRole("button", { name: "Cerrar sesión" }))
+  expect(salir).toHaveBeenCalledTimes(1)
+})
+
+it("mantiene el consentimiento en el perfil del cliente", async () => {
+  await render(<Perfil />)
+  await screen.findByRole("header", { name: "Cliente Demo" })
+  expect(TarjetaConsentimiento).toHaveBeenCalled()
+})
+
+it("reintenta la carga fallida y permite editar después", async () => {
+  jest.mocked(leerPerfil).mockRejectedValueOnce(new Error("Sin red"))
+  await render(<Perfil />)
+  await screen.findByRole("alert")
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
+  expect(await screen.findByRole("header", { name: "Cliente Demo" })).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Editar datos personales" }))
+  expect(screen.getByLabelText("Teléfono")).toHaveProp("keyboardType", "phone-pad")
 })

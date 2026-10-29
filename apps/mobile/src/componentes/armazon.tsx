@@ -59,6 +59,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const { usuario } = estado
   const principal = ruta.split("/").filter(Boolean)[0] ?? ""
   const esCliente = usuario.rol === "cliente"
+  const esEntrenador = usuario.rol === "entrenador"
   const destinos: Destino[] =
     estado.fase === "local"
       ? cliente.slice(1, 3)
@@ -82,6 +83,14 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const enPrincipal = PRINCIPALES.includes(ruta)
   // A pantalla completa, con su propio botón de volver: la sesión y cada comida.
   const sesionCompleta = esCliente && /^\/(entrenamiento\/[^/]+|nutricion\/comida)$/.test(ruta)
+  const cabeceraPropia =
+    principal === "perfil" ||
+    (esEntrenador &&
+      (/^\/entrenador\/cliente\/[^/]+$/.test(ruta) || /^\/entrenamiento\/[^/]+$/.test(ruta)))
+  const cabeceraDeMarca =
+    enPrincipal &&
+    ((esCliente && ["", "entrenamiento", "nutricion", "progreso"].includes(principal)) ||
+      (esEntrenador && ["", "cartera"].includes(principal)))
   const titulo =
     principal === "" && esCliente
       ? `Hola, ${usuario.nombre.split(" ")[0] ?? ""}`
@@ -189,19 +198,22 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
           ) : (
             <>
               {!sesionCompleta &&
-                principal !== "perfil" &&
-                (esCliente &&
-                ["", "entrenamiento", "nutricion", "progreso"].includes(principal) &&
-                enPrincipal ? (
+                !cabeceraPropia &&
+                (cabeceraDeMarca ? (
                   <View style={s.cabecera}>
                     <View style={s.fila}>
-                      <Image
-                        source={emblema}
-                        style={s.emblema}
-                        resizeMode="contain"
-                        accessibilityRole="image"
-                        accessibilityLabel="Alpha & Omega Training"
-                      />
+                      {esEntrenador && principal === "cartera" ? (
+                        <View />
+                      ) : (
+                        <Image
+                          accessible
+                          source={emblema}
+                          style={s.emblema}
+                          resizeMode="contain"
+                          accessibilityRole="image"
+                          accessibilityLabel="Alpha & Omega Training"
+                        />
+                      )}
                       {avatar}
                     </View>
                     {sinConexion}

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
-import { AppState } from "react-native"
+import { AppState, StyleSheet } from "react-native"
 import type { FichaDeUsuario, ListadoResultados, Molestia } from "@alpha-omega/shared"
 
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
@@ -31,10 +31,21 @@ jest.mock("../../seguimiento/editor-valoracion", () => ({
 jest.mock("../../seguimiento/progreso", () => ({ ProgresoCliente: () => null }))
 
 const mockPush = jest.fn()
+const mockBack = jest.fn()
+const mockReplace = jest.fn()
+const mockCanGoBack = jest.fn(() => false)
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}))
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({
+    push: mockPush,
+    back: mockBack,
+    replace: mockReplace,
+    canGoBack: mockCanGoBack,
+  }),
 }))
 
 const clienteId = "30000000-0000-4000-8000-000000000000"
@@ -47,7 +58,9 @@ beforeEach(() => {
 function apiDeFicha() {
   return {
     plan: jest.fn(async () => ({ plan: null })),
-    resultados: jest.fn(async () => ({ resultados: [] })),
+    resultados: jest
+      .fn<ReturnType<ApiEntrenamiento["resultados"]>, Parameters<ApiEntrenamiento["resultados"]>>()
+      .mockResolvedValue({ resultados: [] }),
     molestias: jest
       .fn<ReturnType<ApiEntrenamiento["molestias"]>, Parameters<ApiEntrenamiento["molestias"]>>()
       .mockResolvedValue({ molestias: [], total: 0 }),
@@ -58,14 +71,19 @@ function apiDeFicha() {
 async function mostrarFicha(
   api: ApiEntrenamiento,
   consultas: Partial<
-    Pick<Parameters<typeof FichaCliente>[0], "leerFicha" | "nutricion" | "seguimiento">
+    Pick<
+      Parameters<typeof FichaCliente>[0],
+      "leerFicha" | "nutricion" | "seguimiento" | "verSemana"
+    >
   > = {},
 ): Promise<void> {
   await render(
     <FichaCliente
       clienteId={clienteId}
       cuentaId={clienteId}
-      leerFicha={async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario}
+      leerFicha={async () =>
+        ({ nombre: "Lara", apellidos: "García", estado: "activo" }) as FichaDeUsuario
+      }
       api={api}
       seguimiento={
         {
@@ -325,20 +343,18 @@ it.each(["C", "fuera-del-listado"])(
 
     await screen.findByText("Molestia ámbar en otra zona")
     await fireEvent.press(screen.getAllByRole("button", { name: "Ver sesión" })[0]!)
-    if (destino === "C") {
-      expect(screen.getByRole("header", { name: /^C ·/ })).toBeOnTheScreen()
-      expect(api.comentarios).toHaveBeenLastCalledWith("C")
-    } else {
-      expect(mockPush).toHaveBeenCalledWith({
-        pathname: "/entrenamiento/[id]",
-        params: { id: destino },
-      })
-      expect(api.comentarios).not.toHaveBeenCalled()
-    }
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/entrenamiento/[id]",
+      params: { id: destino, nombre: "Lara" },
+    })
+    expect(api.comentarios).not.toHaveBeenCalled()
 
     await fireEvent.press(screen.getByRole("tab", { name: "Resumen" }))
-    await fireEvent.press(screen.getAllByRole("button", { name: "Ver sesión" })[1]!)
-    expect(screen.getByRole("header", { name: /^A ·/ })).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Revisar sesión" }))
+    expect(mockPush).toHaveBeenLastCalledWith({
+      pathname: "/entrenamiento/[id]",
+      params: { id: "A", nombre: "Lara" },
+    })
   },
 )
 
@@ -441,10 +457,123 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
   await waitFor(() =>
     expect(mockPush).toHaveBeenCalledWith({
       pathname: "/entrenamiento/[id]",
-      params: { id: sesionId },
+      params: { id: sesionId, nombre: "Lara" },
     }),
   )
   expect(api.leerNovedades).toHaveBeenCalledWith(sesionId, {
     novedadIds: ["10000000-0000-4000-8000-000000000003"],
   })
+})
+
+it("muestra cabecera propia, acciones iguales y Molestias sin check-ins", async () => {
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
+  expect(screen.getByText("ACTIVO")).toBeOnTheScreen()
+  expect(
+    StyleSheet.flatten(screen.getByRole("header", { name: "Lara García" }).props.style),
+  ).toMatchObject({ fontSize: 34, lineHeight: 38 })
+  expect(screen.getByTestId("ficha-accion-semana")).toHaveStyle({ flex: 1 })
+  expect(screen.getByTestId("ficha-accion-plan")).toHaveStyle({ flex: 1 })
+  expect(screen.queryByRole("tab", { name: "Check-ins y molestias" })).toBeNull()
+  await fireEvent.press(screen.getByRole("tab", { name: "Molestias" }))
+  expect(screen.getByText("Ninguna molestia registrada.")).toBeOnTheScreen()
+  expect(screen.queryByText("Check-ins")).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(mockReplace).toHaveBeenCalledWith("/cartera")
+})
+
+it("volver utiliza el historial cuando la ficha se abrió desde otra pantalla", async () => {
+  mockCanGoBack.mockReturnValueOnce(true)
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(mockBack).toHaveBeenCalledTimes(1)
+})
+
+it("Semana conserva el nombre completo del cliente para la revisión", async () => {
+  const verSemana = jest.fn()
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, { verSemana })
+  await fireEvent.press(screen.getByRole("button", { name: "Semana" }))
+  expect(verSemana).toHaveBeenCalledWith("Lara García")
+})
+
+it("la carga inicial usa esqueletos de cabecera y tarjetas", async () => {
+  const api = apiDeFicha()
+  api.plan.mockImplementationOnce(() => new Promise(() => undefined))
+  await mostrarFicha(api as unknown as ApiEntrenamiento)
+  expect(screen.queryByText("Cargando la ficha…")).toBeNull()
+  expect(
+    screen.getAllByTestId("esqueleto", { includeHiddenElements: true }).length,
+  ).toBeGreaterThanOrEqual(4)
+})
+
+it("Salud permite abrir la administración de datos y acceso del cliente", async () => {
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
+  await fireEvent.press(screen.getByRole("tab", { name: "Salud" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Datos y acceso" }))
+  expect(mockPush).toHaveBeenCalledWith({ pathname: "/cliente/[id]", params: { id: clienteId } })
+})
+
+it("consulta solo la revisión de la última en Resumen y carga el resto al entrar en Sesiones", async () => {
+  const api = apiDeFicha()
+  const resultados: ListadoResultados["resultados"] = ["A", "B"].map((id) => ({
+    agenda: {
+      id,
+      clienteId,
+      fechaOriginal: "2026-10-01",
+      fechaActual: "2026-10-01",
+      estado: "cerrada",
+      revision: 0,
+    },
+    resultado: {
+      sesionId: id,
+      prescripcion: { nombre: id, ejercicios: [] },
+      revisionPrescripcion: 0,
+      enviadoEn: "2026-10-01T10:00:00Z",
+      notas: null,
+      series: [],
+    },
+  }))
+  api.resultados.mockResolvedValue({ resultados })
+  const leerEntrenador = jest.fn(async () => ({ revisadaEn: null }))
+  await mostrarFicha({ ...api, leerEntrenador } as unknown as ApiEntrenamiento)
+  expect(leerEntrenador).toHaveBeenCalledTimes(1)
+  expect(leerEntrenador).toHaveBeenCalledWith("A")
+  await fireEvent.press(screen.getByRole("tab", { name: "Sesiones" }))
+  expect(leerEntrenador).toHaveBeenCalledTimes(3)
+  expect(leerEntrenador).toHaveBeenLastCalledWith("B")
+})
+
+it("una revisión sin permiso oculta también el resto de la ficha", async () => {
+  const api = apiDeFicha()
+  api.resultados.mockResolvedValue({
+    resultados: [
+      {
+        agenda: {
+          id: sesionId,
+          clienteId,
+          fechaOriginal: "2026-10-01",
+          fechaActual: "2026-10-01",
+          estado: "cerrada",
+          revision: 0,
+        },
+        resultado: {
+          sesionId,
+          prescripcion: { nombre: "A", ejercicios: [] },
+          revisionPrescripcion: 0,
+          enviadoEn: "2026-10-01T10:00:00Z",
+          notas: null,
+          series: [],
+        },
+      },
+    ],
+  })
+  await mostrarFicha({
+    ...api,
+    leerEntrenador: jest.fn(async () => {
+      throw new ErrorDePermiso()
+    }),
+  } as unknown as ApiEntrenamiento)
+  expect(screen.queryByText("Lara García")).toBeNull()
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "No tienes permiso para acceder a estos datos.",
+  )
 })

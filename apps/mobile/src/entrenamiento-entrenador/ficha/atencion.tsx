@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import { useEffect, useRef, useState } from "react"
+import { StyleSheet, Text, TextInput, View } from "react-native"
 import {
   ETIQUETA_DE_SINTOMA,
   ETIQUETA_DE_ZONA,
@@ -8,10 +8,13 @@ import {
 } from "@alpha-omega/shared"
 
 import { AvisoDeError } from "../../componentes/formulario"
+import { BotonPrincipal, BotonSecundario } from "../../componentes/botones"
+import { Hoja } from "../../componentes/hoja"
+import { Pulsable } from "../../componentes/pulsable"
 import { Titulo } from "../../entrenamiento/plan/piezas"
-import { Dialogo, Enlace } from "../../entrenamiento/sesion/controles"
+import { Enlace } from "../../entrenamiento/sesion/controles"
 import { faltaDe } from "../../lib/errores"
-import { degradadoOro, tema } from "../../tema"
+import { espacio, radio, tema } from "../../tema"
 import { senalesDeVolumen } from "../ficha-modelo"
 
 const NIVEL = { verde: "verde", ambar: "ámbar", rojo: "roja" } as const
@@ -45,6 +48,11 @@ export function DialogoResponder({
   const [texto, setTexto] = useState("")
   const [error, setError] = useState("")
   const [enviando, setEnviando] = useState(false)
+  const enCurso = useRef(false)
+  useEffect(() => {
+    setTexto("")
+    setError("")
+  }, [molestia?.id])
   // Lo escrito es una indicación de salud para ESTA molestia: no debe quedar
   // puesto cuando se abra la respuesta de otra.
   const cancelar = (): void => {
@@ -53,39 +61,50 @@ export function DialogoResponder({
     cerrar()
   }
   return (
-    <Dialogo
+    <Hoja
       visible={molestia !== null}
       titulo="Responder a la molestia"
-      texto={molestia ? textoDeMolestia(molestia).detalle : ""}
-      confirmar={enviando ? "Enviando…" : "Enviar respuesta"}
-      cancelar="Cancelar"
-      alCancelar={cancelar}
-      alConfirmar={() => {
-        if (!molestia || enviando) return
-        if (texto.trim() === "") return setError("Escribe qué debe hacer.")
-        setEnviando(true)
-        setError("")
-        responder(molestia, texto.trim())
-          .then(() => {
-            setTexto("")
-            cerrar()
-          })
-          .catch((e: unknown) => setError(faltaDe(e, "No se pudo enviar la respuesta.").texto))
-          .finally(() => setEnviando(false))
-      }}
+      alCerrar={() => !enCurso.current && cancelar()}
     >
-      <TextInput
-        accessibilityLabel="Respuesta para el cliente"
-        value={texto}
-        onChangeText={setTexto}
-        placeholder="Por ejemplo: cambia a press con agarre neutro y baja a 22 kg."
-        placeholderTextColor={tema.marcador}
-        multiline
-        maxLength={1000}
-        style={s.campo}
-      />
-      {error !== "" && <AvisoDeError mensaje={error} />}
-    </Dialogo>
+      <View style={s.grupo}>
+        <Text style={s.tenue}>{molestia ? textoDeMolestia(molestia).detalle : ""}</Text>
+        <TextInput
+          accessibilityLabel="Respuesta para el cliente"
+          value={texto}
+          onChangeText={setTexto}
+          editable={!enviando}
+          placeholder="Por ejemplo: cambia a press con agarre neutro y baja a 22 kg."
+          placeholderTextColor={tema.marcador}
+          multiline
+          maxLength={1000}
+          style={s.campo}
+        />
+        {error !== "" && <AvisoDeError mensaje={error} />}
+        <BotonPrincipal
+          texto="Enviar respuesta"
+          ocupado={enviando}
+          sinMargen
+          onPress={() => {
+            if (!molestia || enCurso.current) return
+            if (texto.trim() === "") return setError("Escribe qué debe hacer.")
+            enCurso.current = true
+            setEnviando(true)
+            setError("")
+            responder(molestia, texto.trim())
+              .then(() => {
+                setTexto("")
+                cerrar()
+              })
+              .catch((e: unknown) => setError(faltaDe(e, "No se pudo enviar la respuesta.").texto))
+              .finally(() => {
+                enCurso.current = false
+                setEnviando(false)
+              })
+          }}
+        />
+        <BotonSecundario texto="Cancelar" sinMargen deshabilitado={enviando} onPress={cancelar} />
+      </View>
+    </Hoja>
   )
 }
 
@@ -101,7 +120,7 @@ export function RequiereAtencion({
   semana: ResultadoEntrenamiento[]
   responder: (molestia: Molestia) => void
   verSesiones: (sesionId: string) => void
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const [criterios, setCriterios] = useState(false)
   const abiertas = molestias
     .filter((m) => m.estado === "abierta")
@@ -110,13 +129,11 @@ export function RequiereAtencion({
     )
   const senales = senalesDeVolumen(semana, molestias)
   const cumplidas = senales.filter((s) => s.cumple).length
+  if (abiertas.length === 0 && cumplidas === 0) return null
   return (
     <View style={s.grupo}>
       <Titulo>Requiere tu atención</Titulo>
       <View style={s.tarjeta}>
-        {abiertas.length === 0 && cumplidas === 0 && (
-          <Text style={s.tenue}>Nada pendiente: sin molestias abiertas ni señales de fatiga.</Text>
-        )}
         {abiertas.map((m, n) => {
           const { titulo, detalle } = textoDeMolestia(m)
           return (
@@ -124,75 +141,91 @@ export function RequiereAtencion({
               <View style={[s.punto, { backgroundColor: COLOR[m.nivel] }]} />
               <View style={s.textos}>
                 <Text style={s.fuerte}>{titulo}</Text>
-                <Text style={s.tenue}>{detalle}</Text>
+                <Text style={s.tenue} numberOfLines={1}>
+                  {detalle}
+                </Text>
               </View>
               <View style={s.acciones}>
                 <Enlace texto="Ver sesión" onPress={() => verSesiones(m.sesionId)} />
-                <Pressable
+                <Pulsable
                   accessibilityRole="button"
                   accessibilityLabel={`Responder: ${titulo}`}
                   onPress={() => responder(m)}
-                  style={[s.boton, degradadoOro]}
+                  style={s.boton}
                 >
                   <Text style={s.textoBoton}>Responder</Text>
-                </Pressable>
+                </Pulsable>
               </View>
             </View>
           )
         })}
-        <View style={[s.fila, abiertas.length > 0 && s.separada]}>
-          <View style={[s.punto, { backgroundColor: cumplidas >= 2 ? tema.error : tema.aviso }]} />
-          <View style={s.textos}>
-            <Text style={s.fuerte}>{cumplidas} de 2 señales para bajar volumen esta semana</Text>
-            <Text style={s.tenue}>
-              {cumplidas >= 2
-                ? "Propón bajar un 25–30 % el volumen, empezando por los accesorios. Los compuestos no se recortan."
-                : `Con ${2 - cumplidas === 1 ? "una más" : "dos"}, la app te propondrá bajar un 25–30 % el volumen, empezando por los accesorios.`}
-            </Text>
-            {criterios &&
-              senales.map((senal) => (
-                <Text key={senal.texto} style={senal.cumple ? s.cumple : s.tenue}>
-                  {senal.cumple ? "● " : "○ "}
-                  {senal.texto}
-                </Text>
-              ))}
+        {cumplidas > 0 && (
+          <View style={[s.fila, abiertas.length > 0 && s.separada]}>
+            <View
+              style={[s.punto, { backgroundColor: cumplidas >= 2 ? tema.error : tema.aviso }]}
+            />
+            <View style={s.textos}>
+              <Text style={s.fuerte}>
+                {cumplidas} {cumplidas === 1 ? "señal" : "señales"} para bajar volumen esta semana
+              </Text>
+              <Text style={s.tenue}>
+                {cumplidas >= 2
+                  ? "Propón bajar un 25–30 % el volumen, empezando por los accesorios. Los compuestos no se recortan."
+                  : `Con ${2 - cumplidas === 1 ? "una más" : "dos"}, la app te propondrá bajar un 25–30 % el volumen, empezando por los accesorios.`}
+              </Text>
+              {criterios &&
+                senales.map((senal) => (
+                  <Text key={senal.texto} style={senal.cumple ? s.cumple : s.tenue}>
+                    {senal.cumple ? "■ " : "□ "}
+                    {senal.texto}
+                  </Text>
+                ))}
+            </View>
+            <Enlace
+              texto={criterios ? "Ocultar criterios" : "Ver criterios"}
+              onPress={() => setCriterios(!criterios)}
+            />
           </View>
-          <Enlace
-            texto={criterios ? "Ocultar criterios" : "Ver criterios"}
-            onPress={() => setCriterios(!criterios)}
-          />
-        </View>
+        )}
       </View>
     </View>
   )
 }
 
 const s = StyleSheet.create({
-  grupo: { gap: 12 },
+  grupo: { gap: espacio[12] },
   tarjeta: {
     backgroundColor: tema.superficie,
-    borderRadius: 20,
-    paddingHorizontal: 16,
+    borderRadius: radio.tarjeta,
+    paddingHorizontal: espacio[16],
     paddingVertical: 4,
     borderWidth: 1,
-    borderColor: tema.bordeDestacado,
+    borderColor: tema.avisoBorde,
   },
   fila: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    paddingVertical: 14,
+    paddingVertical: espacio[16],
     flexWrap: "wrap",
   },
   separada: { borderTopWidth: 1, borderTopColor: tema.borde },
-  punto: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
-  textos: { flex: 1, minWidth: 200, gap: 4 },
+  punto: { width: 8, height: 8, borderRadius: 2, marginTop: 7 },
+  textos: { flex: 1, minWidth: 220, gap: espacio[4] },
   fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18 },
   cumple: { color: tema.aviso, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18 },
   acciones: { flexDirection: "row", alignItems: "center", gap: 12 },
-  boton: { minHeight: 44, paddingHorizontal: 14, borderRadius: 10, justifyContent: "center" },
-  textoBoton: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 14 },
+  boton: {
+    minHeight: 44,
+    paddingHorizontal: espacio[16],
+    borderRadius: radio.celda,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: tema.acento,
+    backgroundColor: tema.acentoSuave,
+  },
+  textoBoton: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 14 },
   campo: {
     minHeight: 88,
     borderRadius: 12,

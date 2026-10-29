@@ -1,7 +1,12 @@
+import type { ReactNode } from "react"
 import { StyleSheet, Text, View } from "react-native"
 import type { Registro, ResultadoEntrenamiento, ValoresEjecutados } from "@alpha-omega/shared"
-import type { PrescripcionConDistancia, SerieConDistancia } from "./registro-modelo"
-import { ejerciciosOrdenados, kg } from "./sesion/modelo"
+import type {
+  EjercicioConDistancia,
+  PrescripcionConDistancia,
+  SerieConDistancia,
+} from "./registro-modelo"
+import { ejerciciosOrdenados, kg, resumenPrescrito } from "./sesion/modelo"
 import { alto, espacio, radio, tema, tipo } from "../tema"
 
 export { ConfirmacionSesion } from "./confirmacion-sesion"
@@ -47,15 +52,34 @@ function valoresDeFila(
     : `${kg(serie.pesoKg)} × ${cantidad}`
 }
 
+function cantidadDe(
+  serie: SerieConDistancia | ValoresEjecutados | Registro["series"][number],
+): number | null {
+  switch (serie.tipoMedicion) {
+    case "repeticiones":
+      return serie.repeticiones
+    case "tiempo":
+      return serie.segundos
+    case "distancia":
+      return serie.metros
+  }
+}
+
 export function PrescripcionVisible({
   prescripcion,
   resultado,
   registro,
+  revision,
 }: {
   prescripcion: PrescripcionConDistancia
   resultado?: ResultadoConDistancia
   /** Copia comprometida del envío pendiente; no equivale a un resultado del servidor. */
   registro?: Registro
+  /** La revisión usa las mismas filas, con la prescripción delante y acciones por ejercicio. */
+  revision?: {
+    cabecera?: (ejercicio: EjercicioConDistancia) => ReactNode
+    pie?: (ejercicio: EjercicioConDistancia) => ReactNode
+  }
 }): React.JSX.Element {
   const receta = resultado?.prescripcion ?? prescripcion
   const reales = new Map(resultado?.series.map((serie) => [serie.serieId, serie]))
@@ -67,15 +91,27 @@ export function PrescripcionVisible({
     <View style={estilos.contenedor}>
       {ejerciciosOrdenados(receta).map((e) => (
         <View key={e.id} style={estilos.ejercicio}>
-          <Text style={estilos.nombre} accessibilityRole="header">
-            {e.nombre}
-          </Text>
+          <View style={estilos.cabecera}>
+            <View style={estilos.textos}>
+              <Text
+                style={[estilos.nombre, revision && estilos.nombreRevision]}
+                accessibilityRole="header"
+              >
+                {e.nombre}
+              </Text>
+              {revision && <Text style={estilos.indicaciones}>{resumenPrescrito(e)}</Text>}
+            </View>
+            {revision?.cabecera?.(e)}
+          </View>
           {e.indicaciones && <Text style={estilos.indicaciones}>{e.indicaciones}</Text>}
           <View style={estilos.lista}>
             <View style={estilos.columnas} accessible={false}>
-              <Text style={[estilos.micro, estilos.numero]}>Nº</Text>
+              <Text style={[estilos.micro, estilos.numero, revision && estilos.numeroRevision]}>
+                {revision ? "SERIE" : "Nº"}
+              </Text>
+              {revision && <Text style={[estilos.micro, estilos.objetivo]}>PRESCRITO</Text>}
               <Text style={[estilos.micro, estilos.hecho]}>HECHO</Text>
-              <Text style={[estilos.micro, estilos.objetivo]}>OBJETIVO</Text>
+              {!revision && <Text style={[estilos.micro, estilos.objetivo]}>OBJETIVO</Text>}
               <Text style={[estilos.micro, estilos.rir]}>RIR</Text>
             </View>
             {e.series.map((s, n) => {
@@ -103,25 +139,56 @@ export function PrescripcionVisible({
                   : `${e.rir.min}–${e.rir.max}`
                 : null
               const etiquetaRir = `RIR ${rir ?? "sin registrar"}${rango ? `, objetivo ${rango}` : ""}`
+              const cantidad = valores ? cantidadDe(valores) : null
+              const minimo = cantidadDe(s)
+              const bajo =
+                valores &&
+                (valores.tipoMedicion !== s.tipoMedicion ||
+                  (cantidad !== null && minimo !== null && cantidad < minimo) ||
+                  (rir != null && e.rir && rir < e.rir.min))
+              const cumple = valores && !bajo && (!e.rir || rir != null)
+              const delta =
+                valores?.pesoKg != null && s.pesoKg !== null && valores.pesoKg > s.pesoKg
+                  ? valores.pesoKg - s.pesoKg
+                  : null
               return (
                 <View
                   key={s.id}
                   accessible
                   accessibilityRole="text"
-                  accessibilityLabel={`Serie ${n + 1}. Hecho: ${hecho}. Objetivo: ${objetivo}. ${etiquetaRir}`}
+                  accessibilityLabel={`Serie ${n + 1}. Hecho: ${hecho}. Objetivo: ${objetivo}. ${etiquetaRir}${revision && valores ? (bajo ? ". Por debajo del objetivo" : cumple ? ". Cumple el objetivo" : "") : ""}`}
                   style={[
                     estilos.renglon,
-                    real?.hecha && estilos.filaHecha,
+                    (revision ? cumple : real?.hecha) && estilos.filaHecha,
+                    revision && bajo && estilos.filaBaja,
                     omitida && estilos.omitida,
                   ]}
                 >
-                  <Text style={[estilos.indicaciones, estilos.numero]}>{n + 1}</Text>
                   <Text
-                    style={[estilos.valor, estilos.hecho, !real?.hecha && estilos.indicaciones]}
+                    style={[
+                      estilos.indicaciones,
+                      estilos.numero,
+                      revision && estilos.numeroRevision,
+                    ]}
                   >
-                    {hecho}
+                    {n + 1}
                   </Text>
-                  <Text style={[estilos.indicaciones, estilos.objetivo]}>{objetivo}</Text>
+                  {revision && (
+                    <Text style={[estilos.indicaciones, estilos.objetivo]}>{objetivo}</Text>
+                  )}
+                  <View style={estilos.hecho}>
+                    <Text style={[estilos.valor, !real?.hecha && estilos.indicaciones]}>
+                      {hecho}
+                    </Text>
+                    {revision && delta !== null && (
+                      <Text style={estilos.delta}>
+                        +{String(Number(delta.toFixed(2))).replace(".", ",")}
+                      </Text>
+                    )}
+                  </View>
+                  {!revision && (
+                    <Text style={[estilos.indicaciones, estilos.objetivo]}>{objetivo}</Text>
+                  )}
                   <Text
                     accessibilityLabel={etiquetaRir}
                     style={[
@@ -136,9 +203,10 @@ export function PrescripcionVisible({
               )
             })}
           </View>
+          {revision?.pie?.(e)}
         </View>
       ))}
-      {notas && (
+      {notas && !revision && (
         <View style={estilos.notas}>
           <Text style={estilos.nombre}>Notas del entrenamiento</Text>
           <Text style={estilos.texto}>{notas}</Text>
@@ -151,7 +219,10 @@ export function PrescripcionVisible({
 const estilos = StyleSheet.create({
   contenedor: { gap: espacio[24] },
   ejercicio: { gap: espacio[8] },
+  cabecera: { flexDirection: "row", alignItems: "flex-start", gap: espacio[8] },
+  textos: { flex: 1, minWidth: 0, gap: espacio[4] },
   nombre: { ...tipo.titulo, color: tema.texto, fontSize: 18, lineHeight: 22 },
+  nombreRevision: { ...tipo.titulo },
   indicaciones: { ...tipo.secundario, ...tipo.cifras },
   lista: { gap: espacio[4] },
   columnas: {
@@ -170,11 +241,14 @@ const estilos = StyleSheet.create({
     borderRadius: radio.celda,
   },
   numero: { width: 22 },
+  numeroRevision: { width: 44 },
   hecho: { flex: 1, minWidth: 0 },
   objetivo: { flex: 1, minWidth: 0 },
   rir: { width: 32, textAlign: "center" },
   valor: { ...tipo.cuerpo, ...tipo.cifras, color: tema.texto, fontFamily: tema.fuenteBoton },
   filaHecha: { backgroundColor: tema.exitoFila },
+  filaBaja: { backgroundColor: tema.acentoSuave },
+  delta: { ...tipo.secundario, ...tipo.cifras, color: tema.acento, fontSize: 12 },
   omitida: { opacity: 0.5 },
   aviso: { color: tema.aviso },
   notas: { gap: espacio[8] },

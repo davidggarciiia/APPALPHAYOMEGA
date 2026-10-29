@@ -1,17 +1,15 @@
 import { StyleSheet, Text, View } from "react-native"
-import type { ListadoResultados, Molestia } from "@alpha-omega/shared"
+import { ETIQUETA_DE_ZONA, type ListadoResultados, type Molestia } from "@alpha-omega/shared"
 
+import { Pulsable } from "../../componentes/pulsable"
 import { fechaLegible } from "../../entrenamiento/fechas"
-import { Fila, Tarjeta, Titulo } from "../../entrenamiento/plan/piezas"
-import { Enlace } from "../../entrenamiento/sesion/controles"
-import { tema } from "../../tema"
+import { espacio, radio, tema, tipo } from "../../tema"
 import { textoDeMolestia } from "./atencion"
 
-const MOLESTIA_AL_LLEGAR = { nada: "Nada", agujetas: "Agujetas", dolor: "Dolor" } as const
+const COLOR = { verde: tema.exito, ambar: tema.aviso, rojo: tema.error } as const
 
-/** «Check-ins y molestias»: cómo llegó y cómo terminó cada sesión, y cada aviso. */
+/** El histórico de molestias conserva también las indicaciones ya atendidas. */
 export function CheckinsYMolestias({
-  resultados,
   molestias,
   responder,
 }: {
@@ -19,79 +17,79 @@ export function CheckinsYMolestias({
   molestias: Molestia[]
   responder: (molestia: Molestia) => void
 }): React.JSX.Element {
-  const conDatos = resultados.filter((r) => r.resultado.checkin || r.resultado.cierre)
+  if (molestias.length === 0) return <Text style={s.tenue}>Ninguna molestia registrada.</Text>
   return (
     <View style={s.contenido}>
-      <View style={s.grupo}>
-        <Titulo>Check-ins</Titulo>
-        {conDatos.length === 0 ? (
-          <Text style={s.tenue}>Aún no hay sesiones con check-in.</Text>
-        ) : (
-          <Tarjeta>
-            {conDatos.map(({ agenda, resultado }, n) => {
-              const { checkin, cierre } = resultado
-              return (
-                <Fila key={agenda.id} primera={n === 0}>
-                  <View style={s.textos}>
-                    <Text style={s.fuerte}>
-                      {resultado.prescripcion.nombre} · {fechaLegible(agenda.fechaActual)}
-                    </Text>
-                    {checkin && (
-                      <Text style={s.tenue}>
-                        Llega: {checkin.sensacion} de 5 · {MOLESTIA_AL_LLEGAR[checkin.molestia]}
-                      </Text>
-                    )}
-                    {cierre && (
-                      <Text style={cierre.incomodo || cierre.esfuerzo >= 9 ? s.aviso : s.tenue}>
-                        Termina: esfuerzo {cierre.esfuerzo} de 10 · energía {cierre.energia} de 5
-                        {cierre.incomodo ? " · algo incómodo" : ""}
-                      </Text>
-                    )}
-                  </View>
-                </Fila>
-              )
-            })}
-          </Tarjeta>
-        )}
-      </View>
-      <View style={s.grupo}>
-        <Titulo>Molestias</Titulo>
-        {molestias.length === 0 ? (
-          <Text style={s.tenue}>Ninguna molestia registrada.</Text>
-        ) : (
-          <Tarjeta>
-            {molestias.map((m, n) => {
-              const { titulo, detalle } = textoDeMolestia(m)
-              return (
-                <Fila key={m.id} primera={n === 0}>
-                  <View style={s.textos}>
-                    <Text style={s.fuerte}>{titulo}</Text>
-                    <Text style={s.tenue}>
-                      {fechaLegible(m.creadaEn.slice(0, 10))} · {detalle}
-                    </Text>
-                    {m.respuesta && <Text style={s.respuesta}>Tu respuesta: {m.respuesta}</Text>}
-                  </View>
-                  {m.estado === "abierta" ? (
-                    <Enlace texto="Responder" onPress={() => responder(m)} />
-                  ) : (
-                    <Text style={s.tenue}>Atendida</Text>
-                  )}
-                </Fila>
-              )
-            })}
-          </Tarjeta>
-        )}
-      </View>
+      {molestias.map((m) => {
+        const { titulo, detalle } = textoDeMolestia(m)
+        return (
+          <View key={m.id} style={[s.tarjeta, m.estado === "atendida" && s.atendida]}>
+            <View testID="molestia-nivel" style={[s.nivel, { backgroundColor: COLOR[m.nivel] }]} />
+            <View style={s.cuerpo}>
+              <Text style={s.fuerte}>
+                {ETIQUETA_DE_ZONA[m.zona]} · {m.intensidad} de 10
+              </Text>
+              <Text style={s.tenue}>
+                {fechaLegible(m.creadaEn.slice(0, 10))} · {detalle}
+              </Text>
+              <View style={s.pie}>
+                <Text
+                  style={[s.estado, m.estado === "atendida" ? s.estadoAtendida : s.estadoAbierta]}
+                >
+                  {m.estado === "abierta" ? "Abierta" : "Atendida"}
+                </Text>
+                {m.estado === "abierta" && (
+                  <Pulsable
+                    accessibilityLabel={`Responder: ${titulo}`}
+                    onPress={() => responder(m)}
+                    style={s.responder}
+                  >
+                    <Text style={s.textoResponder}>Responder</Text>
+                  </Pulsable>
+                )}
+              </View>
+              {m.respuesta && <Text style={s.respuesta}>Tu respuesta: {m.respuesta}</Text>}
+            </View>
+          </View>
+        )
+      })}
     </View>
   )
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 28 },
-  grupo: { gap: 12 },
-  textos: { flex: 1, gap: 3 },
-  fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
-  tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  aviso: { color: tema.aviso, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  respuesta: { color: tema.textoSecundario, fontFamily: tema.fuenteTexto, fontSize: 13 },
+  contenido: { gap: espacio[16] },
+  tarjeta: {
+    flexDirection: "row",
+    borderRadius: radio.tarjeta,
+    backgroundColor: tema.superficie,
+    overflow: "hidden",
+  },
+  atendida: { opacity: 0.65 },
+  nivel: { width: 4 },
+  cuerpo: { flex: 1, gap: espacio[8], padding: espacio[16] },
+  fuerte: { ...tipo.fila, color: tema.texto },
+  tenue: tipo.secundario,
+  pie: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: espacio[12],
+  },
+  estado: {
+    ...tipo.micro,
+    borderRadius: radio.celda,
+    paddingHorizontal: espacio[8],
+    paddingVertical: espacio[4],
+  },
+  estadoAbierta: { color: tema.aviso, backgroundColor: tema.acentoSuave },
+  estadoAtendida: { color: tema.exito, backgroundColor: tema.exitoSuave },
+  responder: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: espacio[12],
+    borderRadius: radio.celda,
+  },
+  textoResponder: { ...tipo.secundario, color: tema.acento, fontFamily: tema.fuenteSemi },
+  respuesta: { ...tipo.cuerpo, color: tema.textoSecundario },
 })

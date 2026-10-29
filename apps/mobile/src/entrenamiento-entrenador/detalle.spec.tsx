@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { StrictMode } from "react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native"
 import { AppState } from "react-native"
 import {
   SeriePrescritaDistanciaSchema,
   ValoresEjecutadosDistanciaSchema,
 } from "@alpha-omega/shared"
-import type { ResultadoEntrenamiento } from "@alpha-omega/shared"
+import type { ComentarioSesion, ResultadoEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { PrescripcionVisible } from "../entrenamiento/resultado"
 import { DetalleEntrenador } from "./detalle"
@@ -15,7 +16,22 @@ jest.mock("expo-router", () => ({
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
 }))
 jest.mock("../entrenamiento/fecha-sesion", () => ({ FechaSesion: () => null }))
-jest.mock("../entrenamiento/resultado", () => ({ PrescripcionVisible: jest.fn(() => null) }))
+jest.mock("../entrenamiento/resultado", () => {
+  const real = jest.requireActual("../entrenamiento/resultado")
+  return { ...real, PrescripcionVisible: jest.fn(real.PrescripcionVisible) }
+})
+
+beforeEach(() => {
+  Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" })
+})
+
+function crearApi(parcial: object): ApiEntrenamiento {
+  return {
+    comentarios: jest.fn(async () => ({ comentarios: [] })),
+    molestias: jest.fn(async () => ({ molestias: [], total: 0 })),
+    ...parcial,
+  } as unknown as ApiEntrenamiento
+}
 
 const sesion = {
   agenda: {
@@ -48,7 +64,7 @@ const sesion = {
   revisionPrescripcion: 1,
   permiteAjuste: false,
   enviadoEn: "2026-09-24T10:00:00.000Z",
-  revisadaEn: null,
+  revisadaEn: null as string | null,
 }
 
 const resultadoBase: ResultadoEntrenamiento = {
@@ -66,21 +82,325 @@ const resultadoBase: ResultadoEntrenamiento = {
   ],
 }
 
+function comentario(texto: string, ejercicioPrescritoId: string | null = null): ComentarioSesion {
+  return {
+    id: `comentario-${texto}`,
+    sesionId: sesion.agenda.id,
+    ejercicioPrescritoId,
+    ejercicio: ejercicioPrescritoId ? "Plancha" : null,
+    texto,
+    autor: { id: "entrenador", nombre: "Carlos", rol: "entrenador" },
+    creadoEn: "2026-10-01T10:00:00.000Z",
+  }
+}
+
+it("confirma revisión y comentario con efectos de StrictMode", async () => {
+  const revisar = jest.fn(async () => ({ ...sesion, revisadaEn: sesion.enviadoEn }))
+  const api = crearApi({
+    leerEntrenador: async () => sesion,
+    resultado: async () => resultadoBase,
+    revisar,
+    comentar: async (_id: string, datos: Parameters<ApiEntrenamiento["comentar"]>[1]) =>
+      comentario(datos.texto),
+  })
+  await render(
+    <StrictMode>
+      <DetalleEntrenador
+        id={sesion.agenda.id}
+        api={api}
+        nombreCliente="David"
+        nuevoId={() => "operacion"}
+      />
+    </StrictMode>,
+  )
+  await fireEvent.changeText(
+    screen.getByLabelText("Comentario para David"),
+    "Comentario en StrictMode",
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Enviar comentario general" }))
+  expect(screen.getByText("Comentario en StrictMode")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Marcar como revisado" }))
+  expect(screen.getByRole("button", { name: "Revisada" })).toBeDisabled()
+  expect(revisar).toHaveBeenCalledTimes(1)
+})
+
+it("muestra esqueleto y reintenta la lectura fallida sin confirmar una revisión", async () => {
+  let rechazar!: (error: Error) => void
+  const leerEntrenador = jest
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rechazar = reject
+        }),
+    )
+    .mockResolvedValue(sesion)
+  const api = crearApi({ leerEntrenador, resultado: async () => resultadoBase })
+  await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+  expect(
+    screen.getAllByTestId("esqueleto", { includeHiddenElements: true }).length,
+  ).toBeGreaterThan(3)
+  await act(async () => rechazar(new Error("sin red")))
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
+  expect(screen.getByText("Fuerza")).toBeOnTheScreen()
+  expect(screen.queryByRole("alert")).toBeNull()
+})
+
+it("comenta el ejercicio correcto y deja los comentarios generales al final", async () => {
+  const ejercicioId = sesion.prescripcion.ejercicios[0]!.id
+  const comentar = jest.fn(async (_: string, datos: Parameters<ApiEntrenamiento["comentar"]>[1]) =>
+    comentario(datos.texto, datos.ejercicioPrescritoId),
+  )
+  const api = crearApi({
+    leerEntrenador: async () => sesion,
+    resultado: async () => ({ ...resultadoBase, notas: "Me sentí fuerte" }),
+    comentar,
+    comentarios: async () => ({
+      comentarios: [comentario("Mantén la espalda", ejercicioId), comentario("Buen trabajo")],
+    }),
+  })
+  await render(
+    <DetalleEntrenador
+      id={sesion.agenda.id}
+      api={api}
+      nombreCliente="David"
+      nuevoId={() => "operacion"}
+    />,
+  )
+  expect(screen.getByText("«Me sentí fuerte»")).toBeOnTheScreen()
+  expect(
+    within(screen.getByTestId(`comentarios-${ejercicioId}`)).getByText("Mantén la espalda"),
+  ).toBeOnTheScreen()
+  expect(
+    within(screen.getByTestId("comentarios-generales")).getByText("Buen trabajo"),
+  ).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Comentar Plancha" }))
+  await fireEvent.changeText(
+    screen.getByLabelText("Comentario sobre Plancha"),
+    "  Controla el tempo  ",
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Enviar comentario sobre Plancha" }))
+  expect(comentar).toHaveBeenLastCalledWith(sesion.agenda.id, {
+    operacionId: "operacion",
+    ejercicioPrescritoId: ejercicioId,
+    texto: "Controla el tempo",
+  })
+  await fireEvent.changeText(screen.getByLabelText("Comentario para David"), "Buen entreno")
+  await fireEvent.press(screen.getByRole("button", { name: "Enviar comentario general" }))
+  expect(comentar).toHaveBeenLastCalledWith(sesion.agenda.id, {
+    operacionId: "operacion",
+    ejercicioPrescritoId: null,
+    texto: "Buen entreno",
+  })
+})
+
+it("conserva la operación de un comentario incierto para reintentarlo y distingue sus fechas", async () => {
+  const comentar = jest
+    .fn()
+    .mockRejectedValueOnce(new Error("respuesta perdida"))
+    .mockImplementation(async (_id, datos) => comentario(datos.texto))
+  const api = crearApi({
+    leerEntrenador: async () => sesion,
+    resultado: async () => resultadoBase,
+    comentar,
+    comentarios: async () => ({
+      comentarios: [
+        comentario("Uno"),
+        { ...comentario("Dos"), creadoEn: "2026-10-22T10:00:00.000Z" },
+      ],
+    }),
+  })
+  const nuevoId = jest.fn(() => "operacion-unica")
+  await render(
+    <DetalleEntrenador id={sesion.agenda.id} api={api} nombreCliente="David" nuevoId={nuevoId} />,
+  )
+  expect(screen.getByText(/Carlos.*1 oct/)).toBeOnTheScreen()
+  expect(screen.getByText(/Carlos.*22 oct/)).toBeOnTheScreen()
+  await fireEvent.changeText(screen.getByLabelText("Comentario para David"), "Comentario original")
+  await fireEvent.press(screen.getByRole("button", { name: "Enviar comentario general" }))
+  expect(screen.getByLabelText("Comentario para David").props.editable).toBe(false)
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar comentario general" }))
+  expect(comentar.mock.calls[1]).toEqual(comentar.mock.calls[0])
+  expect(nuevoId).toHaveBeenCalledTimes(1)
+  expect(screen.getByText("Comentario original")).toBeOnTheScreen()
+})
+
+it("reintenta una revisión fallida, evita dos peticiones y deshabilita la acción confirmada", async () => {
+  let resolver!: (valor: typeof sesion) => void
+  const revisar = jest
+    .fn()
+    .mockRejectedValueOnce(new Error("sin red"))
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolver = resolve
+        }),
+    )
+  const api = crearApi({
+    leerEntrenador: async () => sesion,
+    resultado: async () => resultadoBase,
+    revisar,
+  })
+  await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+  await fireEvent.press(screen.getByRole("button", { name: "Marcar como revisado" }))
+  expect(screen.getByRole("alert")).toBeOnTheScreen()
+  const boton = screen.getByRole("button", { name: "Marcar como revisado" })
+  await fireEvent.press(boton)
+  await fireEvent.press(boton)
+  expect(revisar).toHaveBeenCalledTimes(2)
+  await act(async () => resolver({ ...sesion, revisadaEn: sesion.enviadoEn } as typeof sesion))
+  expect(screen.getByRole("button", { name: "Revisada" })).toBeDisabled()
+  expect(screen.queryByRole("alert")).toBeNull()
+})
+
+it("una revisión tardía de otra ruta no confirma la sesión visible", async () => {
+  let resolver!: (valor: typeof sesion) => void
+  const revisar = jest.fn(
+    () =>
+      new Promise((resolve) => {
+        resolver = resolve
+      }),
+  )
+  const otra = {
+    ...sesion,
+    agenda: { ...sesion.agenda, id: "otra" },
+    prescripcion: { ...sesion.prescripcion, nombre: "Otra sesión" },
+  }
+  const api = crearApi({
+    leerEntrenador: async (id: string) => (id === "otra" ? otra : sesion),
+    resultado: async () => resultadoBase,
+    revisar,
+  })
+  await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+  await fireEvent.press(screen.getByRole("button", { name: "Marcar como revisado" }))
+  await screen.rerender(<DetalleEntrenador id="otra" api={api} />)
+  await act(async () => resolver({ ...sesion, revisadaEn: sesion.enviadoEn } as typeof sesion))
+  expect(screen.getByText("Otra sesión")).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: "Marcar como revisado" })).toBeEnabled()
+})
+
+it("sitúa las molestias de este ejercicio y esta sesión junto a su próxima vez", async () => {
+  const ejercicioId = sesion.prescripcion.ejercicios[0]!.id
+  const molestia = {
+    id: "m1",
+    sesionId: sesion.agenda.id,
+    clienteId: sesion.agenda.clienteId,
+    ejercicioPrescritoId: ejercicioId,
+    ejercicio: "Plancha",
+    serie: 1,
+    zona: "hombro",
+    intensidad: 4,
+    sintomas: [],
+    nivel: "ambar",
+    nota: null,
+    creadaEn: sesion.enviadoEn,
+    estado: "abierta",
+    respuesta: null,
+    atendidaEn: null,
+  }
+  const api = crearApi({
+    leerEntrenador: async () => sesion,
+    resultado: async () => resultadoBase,
+    molestias: async () => ({
+      molestias: [molestia, { ...molestia, id: "m2", sesionId: "otra", zona: "lumbar" }],
+      total: 2,
+    }),
+  })
+  await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+  expect(screen.getByText("Próxima vez · En revisión")).toBeOnTheScreen()
+  expect(screen.getByText("Molestia · hombro, serie 1")).toBeOnTheScreen()
+  expect(screen.getByText("Pendiente de ti")).toBeOnTheScreen()
+  expect(screen.queryByText(/lumbar/)).toBeNull()
+})
+
+it("reintenta la lectura auxiliar sin ocultar las series ni duplicar comentarios", async () => {
+  const comentarios = jest
+    .fn()
+    .mockRejectedValueOnce(new Error("sin red"))
+    .mockResolvedValueOnce({ comentarios: [comentario("Carga recuperada")] })
+  const api = crearApi({
+    leerEntrenador: async () => sesion,
+    resultado: async () => resultadoBase,
+    comentarios,
+  })
+  await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+  expect(screen.getByRole("text", { name: /Serie 1.*30 s/ })).toBeOnTheScreen()
+  expect(screen.getByRole("alert")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar comentarios y molestias" }))
+  expect(screen.getByText("Carga recuperada")).toBeOnTheScreen()
+  expect(screen.queryByRole("alert")).toBeNull()
+})
+
+it("una petición lenta de comentario bloquea edición y doble envío y no aparece en otra sesión", async () => {
+  let resolver!: (valor: ComentarioSesion) => void
+  const comentar = jest.fn(
+    () =>
+      new Promise<ComentarioSesion>((resolve) => {
+        resolver = resolve
+      }),
+  )
+  const api = crearApi({
+    leerEntrenador: async (id: string) => ({ ...sesion, agenda: { ...sesion.agenda, id } }),
+    resultado: async (id: string) => ({ ...resultadoBase, sesionId: id }),
+    comentar,
+  })
+  await render(
+    <DetalleEntrenador
+      id={sesion.agenda.id}
+      api={api}
+      nombreCliente="David"
+      nuevoId={() => "operacion"}
+    />,
+  )
+  await fireEvent.changeText(screen.getByLabelText("Comentario para David"), "Comentario A")
+  const boton = screen.getByRole("button", { name: "Enviar comentario general" })
+  await fireEvent.press(boton)
+  await fireEvent.press(boton)
+  expect(comentar).toHaveBeenCalledTimes(1)
+  expect(screen.getByLabelText("Comentario para David").props.editable).toBe(false)
+  await screen.rerender(<DetalleEntrenador id="otra" api={api} nombreCliente="David" />)
+  await act(async () => resolver(comentario("Comentario A")))
+  expect(screen.queryByText("Comentario A")).toBeNull()
+  expect(screen.getByLabelText("Comentario para David").props.value).toBe("")
+})
+
+it("el sondeo conserva el borrador de un ejercicio abierto", async () => {
+  jest.useFakeTimers()
+  try {
+    const api = crearApi({
+      leerEntrenador: async () => ({ ...sesion }),
+      resultado: async () => ({ ...resultadoBase }),
+    })
+    await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+    await fireEvent.press(screen.getByRole("button", { name: "Comentar Plancha" }))
+    await fireEvent.changeText(
+      screen.getByLabelText("Comentario sobre Plancha"),
+      "Borrador del ejercicio",
+    )
+    await act(async () => jest.advanceTimersByTime(5000))
+    expect(screen.getByLabelText("Comentario sobre Plancha").props.value).toBe(
+      "Borrador del ejercicio",
+    )
+  } finally {
+    jest.useRealTimers()
+  }
+})
+
 it("solo marca revisada la sesión cuando el entrenador lo solicita", async () => {
   Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" })
   const leerEntrenador = jest.fn(async () => sesion)
   const revisar = jest.fn(async () => ({ ...sesion, revisadaEn: "2026-09-24T11:00:00.000Z" }))
-  const api = {
+  const api = crearApi({
     leerEntrenador,
     revisar,
     resultado: jest.fn(async () => resultadoBase),
-  } as unknown as ApiEntrenamiento
+  })
   await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
   await waitFor(() => expect(screen.getByText("Fuerza")).toBeTruthy())
   expect(revisar).not.toHaveBeenCalled()
   await fireEvent.press(screen.getByRole("button", { name: "Marcar como revisado" }))
   await waitFor(() => expect(revisar).toHaveBeenCalledWith(sesion.agenda.id))
-  expect(screen.getByText(/Revisado/)).toBeTruthy()
+  expect(screen.getAllByText("Revisada")[0]).toBeTruthy()
 })
 
 it("lee un resultado en metros como metros, con su carga (D01, aún sin publicar)", async () => {
@@ -131,18 +451,18 @@ it("lee un resultado en metros como metros, con su carga (D01, aún sin publicar
       { serieId: segunda!.id, hecha: false, omitida: true },
     ],
   }
-  const api = {
+  const api = crearApi({
     leerEntrenador: jest.fn(async () => ({ ...sesion, prescripcion })),
     resultado: jest.fn(async () => resultado),
     revisar: jest.fn(),
-  } as unknown as ApiEntrenamiento
+  })
   try {
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
     await waitFor(() => expect(screen.getByText("34 kg × 18 m")).toBeTruthy())
     expect(screen.getByRole("text", { name: /Serie 1.*Objetivo: 32 kg × 20 m/ })).toBeTruthy()
     expect(screen.getByRole("text", { name: /Serie 2.*Objetivo: 32 kg × 20 m/ })).toBeTruthy()
     expect(screen.getByText("Omitida")).toBeTruthy()
-    expect(screen.getByText("1 de 2 series")).toBeTruthy()
+    expect(screen.getByText(/1 de 2 series/)).toBeTruthy()
     expect(screen.queryByText(/rep/)).toBeNull()
   } finally {
     resumen.mockImplementation(vacio)
@@ -164,9 +484,9 @@ describe("sondeo del detalle (T-18)", () => {
     const actividad = jest.spyOn(AppState, "addEventListener")
     const leerEntrenador = jest.fn(async () => ({ ...sesion, revisadaEn: sesion.enviadoEn }))
     const resultado = jest.fn(async () => resultadoBase)
-    const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
+    const api = crearApi({ leerEntrenador, resultado })
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
-    await waitFor(() => expect(screen.getByText("Revisado")).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText("Revisada")[0]).toBeTruthy())
 
     await act(async () => {
       jest.advanceTimersByTime(15_000)
@@ -181,10 +501,10 @@ describe("sondeo del detalle (T-18)", () => {
     const leerEntrenador = jest.fn(async () => sesion)
     const resultado = jest.fn(async () => resultadoBase)
     const revisar = jest.fn(async () => ({ ...sesion, revisadaEn: sesion.enviadoEn }))
-    const api = { leerEntrenador, resultado, revisar } as unknown as ApiEntrenamiento
+    const api = crearApi({ leerEntrenador, resultado, revisar })
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
     await fireEvent.press(screen.getByRole("button", { name: "Marcar como revisado" }))
-    await waitFor(() => expect(screen.getByText("Revisado")).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByText("Revisada")[0]).toBeTruthy())
 
     await act(async () => jest.advanceTimersByTime(15_000))
 
@@ -198,9 +518,9 @@ describe("sondeo del detalle (T-18)", () => {
       .mockResolvedValueOnce({ ...sesion, enviadoEn: null })
       .mockResolvedValue(sesion)
     const resultado = jest.fn(async () => resultadoBase)
-    const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
+    const api = crearApi({ leerEntrenador, resultado })
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
-    expect(screen.getByText(/Pendiente de envío/)).toBeTruthy()
+    expect(screen.getByText("Aún no ha terminado el entrenamiento")).toBeTruthy()
     expect(resultado).not.toHaveBeenCalled()
 
     await act(async () => jest.advanceTimersByTime(5_000))
@@ -211,12 +531,12 @@ describe("sondeo del detalle (T-18)", () => {
   })
 
   it("muestra la sesión recién leída aunque falle su resultado", async () => {
-    const api = {
+    const api = crearApi({
       leerEntrenador: jest.fn(async () => sesion),
       resultado: jest.fn(async () => {
         throw new Error("Sin conexión")
       }),
-    } as unknown as ApiEntrenamiento
+    })
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
 
     expect(screen.getByText("Fuerza")).toBeTruthy()
@@ -231,7 +551,7 @@ describe("sondeo del detalle (T-18)", () => {
       .mockImplementationOnce(() => new Promise((_, reject) => (rechazar = reject)))
     const actualizado = { ...resultadoBase, notas: "Resultado actualizado" }
     const resultado = jest.fn().mockResolvedValueOnce(resultadoBase).mockResolvedValue(actualizado)
-    const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
+    const api = crearApi({ leerEntrenador, resultado })
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
 
     await act(async () => jest.advanceTimersByTime(5_000))
@@ -249,12 +569,12 @@ describe("sondeo del detalle (T-18)", () => {
       .fn()
       .mockRejectedValueOnce(new Error("Sin conexión"))
       .mockResolvedValue(resultadoBase)
-    const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
+    const api = crearApi({ leerEntrenador, resultado })
     await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
     expect(screen.getByText("No se pudo actualizar el entrenamiento.")).toBeTruthy()
 
     await act(async () => jest.advanceTimersByTime(5_000))
-    expect(screen.getByText("Revisado")).toBeTruthy()
+    expect(screen.getAllByText("Revisada")[0]).toBeTruthy()
     expect(screen.queryByText("No se pudo actualizar el entrenamiento.")).toBeNull()
     await act(async () => jest.advanceTimersByTime(15_000))
 
@@ -268,7 +588,7 @@ describe("sondeo del detalle (T-18)", () => {
       () => new Promise<typeof sesion>((resolve) => (resolver = resolve)),
     )
     const resultado = jest.fn(async () => resultadoBase)
-    const api = { leerEntrenador, resultado } as unknown as ApiEntrenamiento
+    const api = crearApi({ leerEntrenador, resultado })
     const vista = await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
 
     await vista.unmount()
@@ -282,10 +602,10 @@ describe("sondeo del detalle (T-18)", () => {
     const remove = jest.fn()
     jest.spyOn(AppState, "addEventListener").mockReturnValue({ remove })
     const leerEntrenador = jest.fn(async () => sesion)
-    const api = {
+    const api = crearApi({
       leerEntrenador,
       resultado: jest.fn(async () => resultadoBase),
-    } as unknown as ApiEntrenamiento
+    })
     const vista = await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
 
     await vista.unmount()

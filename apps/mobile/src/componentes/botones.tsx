@@ -260,6 +260,8 @@ type PropiedadesBoton = {
   deshabilitado?: boolean
   /** Sin el margen superior propio: para varios botones en fila, que si no se desalinean. */
   sinMargen?: boolean
+  /** Accesos en fila: conserva el área táctil y deja espacio al texto. */
+  compacto?: boolean
 }
 
 export function BotonPrincipal(props: PropiedadesBoton): React.JSX.Element {
@@ -297,6 +299,7 @@ function Boton({
   ocupado = false,
   deshabilitado = false,
   sinMargen = false,
+  compacto = false,
   mantenerParaConfirmar = false,
 }: PropiedadesBoton & { variante: Variante; mantenerParaConfirmar?: boolean }): React.JSX.Element {
   const v = VARIANTES[variante]
@@ -416,6 +419,7 @@ function Boton({
         style={[
           estilos.cuerpo,
           { minHeight: v.alto },
+          compacto && estilos.compacto,
           // Mientras no hay medida se pinta el rectángulo liso; la forma sustituye al fotograma siguiente.
           medida === null && { backgroundColor: v.relleno },
           deshabilitado && !ocupado && estilos.deshabilitado,
@@ -509,7 +513,16 @@ function Boton({
             <Animated.View style={[estilos.brillo, brillo]} testID="boton-brillo" />
           </View>
         )}
-        <Text style={[estilos.titulo, { color: v.texto }, ocupado && estilos.oculto]}>{texto}</Text>
+        <Text
+          style={[
+            estilos.titulo,
+            compacto && estilos.tituloCompacto,
+            { color: v.texto },
+            ocupado && estilos.oculto,
+          ]}
+        >
+          {texto}
+        </Text>
         {mantenerParaConfirmar && (
           <Text style={[estilos.pista, { color: v.texto }]}>Mantén pulsado</Text>
         )}
@@ -618,6 +631,8 @@ const estilos = StyleSheet.create({
   punto: { width: 8, height: 8, transform: [{ skewX: `-${ANGULO}deg` }] },
   sinContornoWeb: { outlineColor: "transparent" },
   sinMargen: { marginTop: 0 },
+  compacto: { minHeight: 52, paddingHorizontal: 12 },
+  tituloCompacto: { fontSize: 14, lineHeight: 20, letterSpacing: 0.4 },
   enlace: {
     alignSelf: "center",
     marginTop: 8,

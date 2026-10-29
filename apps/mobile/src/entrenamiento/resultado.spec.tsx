@@ -205,3 +205,88 @@ it("presenta el registro comprometido sin conexión sin fabricar un resultado en
   expect(screen.getByText("Sin conexión")).toBeTruthy()
   expect(screen.queryByText(/enviado/i)).toBeNull()
 })
+
+it("comparte las series en revisión, compara mínimos en su unidad y muestra el aumento de carga", async () => {
+  const prescripcion: ResultadoConDistancia["prescripcion"] = {
+    nombre: "Fuerza",
+    ejercicios: [
+      {
+        id: "e",
+        ejercicioId: "catalogo",
+        nombre: "Remo",
+        indicaciones: null,
+        rir: { min: 3, max: 4 },
+        series: ["cumple", "reps", "rir", "omitida", "sin-rir"].map((id) => ({
+          id,
+          tipoMedicion: "repeticiones",
+          pesoKg: 20,
+          repeticiones: 8,
+          repeticionesMax: 10,
+        })),
+      },
+      {
+        id: "m",
+        ejercicioId: "transporte",
+        nombre: "Transporte",
+        indicaciones: null,
+        series: [{ id: "metros", tipoMedicion: "distancia", pesoKg: 32, metros: 20 }],
+      },
+    ],
+  }
+  const resultado: ResultadoConDistancia = {
+    sesionId: "s",
+    revisionPrescripcion: 0,
+    enviadoEn: "2026-10-01T10:00:00.000Z",
+    notas: null,
+    prescripcion,
+    series: [
+      {
+        serieId: "cumple",
+        hecha: true,
+        valores: { tipoMedicion: "repeticiones", pesoKg: 22.5, repeticiones: 9, rir: 3 },
+      },
+      {
+        serieId: "reps",
+        hecha: true,
+        valores: { tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 7, rir: 3 },
+      },
+      {
+        serieId: "rir",
+        hecha: true,
+        valores: { tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10, rir: 1 },
+      },
+      { serieId: "omitida", hecha: false, omitida: true },
+      {
+        serieId: "sin-rir",
+        hecha: true,
+        valores: { tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10 },
+      },
+      {
+        serieId: "metros",
+        hecha: true,
+        valores: { tipoMedicion: "distancia", pesoKg: 32, metros: 18 },
+      },
+    ],
+  }
+  await render(
+    <PrescripcionVisible prescripcion={prescripcion} resultado={resultado} revision={{}} />,
+  )
+  expect(screen.getAllByText("PRESCRITO")).toHaveLength(2)
+  expect(screen.getByText("+2,5")).toBeTruthy()
+  expect(screen.getByRole("text", { name: /Serie 1.*22,5 kg × 9/ })).toHaveStyle({
+    backgroundColor: tema.exitoFila,
+  })
+  expect(screen.getByRole("text", { name: /Serie 2.*20 kg × 7/ })).toHaveStyle({
+    backgroundColor: tema.acentoSuave,
+  })
+  expect(screen.getByRole("text", { name: /Serie 3.*RIR 1/ })).toHaveStyle({
+    backgroundColor: tema.acentoSuave,
+  })
+  expect(screen.getByRole("text", { name: /Serie 4.*Omitida/ })).toHaveStyle({ opacity: 0.5 })
+  expect(screen.getByRole("text", { name: /Serie 5.*RIR sin registrar/ })).not.toHaveStyle({
+    backgroundColor: tema.exitoFila,
+  })
+  expect(screen.getByRole("text", { name: /Serie 1.*32 kg × 18 m/ })).toHaveStyle({
+    backgroundColor: tema.acentoSuave,
+  })
+})

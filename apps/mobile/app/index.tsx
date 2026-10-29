@@ -15,11 +15,12 @@ import { useNutricion } from "../src/nutricion/api"
 import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
 import { useValoraciones } from "../src/seguimiento/use-valoraciones"
 import { AvisosSeguimiento } from "../src/seguimiento/valoraciones-novedades"
+import { InicioEntrenador } from "../src/inicio-entrenador/inicio-entrenador"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
 export default function Inicio(): React.JSX.Element {
-  const { estado, salir } = useSesion()
+  const { estado, salir, pedir } = useSesion()
   const api = useEntrenamiento()
   const catalogo = useCatalogo()
   const accesoFiguras = useAccesoAFiguras()
@@ -103,30 +104,15 @@ export default function Inicio(): React.JSX.Element {
             objetivoPasos={bloque?.pasosDiarios ?? null}
           />
         </View>
+      ) : usuario.rol === "entrenador" ? (
+        <InicioEntrenador
+          nombre={usuario.nombre}
+          pedir={pedir}
+          abrir={(ruta) => router.push(ruta)}
+        />
       ) : (
         <View style={s.contenido}>
           <Text style={s.leyenda}>Tu espacio de trabajo</Text>
-          {usuario.rol === "entrenador" && (
-            <>
-              {acceso(
-                "Mis clientes",
-                "Organiza sus semanas y revisa los entrenamientos enviados.",
-                "/cartera",
-                true,
-              )}
-              {acceso(
-                "Mis rutinas",
-                "Prepara tus sesiones y adáptalas a cada cliente.",
-                "/rutinas",
-              )}
-              {acceso("Ejercicios", "Gestiona los ejercicios de tu catálogo.", "/catalogo")}
-              {acceso(
-                "Nutricionista",
-                "Gestiona el acceso de tu profesional de nutrición.",
-                "/nutricionista",
-              )}
-            </>
-          )}
           {usuario.rol === "nutricionista" &&
             acceso(
               "Mis clientes",
@@ -137,7 +123,7 @@ export default function Inicio(): React.JSX.Element {
           {acceso("Mi perfil", "Consulta y actualiza tus datos personales.", "/perfil")}
         </View>
       )}
-      {usuario.rol !== "cliente" && (
+      {usuario.rol === "nutricionista" && (
         <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
       )}
     </PantallaDeFormulario>

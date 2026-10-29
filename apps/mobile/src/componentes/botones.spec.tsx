@@ -81,6 +81,20 @@ describe.each<[string, typeof BotonPrincipal]>([
     expect(margen(screen.getByRole("button", { name: "Sin margen" }))).toBe(0)
   })
 
+  it("compacto conserva 52 px táctiles y deja espacio al texto de los accesos en fila", async () => {
+    await render(<Boton texto="Crear plan nuevo" onPress={jest.fn()} compacto sinMargen />)
+    const texto = screen.getByText("Crear plan nuevo")
+    expect(StyleSheet.flatten(texto.parent?.props.style)).toMatchObject({
+      minHeight: 52,
+      paddingHorizontal: 12,
+    })
+    expect(StyleSheet.flatten(texto.props.style)).toMatchObject({
+      fontSize: 14,
+      lineHeight: 20,
+      letterSpacing: 0.4,
+    })
+  })
+
   it("ocupado: conserva el nombre, anuncia la carga y no admite otra pulsación", async () => {
     const guardar = jest.fn()
     await render(<Boton texto="Guardar" onPress={guardar} ocupado />)

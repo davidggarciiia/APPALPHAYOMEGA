@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect, useRouter } from "expo-router"
-import { AppState, Pressable, StyleSheet, Text, View } from "react-native"
+import { AppState, StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_ZONA,
   type EstadoConsentimiento,
@@ -12,13 +12,22 @@ import {
   type PlanVigente,
 } from "@alpha-omega/shared"
 
-import { AvisoDeError, BotonSecundario } from "../../componentes/formulario"
+import {
+  AvisoDeError,
+  BotonPrincipal,
+  BotonSecundario,
+  BotonEnlace,
+} from "../../componentes/formulario"
+import { CambioDeContenido, EntradaMarca } from "../../componentes/entrada-marca"
+import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
+import { Icono } from "../../componentes/iconos"
+import { InsigniaDeEstado } from "../../componentes/insignia-estado"
+import { Pulsable } from "../../componentes/pulsable"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import { fechaLegible, hoyAgenda, lunesDeSemana } from "../../entrenamiento/fechas"
 import { NovedadesEntrenamiento } from "../../entrenamiento/novedades"
 import { faseActual, semanaDelBloque, textoDeDeporte } from "../../entrenamiento/plan/modelo"
 import { Fila, Pestanas, Tarjeta, Titulo } from "../../entrenamiento/plan/piezas"
-import { Enlace } from "../../entrenamiento/sesion/controles"
 import { faltaDe } from "../../lib/errores"
 import { ErrorDePermiso, ErrorDeSesion } from "../../lib/http"
 import type { ApiNutricion } from "../../nutricion/api"
@@ -29,18 +38,17 @@ import { ValoracionesProfesional } from "../../seguimiento/editor-valoracion"
 import { ProgresoCliente } from "../../seguimiento/progreso"
 import type { ApiMedios } from "../../seguimiento/medios-api"
 import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
-import { degradadoOro, tema } from "../../tema"
-import { resumenDeResultado } from "../ficha-modelo"
+import { alto, espacio, radio, tema, tipo } from "../../tema"
 import { DialogoResponder, RequiereAtencion } from "./atencion"
 import { CheckinsYMolestias } from "./checkins"
-import { SesionesDelCliente } from "./sesiones"
+import { SesionesDelCliente, UltimaSesion } from "./sesiones"
 
-type Pestana = "resumen" | "sesiones" | "progreso" | "checkins" | "nutricion" | "salud"
+type Pestana = "resumen" | "sesiones" | "progreso" | "molestias" | "nutricion" | "salud"
 const PESTANAS = [
   { valor: "resumen", texto: "Resumen" },
   { valor: "sesiones", texto: "Sesiones" },
   { valor: "progreso", texto: "Progreso" },
-  { valor: "checkins", texto: "Check-ins y molestias" },
+  { valor: "molestias", texto: "Molestias" },
   { valor: "nutricion", texto: "Nutrición" },
   { valor: "salud", texto: "Salud" },
 ] as const
@@ -66,12 +74,10 @@ function textoConsentimiento(estado: EstadoConsentimiento | null): string {
 
 /**
  * Ficha del cliente para el entrenador, como en el diseño: lo que requiere
- * atención, cada sesión con su tabla y comentarios, progreso, check-ins y
- * molestias, nutrición y salud.
+ * atención, sesiones, progreso, molestias, nutrición y salud.
  */
 export function FichaCliente({
   clienteId,
-  cuentaId,
   leerFicha,
   api,
   seguimiento,
@@ -93,22 +99,29 @@ export function FichaCliente({
   nutricion: ApiNutricion
   nuevoId: () => string
   editarPlan: () => void
-  verSemana: () => void
+  verSemana: (nombre: string) => void
   abrirNutricion: (nombre: string) => void
 }): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>("resumen")
-  const [sesionInicial, setSesionInicial] = useState<string>()
   const [editandoProgreso, setEditandoProgreso] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
   const [respondiendo, setRespondiendo] = useState<Molestia | null>(null)
   const versionMolestias = useRef(0)
+  const permisoRevocado = useRef(false)
   const router = useRouter()
   const lunes = lunesDeSemana()
+  const sinAcceso = useCallback((causa: unknown) => {
+    permisoRevocado.current = true
+    setDatos(null)
+    setRespondiendo(null)
+    setError(faltaDe(causa, "No se pudo cargar la ficha.").texto)
+  }, [])
 
   useFocusEffect(
     useCallback(() => {
+      permisoRevocado.current = false
       let vigente = true,
         cargando = false
       const cargar = async (): Promise<void> => {
@@ -127,7 +140,7 @@ export function FichaCliente({
               seguimiento.medidas(clienteId),
               seguimiento.consentimiento(clienteId),
             ])
-          if (!vigente) return
+          if (!vigente || permisoRevocado.current) return
           const sinAcceso = [
             ficha,
             plan,
@@ -192,7 +205,25 @@ export function FichaCliente({
         <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
       </View>
     ) : null
-  if (datos === null) return aviso ?? <Text style={s.tenue}>Cargando la ficha…</Text>
+  if (datos === null)
+    return (
+      aviso ?? (
+        <GrupoEsqueletos>
+          <View
+            style={s.contenido}
+            accessibilityLabel="Cargando ficha"
+            accessibilityState={{ busy: true }}
+          >
+            <Esqueleto ancho={44} alto={44} />
+            <Esqueleto ancho="75%" alto={38} />
+            <Esqueleto alto={18} />
+            {[0, 1, 2].map((n) => (
+              <Esqueleto key={n} alto={132} radio={radio.tarjeta} />
+            ))}
+          </View>
+        </GrupoEsqueletos>
+      )
+    )
 
   const nombre = [datos.ficha.nombre, datos.ficha.apellidos].filter(Boolean).join(" ")
   const plan = datos.plan
@@ -213,12 +244,10 @@ export function FichaCliente({
     .map((r) => r.resultado)
   const ultima = datos.resultados[0]
   const verSesion = (sesionId: string): void => {
-    if (!datos.resultados.some((r) => r.agenda.id === sesionId)) {
-      router.push({ pathname: "/entrenamiento/[id]", params: { id: sesionId } })
-      return
-    }
-    setSesionInicial(sesionId)
-    setPestana("sesiones")
+    router.push({
+      pathname: "/entrenamiento/[id]",
+      params: { id: sesionId, nombre: datos.ficha.nombre },
+    })
   }
   const responder = async (molestia: Molestia, texto: string): Promise<void> => {
     const atendida = await api.atenderMolestia(molestia.id, texto)
@@ -236,228 +265,230 @@ export function FichaCliente({
   return (
     <View style={s.contenido}>
       {aviso}
-      <View style={s.cabecera}>
+      <EntradaMarca style={s.cabecera}>
+        <View style={s.barraSuperior}>
+          <Pulsable
+            accessibilityLabel="Volver"
+            style={s.volver}
+            onPress={() => {
+              if (router.canGoBack()) router.back()
+              else router.replace("/cartera")
+            }}
+          >
+            <Icono nombre="atras" tamano={20} color={tema.texto} />
+          </Pulsable>
+          {datos.ficha.estado && <InsigniaDeEstado estado={datos.ficha.estado} />}
+        </View>
         <View style={s.textos}>
           <Text style={s.nombre} accessibilityRole="header">
             {nombre}
           </Text>
           <Text style={s.tenue}>{subtitulo}</Text>
-          {datos.consentimiento && !datos.consentimiento.vigente && (
-            <Text style={s.aviso} accessibilityRole="alert">
-              Sin consentimiento de datos de salud: hasta que lo acepte en su app no se pueden
-              guardar sus medidas, pruebas, valoraciones ni fotos.
-            </Text>
-          )}
         </View>
         <View style={s.botones}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={verSemana}
-            style={({ pressed }) => [s.secundario, pressed && s.pulsado]}
-          >
-            <Text style={s.textoSecundario}>Semana</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={editarPlan}
-            style={({ pressed }) => [s.principal, degradadoOro, pressed && s.pulsado]}
-          >
-            <Text style={s.textoPrincipal}>Crear plan nuevo</Text>
-          </Pressable>
+          <View style={s.accion} testID="ficha-accion-semana">
+            <BotonSecundario texto="Semana" onPress={() => verSemana(nombre)} compacto sinMargen />
+          </View>
+          <View style={s.accion} testID="ficha-accion-plan">
+            <BotonPrincipal texto="Crear plan nuevo" onPress={editarPlan} compacto sinMargen />
+          </View>
         </View>
-      </View>
+      </EntradaMarca>
       <Pestanas
         opciones={PESTANAS}
         activa={pestana}
         cambiar={setPestana}
         bloquearCambio={editandoProgreso}
       />
+      {datos.consentimiento && !datos.consentimiento.vigente && (
+        <Text style={s.aviso} accessibilityRole="alert">
+          Sin consentimiento de datos de salud: hasta que lo acepte en su app no se pueden guardar
+          sus medidas, pruebas, valoraciones ni fotos.
+        </Text>
+      )}
       {editandoProgreso && (
         <Text style={s.tenue}>Vuelve al listado de valoraciones antes de cambiar de pestaña.</Text>
       )}
 
-      {pestana === "resumen" && (
-        <View style={s.contenido}>
-          <RequiereAtencion
-            molestias={datos.molestias}
-            semana={deEstaSemana}
-            responder={setRespondiendo}
-            verSesiones={verSesion}
-          />
-          <NovedadesEntrenamiento
-            clienteId={clienteId}
-            api={api}
-            abrir={(sesionId) =>
-              router.push({ pathname: "/entrenamiento/[id]", params: { id: sesionId } })
-            }
-          />
-          <View style={s.grupo}>
-            <Titulo>Última sesión</Titulo>
-            {ultima ? (
-              <Tarjeta>
-                <Fila primera>
-                  <View style={s.textos}>
-                    <Text style={s.fuerte}>
-                      {ultima.resultado.prescripcion.nombre} ·{" "}
-                      {fechaLegible(ultima.agenda.fechaActual)}
-                    </Text>
-                    <Text style={s.tenue}>{resumenDeResultado(ultima.resultado)}</Text>
-                  </View>
-                  <Enlace texto="Ver sesión" onPress={() => verSesion(ultima.agenda.id)} />
-                </Fila>
-              </Tarjeta>
-            ) : (
-              <Text style={s.tenue}>Aún no ha enviado ninguna sesión.</Text>
-            )}
-          </View>
-          {plan?.bloque && plan.bloque.objetivos.length > 0 && (
+      <CambioDeContenido clave={pestana}>
+        {pestana === "resumen" && (
+          <View style={s.contenido}>
+            <RequiereAtencion
+              molestias={datos.molestias}
+              semana={deEstaSemana}
+              responder={setRespondiendo}
+              verSesiones={verSesion}
+            />
             <View style={s.grupo}>
-              <Titulo>Qué buscamos</Titulo>
-              {plan.bloque.objetivos.map((o) => (
-                <Text key={o} style={s.texto}>
-                  {o}
-                </Text>
-              ))}
+              <Titulo>Última sesión</Titulo>
+              {ultima ? (
+                <UltimaSesion
+                  resultado={ultima}
+                  molestias={datos.molestias}
+                  api={api}
+                  abrir={verSesion}
+                  sinAcceso={sinAcceso}
+                />
+              ) : (
+                <Text style={s.tenue}>Aún no ha enviado ninguna sesión.</Text>
+              )}
             </View>
-          )}
-        </View>
-      )}
-
-      {pestana === "sesiones" && (
-        <SesionesDelCliente
-          sesionInicial={sesionInicial}
-          resultados={datos.resultados}
-          molestias={datos.molestias}
-          api={api}
-          cuentaId={cuentaId}
-          nuevoId={nuevoId}
-        />
-      )}
-
-      {pestana === "progreso" && (
-        <View style={s.contenido}>
-          <ValoracionesProfesional
-            clienteId={clienteId}
-            api={valoraciones}
-            medios={medios}
-            nuevoId={nuevoId}
-            alEditar={setEditandoProgreso}
-          />
-          <ProgresoCliente
-            clienteId={clienteId}
-            seguimiento={seguimiento}
-            entrenamiento={api}
-            modo="entrenador"
-          />
-        </View>
-      )}
-
-      {pestana === "checkins" && (
-        <CheckinsYMolestias
-          resultados={datos.resultados}
-          molestias={datos.molestias}
-          responder={setRespondiendo}
-        />
-      )}
-
-      {pestana === "nutricion" && (
-        <View style={s.grupo}>
-          <Titulo>Dieta vigente</Titulo>
-          {datos.dieta?.dieta ? (
-            (() => {
-              const documento = datos.dieta.dieta.documento
-              const tipo = tipoDelDia(documento, hoyAgenda())
-              return (
-                <Tarjeta>
-                  <Fila primera>
-                    <Text style={[s.texto, s.textos]}>Dieta</Text>
-                    <Text style={s.fuerte}>{documento.nombre}</Text>
-                  </Fila>
-                  <Fila>
-                    <Text style={[s.texto, s.textos]}>La publicó</Text>
-                    <Text style={s.fuerte}>
-                      {datos.dieta.deNutricionista ? "Su nutricionista" : "Tú"}
-                    </Text>
-                  </Fila>
-                  {tipo?.objetivo?.kcal != null && (
-                    <Fila>
-                      <Text style={[s.texto, s.textos]}>Objetivo de hoy</Text>
-                      <Text style={s.fuerte}>{miles(tipo.objetivo.kcal)} kcal</Text>
-                    </Fila>
-                  )}
-                  <Fila>
-                    <Text style={[s.texto, s.textos]}>Comidas de hoy</Text>
-                    <Text style={s.fuerte}>{tipo?.comidas.length ?? 0}</Text>
-                  </Fila>
-                </Tarjeta>
-              )
-            })()
-          ) : (
-            <Text style={s.tenue}>Aún no tiene una dieta publicada.</Text>
-          )}
-          <BotonSecundario
-            texto="Abrir ficha de nutrición"
-            onPress={() => abrirNutricion(nombre)}
-          />
-        </View>
-      )}
-
-      {pestana === "salud" && (
-        <View style={s.contenido}>
-          <View style={s.grupo}>
-            <Titulo>Datos</Titulo>
-            <Tarjeta>
-              {(() => {
-                const medidas = [...(datos.medidas?.medidas ?? [])].reverse()
-                const ultima = (clave: "pesoKg" | "alturaCm" | "grasaPct"): number | null =>
-                  medidas.find((m) => m[clave] !== null)?.[clave] ?? null
-                const altura = ultima("alturaCm")
-                const peso = ultima("pesoKg")
-                const grasa = ultima("grasaPct")
-                const nacimiento = datos.medidas?.fechaNacimiento ?? datos.ficha.fechaNacimiento
-                const filas: Array<[string, string]> = [
-                  ["Edad", nacimiento ? `${edadEn(nacimiento, hoyAgenda())} años` : "—"],
-                  ["Altura", altura !== null ? `${altura} cm` : "—"],
-                  ["Peso", peso !== null ? pesoLegible(peso) : "—"],
-                  ["Grasa corporal", grasa !== null ? `${String(grasa).replace(".", ",")} %` : "—"],
-                  ["Teléfono", datos.ficha.telefono ?? "—"],
-                  ["Consentimiento de salud", textoConsentimiento(datos.consentimiento)],
-                ]
-                return filas.map(([k, v], n) => (
-                  <Fila key={k} primera={n === 0}>
-                    <Text style={[s.texto, s.textos]}>{k}</Text>
-                    <Text style={s.fuerte}>{v}</Text>
-                  </Fila>
-                ))
-              })()}
-            </Tarjeta>
-          </View>
-          <View style={s.grupo}>
-            <Titulo>Molestias por zona</Titulo>
-            {datos.molestias.length === 0 ? (
-              <Text style={s.tenue}>Sin molestias registradas.</Text>
-            ) : (
-              <Tarjeta>
-                {Object.entries(
-                  datos.molestias.reduce<Record<string, Molestia[]>>((grupos, m) => {
-                    ;(grupos[m.zona] ??= []).push(m)
-                    return grupos
-                  }, {}),
-                ).map(([zona, lista], n) => (
-                  <Fila key={zona} primera={n === 0}>
-                    <Text style={[s.texto, s.textos]}>
-                      {ETIQUETA_DE_ZONA[zona as keyof typeof ETIQUETA_DE_ZONA]}
-                    </Text>
-                    <Text style={s.fuerte}>
-                      {lista.length} · última {fechaLegible(lista[0]!.creadaEn.slice(0, 10))}
-                    </Text>
-                  </Fila>
+            <NovedadesEntrenamiento clienteId={clienteId} api={api} abrir={verSesion} />
+            {plan?.bloque && plan.bloque.objetivos.length > 0 && (
+              <View style={s.grupo}>
+                <Titulo>Qué buscamos</Titulo>
+                {plan.bloque.objetivos.map((o) => (
+                  <Text key={o} style={s.texto}>
+                    {o}
+                  </Text>
                 ))}
-              </Tarjeta>
+              </View>
             )}
           </View>
-        </View>
-      )}
+        )}
+
+        {pestana === "sesiones" && (
+          <SesionesDelCliente
+            resultados={datos.resultados}
+            molestias={datos.molestias}
+            abrir={verSesion}
+            api={api}
+            sinAcceso={sinAcceso}
+          />
+        )}
+
+        {pestana === "progreso" && (
+          <View style={s.contenido}>
+            <ValoracionesProfesional
+              clienteId={clienteId}
+              api={valoraciones}
+              medios={medios}
+              nuevoId={nuevoId}
+              alEditar={setEditandoProgreso}
+            />
+            <ProgresoCliente
+              clienteId={clienteId}
+              seguimiento={seguimiento}
+              entrenamiento={api}
+              modo="entrenador"
+            />
+          </View>
+        )}
+
+        {pestana === "molestias" && (
+          <CheckinsYMolestias
+            resultados={datos.resultados}
+            molestias={datos.molestias}
+            responder={setRespondiendo}
+          />
+        )}
+
+        {pestana === "nutricion" && (
+          <View style={s.grupo}>
+            <Titulo>Dieta vigente</Titulo>
+            {datos.dieta?.dieta ? (
+              (() => {
+                const documento = datos.dieta.dieta.documento
+                const tipo = tipoDelDia(documento, hoyAgenda())
+                return (
+                  <Tarjeta>
+                    <Fila primera>
+                      <Text style={[s.texto, s.textos]}>Dieta</Text>
+                      <Text style={s.fuerte}>{documento.nombre}</Text>
+                    </Fila>
+                    <Fila>
+                      <Text style={[s.texto, s.textos]}>La publicó</Text>
+                      <Text style={s.fuerte}>
+                        {datos.dieta.deNutricionista ? "Su nutricionista" : "Tú"}
+                      </Text>
+                    </Fila>
+                    {tipo?.objetivo?.kcal != null && (
+                      <Fila>
+                        <Text style={[s.texto, s.textos]}>Objetivo de hoy</Text>
+                        <Text style={s.fuerte}>{miles(tipo.objetivo.kcal)} kcal</Text>
+                      </Fila>
+                    )}
+                    <Fila>
+                      <Text style={[s.texto, s.textos]}>Comidas de hoy</Text>
+                      <Text style={s.fuerte}>{tipo?.comidas.length ?? 0}</Text>
+                    </Fila>
+                  </Tarjeta>
+                )
+              })()
+            ) : (
+              <Text style={s.tenue}>Aún no tiene una dieta publicada.</Text>
+            )}
+            <BotonSecundario
+              texto="Abrir ficha de nutrición"
+              onPress={() => abrirNutricion(nombre)}
+            />
+          </View>
+        )}
+
+        {pestana === "salud" && (
+          <View style={s.contenido}>
+            <View style={s.grupo}>
+              <Titulo>Datos</Titulo>
+              <Tarjeta>
+                {(() => {
+                  const medidas = [...(datos.medidas?.medidas ?? [])].reverse()
+                  const ultima = (clave: "pesoKg" | "alturaCm" | "grasaPct"): number | null =>
+                    medidas.find((m) => m[clave] !== null)?.[clave] ?? null
+                  const altura = ultima("alturaCm")
+                  const peso = ultima("pesoKg")
+                  const grasa = ultima("grasaPct")
+                  const nacimiento = datos.medidas?.fechaNacimiento ?? datos.ficha.fechaNacimiento
+                  const filas: Array<[string, string]> = [
+                    ["Edad", nacimiento ? `${edadEn(nacimiento, hoyAgenda())} años` : "—"],
+                    ["Altura", altura !== null ? `${altura} cm` : "—"],
+                    ["Peso", peso !== null ? pesoLegible(peso) : "—"],
+                    [
+                      "Grasa corporal",
+                      grasa !== null ? `${String(grasa).replace(".", ",")} %` : "—",
+                    ],
+                    ["Teléfono", datos.ficha.telefono ?? "—"],
+                    ["Consentimiento de salud", textoConsentimiento(datos.consentimiento)],
+                  ]
+                  return filas.map(([k, v], n) => (
+                    <Fila key={k} primera={n === 0}>
+                      <Text style={[s.texto, s.textos]}>{k}</Text>
+                      <Text style={s.fuerte}>{v}</Text>
+                    </Fila>
+                  ))
+                })()}
+              </Tarjeta>
+            </View>
+            <View style={s.grupo}>
+              <Titulo>Molestias por zona</Titulo>
+              {datos.molestias.length === 0 ? (
+                <Text style={s.tenue}>Sin molestias registradas.</Text>
+              ) : (
+                <Tarjeta>
+                  {Object.entries(
+                    datos.molestias.reduce<Record<string, Molestia[]>>((grupos, m) => {
+                      ;(grupos[m.zona] ??= []).push(m)
+                      return grupos
+                    }, {}),
+                  ).map(([zona, lista], n) => (
+                    <Fila key={zona} primera={n === 0}>
+                      <Text style={[s.texto, s.textos]}>
+                        {ETIQUETA_DE_ZONA[zona as keyof typeof ETIQUETA_DE_ZONA]}
+                      </Text>
+                      <Text style={s.fuerte}>
+                        {lista.length} · última {fechaLegible(lista[0]!.creadaEn.slice(0, 10))}
+                      </Text>
+                    </Fila>
+                  ))}
+                </Tarjeta>
+              )}
+            </View>
+            <BotonEnlace
+              texto="Datos y acceso"
+              onPress={() => router.push({ pathname: "/cliente/[id]", params: { id: clienteId } })}
+            />
+          </View>
+        )}
+      </CambioDeContenido>
 
       <DialogoResponder
         molestia={respondiendo}
@@ -469,10 +500,23 @@ export function FichaCliente({
 }
 
 const s = StyleSheet.create({
-  contenido: { gap: 24 },
-  grupo: { gap: 12 },
-  cabecera: { flexDirection: "row", flexWrap: "wrap", gap: 16, alignItems: "flex-start" },
-  textos: { flex: 1, minWidth: 220, gap: 4 },
+  contenido: { gap: espacio[24] },
+  grupo: { gap: espacio[12] },
+  cabecera: { gap: espacio[16] },
+  barraSuperior: {
+    minHeight: alto.barraSuperior,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  volver: {
+    width: alto.tactil,
+    height: alto.tactil,
+    borderRadius: radio.celda,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  textos: { flex: 1, minWidth: 0, gap: espacio[4] },
   nombre: {
     color: tema.texto,
     fontFamily: tema.fuenteTitulo,
@@ -484,17 +528,7 @@ const s = StyleSheet.create({
   aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 13, lineHeight: 18 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },
   fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  botones: { flexDirection: "row", gap: 8 },
-  secundario: {
-    minHeight: 42,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tema.bordeFuerte,
-    justifyContent: "center",
-  },
-  textoSecundario: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  principal: { minHeight: 42, paddingHorizontal: 16, borderRadius: 12, justifyContent: "center" },
-  textoPrincipal: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  pulsado: { opacity: 0.8 },
+  destacada: { ...tipo.fila, color: tema.texto },
+  botones: { flexDirection: "row", gap: espacio[8] },
+  accion: { flex: 1, minWidth: 0 },
 })

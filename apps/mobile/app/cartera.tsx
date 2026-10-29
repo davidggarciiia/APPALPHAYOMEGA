@@ -1,10 +1,10 @@
 import { useFocusEffect, useRouter } from "expo-router"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,12 +12,19 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { EstadoUsuario, ResumenUsuario } from "@alpha-omega/shared"
+import Svg, { Circle, Path } from "react-native-svg"
 
+import { Aviso } from "../src/componentes/aviso"
+import { BotonPrincipal, BotonSecundario } from "../src/componentes/botones"
+import { EntradaMarca } from "../src/componentes/entrada-marca"
+import { Esqueleto, GrupoEsqueletos } from "../src/componentes/esqueleto"
+import { Icono } from "../src/componentes/iconos"
 import { ETIQUETA_DE_ESTADO, InsigniaDeEstado } from "../src/componentes/insignia-estado"
+import { Pulsable } from "../src/componentes/pulsable"
 import { listarUsuarios } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
 import { useSesion } from "../src/sesion"
-import { degradadoOro, tema } from "../src/tema"
+import { alto, espacio, radio, tema, tipo } from "../src/tema"
 
 /**
  * Cuantos clientes se piden de una vez.
@@ -52,6 +59,7 @@ export default function Cartera(): React.JSX.Element {
   const router = useRouter()
 
   const [texto, setTexto] = useState("")
+  const [enfocado, setEnfocado] = useState(false)
   const [busqueda, setBusqueda] = useState("")
   const [filtro, setFiltro] = useState<EstadoUsuario | null>(null)
   const [intento, setIntento] = useState(0)
@@ -143,124 +151,138 @@ export default function Cartera(): React.JSX.Element {
 
   return (
     <SafeAreaView edges={["left", "right"]} style={estilos.pantalla}>
-      <View style={estilos.cabecera}>
-        <Text style={estilos.titulo}>TU CARTERA</Text>
-        <View style={estilos.accionesCabecera}>
-          <Pressable
-            onPress={() => {
-              router.push("/cliente/nuevo")
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Dar de alta a un cliente nuevo"
-            hitSlop={12}
-          >
-            <Text style={estilos.nuevo}>+ NUEVO</Text>
-          </Pressable>
+      <View style={estilos.margenBuscador}>
+        <View style={[estilos.buscador, enfocado && estilos.buscadorEnfocado]}>
+          <View aria-hidden>
+            <Svg width={20} height={20} viewBox="0 0 24 24">
+              <Circle cx={10} cy={10} r={6} fill="none" stroke={tema.textoTenue} strokeWidth={2} />
+              <Path d="M15 15l5 5" stroke={tema.textoTenue} strokeWidth={2} strokeLinecap="round" />
+            </Svg>
+          </View>
+          <TextInput
+            style={estilos.campo}
+            value={texto}
+            onChangeText={setTexto}
+            onFocus={() => setEnfocado(true)}
+            onBlur={() => setEnfocado(false)}
+            placeholder="Buscar por nombre o correo"
+            placeholderTextColor={tema.textoTenue}
+            selectionColor={tema.acento}
+            accessibilityLabel="Buscar cliente"
+            accessibilityState={{ busy: actualizando }}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
         </View>
-      </View>
-
-      <View style={estilos.buscador}>
-        <TextInput
-          style={estilos.campo}
-          value={texto}
-          onChangeText={setTexto}
-          placeholder="Buscar por nombre, apellidos o correo"
-          placeholderTextColor={tema.textoTenue}
-          accessibilityLabel="Buscar cliente"
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-        />
-        {actualizando && <ActivityIndicator color={tema.acento} style={estilos.girando} />}
-      </View>
-
-      <View style={estilos.filtros}>
-        {FILTROS.map((opcion) => {
-          const puesto = opcion.estado === filtro
-
-          return (
-            <Pressable
-              key={opcion.etiqueta}
-              style={[estilos.filtro, puesto && estilos.filtroPuesto]}
-              onPress={() => {
-                setFiltro(opcion.estado)
-              }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: puesto }}
-            >
-              <Text style={[estilos.textoFiltro, puesto && estilos.textoFiltroPuesto]}>
-                {opcion.etiqueta}
-              </Text>
-            </Pressable>
-          )
-        })}
       </View>
 
       {fase === "cargando" ? (
-        <View style={estilos.centrado}>
-          <ActivityIndicator
-            color={tema.acento}
-            size="large"
-            accessibilityLabel="Cargando tu cartera"
-          />
-        </View>
-      ) : fase === "error" ? (
-        <View style={estilos.centrado}>
-          <Text style={estilos.aviso} accessibilityRole="alert">
-            {fallo.texto}
-          </Text>
-          {fallo.reintentable && (
-            <Pressable
-              style={({ pressed }) => [estilos.boton, pressed && estilos.pulsado]}
-              onPress={() => {
-                setIntento((n) => n + 1)
-              }}
-              accessibilityRole="button"
-            >
-              <Text style={estilos.textoBoton}>REINTENTAR</Text>
-            </Pressable>
-          )}
-        </View>
+        <CargaCartera />
       ) : (
-        <FlatList
-          data={clientes}
-          keyExtractor={(cliente) => cliente.id}
-          contentContainerStyle={estilos.lista}
-          refreshControl={
-            <RefreshControl
-              refreshing={refrescando}
-              onRefresh={() => {
-                setRefrescando(true)
-                setIntento((n) => n + 1)
-              }}
-              tintColor={tema.acento}
-              colors={[tema.acento]}
-            />
-          }
-          renderItem={({ item }) => (
-            <Fila
-              cliente={item}
-              onAbrir={() => {
-                router.push({ pathname: "/cliente/[id]", params: { id: item.id } })
-              }}
-            />
+        <>
+          <ScrollView
+            testID="filtros-cartera"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={estilos.filtros}
+            style={estilos.tiraFiltros}
+            keyboardShouldPersistTaps="handled"
+          >
+            {FILTROS.map((opcion) => {
+              const puesto = opcion.estado === filtro
+
+              return (
+                <Pressable
+                  key={opcion.etiqueta}
+                  style={[estilos.filtro, puesto && estilos.filtroPuesto]}
+                  onPress={() => {
+                    setFiltro(opcion.estado)
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={opcion.etiqueta}
+                  accessibilityState={{ selected: puesto }}
+                  hitSlop={2}
+                >
+                  <Text style={[estilos.textoFiltro, puesto && estilos.textoFiltroPuesto]}>
+                    {opcion.etiqueta}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </ScrollView>
+
+          {fase === "error" ? (
+            <View style={estilos.error}>
+              <Aviso
+                mensaje={fallo.texto}
+                tipo="error"
+                alReintentar={fallo.reintentable ? () => setIntento((n) => n + 1) : undefined}
+              />
+            </View>
+          ) : (
+            <EntradaMarca style={estilos.flexible}>
+              <FlatList
+                data={clientes}
+                keyExtractor={(cliente) => cliente.id}
+                contentContainerStyle={estilos.lista}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refrescando}
+                    onRefresh={() => {
+                      setRefrescando(true)
+                      setIntento((n) => n + 1)
+                    }}
+                    tintColor={tema.acento}
+                    colors={[tema.acento]}
+                  />
+                }
+                renderItem={({ item }) => (
+                  <Fila
+                    cliente={item}
+                    onAbrir={() => {
+                      router.push({ pathname: "/entrenador/cliente/[id]", params: { id: item.id } })
+                    }}
+                  />
+                )}
+                ListEmptyComponent={
+                  <View style={estilos.vacio}>
+                    <Icono nombre="clientes" color={tema.textoTenue} tamano={48} />
+                    <Text style={estilos.textoVacio} accessibilityRole="header">
+                      {hayFiltroPuesto ? "Nadie coincide" : "Aún no tienes clientes"}
+                    </Text>
+                    {!hayFiltroPuesto && (
+                      <BotonSecundario
+                        texto="Dar de alta"
+                        sinMargen
+                        onPress={() => router.push("/cliente/nuevo")}
+                      />
+                    )}
+                  </View>
+                }
+                ListFooterComponent={
+                  recortada ? (
+                    <Text style={estilos.pie}>
+                      {`Mostrando ${String(clientes.length)} de ${String(total)}`}
+                    </Text>
+                  ) : null
+                }
+              />
+            </EntradaMarca>
           )}
-          ListEmptyComponent={
-            <Text style={estilos.vacio}>
-              {hayFiltroPuesto
-                ? "Nadie de tu cartera coincide con esa búsqueda."
-                : "Todavía no tienes clientes. Cuando des de alta al primero aparecerá aquí."}
-            </Text>
-          }
-          ListFooterComponent={
-            recortada ? (
-              <Text style={estilos.pie}>
-                {`Mostrando ${String(clientes.length)} de ${String(total)}. Busca por nombre para encontrar al resto.`}
-              </Text>
-            ) : null
-          }
-        />
+        </>
       )}
+      <View testID="nuevo-cliente" style={estilos.nuevo}>
+        <BotonPrincipal
+          texto="+ NUEVO"
+          sinMargen
+          compacto
+          etiquetaAccesible="Dar de alta a un cliente nuevo"
+          onPress={() => router.push("/cliente/nuevo")}
+        />
+      </View>
     </SafeAreaView>
   )
 }
@@ -276,12 +298,8 @@ function Fila({
   const deBaja = cliente.estado === "desactivado"
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        estilos.fila,
-        deBaja && estilos.filaApagada,
-        pressed && estilos.filaPulsada,
-      ]}
+    <Pulsable
+      style={[estilos.fila, deBaja && estilos.filaApagada]}
       onPress={onAbrir}
       // Un lector de pantalla lee la fila entera de una vez en lugar de tres
       // trozos sueltos, que es como se pierde el estado.
@@ -290,7 +308,7 @@ function Fila({
       accessibilityLabel={`${nombreCompleto}. ${ETIQUETA_DE_ESTADO[cliente.estado]}. ${cliente.email}`}
       accessibilityHint="Abre su ficha"
     >
-      <View style={estilos.avatar}>
+      <View testID={`avatar-${cliente.id}`} style={estilos.avatar}>
         <Text style={estilos.inicial}>{cliente.nombre.slice(0, 1).toUpperCase()}</Text>
       </View>
       <View style={estilos.datos}>
@@ -303,68 +321,85 @@ function Fila({
       </View>
 
       <InsigniaDeEstado estado={cliente.estado} />
-    </Pressable>
+    </Pulsable>
+  )
+}
+
+function CargaCartera(): React.JSX.Element {
+  return (
+    <View accessibilityLabel="Cargando tu cartera" accessibilityState={{ busy: true }}>
+      <GrupoEsqueletos>
+        <View style={estilos.filtros}>
+          {[80, 112, 88].map((ancho) => (
+            <View key={ancho} testID="chip-esqueleto-cartera">
+              <Esqueleto ancho={ancho} alto={40} radio={radio.pastilla} />
+            </View>
+          ))}
+        </View>
+        <View style={estilos.lista}>
+          {[0, 1, 2, 3, 4].map((indice) => (
+            <View key={indice} testID="fila-esqueleto-cartera" style={estilos.fila}>
+              <Esqueleto ancho={44} alto={44} radio={radio.campo} />
+              <View style={estilos.datos}>
+                <Esqueleto ancho="80%" alto={18} />
+                <Esqueleto ancho="60%" alto={12} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </GrupoEsqueletos>
+    </View>
   )
 }
 
 const estilos = StyleSheet.create({
-  pantalla: { flex: 1, backgroundColor: tema.fondo },
-  cabecera: {
+  pantalla: { flex: 1, backgroundColor: "transparent" },
+  flexible: { flex: 1 },
+  margenBuscador: { paddingHorizontal: espacio[20], paddingTop: espacio[8] },
+  buscador: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  titulo: {
-    color: tema.texto,
-    fontSize: 28,
-    lineHeight: 32,
-    fontFamily: tema.fuenteTitulo,
-    textTransform: "uppercase",
-  },
-  accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
-  nuevo: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 12, letterSpacing: 2 },
-  buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 },
-  campo: {
-    flex: 1,
+    paddingHorizontal: espacio[12],
+    gap: espacio[8],
     backgroundColor: tema.superficie,
-    borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 14,
-    color: tema.texto,
-    fontSize: 15,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    minHeight: 44,
+    borderColor: tema.bordeFuerte,
+    borderRadius: radio.campo,
   },
-  girando: { width: 20 },
+  buscadorEnfocado: { borderColor: tema.acento },
+  campo: {
+    ...tipo.cuerpo,
+    flex: 1,
+    minWidth: 0,
+    color: tema.texto,
+    minHeight: alto.campo,
+    paddingVertical: espacio[12],
+  },
+  tiraFiltros: { flexGrow: 0, flexShrink: 0 },
   filtros: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    gap: espacio[8],
+    paddingHorizontal: espacio[20],
+    paddingTop: espacio[16],
+    paddingBottom: espacio[16],
   },
   filtro: {
-    borderColor: tema.borde,
+    borderColor: tema.bordeFuerte,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 40,
+    borderRadius: radio.pastilla,
+    paddingHorizontal: espacio[12],
+    height: 40,
     justifyContent: "center",
   },
-  filtroPuesto: { ...degradadoOro, borderColor: "transparent" },
+  filtroPuesto: { backgroundColor: tema.acentoSuave, borderColor: tema.acento },
   textoFiltro: {
     fontFamily: tema.fuenteSemi,
     color: tema.textoTenue,
-    fontSize: 11,
+    fontSize: 12,
     letterSpacing: 1,
   },
-  textoFiltroPuesto: { color: tema.fondo },
-  lista: { padding: 16, gap: 12, flexGrow: 1 },
+  textoFiltroPuesto: { color: tema.acento },
+  lista: { paddingHorizontal: espacio[20], paddingBottom: 92, gap: espacio[8], flexGrow: 1 },
   fila: {
     flexDirection: "row",
     alignItems: "center",
@@ -372,50 +407,32 @@ const estilos = StyleSheet.create({
     backgroundColor: tema.superficie,
     borderColor: tema.borde,
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 14,
-    gap: 12,
+    borderRadius: radio.tarjetaInterna,
+    paddingHorizontal: espacio[12],
+    paddingVertical: espacio[12],
+    minHeight: 72,
+    gap: espacio[12],
   },
   filaApagada: { opacity: 0.55 },
-  filaPulsada: { borderColor: tema.acento },
   avatar: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radio.campo,
     backgroundColor: tema.fondo,
     alignItems: "center",
     justifyContent: "center",
   },
   inicial: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
-  datos: { flex: 1, gap: 3 },
-  nombre: { color: tema.texto, fontSize: 17, fontFamily: tema.fuenteBoton },
+  datos: { flex: 1, minWidth: 0, gap: espacio[4] },
+  nombre: { ...tipo.fila, color: tema.texto },
   correo: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 12 },
-  centrado: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  aviso: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 15, textAlign: "center" },
-  vacio: {
-    fontFamily: tema.fuenteTexto,
-    color: tema.textoTenue,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-    marginTop: 40,
-  },
+  error: { paddingHorizontal: espacio[20] },
+  vacio: { alignItems: "center", gap: espacio[20], paddingVertical: 64 },
+  textoVacio: { ...tipo.titulo, color: tema.texto, textAlign: "center" },
   pie: {
-    fontFamily: tema.fuenteTexto,
-    color: tema.textoTenue,
-    fontSize: 12,
+    ...tipo.secundario,
     textAlign: "center",
-    marginTop: 12,
-    lineHeight: 18,
+    marginTop: espacio[12],
   },
-  boton: {
-    borderColor: tema.acento,
-    borderWidth: 1,
-    borderRadius: 14,
-    marginTop: 24,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-  },
-  pulsado: { opacity: 0.6 },
-  textoBoton: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 13, letterSpacing: 2 },
+  nuevo: { position: "absolute", right: espacio[20], bottom: espacio[20], minWidth: 124 },
 })

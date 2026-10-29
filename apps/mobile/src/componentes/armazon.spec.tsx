@@ -78,6 +78,28 @@ it("ofrece los cuatro destinos del entrenador y selecciona Inicio solo en la ra�
   })
 })
 
+it.each(["/", "/cartera"])("el entrenador abre %s sin títulos de relleno", async (ruta) => {
+  jest.mocked(usePathname).mockReturnValue(ruta)
+  await render(<Pantalla />)
+  expect(screen.queryByRole("header")).toBeNull()
+  expect(screen.getByRole("button", { name: "E, tu perfil" })).toBeOnTheScreen()
+  expect(screen.queryByRole("image", { name: "Alpha & Omega Training" }) !== null).toBe(
+    ruta === "/",
+  )
+})
+
+it.each(["/entrenador/cliente/cliente", "/entrenamiento/sesion"])(
+  "deja la cabecera propia a la pantalla empujada %s",
+  async (ruta) => {
+    jest.mocked(usePathname).mockReturnValue(ruta)
+    await render(<Pantalla />)
+    expect(screen.queryByRole("header")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Volver" })).toBeNull()
+    expect(screen.queryByRole("tab")).toBeNull()
+    expect(screen.getByLabelText("Nombre del plan")).toBeOnTheScreen()
+  },
+)
+
 it.each(["/", "/entrenamiento", "/nutricion", "/progreso"])(
   "el cliente ve %s sin títulos repetidos",
   async (ruta) => {

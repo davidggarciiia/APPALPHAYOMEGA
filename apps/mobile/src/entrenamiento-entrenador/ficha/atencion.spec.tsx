@@ -5,6 +5,9 @@ import type { Molestia } from "@alpha-omega/shared"
 import { DialogoResponder, RequiereAtencion } from "./atencion"
 
 jest.mock("../../componentes/iconos", () => ({ Icono: () => null }))
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}))
 
 const molestia = (id: string): Molestia =>
   ({
@@ -36,6 +39,22 @@ it("Responder tiene una caja propia de al menos 44 px de alto", async () => {
   expect(estilo.minHeight).toBeGreaterThanOrEqual(44)
   await fireEvent.press(boton)
   expect(responder).toHaveBeenCalledWith(molestia("a"))
+})
+
+it("no ocupa espacio de atención cuando no hay molestias ni señales", async () => {
+  await render(
+    <RequiereAtencion molestias={[]} semana={[]} responder={jest.fn()} verSesiones={jest.fn()} />,
+  )
+  expect(screen.queryByText("Requiere tu atención")).toBeNull()
+  expect(screen.queryByText(/Nada pendiente/)).toBeNull()
+})
+
+it("responder usa una hoja accesible y conserva el límite de 1000 caracteres", async () => {
+  await render(
+    <DialogoResponder molestia={molestia("a")} cerrar={jest.fn()} responder={jest.fn()} />,
+  )
+  expect(screen.getByTestId("hoja-modal").props.animationType).toBe("none")
+  expect(screen.getByLabelText(CAMPO).props.maxLength).toBe(1000)
 })
 
 /**

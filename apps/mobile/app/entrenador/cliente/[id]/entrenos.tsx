@@ -11,7 +11,7 @@ import { useSesion } from "../../../../src/sesion"
 import { tema } from "../../../../src/tema"
 
 export default function EntrenosCliente(): React.JSX.Element {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, nombre } = useLocalSearchParams<{ id: string; nombre?: string }>()
   const { estado } = useSesion()
   const api = useEntrenamiento()
   const router = useRouter()
@@ -23,7 +23,7 @@ export default function EntrenosCliente(): React.JSX.Element {
             clienteId={id}
             api={api}
             abrir={(sesionId) =>
-              router.push({ pathname: "/entrenamiento/[id]", params: { id: sesionId } })
+              router.push({ pathname: "/entrenamiento/[id]", params: { id: sesionId, nombre } })
             }
           />
           <BotonPrincipal
@@ -40,7 +40,7 @@ export default function EntrenosCliente(): React.JSX.Element {
       )}
       <BotonSecundario
         texto="Volver a la ficha"
-        onPress={() => router.dismissTo({ pathname: "/cliente/[id]", params: { id } })}
+        onPress={() => router.dismissTo({ pathname: "/entrenador/cliente/[id]", params: { id } })}
       />
     </PantallaDeFormulario>
   )

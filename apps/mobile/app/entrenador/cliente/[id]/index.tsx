@@ -44,8 +44,8 @@ export default function FichaDelCliente(): React.JSX.Element {
           editarPlan={() =>
             router.push({ pathname: "/entrenador/cliente/[id]/plan", params: { id } })
           }
-          verSemana={() =>
-            router.push({ pathname: "/entrenador/cliente/[id]/entrenos", params: { id } })
+          verSemana={(nombre) =>
+            router.push({ pathname: "/entrenador/cliente/[id]/entrenos", params: { id, nombre } })
           }
           abrirNutricion={(nombre) =>
             router.push({ pathname: "/nutricion/cliente/[id]", params: { id, nombre } })
