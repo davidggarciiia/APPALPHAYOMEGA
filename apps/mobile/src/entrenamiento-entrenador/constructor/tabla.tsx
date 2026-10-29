@@ -262,7 +262,6 @@ export function PanelEjercicio({
   alListo?: () => void
   alCambiarValidez?: (valida: boolean) => void
 }): React.JSX.Element {
-  const primerNombre = nombreCliente.split(" ")[0] ?? nombreCliente
   const [mas, setMas] = useState(false)
   const [invalidos, setInvalidos] = useState<Record<string, boolean>>({})
   const avisar = useRef(alCambiarValidez)
@@ -520,9 +519,9 @@ export function PanelEjercicio({
               />
             ))}
           </View>
-          <Text style={s.etiquetaPanel}>Nota para {primerNombre}</Text>
+          <Text style={s.etiquetaPanel}>Nota para {nombreCliente}</Text>
           <TextInput
-            accessibilityLabel={`Nota para ${primerNombre}`}
+            accessibilityLabel={`Nota para ${nombreCliente}`}
             value={ejercicio.nota}
             onChangeText={(v) => cambiar(ejercicio.id, { nota: v })}
             placeholder="Orientativo: 60 kg para 4 × 6 si completas con RIR 3."

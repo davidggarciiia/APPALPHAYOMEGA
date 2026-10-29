@@ -65,6 +65,7 @@ const { randomUUID } = jest.requireActual<typeof import("node:crypto")>("node:cr
 async function prepararConstructor(
   almacen: AlmacenLocal = almacenEnMemoria(),
   rutinas: ApiRutinas = { listar: jest.fn(), leer: jest.fn(), crear: jest.fn(), editar: jest.fn() },
+  nombreCliente = "Cliente",
 ) {
   const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))
   const asignar = jest.spyOn(api, "asignar").mockRejectedValue(Error("Respuesta perdida"))
@@ -72,7 +73,7 @@ async function prepararConstructor(
     <ConstructorPlan
       clienteId="20000000-0000-4000-8000-000000000000"
       cuentaId="30000000-0000-4000-8000-000000000000"
-      nombreCliente="Cliente"
+      nombreCliente={nombreCliente}
       almacen={almacen}
       api={api}
       catalogo={catalogoEnMemoria([
@@ -94,6 +95,38 @@ async function completarDia(): Promise<void> {
   await esperarCierreHoja()
   await waitFor(() => expect(screen.queryByLabelText("Buscar ejercicio para añadir")).toBeNull())
 }
+
+it("identifica al cliente con nombre y apellidos al previsualizar su plan", async () => {
+  await prepararConstructor(undefined, undefined, "David Gómez")
+  await completarDia()
+  await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
+  expect(screen.getByText("Así lo verá David Gómez")).toBeOnTheScreen()
+})
+
+it("identifica al cliente con nombre y apellidos antes de publicar su plan", async () => {
+  await prepararConstructor(undefined, undefined, "David Gómez")
+  await completarDia()
+  await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+  expect(screen.getByText(/^David Gómez verá el plan en su app/)).toBeOnTheScreen()
+})
+
+it("identifica al destinatario de una nota del ejercicio con nombre y apellidos", async () => {
+  const ejercicio = nuevoEjercicio(
+    { id: randomUUID(), nombre: "Press banca" },
+    "principal",
+    randomUUID,
+  )
+  await render(
+    <PanelEjercicio
+      ejercicio={ejercicio}
+      nombreCliente="David Gómez"
+      cambiar={jest.fn()}
+      verTecnica={jest.fn()}
+    />,
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Más" }))
+  expect(screen.getByLabelText("Nota para David Gómez")).toBeOnTheScreen()
+})
 
 async function esperarCierreHoja(): Promise<void> {
   await act(async () => {

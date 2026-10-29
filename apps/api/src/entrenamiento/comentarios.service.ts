@@ -12,8 +12,9 @@ import { PrismaService } from "../prisma/prisma.service.js"
 import { conflicto, esCodigoPrisma, invalida, leerDocumento } from "./documentos.js"
 import { SesionesService } from "./sesiones.service.js"
 import { registrarNovedad } from "./novedades.js"
+import { nombreDeAutor } from "./nombre-autor.js"
 
-type ConAutor = FilaComentario & { autor: Pick<Usuario, "id" | "nombre" | "rol"> }
+type ConAutor = FilaComentario & { autor: Pick<Usuario, "id" | "nombre" | "apellidos" | "rol"> }
 
 function aComentario(fila: ConAutor): ComentarioSesion {
   return {
@@ -24,14 +25,16 @@ function aComentario(fila: ConAutor): ComentarioSesion {
     texto: fila.texto,
     autor: {
       id: fila.autor.id,
-      nombre: fila.autor.nombre,
+      nombre: nombreDeAutor(fila.autor),
       rol: fila.autor.rol === "entrenador" ? "entrenador" : "cliente",
     },
     creadoEn: fila.creadoEn.toISOString(),
   }
 }
 
-const CON_AUTOR = { autor: { select: { id: true, nombre: true, rol: true } } } as const
+const CON_AUTOR = {
+  autor: { select: { id: true, nombre: true, apellidos: true, rol: true } },
+} as const
 
 /**
  * «Comentario sobre la sesión»: el entrenador comenta una sesión enviada o uno

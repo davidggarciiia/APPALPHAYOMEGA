@@ -1,21 +1,15 @@
 import { useEffect, useState } from "react"
-import { Image, StyleSheet, Text, View } from "react-native"
-import type { Ejercicio, ResumenSesion, SesionCliente } from "@alpha-omega/shared"
+import { StyleSheet, Text, View } from "react-native"
+import type { ResumenSesion, SesionCliente } from "@alpha-omega/shared"
 
-import { FiguraDeEjercicio, type AccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
 import { tema } from "../tema"
 import { BotonPrincipal } from "../componentes/botones"
 import { fechaLegible } from "./fechas"
-import entrenamiento from "../../assets/entrenamiento.webp"
 
-/** Lo que hace falta para enseñar el primer ejercicio de hoy con su animación. */
+/** Lo que hace falta para completar la duración de la sesión de hoy. */
 export type DetalleDeHoy = {
   leerSesion: (id: string) => Promise<SesionCliente>
-  leerEjercicio: (id: string) => Promise<Ejercicio>
-  acceso: AccesoAFiguras
 }
-
-type Primero = { sesion: SesionCliente; ejercicio: Ejercicio | null }
 
 /**
  * El tamaño del nombre depende de su largo: «Empuje» cabe a 52 px como en el
@@ -28,7 +22,7 @@ export function tamanoDelNombre(nombre: string): number {
   return 26
 }
 
-/** «Hoy toca»: la sesión de hoy con la animación de su primer ejercicio. */
+/** «Hoy toca»: nombre, estado, duración y acción de la sesión. */
 export function TarjetaHoy({
   sesion,
   sinSesion,
@@ -47,25 +41,19 @@ export function TarjetaHoy({
   empezada?: boolean
   siguiente?: string
 }): React.JSX.Element {
-  const [primero, setPrimero] = useState<Primero | null>(null)
+  const [duracion, setDuracion] = useState<string | undefined>(undefined)
   const id = sesion?.agenda.id
 
   useEffect(() => {
-    setPrimero(null)
+    setDuracion(undefined)
     if (id === undefined || detalle === undefined) return
     let vigente = true
     void (async () => {
       try {
         const leida = await detalle.leerSesion(id)
-        const prescrito =
-          leida.prescripcion.ejercicios.find((e) => (e.seccion ?? "principal") === "principal") ??
-          leida.prescripcion.ejercicios[0]
-        const ejercicio = prescrito
-          ? await detalle.leerEjercicio(prescrito.ejercicioId).catch(() => null)
-          : null
-        if (vigente) setPrimero({ sesion: leida, ejercicio })
+        if (vigente) setDuracion(leida.prescripcion.duracion)
       } catch {
-        // Sin red la tarjeta sigue con la foto y el nombre de la semana.
+        // Sin red la tarjeta conserva el resumen de la semana.
       }
     })()
     return () => {
@@ -74,30 +62,8 @@ export function TarjetaHoy({
   }, [id, detalle])
 
   const nombre = sesion?.nombre ?? sinSesion
-  const duracion = primero?.sesion.prescripcion.duracion
-  const figura = primero?.ejercicio?.figura ?? null
   return (
     <View style={s.destacado}>
-      {sesion && (
-        <View style={s.medio}>
-          {figura !== null && primero?.ejercicio && detalle ? (
-            <FiguraDeEjercicio
-              acceso={detalle.acceso}
-              ejercicioId={primero.ejercicio.id}
-              figura={figura}
-              nombre={primero.ejercicio.nombre}
-              alto={176}
-            />
-          ) : (
-            <Image source={entrenamiento} style={s.imagen} resizeMode="cover" accessible={false} />
-          )}
-          {primero?.ejercicio && (
-            <Text style={s.etiqueta} numberOfLines={1}>
-              {primero.ejercicio.nombre}
-            </Text>
-          )}
-        </View>
-      )}
       <View style={s.cuerpo}>
         <View style={s.bloque}>
           {sesion && (
@@ -147,17 +113,6 @@ const s = StyleSheet.create({
     borderColor: tema.bordeDestacado,
     padding: 12,
     gap: 20,
-  },
-  medio: { height: 176, borderRadius: 14, backgroundColor: tema.hundido, overflow: "hidden" },
-  imagen: { width: "100%", height: "100%" },
-  etiqueta: {
-    position: "absolute",
-    left: 14,
-    right: 64,
-    bottom: 12,
-    color: tema.textoSecundario,
-    fontFamily: tema.fuenteTexto,
-    fontSize: 13,
   },
   cuerpo: { paddingHorizontal: 8, paddingBottom: 8, gap: 20 },
   bloque: { gap: 6 },

@@ -8,6 +8,7 @@ import { useSesion } from "../sesion"
 import { fondoDeMarca, tema } from "../tema"
 import { Icono, type NombreIcono } from "./iconos"
 import { BarraPestanas } from "./barra-pestanas"
+import { BotonNotificaciones } from "../notificaciones/contexto"
 
 type Destino = { ruta: Href; nombre: string; icono: NombreIcono }
 const entrenador: Destino[] = [
@@ -35,6 +36,7 @@ const titulos: Record<string, string> = {
   progreso: "Progreso",
   nutricionista: "Nutricionista",
   "mis-clientes": "Mis clientes",
+  notificaciones: "Notificaciones",
 }
 const PRINCIPALES = [
   "/",
@@ -102,7 +104,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
     .slice(0, 2)
     .map((parte) => parte.slice(0, 1).toUpperCase())
     .join("")
-  const avatar =
+  const perfil =
     estado.fase === "dentro" ? (
       <Pressable
         style={s.avatar}
@@ -112,6 +114,13 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
       >
         <Text style={s.iniciales}>{iniciales}</Text>
       </Pressable>
+    ) : null
+  const avatar =
+    perfil && principal !== "notificaciones" ? (
+      <View style={s.accionesPerfil}>
+        <BotonNotificaciones />
+        {perfil}
+      </View>
     ) : null
   const atras =
     !enPrincipal && router.canGoBack() ? (
@@ -194,6 +203,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
                     {titulo}
                   </Text>
                 </View>
+                {avatar}
               </View>
             </View>
           ) : (
@@ -292,6 +302,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   iniciales: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 15 },
+  accionesPerfil: { flexDirection: "row", alignItems: "center", gap: 8 },
   atras: {
     width: 44,
     height: 44,

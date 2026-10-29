@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react-native"
 import FichaDelCliente from "../../app/entrenador/cliente/[id]/index"
 
-let mockParametros = { id: "10000000-0000-4000-8000-000000000001", valoracionInicial: "1" }
+let mockParametros: { id: string; valoracionInicial?: string; pestana?: string } = {
+  id: "10000000-0000-4000-8000-000000000001",
+  valoracionInicial: "1",
+}
 const mockFicha = jest.fn()
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParametros,
@@ -36,6 +39,20 @@ it.each(["1", "0"])(
       expect.objectContaining({
         clienteId: mockParametros.id,
         valoracionInicial: valor === "1",
+      }),
+    )
+  },
+)
+
+it.each(["progreso", "resumen", "otra"])(
+  "abre la pestaña solicitada por Notificaciones sin iniciar una valoración (%s)",
+  async (pestana) => {
+    mockParametros = { id: mockParametros.id, pestana }
+    await render(<FichaDelCliente />)
+    expect(mockFicha).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        pestanaInicial: pestana === "progreso" ? "progreso" : undefined,
+        valoracionInicial: false,
       }),
     )
   },

@@ -25,7 +25,6 @@ import { InsigniaDeEstado } from "../../componentes/insignia-estado"
 import { Pulsable } from "../../componentes/pulsable"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import { fechaLegible, hoyAgenda, lunesDeSemana } from "../../entrenamiento/fechas"
-import { NovedadesEntrenamiento } from "../../entrenamiento/novedades"
 import { faseActual, semanaDelBloque, textoDeDeporte } from "../../entrenamiento/plan/modelo"
 import { Fila, Pestanas, Tarjeta, Titulo } from "../../entrenamiento/plan/piezas"
 import { faltaDe } from "../../lib/errores"
@@ -85,6 +84,7 @@ type Propiedades = {
   verSemana: (nombre: string) => void
   abrirNutricion: (nombre: string) => void
   valoracionInicial?: boolean
+  pestanaInicial?: "progreso"
 }
 
 /** La identidad delimita también los datos y borradores montados de la ficha. */
@@ -105,8 +105,11 @@ function FichaActual({
   verSemana,
   abrirNutricion,
   valoracionInicial = false,
+  pestanaInicial,
 }: Propiedades): React.JSX.Element {
-  const [pestana, setPestana] = useState<Pestana>(valoracionInicial ? "progreso" : "resumen")
+  const [pestana, setPestana] = useState<Pestana>(
+    valoracionInicial ? "progreso" : (pestanaInicial ?? "resumen"),
+  )
   const [iniciarInicial, setIniciarInicial] = useState(valoracionInicial)
   const [editandoProgreso, setEditandoProgreso] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)
@@ -254,7 +257,7 @@ function FichaActual({
   const verSesion = (sesionId: string): void => {
     router.push({
       pathname: "/entrenamiento/[id]",
-      params: { id: sesionId, nombre: datos.ficha.nombre },
+      params: { id: sesionId, nombre },
     })
   }
   const responder = async (molestia: Molestia, texto: string): Promise<void> => {
@@ -350,7 +353,6 @@ function FichaActual({
                 <Text style={s.tenue}>Aún no ha enviado ninguna sesión.</Text>
               )}
             </View>
-            <NovedadesEntrenamiento clienteId={clienteId} api={api} abrir={verSesion} />
             {plan?.bloque && plan.bloque.objetivos.length > 0 && (
               <View style={s.grupo}>
                 <Titulo>Qué buscamos</Titulo>

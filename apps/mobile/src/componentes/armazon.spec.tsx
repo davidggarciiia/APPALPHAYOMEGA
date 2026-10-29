@@ -88,6 +88,15 @@ it.each(["/", "/cartera"])("el entrenador abre %s sin títulos de relleno", asyn
   )
 })
 
+it("reserva la cabecera de Notificaciones para volver y su título en móvil", async () => {
+  jest.mocked(usePathname).mockReturnValue("/notificaciones")
+  await render(<Pantalla />)
+  expect(screen.getByRole("header", { name: "Notificaciones" })).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: /tu perfil/ })).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(mockRouter.back).toHaveBeenCalled()
+})
+
 it.each([
   "/entrenador/cliente/cliente",
   "/entrenador/cliente/cliente/plan",

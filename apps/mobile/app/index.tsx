@@ -5,16 +5,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
 import { Icono } from "../src/componentes/iconos"
 import { SemanaEntrenamiento } from "../src/entrenamiento/semana"
-import { NovedadesEntrenamiento } from "../src/entrenamiento/novedades"
-import { useAccesoAFiguras } from "../src/catalogo-ejercicios/figura-ejercicio"
-import { useCatalogo } from "../src/catalogo-ejercicios/use-catalogo"
 import { useEntrenamiento } from "../src/entrenamiento/use-entrenamiento"
 import { lunesDeSemana } from "../src/entrenamiento/fechas"
 import { HoyInicio } from "../src/nutricion/hoy-inicio"
 import { useNutricion } from "../src/nutricion/api"
 import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
-import { useValoraciones } from "../src/seguimiento/use-valoraciones"
-import { AvisosSeguimiento } from "../src/seguimiento/valoraciones-novedades"
 import { InicioEntrenador } from "../src/inicio-entrenador/inicio-entrenador"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
@@ -22,12 +17,9 @@ import { tema } from "../src/tema"
 export default function Inicio(): React.JSX.Element {
   const { estado, salir, pedir } = useSesion()
   const api = useEntrenamiento()
-  const catalogo = useCatalogo()
-  const accesoFiguras = useAccesoAFiguras()
   const router = useRouter()
   const seguimiento = useSeguimiento()
   const nutricion = useNutricion()
-  const valoraciones = useValoraciones()
   const [bloque, setBloque] = useState<Bloque | null>(null)
   const clienteId =
     estado.fase === "dentro" && estado.usuario.rol === "cliente" ? estado.usuario.id : null
@@ -47,10 +39,7 @@ export default function Inicio(): React.JSX.Element {
       }
     }, [api, clienteId]),
   )
-  const detalle = useMemo(
-    () => ({ leerSesion: api.leerCliente, leerEjercicio: catalogo.leer, acceso: accesoFiguras }),
-    [api, catalogo, accesoFiguras],
-  )
+  const detalle = useMemo(() => ({ leerSesion: api.leerCliente }), [api])
   if (estado.fase !== "dentro") return <View />
   const { usuario } = estado
   const acceso = (
@@ -84,18 +73,6 @@ export default function Inicio(): React.JSX.Element {
             detalle={detalle}
             deportes={bloque?.deportes}
             abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
-          />
-          <NovedadesEntrenamiento
-            clienteId={usuario.id}
-            api={api}
-            abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
-          />
-          {/* Progreso ya muestra las valoraciones publicadas y las fotos pedidas. */}
-          <AvisosSeguimiento
-            clienteId={usuario.id}
-            api={valoraciones}
-            modo="cliente"
-            abrir={() => router.push("/progreso")}
           />
           <HoyInicio
             clienteId={usuario.id}

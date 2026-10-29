@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from "@jest/globals"
-import { render, screen } from "@testing-library/react-native"
+import { fireEvent, render, screen } from "@testing-library/react-native"
 import { EjercicioSchema, SesionClienteSchema, type ResumenSesion } from "@alpha-omega/shared"
 
 import { fechaLegible } from "./fechas"
@@ -75,29 +75,40 @@ describe("Hoy toca", () => {
     expect(tamanoDelNombre("Torso completo y core final")).toBe(26)
   })
 
-  it("enseña la duración y la animación del primer ejercicio de la parte principal", async () => {
+  it("enseña solo la sesión y su duración, sin consultar ni mostrar medios de ejercicios", async () => {
     const leerEjercicio = jest.fn(async (_id: string) => sentadilla)
+    const abrir = jest.fn()
+    const detalle = {
+      leerSesion: async () => sesion,
+      leerEjercicio,
+      acceso: { base: "http://api", token: "t", renovar: async () => undefined },
+    }
     await render(
       <TarjetaHoy
         sesion={resumen}
         sinSesion="Descanso"
         hoy={HOY}
-        abrir={jest.fn()}
-        detalle={{
-          leerSesion: async () => sesion,
-          leerEjercicio,
-          acceso: { base: "http://api", token: "t", renovar: async () => undefined },
-        }}
+        abrir={abrir}
+        detalle={detalle}
       />,
     )
 
-    expect(
-      await screen.findByRole("image", {
-        name: "Animación de la técnica: Sentadilla trasera con barra",
-      }),
-    ).toBeTruthy()
-    expect(leerEjercicio).toHaveBeenCalledWith(u(7))
-    expect(screen.getByText(`100–115 min · ${fechaLegible(HOY)}`)).toBeTruthy()
+    expect(await screen.findByText(`100–115 min · ${fechaLegible(HOY)}`)).toBeTruthy()
+    expect(leerEjercicio).not.toHaveBeenCalled()
+    expect(screen.queryAllByRole("image")).toHaveLength(0)
+    expect(screen.container.queryAll((nodo) => nodo.type === "Image")).toHaveLength(0)
+    expect(screen.queryByText(sentadilla.nombre)).toBeNull()
+    expect(screen.getByText(resumen.nombre)).toBeTruthy()
+    expect(screen.getByRole("header", { name: "Hoy toca:" })).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Empezar Empuje y pierna" }))
+    expect(abrir).toHaveBeenCalledWith(agenda.id)
+  })
+
+  it("sin detalle conserva la fecha y la acción sin mostrar una foto de sustitución", async () => {
+    await render(<TarjetaHoy sesion={resumen} sinSesion="Descanso" hoy={HOY} abrir={jest.fn()} />)
+
+    expect(screen.container.queryAll((nodo) => nodo.type === "Image")).toHaveLength(0)
+    expect(screen.getByText(fechaLegible(HOY))).toBeTruthy()
     expect(screen.getByRole("button", { name: "Empezar Empuje y pierna" })).toBeTruthy()
   })
 

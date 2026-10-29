@@ -140,9 +140,8 @@ it("permite consultar y abrir avisos posteriores a los ocho primeros", async () 
   )
 
   expect(await screen.findByText(/revisó Sesión 1/)).toBeTruthy()
-  expect(screen.queryByText(/revisó Sesión 4/)).toBeNull()
+  expect(screen.getByText(/revisó Sesión 4/)).toBeOnTheScreen()
   expect(screen.queryByText(/revisó Sesión 9/)).toBeNull()
-  await fireEvent.press(screen.getByRole("button", { name: "Ver todas" }))
   expect(screen.getByText(/revisó Sesión 8/)).toBeOnTheScreen()
   expect(novedades).toHaveBeenCalledTimes(1)
   await fireEvent.press(screen.getByRole("button", { name: "Ver más novedades" }))
@@ -152,7 +151,7 @@ it("permite consultar y abrir avisos posteriores a los ocho primeros", async () 
   expect(novedades).toHaveBeenLastCalledWith(novedad.clienteId, 8)
 })
 
-it("agrupa tres filas compactas y permite desplegar las novedades ya cargadas", async () => {
+it("la bandeja muestra toda la primera página en filas compactas sin un resumen intermedio", async () => {
   const avisos = Array.from({ length: 5 }, (_, indice) => ({
     ...novedad,
     id: String(indice),
@@ -169,14 +168,11 @@ it("agrupa tres filas compactas y permite desplegar las novedades ya cargadas", 
 
   await screen.findByText("Ana revisó Fuerza 1")
   expect(screen.getByTestId("tarjeta-novedades")).toHaveStyle({ paddingHorizontal: 16 })
-  expect(screen.getAllByRole("button", { name: /Ana revisó/ })).toHaveLength(3)
+  expect(screen.getAllByRole("button", { name: /Ana revisó/ })).toHaveLength(5)
   for (const fila of screen.getAllByRole("button", { name: /Ana revisó/ }))
     expect(fila).toHaveStyle({ minHeight: 56 })
   expect(screen.getByText("Ana revisó Fuerza 1")).toHaveProp("numberOfLines", 1)
-  expect(screen.queryByText("Ana revisó Fuerza 4")).toBeNull()
-
-  await fireEvent.press(screen.getByRole("button", { name: "Ver todas" }))
-  expect(screen.getAllByRole("button", { name: /Ana revisó/ })).toHaveLength(5)
+  expect(screen.getByText("Ana revisó Fuerza 4")).toBeOnTheScreen()
   expect(screen.getByText("Ana revisó Fuerza 5")).toBeOnTheScreen()
   expect(screen.queryByRole("button", { name: "Ver todas" })).toBeNull()
   expect(screen.queryByRole("button", { name: "Ver más novedades" })).toBeNull()

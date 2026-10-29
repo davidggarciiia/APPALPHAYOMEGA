@@ -1,4 +1,4 @@
-﻿import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+﻿import { act, fireEvent, render, screen } from "@testing-library/react-native"
 import { AppState, StyleSheet } from "react-native"
 import type { FichaDeUsuario, ListadoResultados, Molestia } from "@alpha-omega/shared"
 
@@ -79,7 +79,13 @@ async function mostrarFicha(
   consultas: Partial<
     Pick<
       Parameters<typeof FichaCliente>[0],
-      "leerFicha" | "nutricion" | "seguimiento" | "verSemana" | "valoraciones" | "valoracionInicial"
+      | "leerFicha"
+      | "nutricion"
+      | "seguimiento"
+      | "verSemana"
+      | "valoraciones"
+      | "valoracionInicial"
+      | "pestanaInicial"
     >
   > = {},
 ): Promise<void> {
@@ -148,6 +154,16 @@ it("el acceso tras el alta entra en Progreso y solicita la selección inicial", 
   expect(screen.getByRole("tab", { name: "Progreso" })).toBeSelected()
   expect(mockEntradaValoracion).toHaveBeenLastCalledWith({
     iniciarInicial: true,
+    fechaNacimiento: undefined,
+  })
+})
+
+it("el acceso desde Notificaciones abre Progreso sin solicitar una valoración inicial", async () => {
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, { pestanaInicial: "progreso" })
+  expect(await screen.findByLabelText("Valoración en edición")).toBeOnTheScreen()
+  expect(screen.getByRole("tab", { name: "Progreso" })).toBeSelected()
+  expect(mockEntradaValoracion).toHaveBeenLastCalledWith({
+    iniciarInicial: false,
     fechaNacimiento: undefined,
   })
 })
@@ -446,7 +462,7 @@ it.each(["C", "fuera-del-listado"])(
     await fireEvent.press(screen.getAllByRole("button", { name: "Ver sesión" })[0]!)
     expect(mockPush).toHaveBeenCalledWith({
       pathname: "/entrenamiento/[id]",
-      params: { id: destino, nombre: "Lara" },
+      params: { id: destino, nombre: "Lara García" },
     })
     expect(api.comentarios).not.toHaveBeenCalled()
 
@@ -454,7 +470,7 @@ it.each(["C", "fuera-del-listado"])(
     await fireEvent.press(screen.getByRole("button", { name: "Revisar sesión" }))
     expect(mockPush).toHaveBeenLastCalledWith({
       pathname: "/entrenamiento/[id]",
-      params: { id: "A", nombre: "Lara" },
+      params: { id: "A", nombre: "Lara García" },
     })
   },
 )
@@ -498,76 +514,11 @@ it("cambiar de pestaña conserva el editor de valoraciones abierto", async () =>
   expect(screen.getByDisplayValue("Datos pendientes")).toBeTruthy()
 })
 
-it("muestra novedades de la ficha y abre el detalle de su sesión", async () => {
-  const api = {
-    plan: jest.fn(async () => ({ plan: null })),
-    resultados: jest.fn(async () => ({ resultados: [] })),
-    molestias: jest.fn(async () => ({ molestias: [] })),
-    novedades: jest.fn(async () => ({
-      novedades: [
-        { id: "10000000-0000-4000-8000-000000000001", tipo: "fecha_cambiada" },
-        { id: "10000000-0000-4000-8000-000000000002", tipo: "entrenamiento_enviado" },
-        { id: "10000000-0000-4000-8000-000000000003", tipo: "molestia" },
-      ].map((dato) => ({
-        ...dato,
-        sesionId,
-        clienteId,
-        sesionNombre: "Fuerza A",
-        autor: { id: clienteId, nombre: "Lara", rol: "cliente" },
-        creadaEn: "2026-09-24T10:00:00.000Z",
-        leidaEn: null,
-      })),
-      total: 3,
-      sinLeer: 3,
-    })),
-    leerNovedades: jest.fn(async () => ({ leidas: 1 })),
-  } as unknown as ApiEntrenamiento
-  const seguimiento = {
-    medidas: jest.fn(async () => ({ medidas: [], fechaNacimiento: null })),
-    consentimiento: jest.fn(async () => ({
-      version: null,
-      aceptadoEn: null,
-      retiradoEn: null,
-      vigente: false,
-      versionVigente: "2026-09-24-borrador",
-    })),
-  } as unknown as ApiSeguimiento
-  const nutricion = { vigente: jest.fn(async () => null) } as unknown as ApiNutricion
-
-  await render(
-    <FichaCliente
-      clienteId={clienteId}
-      cuentaId="40000000-0000-4000-8000-000000000000"
-      leerFicha={async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario}
-      api={api}
-      seguimiento={seguimiento}
-      valoraciones={
-        { listar: async () => ({ total: 0, valoraciones: [] }) } as unknown as ApiValoraciones
-      }
-      medios={{} as ApiMedios}
-      nutricion={nutricion}
-      nuevoId={() => "50000000-0000-4000-8000-000000000000"}
-      editarPlan={jest.fn()}
-      verSemana={jest.fn()}
-      abrirNutricion={jest.fn()}
-    />,
-  )
-
-  await waitFor(() => expect(screen.getByText(/cambió el día de Fuerza A/)).toBeTruthy())
-  expect(screen.getByText(/Sin consentimiento de datos de salud/)).toBeTruthy()
-  expect(screen.getByRole("button", { name: "Crear plan nuevo" })).toBeOnTheScreen()
-  expect(screen.getByText(/envió Fuerza A/)).toBeTruthy()
-  expect(screen.getByText(/comunicó una molestia en Fuerza A/)).toBeTruthy()
-  await fireEvent.press(screen.getByRole("button", { name: /comunicó una molestia en Fuerza A/ }))
-  await waitFor(() =>
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: "/entrenamiento/[id]",
-      params: { id: sesionId, nombre: "Lara" },
-    }),
-  )
-  expect(api.leerNovedades).toHaveBeenCalledWith(sesionId, {
-    novedadIds: ["10000000-0000-4000-8000-000000000003"],
-  })
+it("Resumen reserva las novedades para Notificaciones", async () => {
+  const api = apiDeFicha()
+  await mostrarFicha(api as unknown as ApiEntrenamiento)
+  await screen.findByRole("button", { name: "Crear plan nuevo" })
+  expect(api.novedades).not.toHaveBeenCalled()
 })
 
 it("muestra cabecera propia y cinco pestañas; las molestias se atienden desde Resumen", async () => {

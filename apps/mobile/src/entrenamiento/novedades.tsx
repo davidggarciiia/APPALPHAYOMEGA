@@ -1,13 +1,11 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import type { NovedadEntrenamiento } from "@alpha-omega/shared"
+import type { ListadoNovedades, NovedadEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { AvisoDeError, BotonEnlace } from "../componentes/formulario"
 import { ListaAnimada, useAnimacionLista } from "../componentes/lista-animada"
 import { espacio, radio, tema, tipo } from "../tema"
-
-const MAXIMO_RESUMEN = 3
 
 function cuando(fecha: string): string {
   const minutos = Math.max(0, Math.floor((Date.now() - Date.parse(fecha)) / 60_000))
@@ -40,15 +38,20 @@ export function NovedadesEntrenamiento({
   clienteId,
   api,
   abrir,
+  inicial,
+  animarEntrada = true,
+  alLeer,
 }: {
   clienteId: string
   api: ApiEntrenamiento
   abrir: (sesionId: string) => void
+  inicial?: ListadoNovedades
+  animarEntrada?: boolean
+  alLeer?: (novedadId: string) => void
 }): React.JSX.Element | null {
   const [novedades, setNovedades] = useState<NovedadEntrenamiento[]>([])
   const [total, setTotal] = useState(0)
   const [sinLeer, setSinLeer] = useState(0)
-  const [todas, setTodas] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState("")
   const consulta = useRef(0)
@@ -70,10 +73,8 @@ export function NovedadesEntrenamiento({
       consulta.current += 1
       setNovedades([])
       setTotal(0)
-      setTodas(false)
       setCargando(false)
-      void api
-        .novedades(clienteId, 0)
+      void (inicial ? Promise.resolve(inicial) : api.novedades(clienteId, 0))
         .then((lista) => {
           if (!vigente) return
           setNovedades(lista.novedades)
@@ -88,7 +89,7 @@ export function NovedadesEntrenamiento({
         vigente = false
         consulta.current += 1
       }
-    }, [api, clienteId]),
+    }, [api, clienteId, inicial]),
   )
 
   const cargarMas = async (): Promise<void> => {
@@ -117,9 +118,13 @@ export function NovedadesEntrenamiento({
         {sinLeer > 0 ? `${sinLeer} novedades sin leer` : "Sin novedades pendientes de leer"}
       </Text>
       {error !== "" && <AvisoDeError mensaje={error} />}
-      <View testID="tarjeta-novedades" style={s.tarjeta}>
-        {(todas ? novedades : novedades.slice(0, MAXIMO_RESUMEN)).map((novedad, indice) => (
-          <ListaAnimada key={novedad.id} animacion={animacion} style={indice > 0 && s.separada}>
+      <ListaAnimada
+        testID="tarjeta-novedades"
+        style={s.tarjeta}
+        animacion={animarEntrada ? { entering: animacion.entering } : undefined}
+      >
+        {novedades.map((novedad, indice) => (
+          <View key={novedad.id} style={indice > 0 && s.separada}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${descripcion(novedad)}${novedad.leidaEn ? "" : ", sin leer"}`}
@@ -142,6 +147,7 @@ export function NovedadesEntrenamiento({
                         ),
                       )
                       setSinLeer((total) => Math.max(0, total - 1))
+                      alLeer?.(novedad.id)
                     } catch {
                       if (visita !== foco.current) return
                       setError("No se pudo guardar la lectura. Podrás reintentarlo después.")
@@ -160,7 +166,7 @@ export function NovedadesEntrenamiento({
                   {null}
                 </ListaAnimada>
               )}
-              <ListaAnimada style={s.textos} animacion={{ layout: animacion.layout }}>
+              <View style={s.textos}>
                 <Text style={s.texto} numberOfLines={1}>
                   {descripcion(novedad)}
                 </Text>
@@ -168,27 +174,18 @@ export function NovedadesEntrenamiento({
                   {novedad.autor.rol === "entrenador" ? "Tu entrenador" : novedad.autor.nombre} ·{" "}
                   {cuando(novedad.creadaEn)}
                 </Text>
-              </ListaAnimada>
+              </View>
             </Pressable>
-          </ListaAnimada>
+          </View>
         ))}
-        {!todas && (novedades.length > MAXIMO_RESUMEN || novedades.length < total) && (
-          <BotonEnlace
-            texto="Ver todas"
-            onPress={() => {
-              setTodas(true)
-              if (novedades.length <= MAXIMO_RESUMEN) void cargarMas()
-            }}
-          />
-        )}
-        {todas && novedades.length < total && (
+        {novedades.length < total && (
           <BotonEnlace
             texto="Ver más novedades"
             ocupado={cargando}
             onPress={() => void cargarMas()}
           />
         )}
-      </View>
+      </ListaAnimada>
     </View>
   )
 }

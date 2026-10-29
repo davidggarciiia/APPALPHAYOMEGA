@@ -18,6 +18,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { degradadoOro, fondoDeMarca, tema } from "../src/tema"
 import { Armazon } from "../src/componentes/armazon"
+import { ProveedorNotificaciones } from "../src/notificaciones/contexto"
 import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
 import { envolverPantalla } from "../src/componentes/transicion-pantalla"
 import { crearApiConsentimiento, PuertaConsentimiento } from "../src/consentimiento"
@@ -107,7 +108,7 @@ function Enrutador(): React.JSX.Element {
     )
   }
 
-  const pila = (
+  const contenido = (
     <Armazon>
       <Stack
         screenLayout={envolverPantallaConSesion}
@@ -119,6 +120,14 @@ function Enrutador(): React.JSX.Element {
       />
     </Armazon>
   )
+  const pila =
+    estado.fase === "dentro" && ["cliente", "entrenador"].includes(estado.usuario.rol) ? (
+      <ProveedorNotificaciones key={`${estado.usuario.id}:${estado.usuario.rol}`}>
+        {contenido}
+      </ProveedorNotificaciones>
+    ) : (
+      contenido
+    )
   // Un cliente da su consentimiento de datos de salud antes de usar la app.
   return (
     <ThemeProvider value={TEMA_DE_NAVEGACION}>

@@ -58,7 +58,7 @@ it("abre revisión, Resumen de molestias, plan y activación desde sus filas", a
   for (const [nombre, ruta] of [
     [
       "Revisar Fuerza de Ana López",
-      { pathname: "/entrenamiento/[id]", params: { id: "s", nombre: "Ana" } },
+      { pathname: "/entrenamiento/[id]", params: { id: "s", nombre: "Ana López" } },
     ],
     [
       "Atender molestia de Ana López: Hombro, 5 de 10",
@@ -74,6 +74,31 @@ it("abre revisión, Resumen de molestias, plan y activación desde sus filas", a
     expect(abrir).toHaveBeenLastCalledWith(ruta)
   }
   expect(screen.queryByText("Todo al día")).toBeNull()
+})
+
+it("identifica con nombre y apellidos el enlace al resto de molestias", async () => {
+  jest.mocked(cargarTrabajo).mockResolvedValue({
+    ...vacio,
+    activos: { usuarios: [cliente], total: 1 },
+    clientes: [
+      {
+        cliente,
+        sinPlan: false,
+        sesion: null,
+        molestias: [{ id: "m", zona: "hombro", intensidad: 5, nivel: "ambar" } as never],
+        totalMolestias: 2,
+      },
+    ],
+  })
+  await render(<InicioEntrenador nombre="Carlos" pedir={pedir} abrir={abrir} />)
+
+  await fireEvent.press(
+    await screen.findByRole("button", { name: "Ver las 2 molestias de Ana López" }),
+  )
+  expect(abrir).toHaveBeenLastCalledWith({
+    pathname: "/entrenador/cliente/[id]",
+    params: { id: "a" },
+  })
 })
 
 it("pagina clientes activos y activaciones con alcance visible sin declarar vacía toda la cartera", async () => {

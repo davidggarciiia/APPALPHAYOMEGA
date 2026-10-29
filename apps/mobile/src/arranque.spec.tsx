@@ -42,6 +42,7 @@ jest.mock("expo-router", () => {
     DarkTheme: { colors: {} },
     ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
     useRouter: () => ({ replace: mockReplace }),
+    usePathname: () => "/",
     useSegments: () => ["login"],
     useFocusEffect: (efecto: () => void) =>
       React.useEffect(() => {
@@ -81,6 +82,9 @@ jest.mock("expo-router", () => {
 })
 jest.mock("./componentes/armazon", () => ({
   Armazon: ({ children }: { children: React.ReactNode }) => children,
+}))
+jest.mock("./notificaciones/cargar", () => ({
+  cargarNotificaciones: jest.fn(async () => []),
 }))
 jest.mock("./consentimiento", () => ({
   ...jest.requireActual("./consentimiento"),

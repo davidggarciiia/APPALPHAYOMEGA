@@ -13,6 +13,7 @@ import type { IdentidadVerificada } from "../identity/peticion.js"
 import { PrismaService } from "../prisma/prisma.service.js"
 import { conflicto, leerDocumento } from "./documentos.js"
 import { registrarNovedad } from "./novedades.js"
+import { nombreDeAutor } from "./nombre-autor.js"
 import { SesionesService } from "./sesiones.service.js"
 
 @Injectable()
@@ -62,7 +63,7 @@ export class NovedadesService {
       this.prisma.novedadEntrenamiento.findMany({
         where: donde,
         include: {
-          autor: { select: { id: true, nombre: true, rol: true } },
+          autor: { select: { id: true, nombre: true, apellidos: true, rol: true } },
           sesion: { select: { prescripcion: true, version: true } },
           lecturas: { where: { usuarioId: identidad.sub }, select: { leidaEn: true } },
         },
@@ -78,20 +79,28 @@ export class NovedadesService {
     return ListadoNovedadesSchema.parse({
       total,
       sinLeer,
-      novedades: filas.map((fila) => ({
-        id: fila.id,
-        sesionId: fila.sesionId,
-        clienteId: fila.clienteId,
-        tipo: fila.tipo,
-        sesionNombre: leerDocumento(
-          fila.sesion.prescripcion,
-          PrescripcionSchema,
-          fila.sesion.version,
-        ).nombre,
-        autor: fila.autor,
-        creadaEn: fila.creadaEn.toISOString(),
-        leidaEn: fila.lecturas[0]?.leidaEn.toISOString() ?? null,
-      })),
+      novedades: filas.map((fila) => {
+        const nombre = nombreDeAutor(fila.autor)
+        return {
+          id: fila.id,
+          sesionId: fila.sesionId,
+          clienteId: fila.clienteId,
+          tipo: fila.tipo,
+          sesionNombre: leerDocumento(
+            fila.sesion.prescripcion,
+            PrescripcionSchema,
+            fila.sesion.version,
+          ).nombre,
+          autor: {
+            id: fila.autor.id,
+            // shortcut: las novedades admiten 120 caracteres; conservar extremos hasta ampliar contrato.
+            nombre: nombre.length > 120 ? `${nombre.slice(0, 59)}…${nombre.slice(-60)}` : nombre,
+            rol: fila.autor.rol,
+          },
+          creadaEn: fila.creadaEn.toISOString(),
+          leidaEn: fila.lecturas[0]?.leidaEn.toISOString() ?? null,
+        }
+      }),
     })
   }
 

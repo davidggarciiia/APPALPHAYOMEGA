@@ -138,7 +138,7 @@ export function InicioEntrenador({
                       abrir={() =>
                         abrir({
                           pathname: "/entrenamiento/[id]",
-                          params: { id: sesion.agenda.id, nombre: cliente.nombre },
+                          params: { id: sesion.agenda.id, nombre: nombreCompleto(cliente) },
                         })
                       }
                     />
@@ -161,7 +161,7 @@ export function InicioEntrenador({
                   ))}
                   {totalMolestias > molestias.length && (
                     <BotonEnlace
-                      texto={`Ver las ${totalMolestias} molestias de ${cliente.nombre}`}
+                      texto={`Ver las ${totalMolestias} molestias de ${nombreCompleto(cliente)}`}
                       onPress={() => ficha(cliente.id)}
                     />
                   )}

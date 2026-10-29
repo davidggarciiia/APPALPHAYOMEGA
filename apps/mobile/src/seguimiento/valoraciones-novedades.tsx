@@ -10,14 +10,14 @@ import {
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { Icono } from "../componentes/iconos"
 import { fechaLegible } from "../entrenamiento/fechas"
-import { Fila, Tarjeta, Titulo } from "../entrenamiento/plan/piezas"
+import { Fila, Tarjeta } from "../entrenamiento/plan/piezas"
 import { faltaDe, type Falta } from "../lib/errores"
 import { tema } from "../tema"
 import type { ApiEvolucionAvisos } from "./valoraciones-api"
 
 type Modo = "cliente" | "entrenador"
 
-/** El servidor manda hasta 50; Inicio los enseña poco a poco, como las novedades. */
+/** El servidor manda hasta 50; Notificaciones los enseña poco a poco. */
 const POR_PAGINA = 8
 
 const DIA_DE_AGENDA = new Intl.DateTimeFormat("en-CA", {
@@ -114,8 +114,8 @@ function FilaAviso({
 }
 
 /**
- * Avisos de valoraciones y fotos, para el cliente en Inicio y para el entrenador
- * en la ficha. Abrir uno guarda solo su lectura: no publica, corrige ni revisa
+ * Avisos de valoraciones y fotos en Notificaciones. Abrir uno guarda solo su
+ * lectura: no publica, corrige ni revisa
  * nada. Si la lectura no se guarda, se abre igualmente y el aviso sigue sin leer.
  */
 export function AvisosSeguimiento({
@@ -123,11 +123,15 @@ export function AvisosSeguimiento({
   api,
   modo,
   abrir,
+  inicial,
+  alLeer,
 }: {
   clienteId: string
   api: Pick<ApiEvolucionAvisos, "avisos" | "leerAvisos">
   modo: Modo
   abrir: (aviso: AvisoSeguimiento) => void
+  inicial?: ListadoAvisosSeguimiento
+  alLeer?: (listado: ListadoAvisosSeguimiento) => void
 }): React.JSX.Element | null {
   const [cargados, setCargados] = useState<{
     clienteId: string
@@ -144,14 +148,29 @@ export function AvisosSeguimiento({
   // Una consulta que sale antes de guardar una lectura no la pisa al llegar.
   const turno = useRef(0)
   const ocupado = useRef(false)
+  const foco = useRef(0)
+
+  useFocusEffect(
+    useCallback(() => {
+      foco.current += 1
+      ocupado.current = false
+      setAbriendo(null)
+      setReintentando(false)
+      setSinGuardar([])
+      setFalloLectura(null)
+      return () => {
+        foco.current += 1
+      }
+    }, [clienteId, api]),
+  )
 
   useFocusEffect(
     useCallback(() => {
       let vigente = true
       const propio = ++turno.current
       setCargando(true)
-      api
-        .avisos(clienteId)
+      const carga = inicial && intento === 0 ? Promise.resolve(inicial) : api.avisos(clienteId)
+      carga
         .then((listado) => {
           if (!vigente || propio !== turno.current) return
           setCargados({ clienteId, listado })
@@ -167,7 +186,7 @@ export function AvisosSeguimiento({
       return () => {
         vigente = false
       }
-    }, [api, clienteId, intento]),
+    }, [api, clienteId, intento, inicial]),
   )
 
   const listado = cargados?.clienteId === clienteId ? cargados.listado : null
@@ -176,15 +195,18 @@ export function AvisosSeguimiento({
     avisos.some((a) => a.id === id && a.vigente && a.leidoEn === null),
   )
 
-  const guardarLectura = async (ids: string[]): Promise<boolean> => {
+  const guardarLectura = async (ids: string[], visita: number): Promise<boolean> => {
     try {
       const nuevo = await api.leerAvisos(clienteId, ids)
+      if (visita !== foco.current) return false
       turno.current += 1
       setCargados({ clienteId, listado: nuevo })
       setFalloCarga(null)
       setSinGuardar((actual) => actual.filter((id) => !ids.includes(id)))
+      alLeer?.(nuevo)
       return true
     } catch (fallo) {
+      if (visita !== foco.current) return false
       setSinGuardar((actual) => [...actual, ...ids.filter((id) => !actual.includes(id))])
       setFalloLectura(
         faltaDe(fallo, "No se pudo guardar que has leído el aviso. Puedes reintentarlo."),
@@ -195,31 +217,40 @@ export function AvisosSeguimiento({
 
   const pulsar = async (aviso: AvisoSeguimiento): Promise<void> => {
     if (ocupado.current) return
+    const visita = foco.current
     if (aviso.leidoEn === null) {
       ocupado.current = true
       setAbriendo(aviso.id)
-      await guardarLectura([aviso.id])
+      await guardarLectura([aviso.id], visita)
+      if (visita !== foco.current) return
       ocupado.current = false
       setAbriendo(null)
     }
-    abrir(aviso)
+    if (visita === foco.current) abrir(aviso)
   }
 
   const reintentarLectura = async (): Promise<void> => {
     if (ocupado.current || pendientes.length === 0) return
     ocupado.current = true
     setReintentando(true)
-    if (await guardarLectura(pendientes)) setFalloLectura(null)
+    const visita = foco.current
+    const guardada = await guardarLectura(pendientes, visita)
+    if (visita !== foco.current) return
+    if (guardada) setFalloLectura(null)
     ocupado.current = false
     setReintentando(false)
   }
 
-  // Como las novedades de entrenamiento: sin avisos, Inicio no reserva sitio.
+  // Un grupo vacío no reserva sitio en Notificaciones.
   if (falloCarga === null && avisos.length === 0) return null
   const sinLeer = listado?.sinLeer ?? 0
   return (
     <View style={s.grupo}>
-      <Titulo derecha={sinLeer > 0 ? `${sinLeer} sin leer` : null}>Avisos de seguimiento</Titulo>
+      <Text style={s.anuncio} accessibilityLiveRegion="polite">
+        {sinLeer > 0
+          ? `${sinLeer} ${sinLeer === 1 ? "aviso" : "avisos"} sin leer`
+          : "Sin avisos pendientes de leer"}
+      </Text>
       {falloCarga !== null && (
         <>
           <AvisoDeError mensaje={falloCarga.texto} />
@@ -274,6 +305,7 @@ export function AvisosSeguimiento({
 
 const s = StyleSheet.create({
   grupo: { gap: 12 },
+  anuncio: { position: "absolute", left: -10000, width: 1, height: 1, overflow: "hidden" },
   aviso: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12 },
   pulsado: { opacity: 0.8 },
   textos: { flex: 1, gap: 4 },

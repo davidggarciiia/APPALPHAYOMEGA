@@ -1281,7 +1281,7 @@ export function ConstructorPlan({
             etiqueta="Cerrar la vista del cliente"
             onPress={() => setComoCliente(false)}
           />
-          <Text style={s.tituloModal}>Así lo verá {nombreCliente.split(" ")[0]}</Text>
+          <Text style={s.tituloModal}>Así lo verá {nombreCliente}</Text>
           {comoCliente && (
             <Pestanas
               opciones={Array.from({ length: Number(semanas) }, (_, i) => ({
@@ -1340,7 +1340,7 @@ export function ConstructorPlan({
         titulo="¿Publicar el plan?"
         texto={
           confirmando
-            ? `${nombreCliente.split(" ")[0]} verá el plan en su app desde el ${fechaCorta(confirmando.semanaInicial)}: ${confirmando.semanas * confirmando.patron.sesiones.length} sesiones en ${confirmando.semanas} semanas. Las sesiones que ya tenga se conservan.`
+            ? `${nombreCliente} verá el plan en su app desde el ${fechaCorta(confirmando.semanaInicial)}: ${confirmando.semanas * confirmando.patron.sesiones.length} sesiones en ${confirmando.semanas} semanas. Las sesiones que ya tenga se conservan.`
             : ""
         }
         confirmar={ocupado ? "Publicando…" : "Publicar plan"}

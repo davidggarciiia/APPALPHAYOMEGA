@@ -1,12 +1,19 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import type { AvisoSeguimiento, ListadoAvisosSeguimiento } from "@alpha-omega/shared"
 
 import { AvisosSeguimiento } from "./valoraciones-novedades"
 
+let mockEnFoco = true
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
-    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
+    jest
+      .requireActual<typeof import("react")>("react")
+      .useEffect(() => (mockEnFoco ? efecto() : undefined), [efecto, mockEnFoco]),
 }))
+
+beforeEach(() => {
+  mockEnFoco = true
+})
 
 // Datos sintéticos.
 const CLIENTE = "10000000-0000-4000-8000-000000000000"
@@ -54,11 +61,14 @@ function pintar(
   api: ReturnType<typeof servidor>,
   modo: "cliente" | "entrenador" = "cliente",
   abrir = jest.fn(),
+  alLeer?: (listado: ListadoAvisosSeguimiento) => void,
 ) {
-  return render(<AvisosSeguimiento clienteId={CLIENTE} api={api} modo={modo} abrir={abrir} />)
+  return render(
+    <AvisosSeguimiento clienteId={CLIENTE} api={api} modo={modo} abrir={abrir} alLeer={alLeer} />,
+  )
 }
 
-it("no ocupa sitio en Inicio cuando no hay avisos", async () => {
+it("deja el grupo vacío en Notificaciones cuando no hay avisos", async () => {
   const api = servidor([])
   await pintar(api)
   await waitFor(() => expect(api.avisos).toHaveBeenCalledWith(CLIENTE))
@@ -71,7 +81,8 @@ it("muestra la valoración publicada con autor, fecha legible y recuento sin lee
   await pintar(api)
   expect(await screen.findByText("Ana García publicó tu valoración")).toBeTruthy()
   expect(screen.getByText("jueves, 24 sept")).toBeTruthy()
-  expect(screen.getByText("1 sin leer")).toBeTruthy()
+  expect(screen.getByText("1 aviso sin leer")).toBeTruthy()
+  expect(screen.queryByRole("header", { name: "Avisos de seguimiento" })).toBeNull()
   expect(screen.getByText("Nueva")).toBeTruthy()
   expect(
     screen.getByRole("button", {
@@ -94,7 +105,7 @@ it("muestra la corrección como accionable y la versión sustituida solo como hi
   expect(screen.queryByRole("button", { name: /publicó tu valoración/ })).toBeNull()
   expect(screen.getByLabelText(/publicó tu valoración.*sustituida por una corrección/)).toBeTruthy()
   // La sustituida no cuenta como pendiente ni se abre.
-  expect(screen.getByText("1 sin leer")).toBeTruthy()
+  expect(screen.getByText("1 aviso sin leer")).toBeTruthy()
   await fireEvent.press(screen.getByText("Ana García publicó tu valoración"))
   expect(api.leerAvisos).not.toHaveBeenCalled()
   expect(abrir).not.toHaveBeenCalled()
@@ -151,7 +162,8 @@ it("marca leído antes de abrir y la lectura persiste al volver", async () => {
   const publicada = aviso()
   const api = servidor([publicada])
   const abrir = jest.fn()
-  const vista = await pintar(api, "cliente", abrir)
+  const alLeer = jest.fn()
+  const vista = await pintar(api, "cliente", abrir, alLeer)
 
   await fireEvent.press(await screen.findByRole("button", { name: /publicó tu valoración/ }))
   await waitFor(() => expect(abrir).toHaveBeenCalledWith(publicada))
@@ -159,6 +171,11 @@ it("marca leído antes de abrir y la lectura persiste al volver", async () => {
   expect(api.leerAvisos.mock.invocationCallOrder[0]).toBeLessThan(
     abrir.mock.invocationCallOrder[0]!,
   )
+  expect(alLeer).toHaveBeenCalledWith({
+    avisos: [{ ...publicada, leidoEn: "2026-09-24T12:00:00.000Z" }],
+    sinLeer: 0,
+  })
+  expect(alLeer.mock.invocationCallOrder[0]).toBeLessThan(abrir.mock.invocationCallOrder[0]!)
   expect(screen.queryByText("Nueva")).toBeNull()
   expect(screen.queryByText(/sin leer/)).toBeNull()
 
@@ -188,7 +205,7 @@ it("si no se guarda la lectura abre igualmente, conserva el aviso sin leer y per
   await waitFor(() => expect(abrir).toHaveBeenCalledWith(publicada))
   expect(await screen.findByRole("alert")).toHaveTextContent(/No se pudo guardar/)
   expect(screen.getByText("Nueva")).toBeTruthy()
-  expect(screen.getByText("1 sin leer")).toBeTruthy()
+  expect(screen.getByText("1 aviso sin leer")).toBeTruthy()
 
   await fireEvent.press(
     screen.getByRole("button", { name: "Reintentar guardar la lectura de los avisos" }),
@@ -225,3 +242,120 @@ it("enseña los avisos de ocho en ocho", async () => {
   expect(screen.getAllByRole("button", { name: /publicó tu valoración/ })).toHaveLength(9)
   expect(screen.queryByRole("button", { name: "Ver más avisos" })).toBeNull()
 })
+
+function diferida<T>() {
+  let resolver!: (valor: T) => void
+  let rechazar!: (error: Error) => void
+  const promesa = new Promise<T>((resolve, reject) => {
+    resolver = resolve
+    rechazar = reject
+  })
+  return { promesa, resolver, rechazar }
+}
+
+it.each(["resolver", "rechazar"] as const)(
+  "no abre tras desmontar mientras la lectura está pendiente (%s)",
+  async (resultado) => {
+    const publicada = aviso()
+    const api = servidor([publicada])
+    const pendiente = diferida<ListadoAvisosSeguimiento>()
+    api.leerAvisos.mockReturnValueOnce(pendiente.promesa)
+    const abrir = jest.fn()
+    const alLeer = jest.fn()
+    const vista = await pintar(api, "cliente", abrir, alLeer)
+    await fireEvent.press(await screen.findByRole("button", { name: /publicó tu valoración/ }))
+    await vista.unmount()
+    await act(async () => {
+      if (resultado === "resolver")
+        pendiente.resolver({
+          avisos: [{ ...publicada, leidoEn: "2026-09-24T12:00:00.000Z" }],
+          sinLeer: 0,
+        })
+      else pendiente.rechazar(new Error("sin red"))
+    })
+    expect(abrir).not.toHaveBeenCalled()
+    expect(alLeer).not.toHaveBeenCalled()
+  },
+)
+
+it.each(["resolver", "rechazar"] as const)(
+  "descarta la lectura de una visita anterior tras perder y recuperar el foco (%s)",
+  async (resultado) => {
+    const publicada = aviso()
+    const api = servidor([publicada])
+    const pendiente = diferida<ListadoAvisosSeguimiento>()
+    api.leerAvisos.mockReturnValueOnce(pendiente.promesa)
+    const abrir = jest.fn()
+    const vista = await pintar(api, "cliente", abrir)
+    const componente = () => (
+      <AvisosSeguimiento clienteId={CLIENTE} api={api} modo="cliente" abrir={abrir} />
+    )
+    await fireEvent.press(await screen.findByRole("button", { name: /publicó tu valoración/ }))
+    mockEnFoco = false
+    await vista.rerender(componente())
+    mockEnFoco = true
+    await vista.rerender(componente())
+    await act(async () => {
+      if (resultado === "resolver")
+        pendiente.resolver({
+          avisos: [{ ...publicada, leidoEn: "2026-09-24T12:00:00.000Z" }],
+          sinLeer: 0,
+        })
+      else pendiente.rechazar(new Error("sin red"))
+    })
+    expect(abrir).not.toHaveBeenCalled()
+    expect(screen.getByText("Nueva")).toBeOnTheScreen()
+    expect(screen.queryByRole("alert")).toBeNull()
+    const boton = screen.getByRole("button", { name: /publicó tu valoración/ })
+    expect(boton).toBeEnabled()
+    await fireEvent.press(boton)
+    await waitFor(() => expect(abrir).toHaveBeenCalledTimes(1))
+  },
+)
+
+it.each(["resolver", "rechazar"] as const)(
+  "cambiar de cliente libera la apertura y descarta la lectura anterior (%s)",
+  async (resultado) => {
+    const publicada = aviso()
+    const otroId = "10000000-0000-4000-8000-000000000001"
+    const otra = aviso({ clienteId: otroId, autor: { ...ENTRENADORA, nombre: "Beatriz Ruiz" } })
+    const api = servidor([publicada])
+    api.avisos.mockImplementation(async (id) => ({
+      avisos: id === CLIENTE ? [publicada] : [otra],
+      sinLeer: 1,
+    }))
+    const pendiente = diferida<ListadoAvisosSeguimiento>()
+    api.leerAvisos.mockReturnValueOnce(pendiente.promesa)
+    const abrir = jest.fn()
+    const alLeer = jest.fn()
+    const vista = await pintar(api, "cliente", abrir, alLeer)
+    await fireEvent.press(
+      await screen.findByRole("button", { name: /Ana García publicó tu valoración/ }),
+    )
+    await vista.rerender(
+      <AvisosSeguimiento
+        clienteId={otroId}
+        api={api}
+        modo="cliente"
+        abrir={abrir}
+        alLeer={alLeer}
+      />,
+    )
+    expect(
+      await screen.findByRole("button", { name: /Beatriz Ruiz publicó tu valoración/ }),
+    ).toBeEnabled()
+    await act(async () => {
+      if (resultado === "resolver")
+        pendiente.resolver({
+          avisos: [{ ...publicada, leidoEn: "2026-09-24T12:00:00.000Z" }],
+          sinLeer: 0,
+        })
+      else pendiente.rechazar(new Error("sin red"))
+    })
+    expect(abrir).not.toHaveBeenCalled()
+    expect(alLeer).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: /Beatriz Ruiz publicó tu valoración/ })).toBeEnabled()
+    expect(screen.getByText("Nueva")).toBeOnTheScreen()
+    expect(screen.queryByRole("alert")).toBeNull()
+  },
+)
