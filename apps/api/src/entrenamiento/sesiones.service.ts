@@ -60,8 +60,9 @@ export function mejorSerie<T extends ValoresEnUnidad>(a: T, b: T): T {
 export function fuerzaEstimada(
   valores: ValoresEnUnidad | undefined,
 ): { pesoKg: number; repeticiones: number; estimado: number } | null {
-  if (valores?.tipoMedicion !== "repeticiones" || !valores.pesoKg) return null
-  const estimado = Math.round(valores.pesoKg * (1 + valores.repeticiones / 30) * 10) / 10
+  if (valores?.tipoMedicion !== "repeticiones") return null
+  const estimado = estimar1RM(valores)
+  if (estimado === null || valores.pesoKg === null) return null
   return { pesoKg: valores.pesoKg, repeticiones: valores.repeticiones, estimado }
 }
 
@@ -220,12 +221,13 @@ export class SesionesService {
       resultados: filas.map((fila) => ({
         agenda: agendaPublica(fila.agenda),
         resultado: leerDocumento(fila.resultado, ResultadoEntrenamientoSchema, fila.version),
+        revisadaEn: fila.revisadaEn?.toISOString() ?? null,
       })),
     }
   }
 
   /**
-   * «Fuerza»: mejor serie de E1 por ejercicio y sesión enviada,
+   * «Fuerza»: mejor serie de E1 por ejercicio principal y sesión enviada,
    * con su estimación de Epley, por frecuencia de registro.
    */
   async fuerza(identidad: IdentidadVerificada, clienteId: string): Promise<ProgresionFuerza> {
@@ -256,6 +258,7 @@ export class SesionesService {
       )
       const ejerciciosEnSesion = new Map<string, { nombre: string; series: SerieRegistrada[] }>()
       for (const ejercicio of resultado.prescripcion.ejercicios) {
+        if ((ejercicio.seccion ?? "principal") !== "principal") continue
         const entrada = ejerciciosEnSesion.get(ejercicio.ejercicioId) ?? {
           nombre: ejercicio.nombre,
           series: [],

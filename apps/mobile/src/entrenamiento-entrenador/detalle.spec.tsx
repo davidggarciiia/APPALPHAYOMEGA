@@ -34,6 +34,7 @@ function crearApi(parcial: object): ApiEntrenamiento {
   return {
     comentarios: jest.fn(async () => ({ comentarios: [] })),
     molestias: jest.fn(async () => ({ molestias: [], total: 0 })),
+    resultados: jest.fn(async () => ({ resultados: [] })),
     ...parcial,
   } as unknown as ApiEntrenamiento
 }
@@ -360,7 +361,7 @@ it("una revisión tardía de otra ruta no confirma la sesión visible", async ()
   expect(screen.getByRole("button", { name: "Marcar como revisado" })).toBeEnabled()
 })
 
-it("sitúa las molestias de este ejercicio y esta sesión junto a su próxima vez", async () => {
+it("sitúa las molestias de este ejercicio y esta sesión sin recomendar cargas", async () => {
   const ejercicioId = sesion.prescripcion.ejercicios[0]!.id
   const molestia = {
     id: "m1",
@@ -388,13 +389,13 @@ it("sitúa las molestias de este ejercicio y esta sesión junto a su próxima ve
     }),
   })
   await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
-  expect(screen.getByText("Próxima vez · En revisión")).toBeOnTheScreen()
+  expect(screen.queryByText(/^Próxima vez/)).toBeNull()
   expect(screen.getByText("Molestia · hombro, serie 1")).toBeOnTheScreen()
   expect(screen.getByText("Pendiente de ti")).toBeOnTheScreen()
   expect(screen.queryByText(/lumbar/)).toBeNull()
 })
 
-it("espera a conocer las molestias antes de recomendar la próxima carga", async () => {
+it("reintenta las molestias sin atribuir una progresión a un ejercicio por tiempo", async () => {
   let rechazar!: (error: Error) => void
   const molestias = jest
     .fn()
@@ -413,7 +414,9 @@ it("espera a conocer las molestias antes de recomendar la próxima carga", async
   expect(screen.queryByText(/^Próxima vez/)).toBeNull()
   await fireEvent.press(screen.getByRole("button", { name: "Reintentar comentarios y molestias" }))
 
-  expect(screen.getByText("Próxima vez · Sube la carga")).toBeOnTheScreen()
+  expect(screen.queryByText(/^Próxima vez|Sube/)).toBeNull()
+  expect(screen.queryByRole("button", { name: "Reintentar comentarios y molestias" })).toBeNull()
+  expect(molestias).toHaveBeenCalledTimes(2)
 })
 
 it("reintenta la lectura auxiliar sin ocultar las series ni duplicar comentarios", async () => {

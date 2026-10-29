@@ -151,20 +151,71 @@ it("con una sola semana muestra cifras sin gráfica y sin estado inventado", asy
   expect(screen.getByText("Sin semana anterior")).toBeOnTheScreen()
 })
 
+// Sustituye «muestra $estado comparando las mejores series semanales».
 it.each([
   { pesos: [60, 60, 60], estado: "Estancado" },
   { pesos: [55, 57.5, 60], estado: "Baja" },
-])("muestra $estado con las últimas sesiones de E1", async ({ pesos, estado }) => {
+])(
+  "muestra $estado comparando tres sesiones aunque compartan semana",
+  async ({ pesos, estado }) => {
+    const p = propiedades(3)
+    const d = datos(3)
+    d.resultados.forEach(({ resultado }, i) =>
+      resultado.series.forEach((s) => {
+        if (s.hecha) s.valores.pesoKg = pesos[i]!
+      }),
+    )
+    p.api.resultados.mockResolvedValue({ resultados: d.resultados })
+    p.seguimiento.fuerza.mockResolvedValue({ ejercicios: [] })
+    await render(<ProgresionEjercicio {...p} />)
+    expect(await screen.findByText(estado)).toBeOnTheScreen()
+  },
+)
+
+// Sustituye «no atribuye un estado semanal a dos sesiones de una misma primera semana».
+it("observa progreso entre sesiones de una misma primera semana", async () => {
+  const p = propiedades(2)
+  const d = datos(2)
+  d.resultados[1]!.agenda.fechaActual = "2026-10-26"
+  d.resultados[0]!.agenda.fechaActual = "2026-10-27"
+  p.api.resultados.mockResolvedValue({ resultados: d.resultados })
+  p.seguimiento.fuerza.mockResolvedValue({ ejercicios: [] })
+  await render(<ProgresionEjercicio {...p} />)
+  expect(await screen.findByText("60 kg × 10")).toBeOnTheScreen()
+  expect(screen.getByText("Progresa")).toBeOnTheScreen()
+})
+
+it.each([60, 62.5])(
+  "con una sola igualdad o bajada desde %s no inventa tendencia",
+  async (anterior) => {
+    const p = propiedades(2)
+    const d = datos(2)
+    d.resultados[1]!.resultado.series.forEach((s) => {
+      if (s.hecha) s.valores.pesoKg = anterior
+    })
+    p.api.resultados.mockResolvedValue({ resultados: d.resultados })
+    p.seguimiento.fuerza.mockResolvedValue({ ejercicios: [] })
+    await render(<ProgresionEjercicio {...p} />)
+    await screen.findByText("60 kg × 10")
+    expect(screen.queryByText("Estancado")).toBeNull()
+    expect(screen.queryByText("Baja")).toBeNull()
+  },
+)
+
+it("una sesión sin marca interrumpe la racha aunque fuerza tenga puntos válidos", async () => {
   const p = propiedades(3)
   const d = datos(3)
-  d.resultados.forEach(({ resultado }, i) =>
+  d.resultados.forEach(({ resultado }) =>
     resultado.series.forEach((s) => {
-      if (s.hecha) s.valores.pesoKg = pesos[i]!
+      if (s.hecha) s.valores.pesoKg = 60
     }),
   )
+  d.resultados[1]!.resultado.series = [{ serieId: "a", hecha: false, omitida: true }]
   p.api.resultados.mockResolvedValue({ resultados: d.resultados })
   await render(<ProgresionEjercicio {...p} />)
-  expect(await screen.findByText(estado)).toBeOnTheScreen()
+  await screen.findByText("60 kg × 10")
+  expect(screen.queryByText("Estancado")).toBeNull()
+  expect(screen.queryByText("Progresa")).toBeNull()
 })
 
 it("con texto grande reparte las series en dos columnas y comunica las cifras al lector", async () => {
@@ -264,3 +315,27 @@ it("la lista abre cada ejercicio con estado observado e incluye el historial sin
   expect(screen.queryByText(/Sube carga/)).toBeNull()
   expect(p.api.resultados).not.toHaveBeenCalled()
 })
+
+it.each(["calentamiento", "circuito", "final"] as const)(
+  "la lista y la progresión descartan ejercicios de %s aunque fuerza tenga una copia antigua",
+  async (seccion) => {
+    const p = propiedades(1)
+    const d = datos(1)
+    const e = d.resultados[0]!.resultado.prescripcion.ejercicios[0]!
+    e.seccion = seccion
+    p.api.resultados.mockResolvedValue({ resultados: d.resultados })
+    await render(
+      <ListaProgresion
+        ejercicios={d.fuerza.ejercicios}
+        resultados={d.resultados}
+        abrir={jest.fn()}
+      />,
+    )
+    expect(screen.queryByRole("button", { name: /Press inclinado/ })).toBeNull()
+    expect(screen.getByText("Aún sin ejercicios con historial.")).toBeOnTheScreen()
+    await screen.rerender(<ProgresionEjercicio {...p} />)
+    expect(await screen.findByText("Aún sin sesiones de este ejercicio.")).toBeOnTheScreen()
+    expect(screen.queryByText("60 kg × 10")).toBeNull()
+    expect(screen.queryByText("1RM estimado")).toBeNull()
+  },
+)

@@ -669,7 +669,11 @@ export const ConsultarResultadosSchema = z.strictObject({
 export type ConsultarResultados = z.infer<typeof ConsultarResultadosSchema>
 export const ListadoResultadosSchema = z.strictObject({
   resultados: z.array(
-    z.strictObject({ agenda: SesionProgramadaSchema, resultado: ResultadoEntrenamientoSchema }),
+    z.strictObject({
+      agenda: SesionProgramadaSchema,
+      resultado: ResultadoEntrenamientoSchema,
+      revisadaEn: z.iso.datetime().nullable().optional(),
+    }),
   ),
 })
 export type ListadoResultados = z.infer<typeof ListadoResultadosSchema>

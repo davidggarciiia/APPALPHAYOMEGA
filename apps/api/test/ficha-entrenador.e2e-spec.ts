@@ -165,4 +165,31 @@ describe("Ficha del cliente para el entrenador", () => {
       .set(como("nutricionista"))
       .expect(403)
   })
+
+  it("el listado informa de la revisión sin pedir cada sesión y admite respuestas anteriores", async () => {
+    const { app, como, ids } = entorno
+    const http = app.getHttpServer()
+    const listar = async () =>
+      ListadoResultadosSchema.parse(
+        (
+          await request(http)
+            .get(`/entrenamiento/clientes/${ids.cliente}/resultados?limite=60`)
+            .set(como("entrenador"))
+            .expect(200)
+        ).body,
+      )
+    const antes = await listar()
+    expect(antes.resultados[0]?.revisadaEn).toBeNull()
+    const antigua = structuredClone(antes)
+    delete antigua.resultados[0]!.revisadaEn
+    expect(ListadoResultadosSchema.safeParse(antigua).success).toBe(true)
+    antigua.resultados[0]!.revisadaEn = "fecha inválida"
+    expect(ListadoResultadosSchema.safeParse(antigua).success).toBe(false)
+    const revisada = await request(http)
+      .put(`/entrenamiento/sesiones/${sesionId}/revision`)
+      .set(como("entrenador"))
+      .expect(200)
+    expect((await listar()).resultados[0]?.revisadaEn).toBe(revisada.body.revisadaEn)
+    expect(revisada.body.revisadaEn).toEqual(expect.any(String))
+  })
 })

@@ -135,7 +135,12 @@ export class ResumenSemanalService {
       for (const [ejercicioId, ejercicio] of ejerciciosEnSesion) {
         const entrada = historial.get(ejercicioId) ?? { nombre: ejercicio.nombre, sesiones: [] }
         entrada.nombre = ejercicio.nombre
-        entrada.sesiones.push({ sesionId: enviada.id, fecha, series: ejercicio.series })
+        entrada.sesiones.push({
+          sesionId: enviada.id,
+          fecha,
+          enviadoEn: resultado.enviadoEn,
+          series: ejercicio.series,
+        })
         historial.set(ejercicioId, entrada)
       }
       historiales.set(enviada.clienteId, historial)

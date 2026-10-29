@@ -20,6 +20,16 @@ export type SesionDelEjercicio = {
   rirPorSerie: Record<string, EjercicioPrescrito["rir"]>
 }
 
+export function esEjercicioDeProgresion(
+  resultados: ListadoResultados["resultados"],
+  ejercicioId: string,
+): boolean {
+  const prescritos = resultados.flatMap(({ resultado }) =>
+    resultado.prescripcion.ejercicios.filter((e) => e.ejercicioId === ejercicioId),
+  )
+  return !prescritos.length || prescritos.some((e) => (e.seccion ?? "principal") === "principal")
+}
+
 export function historialDelEjercicio(
   resultados: ListadoResultados["resultados"],
   ejercicioId: string,
@@ -27,7 +37,7 @@ export function historialDelEjercicio(
   return resultados
     .flatMap(({ agenda, resultado }) => {
       const ejercicios = resultado.prescripcion.ejercicios.filter(
-        (e) => e.ejercicioId === ejercicioId,
+        (e) => e.ejercicioId === ejercicioId && (e.seccion ?? "principal") === "principal",
       )
       if (!ejercicios[0]) return []
       const hechas = new Map(resultado.series.map((s) => [s.serieId, s]))
@@ -36,8 +46,7 @@ export function historialDelEjercicio(
           sesionId: resultado.sesionId,
           fecha: agenda.fechaActual,
           enviadoEn: resultado.enviadoEn,
-          ejercicio:
-            ejercicios.find((e) => (e.seccion ?? "principal") === "principal") ?? ejercicios[0],
+          ejercicio: ejercicios[0],
           rirPorSerie: Object.fromEntries(
             ejercicios.flatMap((e) => e.series.map((s) => [s.id, e.rir])),
           ),
@@ -57,7 +66,12 @@ export function historialDelEjercicio(
         },
       ]
     })
-    .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.enviadoEn.localeCompare(a.enviadoEn))
+    .sort(
+      (a, b) =>
+        b.fecha.localeCompare(a.fecha) ||
+        b.enviadoEn.localeCompare(a.enviadoEn) ||
+        b.sesionId.localeCompare(a.sesionId),
+    )
 }
 
 export type SemanaDeFuerza = {
@@ -72,17 +86,22 @@ export function conRirDelHistorial(
   historial: SesionDelEjercicio[],
 ): SerieRegistradaRepeticiones | null {
   if (!semana) return null
-  const encontrada = historial
-    .filter((s) => s.fecha === semana.fecha)
-    .flatMap((s) => s.series)
-    .find(
-      (s) =>
-        s.hecha &&
-        s.tipoMedicion === "repeticiones" &&
-        s.pesoKg === semana.serie.pesoKg &&
-        s.repeticiones === semana.serie.repeticiones,
-    )
-  return encontrada?.tipoMedicion === "repeticiones" ? encontrada : semana.serie
+  if (historial.some((s) => s.series.includes(semana.serie))) return semana.serie
+  const encontrada = mejorSerieDeSemana(
+    historial
+      .filter((s) => s.fecha === semana.fecha)
+      .map((s) => ({
+        ...s,
+        series: s.series.filter(
+          (serie) =>
+            serie.tipoMedicion === "repeticiones" &&
+            serie.pesoKg === semana.serie.pesoKg &&
+            serie.repeticiones === semana.serie.repeticiones,
+        ),
+      })),
+    semana.semana,
+  )
+  return encontrada ?? semana.serie
 }
 
 export function semanasDeFuerza(

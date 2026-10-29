@@ -5,6 +5,9 @@ import { SemanaSchema } from "./agenda"
 export type SerieRegistradaRepeticiones = Extract<SerieRegistrada, { tipoMedicion: "repeticiones" }>
 export type SesionDeProgresion = {
   fecha: string
+  /** Desempate común cuando hay varias sesiones en la misma fecha de agenda. */
+  enviadoEn?: string
+  sesionId?: string
   /** Solo las series de un mismo ejercicio, ya separadas por el consumidor. */
   series: readonly SerieRegistrada[]
 }
@@ -32,6 +35,14 @@ function compararSeries(a: SerieRegistradaRepeticiones, b: SerieRegistradaRepeti
   return (a.pesoKg ?? 0) - (b.pesoKg ?? 0) || (a.repeticiones ?? 0) - (b.repeticiones ?? 0)
 }
 
+function compararSesiones(a: SesionDeProgresion, b: SesionDeProgresion): number {
+  return (
+    Date.parse(a.fecha) - Date.parse(b.fecha) ||
+    Date.parse(a.enviadoEn ?? a.fecha) - Date.parse(b.enviadoEn ?? b.fecha) ||
+    (a.sesionId ?? "").localeCompare(b.sesionId ?? "")
+  )
+}
+
 /** Más carga; a igualdad de kg, más repeticiones. El RIR no desempata. */
 export function mejorSerieDeSesion(
   series: readonly SerieRegistrada[],
@@ -55,7 +66,7 @@ export function mejorSerieDeSemana(
   const fin = inicio + 7 * 24 * 60 * 60 * 1000
   const deSemana = sesiones
     .filter(({ fecha }) => Date.parse(fecha) >= inicio && Date.parse(fecha) < fin)
-    .sort((a, b) => Date.parse(a.fecha) - Date.parse(b.fecha))
+    .sort(compararSesiones)
   return mejorSerieDeSesion(deSemana.flatMap(({ series }) => series))
 }
 
@@ -96,7 +107,7 @@ export function estadoDeProgresion(
   sesiones: readonly SesionDeProgresion[],
 ): EstadoDeProgresion | null {
   const ultimas = [...sesiones]
-    .sort((a, b) => Date.parse(b.fecha) - Date.parse(a.fecha))
+    .sort((a, b) => compararSesiones(b, a))
     .slice(0, 3)
     .map(({ series }) => mejorSerieDeSesion(series))
   const actual = compararSemanas(ultimas[0] ?? null, ultimas[1] ?? null)

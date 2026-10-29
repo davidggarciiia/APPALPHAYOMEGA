@@ -23,6 +23,7 @@ import { DeltaProgresion, EstadoProgresion } from "./lista-progresion"
 import {
   conRirDelHistorial,
   decimal,
+  esEjercicioDeProgresion,
   historialDelEjercicio,
   pautaDelEjercicio,
   serieLegible,
@@ -86,7 +87,9 @@ function ProgresionActual({
     () => historialDelEjercicio(datos?.resultados ?? [], ejercicioId),
     [datos, ejercicioId],
   )
-  const fuerza = datos?.fuerza.ejercicios.find((e) => e.ejercicioId === ejercicioId)
+  const fuerza = esEjercicioDeProgresion(datos?.resultados ?? [], ejercicioId)
+    ? datos?.fuerza.ejercicios.find((e) => e.ejercicioId === ejercicioId)
+    : undefined
   const semanas = useMemo(
     () => semanasDeFuerza(fuerza?.puntos ?? [], historial),
     [fuerza, historial],
@@ -143,8 +146,7 @@ function ProgresionActual({
           </View>
           {doble && mismoTope ? (
             <Text style={s.tenue}>
-              El cliente sube carga al llegar a {tope[0]} reps en todas las series con RIR{" "}
-              {ejercicio.rir?.min}.
+              Tope de {tope[0]} reps con RIR {ejercicio.rir?.min} en todas las series.
             </Text>
           ) : null}
           {ultima && (
@@ -160,7 +162,7 @@ function ProgresionActual({
                 puntos={semanas.map((p) => ({ fecha: p.semana, valor: p.serie.pesoKg! }))}
                 tendencia={[]}
                 comparacion={semanas.map((p) => ({ fecha: p.semana, valor: p.estimado }))}
-                descripcion={`${fuerza?.nombre}: mejor serie semanal y 1RM estimado en kg. ${semanas.map((p) => `${p.semana}: ${decimal(p.serie.pesoKg!)} kg; 1RM ${decimal(p.estimado)} kg`).join(". ")}`}
+                descripcion={`${fuerza?.nombre ?? ejercicio?.nombre ?? "Ejercicio"}: mejor serie semanal y 1RM estimado en kg. ${semanas.map((p) => `${p.semana}: ${decimal(p.serie.pesoKg!)} kg; 1RM ${decimal(p.estimado)} kg`).join(". ")}`}
                 izquierda={semanas[0]!.semana}
                 derecha={ultima.semana}
                 animar

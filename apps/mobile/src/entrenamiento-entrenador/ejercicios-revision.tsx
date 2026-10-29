@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_ZONA,
+  estadoDeProgresion,
   type ComentarioSesion,
+  type ListadoResultados,
   type Molestia,
   type ResultadoEntrenamiento,
 } from "@alpha-omega/shared"
@@ -10,12 +12,12 @@ import {
 import { AvisoDeError, BotonEnlace } from "../componentes/formulario"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { PrescripcionVisible } from "../entrenamiento/resultado"
-import { proximaVez } from "../entrenamiento/sesion/modelo"
 import { espacio, tema, tipo } from "../tema"
 import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
-import { edicionDesdeResultado } from "./ficha-modelo"
 import { ComentariosRevision } from "./comentarios-revision"
 import { DialogoResponder, textoDeMolestia } from "./ficha/atencion"
+import { historialDelEjercicio } from "./ficha/progresion-modelo"
+import { EstadoProgresion } from "./ficha/lista-progresion"
 
 export function EjerciciosRevision({
   resultado,
@@ -34,7 +36,7 @@ export function EjerciciosRevision({
 }): React.JSX.Element {
   const [comentarios, setComentarios] = useState<ComentarioSesion[]>([])
   const [molestias, setMolestias] = useState<Molestia[]>([])
-  const [molestiasConocidas, setMolestiasConocidas] = useState(false)
+  const [historial, setHistorial] = useState<ListadoResultados["resultados"]>([])
   const [abiertos, setAbiertos] = useState<ReadonlySet<string>>(new Set())
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
@@ -50,42 +52,44 @@ export function EjerciciosRevision({
   useEffect(() => {
     let vigente = true
     const version = versionMolestias.current
-    setMolestiasConocidas(false)
-    void Promise.allSettled([api.comentarios(resultado.sesionId), api.molestias(clienteId)]).then(
-      ([c, m]) => {
-        if (!vigente) return
-        const revocado = [c, m].find(
-          (lectura) =>
-            lectura.status === "rejected" &&
-            (lectura.reason instanceof ErrorDePermiso || lectura.reason instanceof ErrorDeSesion),
-        )
-        if (revocado?.status === "rejected") {
-          setComentarios([])
-          setMolestias([])
-          setRespondiendo(null)
-          sinAcceso(revocado.reason)
-          return
-        }
-        if (c.status === "fulfilled")
-          setComentarios((anteriores) => {
-            const lista = new Map(
-              c.value.comentarios.map((comentario) => [comentario.id, comentario]),
-            )
-            anteriores.forEach((comentario) => lista.set(comentario.id, comentario))
-            return [...lista.values()]
-          })
-        if (m.status === "fulfilled" && version === versionMolestias.current)
-          setMolestias(
-            m.value.molestias.filter((molestia) => molestia.sesionId === resultado.sesionId),
+    void Promise.allSettled([
+      api.comentarios(resultado.sesionId),
+      api.molestias(clienteId),
+      api.resultados(clienteId, 60),
+    ]).then(([c, m, h]) => {
+      if (!vigente) return
+      const revocado = [c, m, h].find(
+        (lectura) =>
+          lectura.status === "rejected" &&
+          (lectura.reason instanceof ErrorDePermiso || lectura.reason instanceof ErrorDeSesion),
+      )
+      if (revocado?.status === "rejected") {
+        setComentarios([])
+        setMolestias([])
+        setHistorial([])
+        setRespondiendo(null)
+        sinAcceso(revocado.reason)
+        return
+      }
+      if (c.status === "fulfilled")
+        setComentarios((anteriores) => {
+          const lista = new Map(
+            c.value.comentarios.map((comentario) => [comentario.id, comentario]),
           )
-        setMolestiasConocidas(m.status === "fulfilled")
-        setError(
-          c.status === "rejected" || m.status === "rejected"
-            ? "No se pudieron cargar los comentarios o las molestias."
-            : "",
+          anteriores.forEach((comentario) => lista.set(comentario.id, comentario))
+          return [...lista.values()]
+        })
+      if (m.status === "fulfilled" && version === versionMolestias.current)
+        setMolestias(
+          m.value.molestias.filter((molestia) => molestia.sesionId === resultado.sesionId),
         )
-      },
-    )
+      if (h.status === "fulfilled") setHistorial(h.value.resultados)
+      setError(
+        c.status === "rejected" || m.status === "rejected" || h.status === "rejected"
+          ? "No se pudieron cargar los comentarios, las molestias o la progresión."
+          : "",
+      )
+    })
     return () => {
       vigente = false
     }
@@ -102,16 +106,17 @@ export function EjerciciosRevision({
       throw causa
     }
   }
-  const abiertas = new Set(
-    molestias
-      .filter((m) => m.estado === "abierta" && m.ejercicioPrescritoId)
-      .map((m) => m.ejercicioPrescritoId!),
+  const resultadosActuales = historial.map((r) =>
+    r.resultado.sesionId === resultado.sesionId ? { ...r, resultado } : r,
   )
-  const proximas = new Map(
-    (molestiasConocidas
-      ? proximaVez(resultado.prescripcion, edicionDesdeResultado(resultado), abiertas)
-      : []
-    ).map((p) => [p.ejercicioId, p]),
+  const estados = new Map(
+    resultado.prescripcion.ejercicios
+      .filter((e) => (e.seccion ?? "principal") === "principal")
+      .map((e) => {
+        const sesiones = historialDelEjercicio(resultadosActuales, e.ejercicioId)
+        const actual = sesiones.findIndex((s) => s.sesionId === resultado.sesionId)
+        return [e.id, actual < 0 ? null : estadoDeProgresion(sesiones.slice(actual))] as const
+      }),
   )
   const publicado = (nuevo: ComentarioSesion): void =>
     setComentarios((lista) => [...lista.filter((c) => c.id !== nuevo.id), nuevo])
@@ -180,20 +185,9 @@ export function EjerciciosRevision({
             </Pressable>
           ),
           pie: (e) => {
-            const proxima = proximas.get(e.id)
             return (
               <View style={s.pie}>
-                {proxima && (
-                  <Text
-                    style={[
-                      s.proxima,
-                      proxima.tipo === "sube" && s.sube,
-                      proxima.tipo === "revision" && s.aviso,
-                    ]}
-                  >
-                    Próxima vez · {proxima.texto}
-                  </Text>
-                )}
+                <EstadoProgresion estado={estados.get(e.id) ?? null} />
                 {molestias.filter((m) => m.ejercicioPrescritoId === e.id).map(avisoMolestia)}
                 {comentariosDe(e.id, e.nombre)}
               </View>
@@ -218,12 +212,6 @@ const s = StyleSheet.create({
   enlace: { ...tipo.secundario, color: tema.textoSecundario },
   pie: { gap: espacio[8] },
   proxima: { ...tipo.secundario },
-  sube: {
-    color: tema.acento,
-    backgroundColor: tema.acentoSuave,
-    padding: espacio[8],
-    alignSelf: "flex-start",
-  },
   aviso: { ...tipo.secundario, color: tema.aviso },
   molestia: { gap: espacio[4] },
 })

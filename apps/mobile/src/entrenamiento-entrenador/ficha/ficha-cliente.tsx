@@ -1,77 +1,33 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { useFocusEffect, useRouter } from "expo-router"
-import { AppState, StyleSheet, Text, View } from "react-native"
-import {
-  ETIQUETA_DE_ZONA,
-  type EstadoConsentimiento,
-  type FichaDeUsuario,
-  type LecturaDietaVigente,
-  type ListadoMedidas,
-  type ListadoResultados,
-  type Molestia,
-  type PlanVigente,
-} from "@alpha-omega/shared"
-
-import {
-  AvisoDeError,
-  BotonPrincipal,
-  BotonSecundario,
-  BotonEnlace,
-} from "../../componentes/formulario"
-import { CambioDeContenido, EntradaMarca } from "../../componentes/entrada-marca"
+﻿import { useEffect, useState } from "react"
+import { useRouter } from "expo-router"
+import { StyleSheet, Text, View } from "react-native"
+import { ETIQUETA_DE_ZONA, type Molestia } from "@alpha-omega/shared"
+import { AvisoDeError, BotonPrincipal, BotonSecundario } from "../../componentes/formulario"
+import { Aviso } from "../../componentes/aviso"
+import { EntradaMarca } from "../../componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
-import { Icono } from "../../componentes/iconos"
+import { Hoja } from "../../componentes/hoja"
+import { Icono, type NombreIcono } from "../../componentes/iconos"
 import { InsigniaDeEstado } from "../../componentes/insignia-estado"
 import { Pulsable } from "../../componentes/pulsable"
 import { DatosDelCliente } from "../../clientes/datos-del-cliente"
-import { textoConsentimiento } from "../../clientes/consentimiento"
-import type { ApiEntrenamiento } from "../../entrenamiento/api"
-import { fechaLegible, hoyAgenda, lunesDeSemana } from "../../entrenamiento/fechas"
-import { faseActual, semanaDelBloque, textoDeDeporte } from "../../entrenamiento/plan/modelo"
-import { Fila, Pestanas, Tarjeta, Titulo } from "../../entrenamiento/plan/piezas"
-import { faltaDe } from "../../lib/errores"
-import { ErrorDePermiso, ErrorDeSesion } from "../../lib/http"
-import type { ApiNutricion } from "../../nutricion/api"
+import { fechaCorta, semanaDelBloque } from "../../entrenamiento/plan/modelo"
+import { hoyAgenda } from "../../entrenamiento/fechas"
 import { tipoDelDia } from "../../nutricion/hoy-modelo"
-import type { ApiSeguimiento } from "../../seguimiento/api"
-import { edadEn, miles, pesoLegible } from "../../seguimiento/modelo"
-import { ValoracionesProfesional } from "../../seguimiento/editor-valoracion"
-import { ProgresoCliente } from "../../seguimiento/progreso"
+import { miles } from "../../seguimiento/modelo"
 import type { ApiMedios } from "../../seguimiento/medios-api"
-import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
-import { alto, espacio, radio, tema, tipo } from "../../tema"
-import { DialogoResponder, RequiereAtencion } from "./atencion"
-import { SesionesDelCliente, UltimaSesion } from "./sesiones"
+import { alto, radio, tema, tipo } from "../../tema"
+import { resumenDeResultado } from "../ficha-modelo"
+import { DialogoResponder } from "./atencion"
+import { BarraDeBloque } from "./barra-bloque"
+import { CargasFicha } from "./cargas-ficha"
+import { TarjetaDeAccion } from "./tarjeta-accion"
+import { TiraSemana } from "./tira-semana"
+import { useDatosFicha, type FuentesFicha } from "./use-datos-ficha"
 
-type Pestana = "resumen" | "sesiones" | "progreso" | "nutricion" | "salud"
-const PESTANAS = [
-  { valor: "resumen", texto: "Resumen" },
-  { valor: "sesiones", texto: "Sesiones" },
-  { valor: "progreso", texto: "Progreso" },
-  { valor: "nutricion", texto: "Nutrición" },
-  { valor: "salud", texto: "Salud" },
-] as const
-
-type Datos = {
-  ficha: FichaDeUsuario
-  plan: PlanVigente | null
-  resultados: ListadoResultados["resultados"]
-  molestias: Molestia[]
-  dieta: LecturaDietaVigente | null
-  medidas: ListadoMedidas | null
-  consentimiento: EstadoConsentimiento | null
-  totalValoraciones: number | null
-}
-
-type Propiedades = {
-  clienteId: string
+type Propiedades = FuentesFicha & {
   cuentaId: string
-  leerFicha: () => Promise<FichaDeUsuario>
-  api: ApiEntrenamiento
-  seguimiento: ApiSeguimiento
-  valoraciones: ApiValoraciones
   medios: ApiMedios
-  nutricion: ApiNutricion
   nuevoId: () => string
   editarPlan: () => void
   verSemana: (nombre: string) => void
@@ -82,439 +38,427 @@ type Propiedades = {
   correoFallido?: boolean
   alCerrarDatos?: () => void
 }
-
-/** La identidad delimita también los datos y borradores montados de la ficha. */
 export function FichaCliente(props: Propiedades): React.JSX.Element {
   return <FichaActual key={`${props.cuentaId}:${props.clienteId}`} {...props} />
 }
-
-function FichaActual({
-  clienteId,
-  leerFicha,
-  api,
-  seguimiento,
-  valoraciones,
-  medios,
-  nutricion,
-  nuevoId,
-  editarPlan,
-  verSemana,
-  abrirNutricion,
-  valoracionInicial = false,
-  pestanaInicial,
-  datosIniciales = false,
-  correoFallido = false,
-  alCerrarDatos,
-}: Propiedades): React.JSX.Element {
-  const [pestana, setPestana] = useState<Pestana>(
-    valoracionInicial ? "progreso" : (pestanaInicial ?? "resumen"),
-  )
-  const [iniciarInicial, setIniciarInicial] = useState(valoracionInicial)
-  const [editandoProgreso, setEditandoProgreso] = useState(false)
-  const [datos, setDatos] = useState<Datos | null>(null)
-  const [error, setError] = useState("")
-  const [intento, setIntento] = useState(0)
-  const [respondiendo, setRespondiendo] = useState<Molestia | null>(null)
+function FichaActual(props: Propiedades): React.JSX.Element {
+  const {
+    clienteId,
+    editarPlan,
+    verSemana,
+    abrirNutricion,
+    valoracionInicial,
+    pestanaInicial,
+    datosIniciales = false,
+    correoFallido,
+    alCerrarDatos,
+  } = props
+  const { datos, error, copia, lunes, actualizarFicha, responder, reintentar } =
+    useDatosFicha(props)
+  const [menu, setMenu] = useState(false)
   const [mostrandoDatos, setMostrandoDatos] = useState(datosIniciales)
-  const versionFicha = useRef(0)
-  const versionMolestias = useRef(0)
-  const permisoRevocado = useRef(false)
+  const [respondiendo, setRespondiendo] = useState<Molestia | null>(null)
   const router = useRouter()
-  const lunes = lunesDeSemana()
   useEffect(() => {
     if (datosIniciales) setMostrandoDatos(true)
   }, [datosIniciales])
-  const sinAcceso = useCallback((causa: unknown) => {
-    permisoRevocado.current = true
-    setDatos(null)
-    setRespondiendo(null)
-    setError(faltaDe(causa, "No se pudo cargar la ficha.").texto)
-  }, [])
-
-  useFocusEffect(
-    useCallback(() => {
-      permisoRevocado.current = false
-      let vigente = true,
-        cargando = false
-      const cargar = async (): Promise<void> => {
-        if (cargando || (AppState.currentState !== null && AppState.currentState !== "active"))
-          return
-        cargando = true
-        const versionDeMolestias = versionMolestias.current
-        const versionDelPerfil = versionFicha.current
-        try {
-          const [ficha, plan, resultados, molestias, dieta, medidas, consentimiento, visitas] =
-            await Promise.allSettled([
-              leerFicha(),
-              api.plan(clienteId, lunes),
-              api.resultados(clienteId, 60),
-              api.molestias(clienteId, "todas"),
-              nutricion.vigente(clienteId),
-              seguimiento.medidas(clienteId),
-              seguimiento.consentimiento(clienteId),
-              valoraciones.listar(clienteId, 1),
-            ])
-          if (!vigente || permisoRevocado.current) return
-          const sinAcceso = [
-            ficha,
-            plan,
-            resultados,
-            molestias,
-            dieta,
-            medidas,
-            consentimiento,
-            visitas,
-          ].find(
-            (consulta) =>
-              consulta.status === "rejected" &&
-              (consulta.reason instanceof ErrorDeSesion ||
-                consulta.reason instanceof ErrorDePermiso),
-          )
-          if (sinAcceso?.status === "rejected") {
-            setDatos(null)
-            setRespondiendo(null)
-            setError(faltaDe(sinAcceso.reason, "No se pudo cargar la ficha.").texto)
-            return
-          }
-          setDatos((actual) => {
-            const perfil =
-              ficha.status === "fulfilled" && versionDelPerfil === versionFicha.current
-                ? ficha.value
-                : actual?.ficha
-            if (!perfil) return null
-            return {
-              ficha: perfil,
-              plan: plan.status === "fulfilled" ? plan.value.plan : (actual?.plan ?? null),
-              resultados:
-                resultados.status === "fulfilled"
-                  ? resultados.value.resultados
-                  : (actual?.resultados ?? []),
-              molestias:
-                molestias.status === "fulfilled" && versionDeMolestias === versionMolestias.current
-                  ? molestias.value.molestias
-                  : (actual?.molestias ?? []),
-              dieta: dieta.status === "fulfilled" ? dieta.value : (actual?.dieta ?? null),
-              medidas: medidas.status === "fulfilled" ? medidas.value : (actual?.medidas ?? null),
-              consentimiento:
-                consentimiento.status === "fulfilled"
-                  ? consentimiento.value
-                  : (actual?.consentimiento ?? null),
-              totalValoraciones: visitas.status === "fulfilled" ? visitas.value.total : null,
-            }
-          })
-          const fallo = [ficha, plan, resultados, molestias].find((r) => r.status === "rejected")
-          setError(fallo ? faltaDe(fallo.reason, "No se pudo cargar la ficha.").texto : "")
-        } finally {
-          cargando = false
-        }
-      }
-      void cargar()
-      const reloj = setInterval(() => void cargar(), 10000)
-      return () => {
-        vigente = false
-        clearInterval(reloj)
-      }
-    }, [leerFicha, api, nutricion, seguimiento, valoraciones, clienteId, lunes, intento]),
-  )
-
-  const aviso =
-    error !== "" ? (
+  useEffect(() => {
+    if (valoracionInicial)
+      router.replace({
+        pathname: "/entrenador/cliente/[id]/valoraciones",
+        params: { id: clienteId, valoracionInicial: "1" },
+      })
+    else if (pestanaInicial === "progreso")
+      router.replace({ pathname: "/entrenador/cliente/[id]/progreso", params: { id: clienteId } })
+  }, [valoracionInicial, pestanaInicial, clienteId, router])
+  if (!datos)
+    return error ? (
       <View style={s.grupo}>
         <AvisoDeError mensaje={error} />
-        <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
+        <BotonSecundario texto="Reintentar" onPress={reintentar} />
       </View>
-    ) : null
-  if (datos === null)
-    return (
-      aviso ?? (
-        <GrupoEsqueletos>
-          <View
-            style={s.contenido}
-            accessibilityLabel="Cargando ficha"
-            accessibilityState={{ busy: true }}
-          >
-            <Esqueleto ancho={44} alto={44} />
-            <Esqueleto ancho="75%" alto={38} />
-            <Esqueleto alto={18} />
-            {[0, 1, 2].map((n) => (
-              <Esqueleto key={n} alto={132} radio={radio.tarjeta} />
-            ))}
-          </View>
-        </GrupoEsqueletos>
-      )
+    ) : (
+      <GrupoEsqueletos>
+        <View
+          style={s.contenido}
+          accessibilityLabel="Cargando ficha"
+          accessibilityState={{ busy: true }}
+        >
+          <Esqueleto ancho={44} alto={44} />
+          <Esqueleto ancho="75%" alto={38} />
+          <Esqueleto alto={18} />
+          <Esqueleto alto={10} />
+          {[0, 1, 2].map((n) => (
+            <Esqueleto key={n} alto={102} radio={radio.tarjeta} />
+          ))}
+        </View>
+      </GrupoEsqueletos>
     )
-
   const nombre = [datos.ficha.nombre, datos.ficha.apellidos].filter(Boolean).join(" ")
   const plan = datos.plan
   const semana = plan ? semanaDelBloque(plan, lunes) : null
-  const fase =
-    plan?.bloque && semana ? plan.bloque.fases[faseActual(plan.bloque.fases, semana)] : undefined
-  const subtitulo = plan
-    ? [
-        fase ? `${plan.nombre} · ${fase.nombre}` : plan.nombre,
-        `semana ${semana} de ${plan.semanas}`,
-        plan.bloque?.deportes.map(textoDeDeporte).join(" · ") || null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : "Sin plan esta semana"
-  const deEstaSemana = datos.resultados
-    .filter((r) => r.agenda.fechaActual >= lunes)
-    .map((r) => r.resultado)
-  const ultima = datos.resultados[0]
-  const verSesion = (sesionId: string): void => {
+  const pendientes = datos.resultados.filter((r) => r.revisadaEn === null)
+  const abiertas = datos.molestias
+    .filter((m) => m.estado === "abierta")
+    .sort((a, b) => b.intensidad - a.intensidad)
+  const nueva =
+    !plan && datos.totalValoraciones === 0 && !datos.resultados.length && !abiertas.length
+  const abrirValoracion = () =>
     router.push({
-      pathname: "/entrenamiento/[id]",
-      params: { id: sesionId, nombre },
+      pathname: "/entrenador/cliente/[id]/valoraciones",
+      params: { id: clienteId, valoracionInicial: "1" },
     })
-  }
-  const responder = async (molestia: Molestia, texto: string): Promise<void> => {
-    const atendida = await api.atenderMolestia(molestia.id, texto)
-    versionMolestias.current += 1
-    setDatos((actual) =>
-      actual
-        ? {
-            ...actual,
-            molestias: actual.molestias.map((m) => (m.id === atendida.id ? atendida : m)),
-          }
-        : actual,
+  const verSesion = (id: string) =>
+    router.push({ pathname: "/entrenamiento/[id]", params: { id, nombre } })
+  const acciones: Array<{
+    titulo: string
+    detalle: string
+    accion: string
+    onPress: () => void
+    variante?: "error" | "aviso"
+  }> = []
+  if (!nueva) {
+    const molestia = abiertas[0]
+    if (molestia)
+      acciones.push({
+        titulo: `${ETIQUETA_DE_ZONA[molestia.zona]} · ${molestia.intensidad} de 10`,
+        detalle: [
+          molestia.ejercicio,
+          molestia.serie ? `serie ${molestia.serie}` : null,
+          molestia.creadaEn ? `desde ${fechaCorta(molestia.creadaEn.slice(0, 10))}` : null,
+          abiertas.length > 1 ? `y ${abiertas.length - 1} más` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        accion: "Responder",
+        onPress: () => setRespondiendo(molestia),
+        variante: molestia.intensidad >= 7 ? "error" : "aviso",
+      })
+    if (pendientes.length) {
+      const antigua = [...pendientes].sort((a, b) =>
+        a.agenda.fechaActual.localeCompare(b.agenda.fechaActual),
+      )[0]!
+      acciones.push({
+        titulo:
+          pendientes.length === 1
+            ? `${antigua.resultado.prescripcion.nombre} por revisar`
+            : `${pendientes.length} sesiones por revisar`,
+        detalle:
+          pendientes.length === 1
+            ? `${fechaCorta(antigua.agenda.fechaActual)} · ${resumenDeResultado(antigua.resultado)}`
+            : `La más antigua: ${fechaCorta(antigua.agenda.fechaActual)}`,
+        accion: "Revisar",
+        onPress: () =>
+          pendientes.length === 1
+            ? verSesion(antigua.agenda.id)
+            : router.push({
+                pathname: "/entrenador/cliente/[id]/sesiones",
+                params: { id: clienteId, sinRevisar: "1" },
+              }),
+      })
+    }
+    if (
+      plan &&
+      semana === plan.semanas &&
+      datos.siguiente !== undefined &&
+      (!datos.siguiente || datos.siguiente.id === plan.id)
     )
+      acciones.push({
+        titulo: `El ${plan.nombre} acaba el domingo`,
+        detalle: `Semana ${semana} de ${plan.semanas} · prepara el siguiente`,
+        accion: "Preparar",
+        onPress: editarPlan,
+        variante: "aviso",
+      })
+    if (!plan && datos.resultados.length)
+      acciones.push({
+        titulo: "Sin plan esta semana",
+        detalle: "Crea el siguiente bloque",
+        accion: "Crear plan",
+        onPress: editarPlan,
+        variante: "aviso",
+      })
+    if (plan && datos.totalValoraciones === 0 && acciones.length < 3)
+      acciones.push({
+        titulo: "Valoración inicial",
+        detalle: "Aún no tiene la de partida",
+        accion: "Empezar",
+        onPress: abrirValoracion,
+      })
   }
-
+  const peso = datos.medidas?.medidas.filter((m) => m.pesoKg !== null) ?? []
+  const delta = peso.length > 1 ? peso.at(-1)!.pesoKg! - peso[0]!.pesoKg! : null
+  const ajuste = plan?.bloque?.fases.find((f) => f.ajustes)
+  const kcal = datos.dieta?.dieta
+    ? tipoDelDia(datos.dieta.dieta.documento, hoyAgenda())?.objetivo?.kcal
+    : null
+  const destinos: Array<{
+    titulo: string
+    detalle: string
+    icono: NombreIcono
+    onPress: () => void
+  }> = [
+    {
+      titulo: "Plan",
+      detalle: plan
+        ? `${plan.nombre} · ${ajuste ? `${ajuste.nombre.toLowerCase()} en S${ajuste.desde}` : `${plan.semanas} semanas`}`
+        : "Sin plan",
+      icono: "plan",
+      onPress: editarPlan,
+    },
+    ...(datos.resultados.length
+      ? [
+          {
+            titulo: "Sesiones",
+            detalle: `${datos.resultados.length} enviadas${pendientes.length ? ` · ${pendientes.length} sin revisar` : ""}`,
+            icono: "entreno" as const,
+            onPress: () =>
+              router.push({
+                pathname: "/entrenador/cliente/[id]/sesiones",
+                params: { id: clienteId },
+              }),
+          },
+        ]
+      : []),
+    ...(datos.medidas?.medidas.length ||
+    datos.resultados.some((r) =>
+      r.resultado.prescripcion.ejercicios.some((e) => (e.seccion ?? "principal") === "principal"),
+    )
+      ? [
+          {
+            titulo: "Progreso",
+            detalle:
+              delta === null
+                ? "Evolución por ejercicio"
+                : `${delta > 0 ? "+" : ""}${delta.toFixed(1).replace(".", ",")} kg desde el inicio`,
+            icono: "progreso" as const,
+            onPress: () =>
+              router.push({
+                pathname: "/entrenador/cliente/[id]/progreso",
+                params: { id: clienteId },
+              }),
+          },
+        ]
+      : []),
+    {
+      titulo: "Valoraciones",
+      detalle: datos.totalValoraciones
+        ? `${datos.totalValoraciones} hechas${datos.ultimaValoracion ? ` · última ${fechaCorta(datos.ultimaValoracion)}` : ""}`
+        : datos.totalValoraciones === 0
+          ? "Ninguna todavía"
+          : "Sin datos disponibles",
+      icono: "ejercicios",
+      onPress: () =>
+        router.push({
+          pathname: "/entrenador/cliente/[id]/valoraciones",
+          params: { id: clienteId },
+        }),
+    },
+    ...(datos.molestias.length
+      ? [
+          {
+            titulo: "Molestias",
+            detalle: `${abiertas.length ? `${abiertas.length} abiertas` : "Ninguna abierta"} · ${datos.molestias.length - abiertas.length} atendidas`,
+            icono: "notificaciones" as const,
+            onPress: () =>
+              router.push({
+                pathname: "/entrenador/cliente/[id]/molestias",
+                params: { id: clienteId },
+              }),
+          },
+        ]
+      : []),
+    {
+      titulo: "Nutrición",
+      detalle: datos.dieta?.dieta
+        ? `Dieta vigente${kcal != null ? ` · ${miles(kcal)} kcal hoy` : ""}`
+        : "Sin dieta",
+      icono: "nutricion",
+      onPress: () => abrirNutricion(nombre),
+    },
+    {
+      titulo: "Datos del cliente",
+      detalle: datos.ficha.email,
+      icono: "perfil",
+      onPress: () => setMostrandoDatos(true),
+    },
+  ]
   return (
     <View style={s.contenido}>
-      {aviso}
-      <EntradaMarca style={s.cabecera}>
-        <View style={s.barraSuperior}>
-          <Pulsable
-            accessibilityLabel="Volver"
-            style={s.volver}
-            onPress={() => {
-              if (router.canGoBack()) router.back()
-              else router.replace("/cartera")
-            }}
-          >
-            <Icono nombre="atras" tamano={20} color={tema.texto} />
-          </Pulsable>
-          {datos.ficha.estado && <InsigniaDeEstado estado={datos.ficha.estado} />}
-        </View>
-        <View style={s.textos}>
+      <View
+        style={s.contenido}
+        accessibilityElementsHidden={menu}
+        importantForAccessibility={menu ? "no-hide-descendants" : "auto"}
+      >
+        <View style={s.cabecera}>
+          <View style={s.barra}>
+            <Pulsable
+              accessibilityLabel="Volver"
+              style={s.icono}
+              onPress={() => (router.canGoBack() ? router.back() : router.replace("/cartera"))}
+            >
+              <Icono nombre="atras" tamano={20} color={tema.texto} />
+            </Pulsable>
+            <Pulsable
+              accessibilityLabel="Más acciones"
+              style={s.icono}
+              onPress={() => setMenu(true)}
+            >
+              <Text style={s.puntos}>⋯</Text>
+            </Pulsable>
+          </View>
           <Text style={s.nombre} accessibilityRole="header">
             {nombre}
           </Text>
-          <Text style={s.tenue}>{subtitulo}</Text>
-        </View>
-        <View style={s.botones}>
-          <View style={s.accion} testID="ficha-accion-semana">
-            <BotonSecundario texto="Semana" onPress={() => verSemana(nombre)} compacto sinMargen />
+          <View style={s.estado}>
+            {datos.ficha.estado && <InsigniaDeEstado estado={datos.ficha.estado} />}
+            <Text style={s.tenue}>
+              {plan
+                ? `${plan.nombre} · semana ${semana} de ${plan.semanas}`
+                : nueva
+                  ? "Sin plan todavía"
+                  : "Sin plan esta semana"}
+            </Text>
           </View>
-          <View style={s.accion} testID="ficha-accion-plan">
-            <BotonPrincipal texto="Crear plan nuevo" onPress={editarPlan} compacto sinMargen />
-          </View>
-        </View>
-        <BotonEnlace texto="Datos del cliente" onPress={() => setMostrandoDatos(true)} />
-      </EntradaMarca>
-      <Pestanas
-        opciones={PESTANAS}
-        activa={pestana}
-        cambiar={setPestana}
-        bloquearCambio={editandoProgreso}
-      />
-      {datos.consentimiento && !datos.consentimiento.vigente && (
-        <Text style={s.aviso} accessibilityRole="alert">
-          Sin consentimiento de datos de salud: hasta que lo acepte en su app no se pueden guardar
-          sus medidas, pruebas, valoraciones ni fotos.
-        </Text>
-      )}
-      {editandoProgreso && (
-        <Text style={s.tenue}>Vuelve al listado de valoraciones antes de cambiar de pestaña.</Text>
-      )}
-
-      <CambioDeContenido clave={pestana}>
-        {pestana === "resumen" && (
-          <View style={s.contenido}>
-            {datos.totalValoraciones === 0 && (
-              <BotonSecundario
-                texto="Valoración inicial"
-                onPress={() => {
-                  setIniciarInicial(true)
-                  setPestana("progreso")
-                }}
-              />
-            )}
-            <RequiereAtencion
-              molestias={datos.molestias}
-              semana={deEstaSemana}
-              responder={setRespondiendo}
-              verSesiones={verSesion}
+          {plan && (
+            <BarraDeBloque
+              plan={plan}
+              lunes={lunes}
+              pausada={menu || mostrandoDatos || respondiendo !== null}
             />
-            <View style={s.grupo}>
-              <Titulo>Última sesión</Titulo>
-              {ultima ? (
-                <UltimaSesion
-                  resultado={ultima}
-                  molestias={datos.molestias}
-                  api={api}
-                  abrir={verSesion}
-                  sinAcceso={sinAcceso}
-                />
-              ) : (
-                <Text style={s.tenue}>Aún no ha enviado ninguna sesión.</Text>
-              )}
-            </View>
-            {plan?.bloque && plan.bloque.objetivos.length > 0 && (
-              <View style={s.grupo}>
-                <Titulo>Qué buscamos</Titulo>
-                {plan.bloque.objetivos.map((o) => (
-                  <Text key={o} style={s.texto}>
-                    {o}
-                  </Text>
-                ))}
-              </View>
-            )}
-          </View>
-        )}
-
-        {pestana === "sesiones" && (
-          <SesionesDelCliente
-            resultados={datos.resultados}
-            molestias={datos.molestias}
-            abrir={verSesion}
-            api={api}
-            sinAcceso={sinAcceso}
+          )}
+        </View>
+        {error !== "" && (
+          <Aviso
+            mensaje={copia ? `Sin conexión · copia de las ${copia}` : error}
+            alReintentar={reintentar}
           />
         )}
-
-        {pestana === "progreso" && (
-          <View style={s.contenido}>
-            <ValoracionesProfesional
-              clienteId={clienteId}
-              api={valoraciones}
-              medios={medios}
-              nuevoId={nuevoId}
-              alEditar={setEditandoProgreso}
-              iniciarInicial={iniciarInicial}
-              fechaNacimiento={datos.ficha.fechaNacimiento}
-            />
-            <ProgresoCliente
-              clienteId={clienteId}
-              seguimiento={seguimiento}
-              entrenamiento={api}
-              modo="entrenador"
-              resultados={datos.resultados}
-              abrirEjercicio={(ejercicioId) =>
-                router.push({
-                  pathname: "/entrenador/cliente/[id]/ejercicio/[ejercicioId]",
-                  params: { id: clienteId, ejercicioId },
-                })
-              }
-            />
-          </View>
+        {datos.consentimiento && !datos.consentimiento.vigente && (
+          <Aviso mensaje="Sin consentimiento de salud: no se pueden guardar medidas ni fotos hasta que lo acepte." />
         )}
-
-        {pestana === "nutricion" && (
-          <View style={s.grupo}>
-            <Titulo>Dieta vigente</Titulo>
-            {datos.dieta?.dieta ? (
-              (() => {
-                const documento = datos.dieta.dieta.documento
-                const tipo = tipoDelDia(documento, hoyAgenda())
-                return (
-                  <Tarjeta>
-                    <Fila primera>
-                      <Text style={[s.texto, s.textos]}>Dieta</Text>
-                      <Text style={s.fuerte}>{documento.nombre}</Text>
-                    </Fila>
-                    <Fila>
-                      <Text style={[s.texto, s.textos]}>La publicó</Text>
-                      <Text style={s.fuerte}>
-                        {datos.dieta.deNutricionista ? "Su nutricionista" : "Tú"}
-                      </Text>
-                    </Fila>
-                    {tipo?.objetivo?.kcal != null && (
-                      <Fila>
-                        <Text style={[s.texto, s.textos]}>Objetivo de hoy</Text>
-                        <Text style={s.fuerte}>{miles(tipo.objetivo.kcal)} kcal</Text>
-                      </Fila>
-                    )}
-                    <Fila>
-                      <Text style={[s.texto, s.textos]}>Comidas de hoy</Text>
-                      <Text style={s.fuerte}>{tipo?.comidas.length ?? 0}</Text>
-                    </Fila>
-                  </Tarjeta>
-                )
-              })()
-            ) : (
-              <Text style={s.tenue}>Aún no tiene una dieta publicada.</Text>
-            )}
-            <BotonSecundario
-              texto="Abrir ficha de nutrición"
-              onPress={() => abrirNutricion(nombre)}
-            />
-          </View>
-        )}
-
-        {pestana === "salud" && (
-          <View style={s.contenido}>
+        <EntradaMarca style={s.contenido}>
+          {nueva ? (
             <View style={s.grupo}>
-              <Titulo>Datos</Titulo>
-              <Tarjeta>
-                {(() => {
-                  const medidas = [...(datos.medidas?.medidas ?? [])].reverse()
-                  const ultima = (clave: "pesoKg" | "alturaCm" | "grasaPct"): number | null =>
-                    medidas.find((m) => m[clave] !== null)?.[clave] ?? null
-                  const altura = ultima("alturaCm")
-                  const peso = ultima("pesoKg")
-                  const grasa = ultima("grasaPct")
-                  const nacimiento = datos.ficha.fechaNacimiento
-                  const filas: Array<[string, string]> = [
-                    ["Edad", nacimiento ? `${edadEn(nacimiento, hoyAgenda())} años` : "—"],
-                    ["Altura", altura !== null ? `${altura} cm` : "—"],
-                    ["Peso", peso !== null ? pesoLegible(peso) : "—"],
-                    [
-                      "Grasa corporal",
-                      grasa !== null ? `${String(grasa).replace(".", ",")} %` : "—",
-                    ],
-                    ["Teléfono", datos.ficha.telefono ?? "—"],
-                    ["Consentimiento de salud", textoConsentimiento(datos.consentimiento)],
-                  ]
-                  return filas.map(([k, v], n) => (
-                    <Fila key={k} primera={n === 0}>
-                      <Text style={[s.texto, s.textos]}>{k}</Text>
-                      <Text style={s.fuerte}>{v}</Text>
-                    </Fila>
-                  ))
-                })()}
-              </Tarjeta>
+              <View style={[s.paso, s.inicial]}>
+                <Text style={s.numero}>1</Text>
+                <View style={s.flex}>
+                  <Text style={s.fuerte}>Valoración inicial</Text>
+                  <Text style={s.tenue}>Peso, medidas y pruebas de partida.</Text>
+                  <BotonPrincipal
+                    texto="Empezar valoración"
+                    onPress={abrirValoracion}
+                    deshabilitado={error !== ""}
+                    sinMargen
+                  />
+                </View>
+              </View>
+              <View style={s.paso}>
+                <Text style={s.numero}>2</Text>
+                <View style={s.flex}>
+                  <Text style={s.fuerte}>Crear plan</Text>
+                  <Text style={s.tenue}>Rutina, bloque y fecha de inicio.</Text>
+                  <BotonSecundario
+                    texto="Crear plan"
+                    onPress={editarPlan}
+                    deshabilitado={error !== ""}
+                    sinMargen
+                  />
+                </View>
+              </View>
             </View>
-            <View style={s.grupo}>
-              <Titulo>Molestias por zona</Titulo>
-              {datos.molestias.length === 0 ? (
-                <Text style={s.tenue}>Sin molestias registradas.</Text>
-              ) : (
-                <Tarjeta>
-                  {Object.entries(
-                    datos.molestias.reduce<Record<string, Molestia[]>>((grupos, m) => {
-                      ;(grupos[m.zona] ??= []).push(m)
-                      return grupos
-                    }, {}),
-                  ).map(([zona, lista], n) => (
-                    <Fila key={zona} primera={n === 0}>
-                      <Text style={[s.texto, s.textos]}>
-                        {ETIQUETA_DE_ZONA[zona as keyof typeof ETIQUETA_DE_ZONA]}
-                      </Text>
-                      <Text style={s.fuerte}>
-                        {lista.length} · última {fechaLegible(lista[0]!.creadaEn.slice(0, 10))}
-                      </Text>
-                    </Fila>
+          ) : (
+            <>
+              {acciones.length > 0 && (
+                <View style={s.grupo}>
+                  {acciones.slice(0, 3).map((accion, i) => (
+                    <TarjetaDeAccion
+                      key={accion.accion}
+                      {...accion}
+                      principal={i === 0}
+                      deshabilitado={error !== ""}
+                    />
                   ))}
-                </Tarjeta>
+                </View>
               )}
-            </View>
+              {!plan &&
+                !datos.resultados.length &&
+                datos.totalValoraciones !== null &&
+                datos.totalValoraciones > 0 && (
+                  <TarjetaDeAccion
+                    titulo="Crear plan"
+                    detalle="Rutina, bloque y fecha de inicio."
+                    accion="Crear plan"
+                    onPress={editarPlan}
+                    principal={acciones.length === 0}
+                    deshabilitado={error !== ""}
+                  />
+                )}
+              {datos.semana && (plan || datos.semana.total > 0) && (
+                <TiraSemana
+                  semana={datos.semana}
+                  resultados={datos.resultados}
+                  molestias={datos.molestias}
+                  plan={plan}
+                  lunes={lunes}
+                  abrirSesion={verSesion}
+                />
+              )}
+              <CargasFicha
+                resultados={datos.resultados}
+                lunes={lunes}
+                abrir={(ejercicioId) =>
+                  router.push({
+                    pathname: "/entrenador/cliente/[id]/ejercicio/[ejercicioId]",
+                    params: { id: clienteId, ejercicioId },
+                  })
+                }
+              />
+            </>
+          )}
+          <View style={s.lista}>
+            {destinos.map((destino) => (
+              <FilaDestino key={destino.titulo} {...destino} />
+            ))}
           </View>
-        )}
-      </CambioDeContenido>
-
+        </EntradaMarca>
+      </View>
+      {menu && (
+        <Hoja visible alCerrar={() => setMenu(false)}>
+          <View style={s.grupo}>
+            {[
+              {
+                titulo: "Datos del cliente",
+                detalle: "Nombre, correo y acceso",
+                icono: "perfil" as const,
+                onPress: () => setMostrandoDatos(true),
+              },
+              {
+                titulo: "Crear plan nuevo",
+                detalle: "Empieza un bloque nuevo",
+                icono: "plan" as const,
+                onPress: editarPlan,
+              },
+              {
+                titulo: "Ver como cliente",
+                detalle: "Su semana, solo lectura",
+                icono: "entreno" as const,
+                onPress: () => verSemana(nombre),
+              },
+            ].map((destino) => (
+              <FilaDestino
+                key={destino.titulo}
+                {...destino}
+                onPress={() => {
+                  setMenu(false)
+                  destino.onPress()
+                }}
+              />
+            ))}
+            <BotonSecundario texto="Cancelar" onPress={() => setMenu(false)} sinMargen />
+          </View>
+        </Hoja>
+      )}
       {mostrandoDatos && (
         <DatosDelCliente
           clienteId={clienteId}
@@ -525,62 +469,92 @@ function FichaActual({
             setMostrandoDatos(false)
             alCerrarDatos?.()
           }}
-          alActualizar={(ficha) => {
-            versionFicha.current += 1
-            setDatos((actual) =>
-              actual
-                ? {
-                    ...actual,
-                    ficha,
-                    medidas: actual.medidas
-                      ? { ...actual.medidas, fechaNacimiento: ficha.fechaNacimiento }
-                      : null,
-                  }
-                : actual,
-            )
-          }}
+          alActualizar={actualizarFicha}
         />
       )}
-
       <DialogoResponder
-        molestia={respondiendo}
+        molestia={error === "" ? respondiendo : null}
         cerrar={() => setRespondiendo(null)}
         responder={responder}
       />
     </View>
   )
 }
-
+function FilaDestino({
+  titulo,
+  detalle,
+  icono,
+  onPress,
+}: {
+  titulo: string
+  detalle: string
+  icono: NombreIcono
+  onPress: () => void
+}): React.JSX.Element {
+  return (
+    <Pulsable
+      style={s.destino}
+      accessibilityLabel={titulo}
+      accessibilityHint={detalle}
+      onPress={onPress}
+    >
+      <Icono nombre={icono} color={tema.textoTenue} tamano={22} />
+      <View style={s.flex}>
+        <Text style={s.fuerte}>{titulo}</Text>
+        <Text style={s.tenue}>{detalle}</Text>
+      </View>
+      <Icono nombre="adelante" color={tema.textoTenue} tamano={18} />
+    </Pulsable>
+  )
+}
 const s = StyleSheet.create({
-  contenido: { gap: espacio[24] },
-  grupo: { gap: espacio[12] },
-  cabecera: { gap: espacio[16] },
-  barraSuperior: {
+  contenido: { gap: 22 },
+  grupo: { gap: 12 },
+  cabecera: { gap: 12 },
+  barra: {
     minHeight: alto.barraSuperior,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  volver: {
+  icono: {
     width: alto.tactil,
     height: alto.tactil,
     borderRadius: radio.celda,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
-  textos: { flex: 1, minWidth: 0, gap: espacio[4] },
-  nombre: {
-    color: tema.texto,
-    fontFamily: tema.fuenteTitulo,
-    fontSize: 34,
-    lineHeight: 38,
-    textTransform: "uppercase",
+  puntos: { color: tema.texto, fontSize: 30, lineHeight: 34 },
+  nombre: { ...tipo.tituloPantalla, fontSize: 34, lineHeight: 38, color: tema.texto },
+  estado: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
+  tenue: tipo.secundario,
+  fuerte: { ...tipo.cuerpo, color: tema.texto, fontFamily: tema.fuenteBoton },
+  flex: { flex: 1, minWidth: 0, gap: 4 },
+  lista: { borderRadius: radio.tarjeta, backgroundColor: tema.superficie, overflow: "hidden" },
+  destino: {
+    minHeight: 64,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: tema.borde,
   },
-  tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18 },
-  aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 13, lineHeight: 18 },
-  texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },
-  fuerte: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  destacada: { ...tipo.fila, color: tema.texto },
-  botones: { flexDirection: "row", gap: espacio[8] },
-  accion: { flex: 1, minWidth: 0 },
+  paso: {
+    borderRadius: radio.tarjeta,
+    backgroundColor: tema.superficie,
+    padding: 16,
+    flexDirection: "row",
+    gap: 12,
+  },
+  inicial: { borderWidth: 1, borderColor: tema.bordeDestacado },
+  numero: {
+    ...tipo.cuerpo,
+    color: tema.acento,
+    width: 28,
+    height: 28,
+    textAlign: "center",
+    borderRadius: 8,
+    backgroundColor: tema.acentoSuave,
+  },
 })

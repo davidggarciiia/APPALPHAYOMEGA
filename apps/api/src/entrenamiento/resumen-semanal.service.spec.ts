@@ -115,6 +115,37 @@ describe("ResumenSemanalService", () => {
     })
   })
 
+  it.each([
+    { cargas: [60, 60], estado: null },
+    { cargas: [65, 60], estado: null },
+    { cargas: [60, 60, 60], estado: "Estancado" },
+    { cargas: [70, 65, 60], estado: "Baja" },
+    { cargas: [60, 65], estado: "Progresa" },
+  ])("observa sesiones consecutivas para $cargas: $estado", async ({ cargas, estado }) => {
+    const fechas = ["2026-10-17", "2026-10-18", "2026-10-19"].slice(-cargas.length)
+    const { servicio } = entorno(
+      [cliente],
+      cargas.map((carga, n) => enviada(20 + n, fechas[n]!, carga)),
+    )
+    const resumen = await servicio.resumen(actor, "2026-10-19")
+    expect(resumen.clientes[0]?.ejercicios[0]?.estado).toBe(estado)
+  })
+
+  it("ordena sesiones del mismo día por su envío, aunque lleguen en otro orden", async () => {
+    const filas = [60, 65, 70].map((carga, n) => {
+      const fila = enviada(22 - n, "2026-10-19", carga)
+      fila.resultado.enviadoEn = `2026-10-19T${10 + n}:00:00Z`
+      return fila
+    })
+    const desordenadas = [filas[2]!, filas[0]!, filas[1]!]
+    for (const orden of [desordenadas, [...desordenadas].reverse()]) {
+      const { servicio } = entorno([cliente], orden)
+      expect((await servicio.resumen(actor, "2026-10-19")).clientes[0]?.ejercicios[0]?.estado).toBe(
+        "Progresa",
+      )
+    }
+  })
+
   it("conserva el último envío aunque no esté en la semana actual ni en la anterior", async () => {
     const { servicio } = entorno([cliente], [enviada(20, "2026-09-28", 60)])
     expect((await servicio.resumen(actor, "2026-10-19")).clientes[0]).toMatchObject({

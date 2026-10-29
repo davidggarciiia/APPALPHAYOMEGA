@@ -1,16 +1,14 @@
 ﻿import { act, fireEvent, render, screen } from "@testing-library/react-native"
 import { AppState, StyleSheet } from "react-native"
-import type { FichaDeUsuario, ListadoResultados, Molestia } from "@alpha-omega/shared"
-
+import type { FichaDeUsuario, ListadoResultados, Molestia, PlanVigente } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import type { ApiNutricion } from "../../nutricion/api"
-import { ErrorDePermiso, ErrorDeSesion } from "../../lib/http"
 import type { ApiSeguimiento } from "../../seguimiento/api"
 import type { ApiMedios } from "../../seguimiento/medios-api"
 import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
+import { ErrorDePermiso, ErrorDeSesion } from "../../lib/http"
 import { FichaCliente } from "./ficha-cliente"
 
-const mockEntradaValoracion = jest.fn()
 const mockDatosDelCliente = jest.fn()
 jest.mock("../../clientes/datos-del-cliente", () => ({
   DatosDelCliente: (props: { clienteId: string; alCerrar: () => void }) => {
@@ -27,38 +25,10 @@ jest.mock("../../clientes/datos-del-cliente", () => ({
     )
   },
 }))
-jest.mock("../../seguimiento/editor-valoracion", () => ({
-  ValoracionesProfesional: function EditorDePrueba({
-    alEditar,
-    iniciarInicial,
-    fechaNacimiento,
-  }: {
-    alEditar?: (valor: boolean) => void
-    iniciarInicial?: boolean
-    fechaNacimiento?: string | null
-  }) {
-    mockEntradaValoracion({ iniciarInicial, fechaNacimiento })
-    const { useEffect, useState } = jest.requireActual<typeof import("react")>("react")
-    const { TextInput } = jest.requireActual<typeof import("react-native")>("react-native")
-    const [valor, cambiar] = useState("")
-    useEffect(() => {
-      alEditar?.(true)
-      return () => alEditar?.(false)
-    }, [alEditar])
-    return (
-      <TextInput accessibilityLabel="Valoración en edición" value={valor} onChangeText={cambiar} />
-    )
-  },
-}))
-jest.mock("../../seguimiento/progreso", () => ({ ProgresoCliente: () => null }))
-
-const mockPush = jest.fn()
-const mockBack = jest.fn()
-const mockReplace = jest.fn()
-const mockCanGoBack = jest.fn(() => false)
-jest.mock("react-native-safe-area-context", () => ({
-  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
-}))
+const mockPush = jest.fn(),
+  mockBack = jest.fn(),
+  mockReplace = jest.fn(),
+  mockCanGoBack = jest.fn(() => false)
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
@@ -69,598 +39,44 @@ jest.mock("expo-router", () => ({
     canGoBack: mockCanGoBack,
   }),
 }))
-
+jest.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}))
 const clienteId = "30000000-0000-4000-8000-000000000000"
-const sesionId = "20000000-0000-4000-8000-000000000000"
-
-beforeEach(() => {
-  AppState.currentState = "active"
-})
-
-function apiDeFicha() {
+const perfil = {
+  nombre: "Lara",
+  apellidos: "García",
+  estado: "activo",
+  email: "lara@example.com",
+  fechaNacimiento: "1990-05-12",
+} as FichaDeUsuario
+const molestia = {
+  id: "molestia",
+  sesionId: "A",
+  nivel: "ambar",
+  zona: "otra",
+  intensidad: 5,
+  sintomas: [],
+  estado: "abierta",
+  creadaEn: "2026-10-26T12:00:00Z",
+} as unknown as Molestia
+const plan = {
+  id: "plan",
+  nombre: "Mes 2",
+  semanaInicial: "2026-10-26",
+  semanas: 4,
+  bloque: null,
+} as PlanVigente
+function resultado(
+  id: string,
+  revisadaEn: string | null = null,
+): ListadoResultados["resultados"][number] {
   return {
-    plan: jest.fn(async () => ({ plan: null })),
-    resultados: jest
-      .fn<ReturnType<ApiEntrenamiento["resultados"]>, Parameters<ApiEntrenamiento["resultados"]>>()
-      .mockResolvedValue({ resultados: [] }),
-    molestias: jest
-      .fn<ReturnType<ApiEntrenamiento["molestias"]>, Parameters<ApiEntrenamiento["molestias"]>>()
-      .mockResolvedValue({ molestias: [], total: 0 }),
-    novedades: jest.fn(async () => ({ novedades: [], total: 0, sinLeer: 0 })),
-  }
-}
-
-async function mostrarFicha(
-  api: ApiEntrenamiento,
-  consultas: Partial<
-    Pick<
-      Parameters<typeof FichaCliente>[0],
-      | "leerFicha"
-      | "nutricion"
-      | "seguimiento"
-      | "verSemana"
-      | "valoraciones"
-      | "valoracionInicial"
-      | "pestanaInicial"
-      | "datosIniciales"
-      | "alCerrarDatos"
-    >
-  > = {},
-): Promise<void> {
-  await render(
-    <FichaCliente
-      clienteId={clienteId}
-      cuentaId={clienteId}
-      leerFicha={async () =>
-        ({ nombre: "Lara", apellidos: "García", estado: "activo" }) as FichaDeUsuario
-      }
-      api={api}
-      seguimiento={
-        {
-          medidas: async () => ({ medidas: [], fechaNacimiento: null }),
-          consentimiento: async () => null,
-        } as unknown as ApiSeguimiento
-      }
-      nutricion={{ vigente: async () => null } as unknown as ApiNutricion}
-      valoraciones={
-        { listar: async () => ({ total: 0, valoraciones: [] }) } as unknown as ApiValoraciones
-      }
-      medios={{} as ApiMedios}
-      nuevoId={() => clienteId}
-      editarPlan={jest.fn()}
-      verSemana={jest.fn()}
-      abrirNutricion={jest.fn()}
-      {...consultas}
-    />,
-  )
-}
-
-it("ofrece valoración inicial en Resumen solo cuando no hay ninguna visita", async () => {
-  const listar = jest.fn(async () => ({ total: 0, valoraciones: [] }))
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, {
-    valoraciones: { listar } as unknown as ApiValoraciones,
-    leerFicha: async () => ({ nombre: "Lara", fechaNacimiento: "1990-05-12" }) as FichaDeUsuario,
-  })
-  expect(listar).toHaveBeenCalledWith(clienteId, 1)
-  await fireEvent.press(await screen.findByRole("button", { name: "Valoración inicial" }))
-  expect(screen.getByRole("tab", { name: "Progreso" })).toBeSelected()
-  expect(screen.getByLabelText("Valoración en edición")).toBeOnTheScreen()
-  expect(mockEntradaValoracion).toHaveBeenLastCalledWith({
-    iniciarInicial: true,
-    fechaNacimiento: "1990-05-12",
-  })
-})
-
-it.each(["borrador", "publicada", "sin datos de visitas"])(
-  "no ofrece una inicial en Resumen con %s",
-  async (estado) => {
-    const listar = jest.fn(async () => {
-      if (estado === "sin datos de visitas") throw new Error("Sin conexión")
-      return { total: 1, valoraciones: [] }
-    })
-    await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, {
-      valoraciones: { listar } as unknown as ApiValoraciones,
-    })
-    await screen.findByText("Lara García")
-    expect(screen.queryByRole("button", { name: "Valoración inicial" })).toBeNull()
-  },
-)
-
-it("el acceso tras el alta entra en Progreso y solicita la selección inicial", async () => {
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, { valoracionInicial: true })
-  expect(await screen.findByLabelText("Valoración en edición")).toBeOnTheScreen()
-  expect(screen.getByRole("tab", { name: "Progreso" })).toBeSelected()
-  expect(mockEntradaValoracion).toHaveBeenLastCalledWith({
-    iniciarInicial: true,
-    fechaNacimiento: undefined,
-  })
-})
-
-it("el acceso desde Notificaciones abre Progreso sin solicitar una valoración inicial", async () => {
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, { pestanaInicial: "progreso" })
-  expect(await screen.findByLabelText("Valoración en edición")).toBeOnTheScreen()
-  expect(screen.getByRole("tab", { name: "Progreso" })).toBeSelected()
-  expect(mockEntradaValoracion).toHaveBeenLastCalledWith({
-    iniciarInicial: false,
-    fechaNacimiento: undefined,
-  })
-})
-
-it.each(["cliente", "cuenta"])(
-  "aísla la ficha y sus borradores al cambiar de %s",
-  async (cambio) => {
-    const api = apiDeFicha()
-    const propiedades = {
-      clienteId,
-      cuentaId: "entrenador-A",
-      api: api as unknown as ApiEntrenamiento,
-      seguimiento: {
-        medidas: async () => ({ medidas: [], fechaNacimiento: null }),
-        consentimiento: async () => null,
-      } as unknown as ApiSeguimiento,
-      nutricion: { vigente: async () => null } as unknown as ApiNutricion,
-      valoraciones: {
-        listar: async () => ({ total: 0, valoraciones: [] }),
-      } as unknown as ApiValoraciones,
-      medios: {} as ApiMedios,
-      nuevoId: () => clienteId,
-      editarPlan: jest.fn(),
-      verSemana: jest.fn(),
-      abrirNutricion: jest.fn(),
-    }
-    await render(
-      <FichaCliente
-        {...propiedades}
-        leerFicha={async () => ({ nombre: "Lara" }) as FichaDeUsuario}
-      />,
-    )
-    await fireEvent.press(screen.getByRole("tab", { name: "Progreso" }))
-    await fireEvent.changeText(screen.getByLabelText("Valoración en edición"), "Dato de Lara")
-    let resolver!: (ficha: FichaDeUsuario) => void
-    await screen.rerender(
-      <FichaCliente
-        {...propiedades}
-        {...(cambio === "cliente" ? { clienteId: "cliente-B" } : { cuentaId: "entrenador-B" })}
-        leerFicha={() => new Promise((resolve) => (resolver = resolve))}
-      />,
-    )
-
-    expect(screen.queryByText("Lara")).toBeNull()
-    expect(screen.queryByDisplayValue("Dato de Lara")).toBeNull()
-    expect(screen.getByLabelText("Cargando ficha")).toBeOnTheScreen()
-    await act(async () => resolver({ nombre: "Bea" } as FichaDeUsuario))
-    expect(screen.getByText("Bea")).toBeOnTheScreen()
-    expect(screen.getByRole("tab", { name: "Resumen" }).props.accessibilityState.selected).toBe(
-      true,
-    )
-  },
-)
-
-describe("actualización de la ficha abierta", () => {
-  const estadoAnterior = AppState.currentState
-  beforeEach(() => {
-    jest.useFakeTimers()
-    AppState.currentState = "active"
-  })
-  afterEach(() => {
-    AppState.currentState = estadoAnterior
-    jest.useRealTimers()
-  })
-
-  it("consulta a los diez segundos, pausa en segundo plano y se detiene al desmontar", async () => {
-    const api = apiDeFicha()
-    await mostrarFicha(api as unknown as ApiEntrenamiento)
-    expect(screen.getByText("Lara García")).toBeOnTheScreen()
-    await act(async () => jest.advanceTimersByTime(9999))
-    expect(api.molestias).toHaveBeenCalledTimes(1)
-    await act(async () => jest.advanceTimersByTime(1))
-    expect(api.molestias).toHaveBeenCalledTimes(2)
-    AppState.currentState = "background"
-    await act(async () => jest.advanceTimersByTime(20000))
-    expect(api.molestias).toHaveBeenCalledTimes(2)
-    AppState.currentState = "active"
-    await act(async () => jest.advanceTimersByTime(10000))
-    expect(api.molestias).toHaveBeenCalledTimes(3)
-    await screen.unmount()
-    await act(async () => jest.advanceTimersByTime(20000))
-    expect(api.molestias).toHaveBeenCalledTimes(3)
-  })
-
-  it("espera a la consulta pendiente antes de iniciar otro sondeo", async () => {
-    const api = apiDeFicha()
-    let resolver!: (valor: { molestias: Molestia[]; total: number }) => void
-    api.molestias.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolver = resolve
-        }),
-    )
-    await mostrarFicha(api as unknown as ApiEntrenamiento)
-    await act(async () => jest.advanceTimersByTime(30000))
-    expect(api.molestias).toHaveBeenCalledTimes(1)
-    await act(async () => resolver({ molestias: [], total: 0 }))
-    await act(async () => jest.advanceTimersByTime(10000))
-    expect(api.molestias).toHaveBeenCalledTimes(2)
-  })
-
-  it("un sondeo anterior al guardado conserva el nombre y nacimiento nuevos", async () => {
-    jest.setSystemTime(new Date("2026-10-29T12:00:00Z"))
-    const perfil = {
-      nombre: "Lara",
-      apellidos: "García",
-      fechaNacimiento: "1990-05-12",
-    } as FichaDeUsuario
-    let resolver!: (valor: { medidas: []; fechaNacimiento: string }) => void
-    const medidas = jest
-      .fn()
-      .mockResolvedValue({ medidas: [], fechaNacimiento: perfil.fechaNacimiento })
-    await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, {
-      leerFicha: async () => perfil,
-      seguimiento: { medidas, consentimiento: async () => null } as unknown as ApiSeguimiento,
-    })
-    medidas.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolver = resolve
-        }),
-    )
-    await act(async () => jest.advanceTimersByTime(10000))
-    await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
-    const props = mockDatosDelCliente.mock.lastCall![0] as {
-      alActualizar: (ficha: FichaDeUsuario) => void
-      alCerrar: () => void
-    }
-    await act(() => props.alActualizar({ ...perfil, nombre: "Ana", fechaNacimiento: "2000-05-12" }))
-    await act(() => props.alCerrar())
-    await act(async () => resolver({ medidas: [], fechaNacimiento: "1990-05-12" }))
-    expect(screen.getByText("Ana García")).toBeOnTheScreen()
-    await fireEvent.press(screen.getByRole("tab", { name: "Salud" }))
-    expect(screen.getByText("26 años")).toBeOnTheScreen()
-    expect(screen.queryByText("36 años")).toBeNull()
-  })
-
-  it("muestra la ficha disponible aunque falle molestias y permite reintentar", async () => {
-    const api = apiDeFicha()
-    api.molestias.mockRejectedValueOnce(new Error("sin red"))
-    await mostrarFicha(api as unknown as ApiEntrenamiento)
-    expect(screen.getByText("Lara García")).toBeOnTheScreen()
-    expect(screen.getByRole("alert")).toBeOnTheScreen()
-    await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
-    expect(api.molestias).toHaveBeenCalledTimes(2)
-    expect(screen.queryByRole("alert")).toBeNull()
-  })
-
-  it("conserva las molestias ya cargadas cuando falla el refresco", async () => {
-    const api = apiDeFicha()
-    api.molestias
-      .mockResolvedValueOnce({
-        total: 1,
-        molestias: [
-          {
-            id: "molestia",
-            sesionId,
-            nivel: "ambar",
-            zona: "otra",
-            intensidad: 5,
-            sintomas: [],
-            estado: "abierta",
-          } as unknown as Molestia,
-        ],
-      })
-      .mockRejectedValueOnce(new Error("sin red"))
-    await mostrarFicha(api as unknown as ApiEntrenamiento)
-    expect(screen.getByText("Molestia ámbar en otra zona")).toBeOnTheScreen()
-    await act(async () => jest.advanceTimersByTime(10000))
-    expect(api.molestias).toHaveBeenCalledTimes(2)
-    expect(screen.getByText("Lara García")).toBeOnTheScreen()
-    expect(screen.getByText("Molestia ámbar en otra zona")).toBeOnTheScreen()
-    expect(screen.getByRole("alert")).toBeOnTheScreen()
-  })
-
-  it.each(
-    (
-      ["ficha", "plan", "resultados", "molestias", "dieta", "medidas", "consentimiento"] as const
-    ).flatMap((origen) => [
-      {
-        origen,
-        fallo: new ErrorDePermiso(),
-        mensaje: "No tienes permiso para acceder a estos datos.",
-      },
-      { origen, fallo: new ErrorDeSesion(), mensaje: "Tu sesión ha caducado. Vuelve a entrar." },
-    ]),
-  )(
-    "oculta los datos si $origen rechaza la autorización con $fallo",
-    async ({ origen, fallo, mensaje }) => {
-      const api = apiDeFicha()
-      const consultas = {
-        ficha: jest.fn(async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario),
-        plan: api.plan,
-        resultados: api.resultados,
-        molestias: api.molestias,
-        dieta: jest.fn(async () => null),
-        medidas: jest.fn(async () => ({ medidas: [], fechaNacimiento: null })),
-        consentimiento: jest.fn(async () => null),
-      }
-      await mostrarFicha(api as unknown as ApiEntrenamiento, {
-        leerFicha: consultas.ficha,
-        nutricion: { vigente: consultas.dieta } as unknown as ApiNutricion,
-        seguimiento: {
-          medidas: consultas.medidas,
-          consentimiento: consultas.consentimiento,
-        } as unknown as ApiSeguimiento,
-      })
-      expect(screen.getByText("Lara García")).toBeOnTheScreen()
-      consultas[origen].mockRejectedValueOnce(fallo)
-
-      await act(async () => jest.advanceTimersByTime(10000))
-
-      expect(screen.queryByText("Lara García")).toBeNull()
-      expect(screen.queryByRole("tab")).toBeNull()
-      expect(screen.queryByRole("button", { name: "Crear plan nuevo" })).toBeNull()
-      expect(screen.getByRole("alert")).toHaveTextContent(mensaje)
-    },
-  )
-
-  it("un sondeo anterior no vuelve a abrir una molestia después de responderla", async () => {
-    const abierta = {
-      id: "molestia",
-      sesionId,
-      nivel: "ambar",
-      zona: "otra",
-      intensidad: 5,
-      sintomas: [],
-      estado: "abierta",
-    } as unknown as Molestia
-    const atendida: Molestia = { ...abierta, estado: "atendida", respuesta: "Reduce la carga" }
-    const api = {
-      ...apiDeFicha(),
-      atenderMolestia: jest.fn(async () => atendida),
-    }
-    api.molestias
-      .mockResolvedValue({ molestias: [atendida], total: 1 })
-      .mockResolvedValueOnce({ molestias: [abierta], total: 1 })
-    await mostrarFicha(api as unknown as ApiEntrenamiento)
-    let resolver!: (valor: { molestias: Molestia[]; total: number }) => void
-    api.molestias.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolver = resolve
-        }),
-    )
-    await act(async () => jest.advanceTimersByTime(10000))
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Responder: Molestia ámbar en otra zona" }),
-    )
-    await fireEvent.changeText(
-      screen.getByLabelText("Respuesta para el cliente"),
-      "Reduce la carga",
-    )
-    await fireEvent.press(screen.getByRole("button", { name: "Enviar respuesta" }))
-    expect(api.atenderMolestia).toHaveBeenCalledWith("molestia", "Reduce la carga")
-    expect(screen.queryByText("Molestia ámbar en otra zona")).toBeNull()
-
-    await act(async () => resolver({ molestias: [abierta], total: 1 }))
-
-    expect(screen.queryByText("Molestia ámbar en otra zona")).toBeNull()
-    await act(async () => jest.advanceTimersByTime(10000))
-    expect(api.molestias).toHaveBeenCalledTimes(3)
-    expect(screen.queryByText("Molestia ámbar en otra zona")).toBeNull()
-  })
-})
-
-it.each(["C", "fuera-del-listado"])(
-  "Ver sesión abre la sesión de la molestia (%s) y Última sesión la más reciente",
-  async (destino) => {
-    const resultados: ListadoResultados["resultados"] = ["A", "B", "C"].map((nombre) => ({
-      agenda: {
-        id: nombre,
-        clienteId,
-        fechaOriginal: "2026-10-01",
-        fechaActual: "2026-10-01",
-        estado: "cerrada",
-        revision: 0,
-      },
-      resultado: {
-        sesionId: nombre,
-        prescripcion: { nombre, ejercicios: [] },
-        revisionPrescripcion: 0,
-        enviadoEn: "2026-10-01T10:00:00.000Z",
-        notas: null,
-        series: [],
-      },
-    }))
-    const api = {
-      plan: async () => ({ plan: null }),
-      resultados: async () => ({ resultados }),
-      molestias: async () => ({
-        molestias: [
-          {
-            id: "molestia",
-            sesionId: destino,
-            nivel: "ambar",
-            zona: "otra",
-            intensidad: 5,
-            sintomas: [],
-            estado: "abierta",
-          } as unknown as Molestia,
-        ],
-      }),
-      novedades: async () => ({ novedades: [], total: 0, sinLeer: 0 }),
-      comentarios: jest.fn(async () => ({ comentarios: [] })),
-    } as unknown as ApiEntrenamiento
-    await render(
-      <FichaCliente
-        clienteId={clienteId}
-        cuentaId={clienteId}
-        leerFicha={async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario}
-        api={api}
-        seguimiento={
-          {
-            medidas: async () => ({ medidas: [], fechaNacimiento: null }),
-            consentimiento: async () => null,
-          } as unknown as ApiSeguimiento
-        }
-        nutricion={{ vigente: async () => null } as unknown as ApiNutricion}
-        valoraciones={
-          { listar: async () => ({ total: 0, valoraciones: [] }) } as unknown as ApiValoraciones
-        }
-        medios={{} as ApiMedios}
-        nuevoId={() => clienteId}
-        editarPlan={jest.fn()}
-        verSemana={jest.fn()}
-        abrirNutricion={jest.fn()}
-      />,
-    )
-
-    await screen.findByText("Molestia ámbar en otra zona")
-    await fireEvent.press(screen.getAllByRole("button", { name: "Ver sesión" })[0]!)
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: "/entrenamiento/[id]",
-      params: { id: destino, nombre: "Lara García" },
-    })
-    expect(api.comentarios).not.toHaveBeenCalled()
-
-    await fireEvent.press(screen.getByRole("tab", { name: "Resumen" }))
-    await fireEvent.press(screen.getByRole("button", { name: "Revisar sesión" }))
-    expect(mockPush).toHaveBeenLastCalledWith({
-      pathname: "/entrenamiento/[id]",
-      params: { id: "A", nombre: "Lara García" },
-    })
-  },
-)
-
-it("cambiar de pestaña conserva el editor de valoraciones abierto", async () => {
-  await render(
-    <FichaCliente
-      clienteId={clienteId}
-      cuentaId={clienteId}
-      leerFicha={async () => ({ nombre: "Lara", apellidos: "García" }) as FichaDeUsuario}
-      api={
-        {
-          plan: async () => ({ plan: null }),
-          resultados: async () => ({ resultados: [] }),
-          molestias: async () => ({ molestias: [] }),
-          novedades: async () => ({ novedades: [], total: 0, sinLeer: 0 }),
-        } as unknown as ApiEntrenamiento
-      }
-      seguimiento={
-        {
-          medidas: async () => ({ medidas: [], fechaNacimiento: null }),
-          consentimiento: async () => null,
-        } as unknown as ApiSeguimiento
-      }
-      nutricion={{ vigente: async () => null } as unknown as ApiNutricion}
-      valoraciones={
-        { listar: async () => ({ total: 0, valoraciones: [] }) } as unknown as ApiValoraciones
-      }
-      medios={{} as ApiMedios}
-      nuevoId={() => clienteId}
-      editarPlan={jest.fn()}
-      verSemana={jest.fn()}
-      abrirNutricion={jest.fn()}
-    />,
-  )
-  await fireEvent.press(await screen.findByRole("tab", { name: "Progreso" }))
-  await fireEvent.changeText(screen.getByLabelText("Valoración en edición"), "Datos pendientes")
-  await fireEvent.press(screen.getByRole("tab", { name: "Resumen" }))
-  expect(screen.getByRole("tab", { name: "Progreso" }).props.accessibilityState.selected).toBe(true)
-  await fireEvent.press(screen.getByRole("tab", { name: "Progreso" }))
-  expect(screen.getByDisplayValue("Datos pendientes")).toBeTruthy()
-})
-
-it("Resumen reserva las novedades para Notificaciones", async () => {
-  const api = apiDeFicha()
-  await mostrarFicha(api as unknown as ApiEntrenamiento)
-  await screen.findByRole("button", { name: "Crear plan nuevo" })
-  expect(api.novedades).not.toHaveBeenCalled()
-})
-
-it("muestra cabecera propia y cinco pestañas; las molestias se atienden desde Resumen", async () => {
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
-  expect(screen.getByText("ACTIVO")).toBeOnTheScreen()
-  expect(
-    StyleSheet.flatten(screen.getByRole("header", { name: "Lara García" }).props.style),
-  ).toMatchObject({ fontSize: 34, lineHeight: 38 })
-  expect(screen.getByTestId("ficha-accion-semana")).toHaveStyle({ flex: 1 })
-  expect(screen.getByTestId("ficha-accion-plan")).toHaveStyle({ flex: 1 })
-  expect(screen.queryByRole("tab", { name: "Check-ins y molestias" })).toBeNull()
-  expect(screen.queryByRole("tab", { name: "Molestias" })).toBeNull()
-  expect(screen.getAllByRole("tab").map((tab) => tab.props.accessibilityLabel)).toEqual([
-    "Resumen",
-    "Sesiones",
-    "Progreso",
-    "Nutrición",
-    "Salud",
-  ])
-  expect(screen.queryByText("Check-ins")).toBeNull()
-  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
-  expect(mockReplace).toHaveBeenCalledWith("/cartera")
-})
-
-it("volver utiliza el historial cuando la ficha se abrió desde otra pantalla", async () => {
-  mockCanGoBack.mockReturnValueOnce(true)
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
-  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
-  expect(mockBack).toHaveBeenCalledTimes(1)
-})
-
-it("Semana conserva el nombre completo del cliente para la revisión", async () => {
-  const verSemana = jest.fn()
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, { verSemana })
-  await fireEvent.press(screen.getByRole("button", { name: "Semana" }))
-  expect(verSemana).toHaveBeenCalledWith("Lara García")
-})
-
-it("la carga inicial usa esqueletos de cabecera y tarjetas", async () => {
-  const api = apiDeFicha()
-  api.plan.mockImplementationOnce(() => new Promise(() => undefined))
-  await mostrarFicha(api as unknown as ApiEntrenamiento)
-  expect(screen.queryByText("Cargando la ficha…")).toBeNull()
-  expect(
-    screen.getAllByTestId("esqueleto", { includeHiddenElements: true }).length,
-  ).toBeGreaterThanOrEqual(4)
-})
-
-it("abre los datos desde la ficha sin salir a otra pantalla", async () => {
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
-  await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
-  expect(screen.getByText("Formulario del cliente")).toBeOnTheScreen()
-  expect(mockDatosDelCliente).toHaveBeenLastCalledWith(expect.objectContaining({ clienteId }))
-  expect(mockPush).not.toHaveBeenCalled()
-})
-
-it("el enlace antiguo abre la hoja y cerrar consume el parámetro", async () => {
-  const alCerrarDatos = jest.fn()
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, {
-    datosIniciales: true,
-    alCerrarDatos,
-  })
-  expect(await screen.findByText("Formulario del cliente")).toBeOnTheScreen()
-  await fireEvent.press(screen.getByRole("button", { name: "Cerrar datos" }))
-  expect(alCerrarDatos).toHaveBeenCalledTimes(1)
-  expect(screen.queryByText("Formulario del cliente")).toBeNull()
-})
-
-it("guardar los datos actualiza el nombre en la ficha", async () => {
-  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
-  await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
-  const props = mockDatosDelCliente.mock.lastCall![0] as {
-    alActualizar: (ficha: FichaDeUsuario) => void
-  }
-  await act(() =>
-    props.alActualizar({ nombre: "Ana", apellidos: "Pérez", estado: "activo" } as FichaDeUsuario),
-  )
-  expect(screen.getByText("Ana Pérez")).toBeOnTheScreen()
-})
-
-it("consulta solo la revisión de la última en Resumen y carga el resto al entrar en Sesiones", async () => {
-  const api = apiDeFicha()
-  const resultados: ListadoResultados["resultados"] = ["A", "B"].map((id) => ({
     agenda: {
       id,
       clienteId,
-      fechaOriginal: "2026-10-01",
-      fechaActual: "2026-10-01",
+      fechaOriginal: "2026-10-26",
+      fechaActual: "2026-10-26",
       estado: "cerrada",
       revision: 0,
     },
@@ -668,53 +84,387 @@ it("consulta solo la revisión de la última en Resumen y carga el resto al entr
       sesionId: id,
       prescripcion: { nombre: id, ejercicios: [] },
       revisionPrescripcion: 0,
-      enviadoEn: "2026-10-01T10:00:00Z",
+      enviadoEn: "2026-10-26T10:00:00Z",
       notas: null,
       series: [],
     },
-  }))
-  api.resultados.mockResolvedValue({ resultados })
-  const leerEntrenador = jest.fn(async () => ({ revisadaEn: null }))
-  await mostrarFicha({ ...api, leerEntrenador } as unknown as ApiEntrenamiento)
-  expect(leerEntrenador).toHaveBeenCalledTimes(1)
-  expect(leerEntrenador).toHaveBeenCalledWith("A")
-  await fireEvent.press(screen.getByRole("tab", { name: "Sesiones" }))
-  expect(leerEntrenador).toHaveBeenCalledTimes(3)
-  expect(leerEntrenador).toHaveBeenLastCalledWith("B")
-})
-
-it("una revisión sin permiso oculta también el resto de la ficha", async () => {
-  const api = apiDeFicha()
-  api.resultados.mockResolvedValue({
-    resultados: [
-      {
-        agenda: {
-          id: sesionId,
-          clienteId,
-          fechaOriginal: "2026-10-01",
-          fechaActual: "2026-10-01",
-          estado: "cerrada",
-          revision: 0,
-        },
-        resultado: {
-          sesionId,
-          prescripcion: { nombre: "A", ejercicios: [] },
-          revisionPrescripcion: 0,
-          enviadoEn: "2026-10-01T10:00:00Z",
-          notas: null,
-          series: [],
-        },
-      },
-    ],
-  })
-  await mostrarFicha({
-    ...api,
-    leerEntrenador: jest.fn(async () => {
-      throw new ErrorDePermiso()
-    }),
-  } as unknown as ApiEntrenamiento)
-  expect(screen.queryByText("Lara García")).toBeNull()
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "No tienes permiso para acceder a estos datos.",
+    revisadaEn,
+  }
+}
+function fuentes() {
+  return {
+    clienteId,
+    cuentaId: "entrenador-A",
+    leerFicha: jest.fn(async () => perfil),
+    api: {
+      plan: jest
+        .fn<ReturnType<ApiEntrenamiento["plan"]>, Parameters<ApiEntrenamiento["plan"]>>()
+        .mockResolvedValue({ plan: null }),
+      semana: jest.fn(async () => ({ sesiones: [], total: 0 })),
+      resultados: jest
+        .fn<
+          ReturnType<ApiEntrenamiento["resultados"]>,
+          Parameters<ApiEntrenamiento["resultados"]>
+        >()
+        .mockResolvedValue({ resultados: [] }),
+      molestias: jest
+        .fn<ReturnType<ApiEntrenamiento["molestias"]>, Parameters<ApiEntrenamiento["molestias"]>>()
+        .mockResolvedValue({ molestias: [], total: 0 }),
+      atenderMolestia: jest.fn(
+        async () => ({ ...molestia, estado: "atendida", respuesta: "Reduce la carga" }) as Molestia,
+      ),
+      leerEntrenador: jest.fn(),
+      novedades: jest.fn(),
+    },
+    seguimiento: {
+      medidas: jest.fn(async () => ({ medidas: [], fechaNacimiento: perfil.fechaNacimiento })),
+      consentimiento: jest.fn(async () => null),
+    },
+    nutricion: { vigente: jest.fn(async () => null) },
+    valoraciones: { listar: jest.fn(async () => ({ total: 0, valoraciones: [] })) },
+    medios: {} as ApiMedios,
+    nuevoId: () => clienteId,
+    editarPlan: jest.fn(),
+    verSemana: jest.fn(),
+    abrirNutricion: jest.fn(),
+  }
+}
+function vista(
+  datos: ReturnType<typeof fuentes>,
+  extras: Partial<Parameters<typeof FichaCliente>[0]> = {},
+) {
+  return (
+    <FichaCliente
+      {...datos}
+      api={datos.api as unknown as ApiEntrenamiento}
+      seguimiento={datos.seguimiento as unknown as ApiSeguimiento}
+      nutricion={datos.nutricion as unknown as ApiNutricion}
+      valoraciones={datos.valoraciones as unknown as ApiValoraciones}
+      {...extras}
+    />
   )
+}
+async function pasar(ms: number) {
+  for (let n = 0; n < ms; n += 10000) await act(async () => jest.advanceTimersByTime(10000))
+}
+beforeEach(() => {
+  AppState.currentState = "active"
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date("2026-10-29T12:00:00Z"))
+})
+afterEach(() => jest.useRealTimers())
+it("cliente nuevo: valoración principal, plan secundario y cuatro destinos sin pestañas", async () => {
+  const datos = fuentes()
+  await render(vista(datos))
+  expect(datos.valoraciones.listar).toHaveBeenCalledWith(clienteId, 1)
+  expect(screen.getByText("Sin plan todavía")).toBeOnTheScreen()
+  expect(screen.queryByRole("tab")).toBeNull()
+  for (const name of ["Sesiones", "Progreso", "Molestias"])
+    expect(screen.queryByRole("button", { name })).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Empezar valoración" }))
+  expect(mockPush).toHaveBeenLastCalledWith({
+    pathname: "/entrenador/cliente/[id]/valoraciones",
+    params: { id: clienteId, valoracionInicial: "1" },
+  })
+  await fireEvent.press(screen.getByRole("button", { name: "Crear plan" }))
+  expect(datos.editarPlan).toHaveBeenCalledTimes(1)
+})
+it.each(["borrador", "publicada", "sin datos de visitas"])(
+  "no propone inicial con %s",
+  async (estado) => {
+    const datos = fuentes()
+    datos.valoraciones.listar.mockImplementation(async () => {
+      if (estado === "sin datos de visitas") throw new Error("sin red")
+      return { total: 1, valoraciones: [] }
+    })
+    await render(vista(datos))
+    expect(screen.queryByRole("button", { name: "Empezar valoración" })).toBeNull()
+  },
+)
+it.each([
+  {
+    entrada: { valoracionInicial: true },
+    ruta: "/entrenador/cliente/[id]/valoraciones",
+    params: { id: clienteId, valoracionInicial: "1" },
+  },
+  {
+    entrada: { pestanaInicial: "progreso" as const },
+    ruta: "/entrenador/cliente/[id]/progreso",
+    params: { id: clienteId },
+  },
+])(
+  "conserva el acceso antiguo $ruta en pantalla independiente",
+  async ({ entrada, ruta, params }) => {
+    await render(vista(fuentes(), entrada))
+    expect(mockReplace).toHaveBeenCalledWith({ pathname: ruta, params })
+  },
+)
+it.each(["cliente", "cuenta"])("aísla ficha y hoja al cambiar de %s", async (cambio) => {
+  const datos = fuentes()
+  await render(vista(datos))
+  await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
+  let resolver!: (ficha: FichaDeUsuario) => void
+  await screen.rerender(
+    vista(datos, {
+      ...(cambio === "cliente" ? { clienteId: "cliente-B" } : { cuentaId: "entrenador-B" }),
+      leerFicha: () =>
+        new Promise((resolve) => {
+          resolver = resolve
+        }),
+    }),
+  )
+  expect(screen.queryByText("Lara García")).toBeNull()
+  expect(screen.queryByText("Formulario del cliente")).toBeNull()
+  expect(screen.getByLabelText("Cargando ficha")).toBeOnTheScreen()
+  await act(async () => resolver({ ...perfil, nombre: "Bea" }))
+  expect(screen.getByText("Bea García")).toBeOnTheScreen()
+})
+it("sondea actividad a 10 s y perfil a 60 s; pausa en segundo plano y al desmontar", async () => {
+  const datos = fuentes()
+  await render(vista(datos))
+  await act(async () => jest.advanceTimersByTime(9999))
+  expect(datos.api.molestias).toHaveBeenCalledTimes(1)
+  await act(async () => jest.advanceTimersByTime(1))
+  expect(datos.api.molestias).toHaveBeenCalledTimes(2)
+  expect(datos.seguimiento.medidas).toHaveBeenCalledTimes(1)
+  AppState.currentState = "background"
+  await act(async () => jest.advanceTimersByTime(20000))
+  expect(datos.api.molestias).toHaveBeenCalledTimes(2)
+  AppState.currentState = "active"
+  await pasar(30000)
+  expect(datos.seguimiento.medidas).toHaveBeenCalledTimes(2)
+  expect(datos.nutricion.vigente).toHaveBeenCalledTimes(2)
+  const llamadas = datos.api.molestias.mock.calls.length
+  await screen.unmount()
+  await act(async () => jest.advanceTimersByTime(20000))
+  expect(datos.api.molestias).toHaveBeenCalledTimes(llamadas)
+})
+it("espera la consulta pendiente antes del siguiente sondeo", async () => {
+  const datos = fuentes()
+  let resolver!: (valor: { molestias: Molestia[]; total: number }) => void
+  datos.api.molestias.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolver = resolve
+      }),
+  )
+  await render(vista(datos))
+  await act(async () => jest.advanceTimersByTime(30000))
+  expect(datos.api.molestias).toHaveBeenCalledTimes(1)
+  await act(async () => resolver({ molestias: [], total: 0 }))
+  await act(async () => jest.advanceTimersByTime(10000))
+  expect(datos.api.molestias).toHaveBeenCalledTimes(2)
+})
+it("un sondeo anterior al guardado conserva nombre y nacimiento nuevos", async () => {
+  const datos = fuentes()
+  await render(vista(datos))
+  let resolver!: (ficha: FichaDeUsuario) => void
+  datos.leerFicha.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolver = resolve
+      }),
+  )
+  await pasar(60000)
+  await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
+  const props = mockDatosDelCliente.mock.lastCall![0] as {
+    alActualizar: (f: FichaDeUsuario) => void
+  }
+  await act(() => props.alActualizar({ ...perfil, nombre: "Ana", fechaNacimiento: "2000-05-12" }))
+  await act(async () => resolver(perfil))
+  expect(screen.getByText("Ana García")).toBeOnTheScreen()
+  expect(mockDatosDelCliente).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      fichaInicial: expect.objectContaining({ fechaNacimiento: "2000-05-12" }),
+    }),
+  )
+})
+it("muestra datos parciales con error y permite reintentar", async () => {
+  const datos = fuentes()
+  datos.api.molestias.mockRejectedValueOnce(new Error("sin red"))
+  await render(vista(datos))
+  expect(screen.getByText("Lara García")).toBeOnTheScreen()
+  expect(screen.getByRole("alert")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
+  expect(datos.api.molestias).toHaveBeenCalledTimes(2)
+  expect(screen.queryByRole("alert")).toBeNull()
+})
+it("conserva copia y deshabilita Responder si falla el refresco", async () => {
+  const datos = fuentes()
+  datos.api.molestias
+    .mockResolvedValueOnce({ molestias: [molestia], total: 1 })
+    .mockRejectedValueOnce(new Error("sin red"))
+  await render(vista(datos))
+  await act(async () => jest.advanceTimersByTime(10000))
+  expect(screen.getByText(/Sin conexión · copia de las/)).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: /^Responder:/ })).toBeDisabled()
+  expect(screen.getByText("Lara García")).toBeOnTheScreen()
+})
+it.each(
+  (
+    [
+      "ficha",
+      "plan",
+      "semana",
+      "resultados",
+      "molestias",
+      "dieta",
+      "medidas",
+      "consentimiento",
+      "visitas",
+    ] as const
+  ).flatMap((origen) => [
+    {
+      origen,
+      fallo: new ErrorDePermiso(),
+      mensaje: "No tienes permiso para acceder a estos datos.",
+    },
+    { origen, fallo: new ErrorDeSesion(), mensaje: "Tu sesión ha caducado. Vuelve a entrar." },
+  ]),
+)("oculta datos si $origen deniega acceso con $fallo", async ({ origen, fallo, mensaje }) => {
+  const datos = fuentes()
+  await render(vista(datos))
+  const consultas = {
+    ficha: datos.leerFicha,
+    plan: datos.api.plan,
+    semana: datos.api.semana,
+    resultados: datos.api.resultados,
+    molestias: datos.api.molestias,
+    dieta: datos.nutricion.vigente,
+    medidas: datos.seguimiento.medidas,
+    consentimiento: datos.seguimiento.consentimiento,
+    visitas: datos.valoraciones.listar,
+  }
+  consultas[origen].mockRejectedValueOnce(fallo)
+  await pasar(60000)
+  expect(screen.queryByText("Lara García")).toBeNull()
+  expect(screen.queryByRole("button", { name: "Más acciones" })).toBeNull()
+  expect(screen.getByRole("alert")).toHaveTextContent(mensaje)
+})
+it("un sondeo anterior no reabre la molestia respondida", async () => {
+  const datos = fuentes()
+  datos.api.molestias.mockResolvedValue({ molestias: [molestia], total: 1 })
+  await render(vista(datos))
+  let resolver!: (valor: { molestias: Molestia[]; total: number }) => void
+  datos.api.molestias.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        resolver = resolve
+      }),
+  )
+  await act(async () => jest.advanceTimersByTime(10000))
+  await fireEvent.press(screen.getByRole("button", { name: /^Responder:/ }))
+  await fireEvent.changeText(screen.getByLabelText("Respuesta para el cliente"), "Reduce la carga")
+  await fireEvent.press(screen.getByRole("button", { name: "Enviar respuesta" }))
+  expect(datos.api.atenderMolestia).toHaveBeenCalledWith("molestia", "Reduce la carga")
+  await act(async () => resolver({ molestias: [molestia], total: 1 }))
+  expect(screen.queryByRole("button", { name: /^Responder:/ })).toBeNull()
+})
+it("cabecera Anton y destinos sin tarjetas cuando no hay pendientes ni novedades", async () => {
+  const datos = fuentes()
+  datos.api.plan.mockResolvedValue({ plan })
+  datos.valoraciones.listar.mockResolvedValue({ total: 1, valoraciones: [] })
+  await render(vista(datos))
+  expect(
+    StyleSheet.flatten(screen.getByRole("header", { name: "Lara García" }).props.style),
+  ).toMatchObject({ fontSize: 34, lineHeight: 38 })
+  expect(screen.getByText("ACTIVO")).toBeOnTheScreen()
+  expect(screen.getByText("Mes 2 · semana 1 de 4")).toBeOnTheScreen()
+  for (const texto of ["Nada pendiente", "Última sesión", "Qué buscamos"])
+    expect(screen.queryByText(texto)).toBeNull()
+  expect(screen.queryByRole("button", { name: "Crear plan nuevo" })).toBeNull()
+  expect(datos.api.novedades).not.toHaveBeenCalled()
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(mockReplace).toHaveBeenCalledWith("/cartera")
+})
+it("volver usa el historial", async () => {
+  mockCanGoBack.mockReturnValueOnce(true)
+  await render(vista(fuentes()))
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(mockBack).toHaveBeenCalledTimes(1)
+})
+it("menú ⋯ abre datos, crear plan y la semana con nombre completo", async () => {
+  const datos = fuentes()
+  await render(vista(datos))
+  await fireEvent.press(screen.getByRole("button", { name: "Más acciones" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
+  expect(datos.verSemana).toHaveBeenCalledWith("Lara García")
+  await fireEvent.press(screen.getByRole("button", { name: "Más acciones" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Crear plan nuevo" }))
+  expect(datos.editarPlan).toHaveBeenCalledTimes(1)
+  await fireEvent.press(screen.getByRole("button", { name: "Más acciones" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
+  expect(screen.getByText("Formulario del cliente")).toBeOnTheScreen()
+})
+it("la carga inicial usa esqueletos accesibles", async () => {
+  const datos = fuentes()
+  datos.api.plan.mockImplementationOnce(() => new Promise(() => undefined))
+  await render(vista(datos))
+  expect(screen.getByLabelText("Cargando ficha").props.accessibilityState.busy).toBe(true)
+  expect(
+    screen.getAllByTestId("esqueleto", { includeHiddenElements: true }).length,
+  ).toBeGreaterThanOrEqual(4)
+})
+it("Datos reutiliza hoja, enlace antiguo y actualiza el nombre", async () => {
+  const alCerrarDatos = jest.fn()
+  await render(vista(fuentes(), { datosIniciales: true, alCerrarDatos }))
+  const props = mockDatosDelCliente.mock.lastCall![0] as {
+    alActualizar: (f: FichaDeUsuario) => void
+  }
+  await act(() => props.alActualizar({ ...perfil, nombre: "Ana" }))
+  expect(screen.getByText("Ana García")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Cerrar datos" }))
+  expect(alCerrarDatos).toHaveBeenCalledTimes(1)
+  await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
+  expect(mockDatosDelCliente).toHaveBeenLastCalledWith(expect.objectContaining({ clienteId }))
+})
+it("cuenta revisiones desde resultados sin N+1 y abre la única pendiente", async () => {
+  const datos = fuentes()
+  datos.api.resultados.mockResolvedValue({
+    resultados: [resultado("Empuje"), resultado("Tracción", "2026-10-27T12:00:00Z")],
+  })
+  await render(vista(datos))
+  expect(datos.api.leerEntrenador).not.toHaveBeenCalled()
+  await fireEvent.press(screen.getByRole("button", { name: /^Revisar:/ }))
+  expect(mockPush).toHaveBeenLastCalledWith({
+    pathname: "/entrenamiento/[id]",
+    params: { id: "Empuje", nombre: "Lara García" },
+  })
+})
+it("varias pendientes abren Sesiones filtradas y la fila abre todas", async () => {
+  const datos = fuentes()
+  datos.api.resultados.mockResolvedValue({ resultados: [resultado("A"), resultado("B")] })
+  await render(vista(datos))
+  await fireEvent.press(screen.getByRole("button", { name: /^Revisar:/ }))
+  expect(mockPush).toHaveBeenLastCalledWith({
+    pathname: "/entrenador/cliente/[id]/sesiones",
+    params: { id: clienteId, sinRevisar: "1" },
+  })
+  await fireEvent.press(screen.getByRole("button", { name: "Sesiones" }))
+  expect(mockPush).toHaveBeenLastCalledWith({
+    pathname: "/entrenador/cliente/[id]/sesiones",
+    params: { id: clienteId },
+  })
+})
+it("consulta siguiente plan solo al final y prepara si no existe", async () => {
+  const datos = fuentes()
+  datos.api.plan
+    .mockResolvedValueOnce({ plan: { ...plan, semanas: 1 } })
+    .mockResolvedValueOnce({ plan: null })
+  await render(vista(datos))
+  await fireEvent.press(screen.getByRole("button", { name: /^Preparar:/ }))
+  expect(datos.editarPlan).toHaveBeenCalledTimes(1)
+  expect(datos.api.plan).toHaveBeenLastCalledWith(clienteId, "2026-11-02")
+})
+it("conserva el fallo de fuentes lentas hasta recuperarlas, sin marcar la copia como nueva", async () => {
+  const datos = fuentes()
+  datos.nutricion.vigente.mockRejectedValueOnce(new Error("sin dieta disponible"))
+  await render(vista(datos))
+  expect(screen.getByRole("alert")).toBeOnTheScreen()
+  await pasar(30000)
+  expect(datos.nutricion.vigente).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole("alert")).toBeOnTheScreen()
+  await pasar(30000)
+  expect(datos.nutricion.vigente).toHaveBeenCalledTimes(2)
+  expect(screen.queryByRole("alert")).toBeNull()
 })

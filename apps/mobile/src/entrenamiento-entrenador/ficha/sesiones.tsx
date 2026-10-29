@@ -5,7 +5,7 @@ import type { ListadoResultados, Molestia } from "@alpha-omega/shared"
 
 import { Chip } from "../../componentes/piezas"
 import { Pulsable } from "../../componentes/pulsable"
-import { BotonPrincipal, BotonEnlace } from "../../componentes/botones"
+import { BotonEnlace } from "../../componentes/botones"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import { fechaLegible } from "../../entrenamiento/fechas"
 import { espacio, radio, tema, tipo } from "../../tema"
@@ -189,19 +189,33 @@ export function SesionesDelCliente({
   abrir,
   api,
   sinAcceso,
+  sinRevisarInicial = false,
 }: {
   resultados: ListadoResultados["resultados"]
   molestias: Molestia[]
   abrir: (sesionId: string) => void
   api: ApiEntrenamiento
   sinAcceso: (error: unknown) => void
+  sinRevisarInicial?: boolean
 }): React.JSX.Element {
-  const [sinRevisar, setSinRevisar] = useState(false)
-  const { estados, ocupado, reintentar } = useRevisiones(
-    resultados.map((r) => r.agenda.id),
+  const [sinRevisar, setSinRevisar] = useState(sinRevisarInicial)
+  const {
+    estados: consultados,
+    ocupado,
+    reintentar,
+  } = useRevisiones(
+    resultados.filter((r) => r.revisadaEn === undefined).map((r) => r.agenda.id),
     api,
     sinAcceso,
   )
+  const estados: Record<string, Revision> = {
+    ...consultados,
+    ...Object.fromEntries(
+      resultados.flatMap((r) =>
+        r.revisadaEn === undefined ? [] : [[r.agenda.id, { estado: "lista", fecha: r.revisadaEn }]],
+      ),
+    ),
+  }
   const visibles = sinRevisar
     ? resultados.filter((r) => {
         const revision = estados[r.agenda.id]
@@ -268,40 +282,6 @@ export function SesionesDelCliente({
             ))}
         </View>
       )}
-    </View>
-  )
-}
-
-export function UltimaSesion({
-  resultado,
-  molestias,
-  api,
-  abrir,
-  sinAcceso,
-}: {
-  resultado: ListadoResultados["resultados"][number]
-  molestias: Molestia[]
-  api: ApiEntrenamiento
-  abrir: (id: string) => void
-  sinAcceso: (error: unknown) => void
-}): React.JSX.Element {
-  const { agenda, resultado: registro } = resultado
-  const { estados, ocupado, reintentar } = useRevisiones([agenda.id], api, sinAcceso)
-  return (
-    <View style={s.tarjeta}>
-      <Text style={s.titulo}>
-        {registro.prescripcion.nombre} · {fechaLegible(agenda.fechaActual)}
-      </Text>
-      <Text style={s.tenue}>{resumenDeResultado(registro)}</Text>
-      <EtiquetasDeSesion resultado={registro} molestias={molestias} revision={estados[agenda.id]} />
-      {estados[agenda.id]?.estado === "error" && (
-        <BotonEnlace
-          texto="Reintentar revisión"
-          deshabilitado={ocupado}
-          onPress={() => reintentar(agenda.id)}
-        />
-      )}
-      <BotonPrincipal texto="Revisar sesión" sinMargen onPress={() => abrir(agenda.id)} />
     </View>
   )
 }

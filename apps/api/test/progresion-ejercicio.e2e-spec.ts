@@ -4,6 +4,7 @@ import {
   ListadoResultadosSchema,
   PlanAsignadoSchema,
   ProgresionFuerzaSchema,
+  ResumenSemanalSchema,
 } from "@alpha-omega/shared"
 import { entornoEntrenamiento } from "./entrenamiento-ayuda.js"
 
@@ -105,16 +106,19 @@ describe("Progresión de todos los ejercicios del cliente", () => {
     expect(resultados[0]?.resultado.series).toHaveLength(7)
   })
 
-  it("usa la mejor serie de E1 y estima su 1RM aunque otra serie tenga mayor Epley", async () => {
+  // Sustituye F: «usa la serie con mayor Epley para la gráfica, aunque otra tenga más kg».
+  it("fuerza y resumen semanal eligen por carga y luego repeticiones aunque otra serie tenga mayor Epley", async () => {
     const { app, como, ids } = entorno
     const http = app.getHttpServer()
     const datos = entorno.plan()
     datos.semanaInicial = "2026-09-21"
     const primera = datos.patron.sesiones[0]!.ejercicios[0]!
+    primera.compuesto = true
     const series = [
       { id: randomUUID(), tipoMedicion: "repeticiones" as const, pesoKg: 60, repeticiones: 10 },
       { id: randomUUID(), tipoMedicion: "repeticiones" as const, pesoKg: 100, repeticiones: 10 },
       { id: randomUUID(), tipoMedicion: "repeticiones" as const, pesoKg: 62.5, repeticiones: 6 },
+      { id: randomUUID(), tipoMedicion: "repeticiones" as const, pesoKg: 62.5, repeticiones: 7 },
     ]
     datos.patron.sesiones[0]!.ejercicios = [
       { ...primera, series: series.slice(0, 2) },
@@ -155,7 +159,98 @@ describe("Progresión de todos los ejercicios del cliente", () => {
       ).body,
     )
     expect(fuerza.ejercicios.find((e) => e.ejercicioId === ids.ejercicio)?.puntos).toEqual([
-      { fecha: "2026-09-21", pesoKg: 62.5, repeticiones: 6, estimado: 75 },
+      { fecha: "2026-09-21", pesoKg: 62.5, repeticiones: 7, estimado: 77.1 },
     ])
+    const resumen = ResumenSemanalSchema.parse(
+      (
+        await request(http)
+          .get("/entrenamiento/resumen-semanal?semana=2026-09-21")
+          .set(como("entrenador"))
+          .expect(200)
+      ).body,
+    )
+    expect(
+      resumen.clientes
+        .find((c) => c.clienteId === ids.cliente)
+        ?.ejercicios.find((e) => e.ejercicioId === ids.ejercicio)?.mejorSerie,
+    ).toMatchObject({ pesoKg: 62.5, repeticiones: 7, estimado1RM: 77.1 })
+  })
+
+  it("excluye aproximaciones, circuito y vuelta a la calma aunque compartan ejercicio con la parte principal", async () => {
+    const { app, como, ids, prisma } = entorno
+    const http = app.getHttpServer()
+    const auxiliar = await prisma.ejercicio.create({
+      data: {
+        nombre: "e2e-entrenamiento-progresion-ejercicio aproximaciones",
+        nombreNormalizado: "e2e-entrenamiento-progresion-ejercicio aproximaciones",
+        grupoPrincipal: "pecho",
+        instrucciones: "Aproximación",
+      },
+    })
+    const datos = entorno.plan()
+    datos.semanaInicial = "2026-09-28"
+    const principal = datos.patron.sesiones[0]!.ejercicios[0]!
+    principal.seccion = "principal"
+    principal.series = [
+      { id: randomUUID(), tipoMedicion: "repeticiones", pesoKg: 40, repeticiones: 10 },
+    ]
+    datos.patron.sesiones[0]!.ejercicios = [
+      principal,
+      ...(["calentamiento", "circuito", "final"] as const).flatMap((seccion) =>
+        [ids.ejercicio!, auxiliar.id].map((ejercicioId) => ({
+          ...principal,
+          id: randomUUID(),
+          ejercicioId,
+          seccion,
+          series: [
+            {
+              id: randomUUID(),
+              tipoMedicion: "repeticiones" as const,
+              pesoKg: 500,
+              repeticiones: 10,
+            },
+          ],
+        })),
+      ),
+    ]
+    const plan = PlanAsignadoSchema.parse(
+      (
+        await request(http)
+          .post(`/entrenamiento/clientes/${ids.cliente}/planes`)
+          .set(como("entrenador"))
+          .send(datos)
+          .expect(201)
+      ).body,
+    )
+    await request(http)
+      .post(`/entrenamiento/sesiones/${plan.sesiones[0]!.agenda.id}/enviar`)
+      .set(como("cliente"))
+      .send({
+        operacionId: randomUUID(),
+        revisionPrescripcion: 0,
+        revisionBorrador: 0,
+        registro: {
+          notas: null,
+          series: datos.patron.sesiones[0]!.ejercicios.flatMap((e) =>
+            e.series.map(({ id, ...s }) => ({ ...s, serieId: id, hecha: true, rir: null })),
+          ),
+        },
+      })
+      .expect(200)
+    const fuerza = ProgresionFuerzaSchema.parse(
+      (
+        await request(http)
+          .get(`/entrenamiento/clientes/${ids.cliente}/fuerza`)
+          .set(como("entrenador"))
+          .expect(200)
+      ).body,
+    )
+    expect(fuerza.ejercicios.map((e) => e.ejercicioId)).not.toContain(auxiliar.id)
+    expect(fuerza.ejercicios.find((e) => e.ejercicioId === ids.ejercicio)?.puntos.at(-1)).toEqual({
+      fecha: "2026-09-28",
+      pesoKg: 40,
+      repeticiones: 10,
+      estimado: 53.3,
+    })
   })
 })

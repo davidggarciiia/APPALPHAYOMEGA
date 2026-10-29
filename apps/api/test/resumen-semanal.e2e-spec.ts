@@ -274,6 +274,35 @@ describe("Resumen semanal agregado del entrenador", () => {
     })
   })
 
+  it.each([
+    { cargas: [60, 65, 65], estado: null },
+    { cargas: [60, 70, 65], estado: null },
+    { cargas: [65, 65, 65], estado: "Estancado" },
+    { cargas: [70, 65, 60], estado: "Baja" },
+  ])("E1 exige continuidad de sesiones en $cargas: $estado", async ({ cargas, estado }) => {
+    const clienteId = clientes[2]!
+    const ultimas = sesiones.filter((s) => s.clienteId === clienteId).slice(-3)
+    for (const [n, sesion] of ultimas.entries()) {
+      const resultado = ResultadoEntrenamientoSchema.parse(sesion.resultado)
+      const idsPrincipales = new Set(resultado.prescripcion.ejercicios[0]!.series.map((s) => s.id))
+      for (const serie of resultado.series) {
+        if (
+          serie.hecha &&
+          idsPrincipales.has(serie.serieId) &&
+          serie.valores.tipoMedicion === "repeticiones"
+        ) {
+          serie.valores.pesoKg = cargas[n]!
+          serie.valores.repeticiones = 6
+        }
+      }
+      await entorno.prisma.sesionEntrenamiento.update({
+        where: { id: sesion.id },
+        data: { resultado },
+      })
+    }
+    expect(delCliente(await resumen(), clienteId).ejercicios[0]?.estado).toBe(estado)
+  })
+
   it("conserva el último envío de hace más de una semana sin inventar marcas actuales", async () => {
     const cliente = delCliente(await resumen("2026-11-09"))
     expect(cliente).toMatchObject({

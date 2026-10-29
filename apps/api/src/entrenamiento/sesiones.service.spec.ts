@@ -81,6 +81,21 @@ function servicio(filas: Enviada[]) {
   return new SesionesService(prisma as unknown as PrismaService)
 }
 describe("SesionesService: ejecuciones anteriores", () => {
+  it("la fuerza solo usa trabajo principal, excluidas aproximaciones, circuito y vuelta a la calma", async () => {
+    const principal = ejercicio(20, 60)
+    const fila = enviada(100, [principal])
+    for (const [n, seccion] of (["calentamiento", "circuito", "final"] as const).entries()) {
+      const extra = { ...ejercicio(30 + n * 2, 500, uuid(50 + n)), seccion }
+      fila.resultado.prescripcion.ejercicios.push(extra)
+      fila.resultado.series.push({
+        serieId: extra.series[0]!.id,
+        hecha: true,
+        valores: { tipoMedicion: "repeticiones", pesoKg: 500, repeticiones: 5, rir: null },
+      })
+    }
+    const resultado = await servicio([fila]).fuerza(actor, clienteId)
+    expect(resultado.ejercicios.map(({ ejercicioId }) => ejercicioId)).toEqual([catalogoId])
+  })
   it("elige la mejor serie entre calentamiento y principal del mismo ejercicio", async () => {
     const resultado = await servicio([
       enviada(100, [ejercicio(20, 20), ejercicio(30, 60)]),
@@ -96,7 +111,8 @@ describe("SesionesService: ejecuciones anteriores", () => {
       { fecha: "2026-09-28", pesoKg: 60, repeticiones: 5, estimado: 70 },
     ])
   })
-  it("elige la mejor serie de E1 por kilos y repeticiones, uniendo ocurrencias y omitiendo series no hechas", async () => {
+  // Sustituye F: «elige el mayor Epley para la ficha, uniendo ocurrencias y omitiendo series no hechas».
+  it("reutiliza E1 por carga y luego repeticiones, uniendo ocurrencias y omitiendo series no hechas", async () => {
     const calentamiento = ejercicio(20, 60)
     calentamiento.series[0]!.repeticiones = 10
     calentamiento.series.push({
@@ -107,13 +123,19 @@ describe("SesionesService: ejecuciones anteriores", () => {
     })
     const principal = ejercicio(30, 62.5)
     principal.series[0]!.repeticiones = 6
+    principal.series.push({
+      id: uuid(32),
+      tipoMedicion: "repeticiones",
+      pesoKg: 62.5,
+      repeticiones: 7,
+    })
     const fila = enviada(100, [calentamiento, principal])
     fila.resultado.series[1] = { serieId: uuid(22), hecha: false, omitida: true }
 
     const resultado = await servicio([fila]).fuerza(actor, clienteId)
 
     expect(resultado.ejercicios[0]?.puntos).toEqual([
-      { fecha: "2026-09-28", pesoKg: 62.5, repeticiones: 6, estimado: 75 },
+      { fecha: "2026-09-28", pesoKg: 62.5, repeticiones: 7, estimado: 77.1 },
     ])
   })
   it("encuentra la última ejecución tras 60 sesiones de otros ejercicios", async () => {

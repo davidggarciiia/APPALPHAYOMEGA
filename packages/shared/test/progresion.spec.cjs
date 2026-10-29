@@ -240,6 +240,32 @@ test("estado: ordena una copia por fecha y usa la mejor serie de cada sesión", 
   assert.equal(sesiones[0].fecha, "2026-10-21")
 })
 
+test("estado y mejor semana: mismo día se ordena por envío y luego identificador", () => {
+  const primera = {
+    sesionId: "a",
+    fecha: "2026-10-26",
+    enviadoEn: "2026-10-26T08:00:00Z",
+    series: [serie()],
+  }
+  const segunda = {
+    sesionId: "b",
+    fecha: "2026-10-26",
+    enviadoEn: "2026-10-26T18:00:00Z",
+    series: [serie({ pesoKg: 62.5 })],
+  }
+  for (const sesiones of [
+    [primera, segunda],
+    [segunda, primera],
+  ]) {
+    assert.equal(progresion.estadoDeProgresion(sesiones), "Progresa")
+  }
+  const empate = { ...segunda, series: [serie()] }
+  assert.equal(progresion.mejorSerieDeSemana([empate, primera], "2026-10-26"), primera.series[0])
+  const mismoEnvio = { ...segunda, enviadoEn: primera.enviadoEn }
+  assert.equal(progresion.estadoDeProgresion([primera, mismoEnvio]), "Progresa")
+  assert.equal(progresion.estadoDeProgresion([mismoEnvio, primera]), "Progresa")
+})
+
 test("estado: historial insuficiente o una sesión sin fuerza válida no crea una tendencia", () => {
   assert.equal(typeof progresion.estadoDeProgresion, "function")
   assert.equal(progresion.estadoDeProgresion([]), null)
@@ -281,6 +307,64 @@ const ejercicio = (cambios = {}) => ({
   ...cambios,
 })
 const seriesCompletas = () => [serie(), serie({ serieId: "serie-2" })]
+
+// Sustituye «mejor serie por 1RM»: Epley describe la marca, no elige la serie.
+test("mejor serie única: prioriza kg aunque Epley sea menor y admite RIR nulo", () => {
+  const mejor = serie({ pesoKg: 62.5, repeticiones: 6, rir: null })
+  assert.equal(
+    progresion.mejorSerieDeSesion([serie({ pesoKg: 60, repeticiones: 10 }), mejor]),
+    mejor,
+  )
+  assert.equal(
+    progresion.mejorSerieDeSesion([mejor, serie({ pesoKg: 62.5, repeticiones: 6, rir: 5 })]),
+    mejor,
+  )
+  assert.equal(
+    progresion.mejorSerieDeSesion([serie({ omitida: true }), serie({ hecha: false })]),
+    null,
+  )
+  assert.equal(
+    progresion.mejorSerieDeSesion([
+      { tipoMedicion: "tiempo", hecha: true, pesoKg: 90, segundos: 90 },
+    ]),
+    null,
+  )
+  assert.equal(progresion.mejorSerieDeSesion([]), null)
+  assert.equal(progresion.mejorSeriePor1RM, undefined)
+})
+
+// Sustituye los estados F calculados con una sola comparación entre semanas.
+test("estado único: exige continuidad por sesiones aunque compartan semana", () => {
+  const iguales = sesionesConSeries([serie({ rir: 5 })], [serie({ rir: null })], [serie()])
+  const bajadas = sesionesConSeries([serie({ pesoKg: 65 })], [serie()], [serie({ pesoKg: 55 })])
+  assert.equal(progresion.estadoDeProgresion(iguales.slice(0, 2)), null)
+  assert.equal(progresion.estadoDeProgresion(bajadas.slice(0, 2)), null)
+  assert.equal(progresion.estadoDeProgresion(iguales), "Estancado")
+  assert.equal(progresion.estadoDeProgresion(bajadas), "Baja")
+  assert.equal(
+    progresion.estadoDeProgresion([
+      ...bajadas,
+      { fecha: "2026-10-23", series: [serie({ pesoKg: 57.5, repeticiones: 6 })] },
+    ]),
+    "Progresa",
+  )
+  assert.equal(progresion.estadoDeEjercicio, undefined)
+})
+
+test("estado único: primera sesión o sesión sin fuerza no acredita tendencia", () => {
+  for (const actual of [
+    serie({ hecha: false }),
+    serie({ omitida: true }),
+    { tipoMedicion: "distancia", hecha: true, pesoKg: 90, metros: 100 },
+  ]) {
+    assert.equal(
+      progresion.estadoDeProgresion(sesionesConSeries([serie()], [serie()], [actual])),
+      null,
+    )
+  }
+  assert.equal(progresion.estadoDeProgresion(sesionesConSeries([serie()])), null)
+  assert.equal(progresion.estadoDeProgresion(sesionesConSeries([serie()], [serie()], [])), null)
+})
 
 test("sugerencia: todas las series al tope y RIR mínimo cumplido usan la subida prescrita", () => {
   assert.equal(typeof progresion.sugerenciaDeProgresion, "function")

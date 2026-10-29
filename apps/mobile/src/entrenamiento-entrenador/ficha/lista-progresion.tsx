@@ -14,6 +14,7 @@ import { radio, tema, tipo } from "../../tema"
 import {
   conRirDelHistorial,
   decimal,
+  esEjercicioDeProgresion,
   historialDelEjercicio,
   serieLegible,
   semanasDeFuerza,
@@ -75,10 +76,15 @@ export function ListaProgresion({
   resultados: ListadoResultados["resultados"]
   abrir: (ejercicioId: string) => void
 }): React.JSX.Element {
-  const nombres = new Map(ejercicios.map((e) => [e.ejercicioId, e.nombre]))
+  const nombres = new Map(
+    ejercicios
+      .filter((e) => esEjercicioDeProgresion(resultados, e.ejercicioId))
+      .map((e) => [e.ejercicioId, e.nombre]),
+  )
   for (const { resultado } of resultados) {
     for (const e of resultado.prescripcion.ejercicios) {
       if (
+        (e.seccion ?? "principal") === "principal" &&
         resultado.series.some((s) => s.hecha && e.series.some((p) => p.id === s.serieId)) &&
         !nombres.has(e.ejercicioId)
       )
@@ -94,11 +100,11 @@ export function ListaProgresion({
           .sort((a, b) => a[1].localeCompare(b[1], "es"))
           .map(([id, nombre], i) => {
             const historial = historialDelEjercicio(resultados, id)
-            const estado = estadoDeProgresion(historial)
             const semanas = semanasDeFuerza(
               ejercicios.find((e) => e.ejercicioId === id)?.puntos ?? [],
               historial,
             )
+            const estado = estadoDeProgresion(historial)
             const mejor =
               conRirDelHistorial(semanas.at(-1), historial) ??
               mejorSerieDeSesion(historial[0]?.series ?? [])

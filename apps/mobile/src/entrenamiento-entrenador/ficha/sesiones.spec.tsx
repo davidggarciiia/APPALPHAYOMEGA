@@ -228,3 +228,26 @@ it("mantiene un máximo de cuatro lecturas cuando llegan sesiones durante una co
     "nueva",
   ])
 })
+
+it("usa revisadaEn del listado, abre Sin revisar desde la tarjeta y evita lecturas por sesión", async () => {
+  const lista = resultados.map((r, i) => ({
+    ...r,
+    revisadaEn: i === 0 ? null : "2026-10-01T12:00:00Z",
+  }))
+  await render(
+    <SesionesDelCliente
+      resultados={lista}
+      molestias={[]}
+      api={api}
+      sinAcceso={sinAcceso}
+      abrir={jest.fn()}
+      sinRevisarInicial
+    />,
+  )
+  expect(screen.getByRole("button", { name: /^Empuje ·/ })).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: /^Tracción ·/ })).toBeNull()
+  expect(api.leerEntrenador).not.toHaveBeenCalled()
+  await fireEvent.press(screen.getByRole("button", { name: "Todas" }))
+  expect(screen.getByRole("button", { name: /^Tracción ·/ })).toBeOnTheScreen()
+  expect(screen.getByText("Revisada")).toBeOnTheScreen()
+})
