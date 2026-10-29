@@ -30,6 +30,11 @@ enum EstadoUsuario {
   desactivado
 }
 
+enum SexoUsuario {
+  hombre
+  mujer
+}
+
 model Usuario {
   id String @id @default(uuid())
 
@@ -46,6 +51,7 @@ model Usuario {
   /// el entrenador solo tiene nombre y correo, y su titular los completa despues.
   telefono        String?
   fechaNacimiento DateTime?
+  sexo            SexoUsuario?
   fotoUrl         String?
 
   rol    Rol

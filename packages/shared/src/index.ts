@@ -46,6 +46,8 @@ export const ESTADOS_USUARIO = ["pendiente", "activo", "desactivado"] as const
 export const EstadoUsuarioSchema = z.enum(ESTADOS_USUARIO)
 export type EstadoUsuario = z.infer<typeof EstadoUsuarioSchema>
 
+export const SexoUsuarioSchema = z.enum(["hombre", "mujer"])
+
 /** Comprueba si un valor cualquiera es un rol valido. Util al leer datos de fuera. */
 export function esRol(valor: unknown): valor is Rol {
   return RolSchema.safeParse(valor).success
@@ -192,6 +194,7 @@ export const FichaDeUsuarioSchema = UsuarioPublicoSchema.extend({
   telefono: z.string().nullable(),
   /** En formato AAAA-MM-DD, igual que en el perfil propio. */
   fechaNacimiento: z.string().nullable(),
+  sexo: SexoUsuarioSchema.nullable().optional(),
   /** Fecha de alta, en ISO. El entrenador quiere saber desde cuándo está. */
   creadoEn: z.string(),
   /**
@@ -235,6 +238,7 @@ export const CambiosDeUsuarioSchema = z.strictObject({
     .date("Escribe una fecha válida en formato AAAA-MM-DD")
     .nullable()
     .optional(),
+  sexo: SexoUsuarioSchema.nullable().optional(),
 })
 
 export type CambiosDeUsuario = z.infer<typeof CambiosDeUsuarioSchema>

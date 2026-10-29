@@ -175,6 +175,7 @@ export class UsuariosService {
           fechaNacimiento:
             cambios.fechaNacimiento === null ? null : new Date(cambios.fechaNacimiento),
         }),
+        ...(cambios.sexo !== undefined && { sexo: cambios.sexo }),
       },
     })
 
@@ -383,6 +384,7 @@ type UsuarioCompleto = {
   apellidos: string | null
   telefono: string | null
   fechaNacimiento: Date | null
+  sexo: FichaDeUsuario["sexo"]
   passwordHash: string | null
   rol: UsuarioPublico["rol"]
   estado: UsuarioPublico["estado"]
@@ -411,6 +413,7 @@ export function aFicha(usuario: UsuarioCompleto): FichaDeUsuario {
     // Solo la fecha, sin hora: guardar la hora de un cumpleanos no significa nada
     // y arrastra zonas horarias.
     fechaNacimiento: usuario.fechaNacimiento?.toISOString().slice(0, 10) ?? null,
+    sexo: usuario.sexo ?? null,
     creadoEn: usuario.creadoEn.toISOString(),
     tieneContrasena: usuario.passwordHash !== null,
   }

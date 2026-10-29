@@ -14,6 +14,7 @@ type Fila = {
   apellidos: string | null
   telefono: string | null
   fechaNacimiento: Date | null
+  sexo: "hombre" | "mujer" | null
   passwordHash: string | null
   rol: "cliente" | "entrenador" | "nutricionista" | "empleado"
   estado: "pendiente" | "activo" | "desactivado"
@@ -28,6 +29,7 @@ function fila(cambios: Partial<Fila> = {}): Fila {
     apellidos: null,
     telefono: null,
     fechaNacimiento: null,
+    sexo: null,
     passwordHash: null,
     rol: "cliente",
     estado: "pendiente",
@@ -128,6 +130,22 @@ function servicioCon(
 }
 
 describe("UsuariosService: reglas de gestion", () => {
+  it("persiste sexo, conserva su valor si se omite y permite vaciarlo", async () => {
+    const { servicio, escrituras } = servicioCon(fila())
+
+    await expect(
+      servicio.actualizar(ENTRENADOR, CLIENTE, { sexo: "mujer" }),
+    ).resolves.toMatchObject({ sexo: "mujer" })
+    await expect(servicio.actualizar(ENTRENADOR, CLIENTE, {})).resolves.toMatchObject({
+      sexo: "mujer",
+    })
+    await expect(servicio.actualizar(ENTRENADOR, CLIENTE, { sexo: null })).resolves.toMatchObject({
+      sexo: null,
+    })
+
+    expect(escrituras).toEqual([{ sexo: "mujer" }, {}, { sexo: null }])
+  })
+
   it("una reactivación retrasada conserva la activación posterior", async () => {
     const actual = fila({ estado: "desactivado" })
     let lecturas = 0

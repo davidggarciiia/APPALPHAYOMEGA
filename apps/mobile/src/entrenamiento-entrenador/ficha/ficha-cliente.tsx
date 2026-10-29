@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect, useRouter } from "expo-router"
 import { AppState, StyleSheet, Text, View } from "react-native"
 import {
@@ -23,6 +23,8 @@ import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
 import { Icono } from "../../componentes/iconos"
 import { InsigniaDeEstado } from "../../componentes/insignia-estado"
 import { Pulsable } from "../../componentes/pulsable"
+import { DatosDelCliente } from "../../clientes/datos-del-cliente"
+import { textoConsentimiento } from "../../clientes/consentimiento"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import { fechaLegible, hoyAgenda, lunesDeSemana } from "../../entrenamiento/fechas"
 import { faseActual, semanaDelBloque, textoDeDeporte } from "../../entrenamiento/plan/modelo"
@@ -61,15 +63,6 @@ type Datos = {
   totalValoraciones: number | null
 }
 
-/** Cómo está el consentimiento de datos de salud, en una línea. */
-function textoConsentimiento(estado: EstadoConsentimiento | null): string {
-  if (estado === null) return "No se pudo comprobar"
-  if (estado.vigente && estado.aceptadoEn)
-    return `Dado el ${fechaLegible(estado.aceptadoEn.slice(0, 10))}`
-  if (estado.retiradoEn) return `Retirado el ${fechaLegible(estado.retiradoEn.slice(0, 10))}`
-  return estado.version ? "Pendiente de la versión nueva" : "Pendiente"
-}
-
 type Propiedades = {
   clienteId: string
   cuentaId: string
@@ -85,6 +78,9 @@ type Propiedades = {
   abrirNutricion: (nombre: string) => void
   valoracionInicial?: boolean
   pestanaInicial?: "progreso"
+  datosIniciales?: boolean
+  correoFallido?: boolean
+  alCerrarDatos?: () => void
 }
 
 /** La identidad delimita también los datos y borradores montados de la ficha. */
@@ -106,6 +102,9 @@ function FichaActual({
   abrirNutricion,
   valoracionInicial = false,
   pestanaInicial,
+  datosIniciales = false,
+  correoFallido = false,
+  alCerrarDatos,
 }: Propiedades): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>(
     valoracionInicial ? "progreso" : (pestanaInicial ?? "resumen"),
@@ -116,10 +115,15 @@ function FichaActual({
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
   const [respondiendo, setRespondiendo] = useState<Molestia | null>(null)
+  const [mostrandoDatos, setMostrandoDatos] = useState(datosIniciales)
+  const versionFicha = useRef(0)
   const versionMolestias = useRef(0)
   const permisoRevocado = useRef(false)
   const router = useRouter()
   const lunes = lunesDeSemana()
+  useEffect(() => {
+    if (datosIniciales) setMostrandoDatos(true)
+  }, [datosIniciales])
   const sinAcceso = useCallback((causa: unknown) => {
     permisoRevocado.current = true
     setDatos(null)
@@ -137,6 +141,7 @@ function FichaActual({
           return
         cargando = true
         const versionDeMolestias = versionMolestias.current
+        const versionDelPerfil = versionFicha.current
         try {
           const [ficha, plan, resultados, molestias, dieta, medidas, consentimiento, visitas] =
             await Promise.allSettled([
@@ -172,7 +177,10 @@ function FichaActual({
             return
           }
           setDatos((actual) => {
-            const perfil = ficha.status === "fulfilled" ? ficha.value : actual?.ficha
+            const perfil =
+              ficha.status === "fulfilled" && versionDelPerfil === versionFicha.current
+                ? ficha.value
+                : actual?.ficha
             if (!perfil) return null
             return {
               ficha: perfil,
@@ -304,6 +312,7 @@ function FichaActual({
             <BotonPrincipal texto="Crear plan nuevo" onPress={editarPlan} compacto sinMargen />
           </View>
         </View>
+        <BotonEnlace texto="Datos del cliente" onPress={() => setMostrandoDatos(true)} />
       </EntradaMarca>
       <Pestanas
         opciones={PESTANAS}
@@ -457,7 +466,7 @@ function FichaActual({
                   const altura = ultima("alturaCm")
                   const peso = ultima("pesoKg")
                   const grasa = ultima("grasaPct")
-                  const nacimiento = datos.medidas?.fechaNacimiento ?? datos.ficha.fechaNacimiento
+                  const nacimiento = datos.ficha.fechaNacimiento
                   const filas: Array<[string, string]> = [
                     ["Edad", nacimiento ? `${edadEn(nacimiento, hoyAgenda())} años` : "—"],
                     ["Altura", altura !== null ? `${altura} cm` : "—"],
@@ -502,13 +511,36 @@ function FichaActual({
                 </Tarjeta>
               )}
             </View>
-            <BotonEnlace
-              texto="Datos y acceso"
-              onPress={() => router.push({ pathname: "/cliente/[id]", params: { id: clienteId } })}
-            />
           </View>
         )}
       </CambioDeContenido>
+
+      {mostrandoDatos && (
+        <DatosDelCliente
+          clienteId={clienteId}
+          fichaInicial={datos.ficha}
+          consentimiento={datos.consentimiento}
+          correoFallido={correoFallido}
+          alCerrar={() => {
+            setMostrandoDatos(false)
+            alCerrarDatos?.()
+          }}
+          alActualizar={(ficha) => {
+            versionFicha.current += 1
+            setDatos((actual) =>
+              actual
+                ? {
+                    ...actual,
+                    ficha,
+                    medidas: actual.medidas
+                      ? { ...actual.medidas, fechaNacimiento: ficha.fechaNacimiento }
+                      : null,
+                  }
+                : actual,
+            )
+          }}
+        />
+      )}
 
       <DialogoResponder
         molestia={respondiendo}

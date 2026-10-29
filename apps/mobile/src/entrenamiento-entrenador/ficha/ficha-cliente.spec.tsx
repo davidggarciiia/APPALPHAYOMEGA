@@ -11,6 +11,22 @@ import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { FichaCliente } from "./ficha-cliente"
 
 const mockEntradaValoracion = jest.fn()
+const mockDatosDelCliente = jest.fn()
+jest.mock("../../clientes/datos-del-cliente", () => ({
+  DatosDelCliente: (props: { clienteId: string; alCerrar: () => void }) => {
+    mockDatosDelCliente(props)
+    const { Text, Pressable } = jest.requireActual<typeof import("react-native")>("react-native")
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Cerrar datos"
+        onPress={props.alCerrar}
+      >
+        <Text>Formulario del cliente</Text>
+      </Pressable>
+    )
+  },
+}))
 jest.mock("../../seguimiento/editor-valoracion", () => ({
   ValoracionesProfesional: function EditorDePrueba({
     alEditar,
@@ -86,6 +102,8 @@ async function mostrarFicha(
       | "valoraciones"
       | "valoracionInicial"
       | "pestanaInicial"
+      | "datosIniciales"
+      | "alCerrarDatos"
     >
   > = {},
 ): Promise<void> {
@@ -263,6 +281,42 @@ describe("actualización de la ficha abierta", () => {
     await act(async () => resolver({ molestias: [], total: 0 }))
     await act(async () => jest.advanceTimersByTime(10000))
     expect(api.molestias).toHaveBeenCalledTimes(2)
+  })
+
+  it("un sondeo anterior al guardado conserva el nombre y nacimiento nuevos", async () => {
+    jest.setSystemTime(new Date("2026-10-29T12:00:00Z"))
+    const perfil = {
+      nombre: "Lara",
+      apellidos: "García",
+      fechaNacimiento: "1990-05-12",
+    } as FichaDeUsuario
+    let resolver!: (valor: { medidas: []; fechaNacimiento: string }) => void
+    const medidas = jest
+      .fn()
+      .mockResolvedValue({ medidas: [], fechaNacimiento: perfil.fechaNacimiento })
+    await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, {
+      leerFicha: async () => perfil,
+      seguimiento: { medidas, consentimiento: async () => null } as unknown as ApiSeguimiento,
+    })
+    medidas.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolver = resolve
+        }),
+    )
+    await act(async () => jest.advanceTimersByTime(10000))
+    await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
+    const props = mockDatosDelCliente.mock.lastCall![0] as {
+      alActualizar: (ficha: FichaDeUsuario) => void
+      alCerrar: () => void
+    }
+    await act(() => props.alActualizar({ ...perfil, nombre: "Ana", fechaNacimiento: "2000-05-12" }))
+    await act(() => props.alCerrar())
+    await act(async () => resolver({ medidas: [], fechaNacimiento: "1990-05-12" }))
+    expect(screen.getByText("Ana García")).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("tab", { name: "Salud" }))
+    expect(screen.getByText("26 años")).toBeOnTheScreen()
+    expect(screen.queryByText("36 años")).toBeNull()
   })
 
   it("muestra la ficha disponible aunque falle molestias y permite reintentar", async () => {
@@ -567,11 +621,36 @@ it("la carga inicial usa esqueletos de cabecera y tarjetas", async () => {
   ).toBeGreaterThanOrEqual(4)
 })
 
-it("Salud permite abrir la administración de datos y acceso del cliente", async () => {
+it("abre los datos desde la ficha sin salir a otra pantalla", async () => {
   await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
-  await fireEvent.press(screen.getByRole("tab", { name: "Salud" }))
-  await fireEvent.press(screen.getByRole("button", { name: "Datos y acceso" }))
-  expect(mockPush).toHaveBeenCalledWith({ pathname: "/cliente/[id]", params: { id: clienteId } })
+  await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
+  expect(screen.getByText("Formulario del cliente")).toBeOnTheScreen()
+  expect(mockDatosDelCliente).toHaveBeenLastCalledWith(expect.objectContaining({ clienteId }))
+  expect(mockPush).not.toHaveBeenCalled()
+})
+
+it("el enlace antiguo abre la hoja y cerrar consume el parámetro", async () => {
+  const alCerrarDatos = jest.fn()
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento, {
+    datosIniciales: true,
+    alCerrarDatos,
+  })
+  expect(await screen.findByText("Formulario del cliente")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Cerrar datos" }))
+  expect(alCerrarDatos).toHaveBeenCalledTimes(1)
+  expect(screen.queryByText("Formulario del cliente")).toBeNull()
+})
+
+it("guardar los datos actualiza el nombre en la ficha", async () => {
+  await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
+  await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
+  const props = mockDatosDelCliente.mock.lastCall![0] as {
+    alActualizar: (ficha: FichaDeUsuario) => void
+  }
+  await act(() =>
+    props.alActualizar({ nombre: "Ana", apellidos: "Pérez", estado: "activo" } as FichaDeUsuario),
+  )
+  expect(screen.getByText("Ana Pérez")).toBeOnTheScreen()
 })
 
 it("consulta solo la revisión de la última en Resumen y carga el resto al entrar en Sesiones", async () => {

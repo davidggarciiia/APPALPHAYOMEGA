@@ -514,6 +514,38 @@ describe("Gestion de clientes", () => {
   })
 
   describe("edicion de la ficha", () => {
+    it("guarda nacimiento y sexo opcionales, conserva lo omitido y permite borrarlos", async () => {
+      const cliente = await crearCliente("Ana", "datos-personales")
+      const leer = () =>
+        request(app.getHttpServer())
+          .get(`/usuarios/${cliente.id}`)
+          .set("Authorization", como("entrenador"))
+          .expect(200)
+      const guardar = (datos: Record<string, unknown>) =>
+        request(app.getHttpServer())
+          .patch(`/usuarios/${cliente.id}`)
+          .set("Authorization", como("entrenador"))
+          .send(datos)
+          .expect(200)
+
+      expect((await leer()).body.sexo).toBeNull()
+      expect((await guardar({ fechaNacimiento: "1990-05-04", sexo: "mujer" })).body).toMatchObject({
+        fechaNacimiento: "1990-05-04",
+        sexo: "mujer",
+      })
+      expect((await guardar({ nombre: "Ana María" })).body).toMatchObject({
+        fechaNacimiento: "1990-05-04",
+        sexo: "mujer",
+      })
+      expect((await leer()).body).toMatchObject({ fechaNacimiento: "1990-05-04", sexo: "mujer" })
+      expect((await guardar({ sexo: "hombre" })).body.sexo).toBe("hombre")
+      expect((await guardar({ fechaNacimiento: null, sexo: null })).body).toMatchObject({
+        fechaNacimiento: null,
+        sexo: null,
+      })
+      expect((await leer()).body).toMatchObject({ fechaNacimiento: null, sexo: null })
+    })
+
     it("corrige nombre, apellidos, telefono y fecha", async () => {
       const cliente = await crearCliente("Jaun", "edicion")
 
@@ -583,6 +615,7 @@ describe("Gestion de clientes", () => {
       for (const cuerpo of [
         { nombre: "" },
         { fechaNacimiento: "04/05/1990" },
+        { sexo: "otro" },
         { telefono: "no es un telefono" },
       ]) {
         await request(app.getHttpServer())

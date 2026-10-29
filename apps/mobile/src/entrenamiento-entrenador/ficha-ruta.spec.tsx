@@ -1,14 +1,21 @@
 import { render, screen } from "@testing-library/react-native"
 import FichaDelCliente from "../../app/entrenador/cliente/[id]/index"
 
-let mockParametros: { id: string; valoracionInicial?: string; pestana?: string } = {
+let mockParametros: {
+  id: string
+  valoracionInicial?: string
+  pestana?: string
+  datos?: string
+  correoFallido?: string
+} = {
   id: "10000000-0000-4000-8000-000000000001",
   valoracionInicial: "1",
 }
 const mockFicha = jest.fn()
+const mockSetParams = jest.fn()
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => mockParametros,
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), setParams: mockSetParams }),
 }))
 jest.mock("../sesion", () => ({
   useSesion: () => ({
@@ -43,6 +50,15 @@ it.each(["1", "0"])(
     )
   },
 )
+
+it("el enlace de datos conserva el fallo de correo y consume la apertura al cerrar", async () => {
+  mockParametros = { id: mockParametros.id, datos: "1", correoFallido: "1" }
+  await render(<FichaDelCliente />)
+  const props = mockFicha.mock.lastCall![0] as { alCerrarDatos: () => void }
+  expect(props).toEqual(expect.objectContaining({ datosIniciales: true, correoFallido: true }))
+  props.alCerrarDatos()
+  expect(mockSetParams).toHaveBeenCalledWith({ datos: "0", correoFallido: "0" })
+})
 
 it.each(["progreso", "resumen", "otra"])(
   "abre la pestaña solicitada por Notificaciones sin iniciar una valoración (%s)",
