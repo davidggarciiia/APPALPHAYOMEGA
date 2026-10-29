@@ -1,8 +1,9 @@
-import type {
-  DeporteDelPlan,
-  EjercicioPrescrito,
-  FaseDeBloque,
-  Prescripcion,
+import {
+  faseDeSemana,
+  type DeporteDelPlan,
+  type EjercicioPrescrito,
+  type FaseDeBloque,
+  type Prescripcion,
 } from "@alpha-omega/shared"
 
 import { sumarDias } from "../fechas"
@@ -46,7 +47,8 @@ export function fechasDelBloque(plan: Periodo): string {
 
 /** Índice de la fase que contiene la semana, o -1. */
 export function faseActual(fases: FaseDeBloque[], semana: number): number {
-  return fases.findIndex((fase) => fase.desde <= semana && semana <= fase.hasta)
+  const fase = faseDeSemana(fases, semana)
+  return fase ? fases.indexOf(fase) : -1
 }
 
 /** «Semanas 1–2» o «Semana 5». */

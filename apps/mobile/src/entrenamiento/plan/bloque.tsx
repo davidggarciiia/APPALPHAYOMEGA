@@ -12,6 +12,7 @@ import {
   textoDeFase,
 } from "./modelo"
 import { Fila, Tarjeta, Titulo } from "./piezas"
+import { textoDeAjustes } from "./ajustes-fase"
 
 const PARTES = [
   { clave: "calentamiento", texto: "Calentar" },
@@ -82,6 +83,7 @@ export function BloqueDelPlan({
         <Tarjeta>
           {bloque.fases.map((fase, n) => {
             const ahora = n === actual
+            const ajustes = textoDeAjustes(fase.ajustes)
             return (
               <Fila key={`${fase.desde}-${fase.nombre}`} primera={n === 0}>
                 <Text style={[s.semanas, ahora && s.semanasAhora]}>{textoDeFase(fase)}</Text>
@@ -95,6 +97,7 @@ export function BloqueDelPlan({
                     )}
                   </View>
                   {fase.detalle && <Text style={s.tenue}>{fase.detalle}</Text>}
+                  {ajustes && <Text style={s.tenue}>{ajustes}</Text>}
                 </View>
               </Fila>
             )

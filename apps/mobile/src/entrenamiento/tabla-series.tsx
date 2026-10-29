@@ -19,6 +19,7 @@ import { useMovimientoReducido } from "../componentes/movimiento"
 import { tema } from "../tema"
 import type { EdicionRegistro, EjercicioConDistancia, SerieConDistancia } from "./registro-modelo"
 import { resumenPrescrito } from "./sesion/modelo"
+import { cargaSugeridaDeFase, decimalDeFase } from "./plan/ajustes-fase"
 
 type SerieReal = EdicionRegistro["series"][number]
 type Unidad = SerieConDistancia["tipoMedicion"]
@@ -56,6 +57,7 @@ export function ajusteDeSerie(
   ejercicio: EjercicioConDistancia,
   real: SerieReal,
   celda: CeldaSerie,
+  sugerenciaCarga: number | null = null,
 ): Pick<
   BarraAjusteProps,
   "unidad" | "valor" | "subidaKg" | "objetivo" | "minimo" | "maximo"
@@ -70,7 +72,7 @@ export function ajusteDeSerie(
   if (celda === "peso")
     return {
       unidad: "kg",
-      valor: numero(real.peso, prescrita.pesoKg),
+      valor: numero(real.peso, prescrita.pesoKg ?? sugerenciaCarga),
       subidaKg: ejercicio.subidaKg,
       minimo: 0,
       maximo: 1000,
@@ -120,6 +122,7 @@ export function TablaSeries({
   verMolestia,
   enCurso = null,
   anterior,
+  factorCarga,
   recordPersonal,
   recordsCelebrados,
   enfocada = null,
@@ -138,6 +141,7 @@ export function TablaSeries({
   enCurso?: string | null
   /** La API entrega la mejor serie anterior: se repite en cada fila. */
   anterior?: ValoresEjecutados
+  factorCarga?: number
   recordPersonal?: RecordPersonal | null
   recordsCelebrados?: ReadonlySet<string>
   enfocada?: FocoSerie | null
@@ -169,6 +173,13 @@ export function TablaSeries({
     (ejercicio.tipoCarga === "conCargaExterna" ||
       ejercicio.calibrar === true ||
       ejercicio.series.some((serie) => serie.pesoKg !== null))
+  const sugerenciaCarga = cargaSugeridaDeFase(ejercicio, factorCarga, anterior)
+  const porcentaje =
+    factorCarga !== undefined && factorCarga !== 1
+      ? decimalDeFase(Number((factorCarga * 100).toFixed(1)))
+      : null
+  const mostrarSugerencia =
+    mostrarPeso && porcentaje !== null && ejercicio.series.some((serie) => serie.pesoKg === null)
   const pendientes = ejercicio.series.filter((prescrita) => {
     const real = series.find((serie) => serie.serieId === prescrita.id)
     return !real?.hecha && !real?.omitida
@@ -199,6 +210,13 @@ export function TablaSeries({
           </Text>
           <Text style={s.resumen}>{resumenPrescrito(ejercicio)}</Text>
           {ejercicio.indicaciones && <Text style={s.resumen}>{ejercicio.indicaciones}</Text>}
+          {mostrarSugerencia && (
+            <Text style={[s.resumen, s.aviso]}>
+              {sugerenciaCarga === null
+                ? `Sugerencia · ${porcentaje} % de tu carga habitual`
+                : `Sugerencia · ${decimalDeFase(sugerenciaCarga)} kg (${porcentaje} % de la anterior)`}
+            </Text>
+          )}
         </View>
         {verTecnica && (
           <Pressable
@@ -245,6 +263,7 @@ export function TablaSeries({
       <Animated.View style={validacion}>
         {ejercicio.series.map((prescrita, n) => {
           const real = series.find((serie) => serie.serieId === prescrita.id)
+          const pesoSugerido = prescrita.pesoKg ?? sugerenciaCarga
           if (!real)
             return (
               <Text key={prescrita.id} style={[s.resumen, s.aviso]} accessibilityRole="alert">
@@ -271,7 +290,7 @@ export function TablaSeries({
                   !recordsCelebrados?.has(prescrita.id) || recordPersonal?.serieId === prescrita.id
                 }
                 peso={real.peso}
-                pesoSugerido={prescrita.pesoKg}
+                pesoSugerido={pesoSugerido}
                 cantidad={real.valor}
                 cantidadSugerida={cantidadObjetivo(prescrita)}
                 rir={real.rir}
@@ -300,7 +319,7 @@ export function TablaSeries({
                       }),
                       ...(real.peso.trim() === "" &&
                         mostrarPeso &&
-                        prescrita.pesoKg !== null && { peso: decimal(prescrita.pesoKg) }),
+                        pesoSugerido !== null && { peso: decimal(pesoSugerido) }),
                     },
                     "Serie hecha",
                   )

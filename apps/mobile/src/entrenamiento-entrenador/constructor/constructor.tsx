@@ -16,6 +16,8 @@ import {
 import { z } from "zod"
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg"
 import {
+  aplicarAjustesDeFase,
+  faseDeSemana,
   AsignarPlanSchema,
   FechaAgendaSchema,
   type AsignarPlan,
@@ -41,6 +43,7 @@ import { almacenDispositivo } from "../../entrenamiento/almacen-dispositivo"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import { lunesDeSemana, sumarDias } from "../../entrenamiento/fechas"
 import { fechaCorta, INICIALES_DE_DIA, NOMBRES_DE_DIA } from "../../entrenamiento/plan/modelo"
+import { textoDeAjustes } from "../../entrenamiento/plan/ajustes-fase"
 import { Pestanas, Titulo } from "../../entrenamiento/plan/piezas"
 import { RutinaDeLaSemana, type DiaDelPlan } from "../../entrenamiento/plan/rutina"
 import { BotonAtras, Dialogo, Enlace } from "../../entrenamiento/sesion/controles"
@@ -143,6 +146,7 @@ function vistaDelCliente(
   semanaInicial: string,
   clienteId: string,
   nuevoId: () => string,
+  fase?: FaseDeBloque,
 ): DiaDelPlan[] {
   return [...dias]
     .sort((a, b) => a.diaSemana - b.diaSemana)
@@ -176,7 +180,7 @@ function vistaDelCliente(
             nombre: sesion.nombre,
             enviadoEn: null,
           },
-          prescripcion,
+          prescripcion: aplicarAjustesDeFase(prescripcion, fase?.ajustes),
         },
       ]
     })
@@ -288,6 +292,8 @@ export function ConstructorPlan({
   const retiradaInicio = useRef(0)
   const retiradaDeshecha = useRef<Retirada | null>(null)
   const [comoCliente, setComoCliente] = useState(false)
+  const [semanaVista, setSemanaVista] = useState("1")
+  const [diaVista, setDiaVista] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState<AsignarPlan | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioDelConstructor | null>(null)
   const [error, setError] = useState("")
@@ -464,7 +470,7 @@ export function ConstructorPlan({
     retiradaInicio.current = Date.now()
     const elemento = bloque.fases[indice]!
     setRetirada(
-      elemento.nombre.trim() || elemento.detalle?.trim()
+      elemento.nombre.trim() || elemento.detalle?.trim() || elemento.ajustes !== undefined
         ? { tipo: "fase", indice, elemento }
         : null,
     )
@@ -612,6 +618,8 @@ export function ConstructorPlan({
     setLugarDelMensaje("cabecera")
     try {
       construir(nuevoId())
+      setSemanaVista("1")
+      setDiaVista(null)
       setComoCliente(true)
       setError("")
     } catch {
@@ -1274,20 +1282,54 @@ export function ConstructorPlan({
             onPress={() => setComoCliente(false)}
           />
           <Text style={s.tituloModal}>Así lo verá {nombreCliente.split(" ")[0]}</Text>
+          {comoCliente && (
+            <Pestanas
+              opciones={Array.from({ length: Number(semanas) }, (_, i) => ({
+                valor: String(i + 1),
+                texto: `Semana ${i + 1}`,
+              }))}
+              activa={semanaVista}
+              cambiar={(valor) => {
+                setSemanaVista(valor)
+                setDiaVista(null)
+              }}
+            />
+          )}
           {comoCliente &&
             (() => {
-              const vista = vistaDelCliente(dias, semanaInicial, clienteId, nuevoId)
+              const fase = faseDeSemana(bloque.fases, Number(semanaVista))
+              const ajustes = textoDeAjustes(fase?.ajustes)
+              const vista = vistaDelCliente(
+                dias,
+                sumarDias(semanaInicial, (Number(semanaVista) - 1) * 7),
+                clienteId,
+                nuevoId,
+                fase,
+              )
               return vista.length === 0 ? (
                 <Text style={s.tenue}>Completa al menos un día para verlo como el cliente.</Text>
               ) : (
-                <RutinaDeLaSemana
-                  dias={vista}
-                  elegido={null}
-                  elegir={() => undefined}
-                  hoy=""
-                  verTecnica={() => undefined}
-                  abrir={() => undefined}
-                />
+                <>
+                  {fase && (
+                    <Text style={s.tenue}>
+                      {fase.nombre}
+                      {fase.detalle ? ` · ${fase.detalle}` : ""}
+                    </Text>
+                  )}
+                  {ajustes && (
+                    <Text testID="ajustes-semana-previa" style={s.tenue}>
+                      {ajustes}
+                    </Text>
+                  )}
+                  <RutinaDeLaSemana
+                    dias={vista}
+                    elegido={diaVista}
+                    elegir={setDiaVista}
+                    hoy=""
+                    verTecnica={() => undefined}
+                    abrir={() => undefined}
+                  />
+                </>
               )
             })()}
         </ScrollView>

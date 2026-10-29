@@ -1047,6 +1047,76 @@ describe("autoguardado del borrador (T-01)", () => {
   // Android puede matar el proceso en segundo plano: lo montado no puede vivir solo en memoria.
   const hastaGuardar = { timeout: 3000 }
 
+  it("guarda ajustes editados en el borrador, los recupera y los publica (D10)", async () => {
+    const almacen = almacenEnMemoria()
+    const { vista } = await prepararConstructor(almacen)
+    await completarDia()
+    await abrirDatos()
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir fase" }))
+    await fireEvent.changeText(screen.getByLabelText("Nombre de la fase 1"), "Descarga")
+    await fireEvent.press(screen.getByRole("button", { name: "Descarga para la fase 1" }))
+    await fireEvent.changeText(screen.getByLabelText("Carga en porcentaje de la fase 1"), "90")
+    await cerrarDatos()
+    const ajustes = {
+      rirCompuestos: { min: 3, max: 4 },
+      rirAccesorios: { min: 3, max: 4 },
+      factorSeries: 0.5,
+      factorCarga: 0.9,
+    }
+    await waitFor(
+      () =>
+        expect(almacen.datos.get(CLAVE_BORRADOR)).toEqual(
+          expect.objectContaining({
+            bloque: expect.objectContaining({ fases: [expect.objectContaining({ ajustes })] }),
+          }),
+        ),
+      hastaGuardar,
+    )
+    await vista.unmount()
+    const { asignar } = await prepararConstructor(almacen)
+    asignar.mockImplementation(async (_c, datos) => ({
+      id: randomUUID(),
+      operacionId: datos.operacionId,
+      sesiones: [],
+    }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Recuperar mi plan" }))
+    await abrirDatos()
+    expect(screen.getByLabelText("Carga en porcentaje de la fase 1")).toHaveDisplayValue("90")
+    await cerrarDatos()
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+    await waitFor(() => expect(asignar).toHaveBeenCalledTimes(1))
+    expect(AsignarPlanSchema.parse(asignar.mock.calls[0]![1]).bloque?.fases[0]?.ajustes).toEqual(
+      ajustes,
+    )
+  })
+
+  it("previsualiza cada semana incluso con fase textual solapada sin alterar el patrón (D10)", async () => {
+    const { asignar } = await prepararConstructor()
+    await completarDia()
+    await abrirDatos()
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir fase" }))
+    await fireEvent.changeText(screen.getByLabelText("Nombre de la fase 1"), "Base")
+    await fireEvent.changeText(screen.getByLabelText("Última semana de la fase 1"), "6")
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir fase" }))
+    await fireEvent.changeText(screen.getByLabelText("Primera semana de la fase 2"), "2")
+    await fireEvent.changeText(screen.getByLabelText("Última semana de la fase 2"), "2")
+    await fireEvent.changeText(screen.getByLabelText("Nombre de la fase 2"), "Descarga")
+    await fireEvent.press(screen.getByRole("button", { name: "Descarga para la fase 2" }))
+    await cerrarDatos()
+    await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
+    const previa = within(screen.getByTestId("vista-cliente"))
+    expect(previa.getByRole("button", { name: /Press banca, 3×8–10/ })).toBeOnTheScreen()
+    await fireEvent.press(previa.getByRole("tab", { name: "Semana 2" }))
+    expect(previa.getByRole("button", { name: /Press banca, 2×8–10, RIR 3–4/ })).toBeOnTheScreen()
+    expect(previa.getByTestId("ajustes-semana-previa")).toHaveTextContent(/50 %/)
+    await fireEvent.press(previa.getByRole("button", { name: "Cerrar la vista del cliente" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+    await waitFor(() => expect(asignar).toHaveBeenCalledTimes(1))
+    expect(asignar.mock.calls[0]![1].patron.sesiones[0]!.ejercicios[0]!.series).toHaveLength(3)
+  })
+
   it("autoguarda lo montado y lo ofrece al reabrir; recuperarlo lo devuelve tal cual", async () => {
     const almacen = almacenEnMemoria()
     const { vista } = await prepararConstructor(almacen)
@@ -1396,6 +1466,20 @@ describe("deshacer una retirada (T-04)", () => {
     } finally {
       jest.useRealTimers()
     }
+  })
+
+  it("recupera los ajustes de una fase sin nombre al deshacer su retirada (D10)", async () => {
+    await prepararConstructor()
+    await screen.findByLabelText("Nombre del día")
+    await abrirDatos()
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir fase" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Descarga para la fase 1" }))
+    await fireEvent.changeText(screen.getByLabelText("Carga en porcentaje de la fase 1"), "90")
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar la fase 1" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+    expect(screen.getByLabelText("Nombre de la fase 1")).toHaveDisplayValue("")
+    expect(screen.getByLabelText("Carga en porcentaje de la fase 1")).toHaveDisplayValue("90")
+    expect(screen.getByLabelText("Series en porcentaje de la fase 1")).toHaveDisplayValue("50")
   })
 
   it.each(["fase", "deporte"])("quitar una %s vacía no ofrece deshacer", async (tipo) => {

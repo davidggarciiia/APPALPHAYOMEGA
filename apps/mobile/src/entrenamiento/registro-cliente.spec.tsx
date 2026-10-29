@@ -177,6 +177,44 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     expect(copiaGuardada().edicion.cierre).toBeNull()
   })
 
+  it("D10: muestra la fase y permite corregir la sugerencia sin fijar kilos prescritos", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      borrador: null,
+      prescripcion: {
+        ...sesion.prescripcion,
+        fase: { nombre: "Descarga", ajustes: { factorCarga: 0.875, factorSeries: 0.5 } },
+        ejercicios: sesion.prescripcion.ejercicios.map((ejercicio) => ({
+          ...ejercicio,
+          tipoCarga: "conCargaExterna",
+          calibrar: true,
+          subidaKg: 2.5,
+          series: ejercicio.series.map((serie) => ({ ...serie, pesoKg: null })),
+        })),
+      },
+    })
+    api.anteriores.mockResolvedValue({
+      anteriores: [
+        {
+          ejercicioId: sesion.prescripcion.ejercicios[0]!.ejercicioId,
+          fecha: "2026-09-07T10:00:00.000Z",
+          valores: { tipoMedicion: "repeticiones", pesoKg: 60, repeticiones: 8 },
+        },
+      ],
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByText(/^Descarga ·/)).toBeTruthy()
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Peso — Press banca, serie 1: 52,5" }),
+    )
+    expect(screen.getByRole("button", { name: "Escribir KG: 52,5" })).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: "Disminuir" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+    await waitFor(() => expect(copiaGuardada().edicion.series[0].peso).toBe("50"))
+    expect(copiaGuardada().sesion.prescripcion.ejercicios[0].series[0].pesoKg).toBeNull()
+  })
+
   it("el reloj avanza sin repintar la tabla ni interrumpir el ajuste", async () => {
     jest.useFakeTimers()
     const tabla = jest.spyOn(tablaSeries, "TablaSeries")

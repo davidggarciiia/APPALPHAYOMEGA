@@ -46,6 +46,7 @@ import { AvisoDeshacer } from "../componentes/aviso-deshacer"
 import { BarraAjuste } from "../componentes/barra-ajuste"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { useMovimientoReducido } from "../componentes/movimiento"
+import { cargaSugeridaDeFase, textoDeAjustes } from "./plan/ajustes-fase"
 
 type Serie = EdicionRegistro["series"][number]
 type Fase = "sesion" | "molestia"
@@ -727,9 +728,19 @@ export function RegistroCliente({
     )
   const ejercicioEnFoco = foco && prescripcion.ejercicios.find((e) => e.id === foco.ejercicioId)
   const realEnFoco = foco && edicion.series.find((s) => s.serieId === foco.serieId)
+  const resumenDeFase = textoDeAjustes(prescripcion.fase?.ajustes)
   const ajuste =
     ejercicioEnFoco && realEnFoco && foco
-      ? ajusteDeSerie(ejercicioEnFoco, realEnFoco, foco.celda)
+      ? ajusteDeSerie(
+          ejercicioEnFoco,
+          realEnFoco,
+          foco.celda,
+          cargaSugeridaDeFase(
+            ejercicioEnFoco,
+            prescripcion.fase?.ajustes.factorCarga,
+            anteriores.get(ejercicioEnFoco.ejercicioId),
+          ),
+        )
       : null
   const avisoDeshacer = deshacer && mostrarDeshacer && (
     <AvisoDeshacer
@@ -778,6 +789,12 @@ export function RegistroCliente({
             />
           )}
         </RelojDeSesion>
+        {prescripcion.fase && (
+          <Text style={e.nota}>
+            {prescripcion.fase.nombre}
+            {resumenDeFase ? ` · ${resumenDeFase}` : ""}
+          </Text>
+        )}
         {error !== "" && <AvisoDeError mensaje={error} />}
         {documento.descansoHasta && (
           <DescansoVivo
@@ -858,6 +875,7 @@ export function RegistroCliente({
                   cambiar={serie}
                   enCurso={enCurso}
                   anterior={anteriores.get(ejercicio.ejercicioId)}
+                  factorCarga={prescripcion.fase?.ajustes.factorCarga}
                   recordPersonal={recordPersonal}
                   recordsCelebrados={recordsCelebrados.current}
                   verTecnica={() => setTecnica(ejercicio)}

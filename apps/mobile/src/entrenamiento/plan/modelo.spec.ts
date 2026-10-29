@@ -90,6 +90,16 @@ describe("bloque", () => {
     expect(textoDeFase({ desde: 5, hasta: 5, nombre: "Apretar", detalle: null })).toBe("Semana 5")
   })
 
+  it("una fase de texto superpuesta no tapa los ajustes de esa semana", () => {
+    const fases = [
+      { desde: 1, hasta: 6, nombre: "Adaptación", detalle: null },
+      { desde: 3, hasta: 3, nombre: "Descarga", detalle: null, ajustes: { factorSeries: 0.5 } },
+    ]
+    expect(faseActual(fases, 3)).toBe(1)
+    expect(faseActual(fases, 2)).toBe(0)
+    expect(faseActual(fases, 7)).toBe(-1)
+  })
+
   it("otro deporte: «K-1: jueves y domingo, 60 min»", () => {
     expect(textoDeDeporte({ nombre: "K-1", dias: [7, 4], minutos: 60 })).toBe(
       "K-1: jueves y domingo, 60 min",

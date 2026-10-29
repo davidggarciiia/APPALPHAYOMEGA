@@ -9,9 +9,24 @@ jest.mock("../../componentes/iconos", () => ({ Icono: () => null }))
 
 const vacio: Bloque = { objetivos: [], fases: [], deportes: [], notas: [] }
 
-function EditorConEstado({ inicial }: { inicial: Bloque }): React.JSX.Element {
+function EditorConEstado({
+  inicial,
+  observar,
+}: {
+  inicial: Bloque
+  observar?: (bloque: Bloque) => void
+}): React.JSX.Element {
   const [bloque, cambiar] = useState(inicial)
-  return <EditorDeBloque bloque={bloque} semanas={52} cambiar={cambiar} />
+  return (
+    <EditorDeBloque
+      bloque={bloque}
+      semanas={52}
+      cambiar={(valor) => {
+        cambiar(valor)
+        observar?.(valor)
+      }}
+    />
+  )
 }
 
 describe("ListaDeSeccion · móvil", () => {
@@ -66,6 +81,74 @@ describe("ListaDeSeccion · móvil", () => {
 })
 
 describe("EditorDeBloque · fases", () => {
+  it("aplica una descarga editable y permite volver a una fase sin ajustes", async () => {
+    const observar = jest.fn()
+    await render(
+      <EditorConEstado
+        inicial={{ ...vacio, fases: [{ desde: 1, hasta: 1, nombre: "Base", detalle: null }] }}
+        observar={observar}
+      />,
+    )
+    expect(screen.queryByLabelText("Carga en porcentaje de la fase 1")).toBeNull()
+    await fireEvent.press(screen.getByRole("button", { name: "Descarga para la fase 1" }))
+    expect(observar.mock.calls.at(-1)![0].fases[0].ajustes).toEqual({
+      rirCompuestos: { min: 3, max: 4 },
+      rirAccesorios: { min: 3, max: 4 },
+      factorSeries: 0.5,
+      factorCarga: 0.875,
+    })
+    expect(screen.getByLabelText("Carga en porcentaje de la fase 1")).toHaveProp(
+      "keyboardType",
+      "decimal-pad",
+    )
+    await fireEvent.changeText(screen.getByLabelText("Carga en porcentaje de la fase 1"), "90")
+    await fireEvent.changeText(screen.getByLabelText("Series en porcentaje de la fase 1"), "60")
+    await fireEvent.changeText(screen.getByLabelText("RIR mínimo de accesorios de la fase 1"), "2")
+    expect(observar.mock.calls.at(-1)![0].fases[0].ajustes).toEqual({
+      rirCompuestos: { min: 3, max: 4 },
+      rirAccesorios: { min: 2, max: 4 },
+      factorSeries: 0.6,
+      factorCarga: 0.9,
+    })
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar ajustes de la fase 1" }))
+    expect(observar.mock.calls.at(-1)![0].fases[0].ajustes).toBeUndefined()
+  })
+
+  it.each([
+    ["Mayor estímulo", { min: 1, max: 2 }, { min: 1, max: 1 }],
+    ["Vuelta", { min: 3, max: 3 }, { min: 2, max: 3 }],
+  ])(
+    "ofrece el predefinido %s sin recortar series ni cargas",
+    async (nombre, compuestos, accesorios) => {
+      const observar = jest.fn()
+      await render(
+        <EditorConEstado
+          inicial={{ ...vacio, fases: [{ desde: 1, hasta: 1, nombre: "Base", detalle: null }] }}
+          observar={observar}
+        />,
+      )
+      await fireEvent.press(screen.getByRole("button", { name: `${nombre} para la fase 1` }))
+      expect(observar.mock.calls.at(-1)![0].fases[0].ajustes).toEqual({
+        rirCompuestos: compuestos,
+        rirAccesorios: accesorios,
+      })
+    },
+  )
+
+  it("conserva el ajuste inválido para bloquear la publicación y explica el rango", async () => {
+    const observar = jest.fn()
+    await render(
+      <EditorConEstado
+        inicial={{ ...vacio, fases: [{ desde: 1, hasta: 1, nombre: "Base", detalle: null }] }}
+        observar={observar}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Descarga para la fase 1" }))
+    await fireEvent.changeText(screen.getByLabelText("Carga en porcentaje de la fase 1"), "40")
+    expect(BloqueSchema.safeParse(observar.mock.calls.at(-1)![0]).success).toBe(false)
+    expect(screen.getByRole("alert")).toHaveTextContent("Carga entre 50 y 110 %.")
+  })
+
   it("sin fases no pinta un contenedor vacío: dejaba un hueco entre «Fases» y «Añadir fase»", async () => {
     await render(<EditorDeBloque bloque={vacio} semanas={6} cambiar={jest.fn()} />)
     expect(screen.getByRole("header", { name: "Fases" })).toBeOnTheScreen()

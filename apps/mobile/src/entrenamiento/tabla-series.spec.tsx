@@ -78,6 +78,57 @@ const ejercicio: EjercicioPrescrito = {
 }
 
 describe("D2 · tabla completa y barra compartida", () => {
+  it("D10: propone carga de descarga desde anterior y conserva lo escrito", async () => {
+    const calibrar: EjercicioPrescrito = {
+      ...ejercicio,
+      tipoCarga: "conCargaExterna",
+      calibrar: true,
+      subidaKg: 2.5,
+    }
+    const cambiar = jest.fn()
+    await render(
+      <TablaSeries
+        ejercicio={calibrar}
+        series={[{ serieId, peso: "", valor: "", hecha: false }]}
+        bloqueado={false}
+        cambiar={cambiar}
+        factorCarga={0.875}
+        anterior={{ tipoMedicion: "tiempo", segundos: 30, pesoKg: 60 }}
+      />,
+    )
+    expect(screen.getByText("Sugerencia · 52,5 kg (87,5 % de la anterior)")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "Peso — Plancha, serie 1: 52,5" })).toBeTruthy()
+    await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Plancha, serie 1/ }))
+    expect(cambiar).toHaveBeenLastCalledWith(serieId, expect.objectContaining({ peso: "52,5" }))
+    await screen.rerender(
+      <TablaSeries
+        ejercicio={calibrar}
+        series={[{ serieId, peso: "45", valor: "30", hecha: false }]}
+        bloqueado={false}
+        cambiar={cambiar}
+        factorCarga={0.875}
+        anterior={{ tipoMedicion: "tiempo", segundos: 30, pesoKg: 60 }}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Plancha, serie 1/ }))
+    expect(cambiar.mock.calls.at(-1)![1]).not.toHaveProperty("peso")
+    expect(calibrar.series[0]!.pesoKg).toBeNull()
+  })
+
+  it("D10: sin historial explica el porcentaje; sin carga no sugiere kilos", async () => {
+    const props = {
+      ejercicio: { ...ejercicio, tipoCarga: "conCargaExterna" as const, calibrar: true },
+      series: [{ serieId, peso: "", valor: "", hecha: false }],
+      bloqueado: false,
+      cambiar: jest.fn(),
+      factorCarga: 0.875,
+    }
+    await render(<TablaSeries {...props} />)
+    expect(screen.getByText("Sugerencia · 87,5 % de tu carga habitual")).toBeTruthy()
+    await screen.rerender(<TablaSeries {...props} ejercicio={ejercicio} />)
+    expect(screen.queryByText(/Sugerencia/)).toBeNull()
+  })
+
   it.each([false, true])(
     "las filas conservan animaciones de lista según movimiento reducido (%s)",
     async (reducido) => {

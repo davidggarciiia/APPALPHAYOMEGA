@@ -8,6 +8,7 @@ import { Enlace } from "../../entrenamiento/sesion/controles"
 import { alto, radio, tema, tipo } from "../../tema"
 import type { EjercicioDelConstructor } from "./modelo"
 import { Celda, pautaDeFila } from "./tabla"
+import { AjustesDeFaseEditor } from "./ajustes-fase"
 
 /** Calentamiento, circuito o final: una lista con la dosis de cada ejercicio. */
 export function ListaDeSeccion({
@@ -217,6 +218,11 @@ export function EditorDeBloque({
                 placeholderTextColor={tema.marcador}
                 maxLength={120}
                 style={s.detalleFase}
+              />
+              <AjustesDeFaseEditor
+                ajustes={fase.ajustes}
+                numero={n + 1}
+                cambiar={(ajustes) => cambiarFase(n, { ajustes })}
               />
             </View>
           ))}

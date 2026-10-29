@@ -48,6 +48,17 @@ export const SeccionDeSesionSchema = z.enum(SECCIONES_DE_SESION)
 export type SeccionDeSesion = z.infer<typeof SeccionDeSesionSchema>
 const RirSchema = z.number().int().min(0).max(5)
 const TextoCorto = (max: number) => z.string().trim().min(1).max(max)
+const RangoRirSchema = z
+  .strictObject({ min: RirSchema, max: RirSchema })
+  .refine((rir) => rir.min <= rir.max, "Un rango no puede acabar antes de empezar")
+
+export const AjustesDeFaseSchema = z.strictObject({
+  rirCompuestos: RangoRirSchema.optional(),
+  rirAccesorios: RangoRirSchema.optional(),
+  factorSeries: z.number().min(0.3).max(1).optional(),
+  factorCarga: z.number().min(0.5).max(1.1).optional(),
+})
+export type AjustesDeFase = z.infer<typeof AjustesDeFaseSchema>
 
 /**
  * Lo que el diseño añade a cada ejercicio de la sesión. Todo es opcional: una
@@ -160,6 +171,8 @@ export const PrescripcionSchema = z
     nombre: NombreSchema,
     ejercicios: z.array(EjercicioPrescritoSchema).min(1).max(40),
     ...CamposSesionAmpliada,
+    /** Copia de la fase al asignar; no depende de la fecha actual de la sesión. */
+    fase: z.strictObject({ nombre: TextoCorto(40), ajustes: AjustesDeFaseSchema }).optional(),
   })
   .refine(
     idsDeSesionUnicos,
@@ -199,9 +212,50 @@ export const FaseDeBloqueSchema = z
     hasta: z.number().int().min(1).max(52),
     nombre: TextoCorto(40),
     detalle: TextoCorto(120).nullable(),
+    ajustes: AjustesDeFaseSchema.optional(),
   })
   .refine((fase) => fase.desde <= fase.hasta, "Una fase no puede acabar antes de empezar")
 export type FaseDeBloque = z.infer<typeof FaseDeBloqueSchema>
+
+/** Una fase solo de texto no tapa otra que sí cambia la prescripción. */
+export function faseDeSemana(fases: FaseDeBloque[], semana: number): FaseDeBloque | undefined {
+  const coinciden = fases.filter((fase) => fase.desde <= semana && semana <= fase.hasta)
+  return coinciden.find((fase) => fase.ajustes) ?? coinciden[0]
+}
+
+/** Mantiene el paso del ejercicio y el límite de carga del contrato. */
+export function redondearCarga(pesoKg: number, subidaKg = 0.5): number {
+  const pasos = Math.min(Math.round(pesoKg / subidaKg), Math.floor(1000 / subidaKg))
+  return Number((pasos * subidaKg).toFixed(6))
+}
+
+/** La misma prescripción en API y vista previa; nunca modifica el patrón base. */
+export function aplicarAjustesDeFase<T extends { ejercicios: EjercicioEnRutina[] }>(
+  prescripcion: T,
+  ajustes?: AjustesDeFase,
+): T {
+  if (!ajustes) return prescripcion
+  return {
+    ...prescripcion,
+    ejercicios: prescripcion.ejercicios.map((ejercicio) => {
+      const rir = ejercicio.compuesto ? ajustes.rirCompuestos : ajustes.rirAccesorios
+      const cantidad = ejercicio.compuesto
+        ? ejercicio.series.length
+        : Math.max(1, Math.round(ejercicio.series.length * (ajustes.factorSeries ?? 1)))
+      return {
+        ...ejercicio,
+        ...(rir && { rir: { ...rir } }),
+        series: ejercicio.series.slice(0, cantidad).map((serie) => ({
+          ...serie,
+          pesoKg:
+            serie.pesoKg === null || ajustes.factorCarga === undefined
+              ? serie.pesoKg
+              : redondearCarga(serie.pesoKg * ajustes.factorCarga, ejercicio.subidaKg),
+        })),
+      }
+    }),
+  }
+}
 
 /** Otro deporte que convive con el plan: «K-1: jueves y domingo, 60 min». */
 export const DeporteDelPlanSchema = z.strictObject({

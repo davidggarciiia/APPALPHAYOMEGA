@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto"
 import {
   BloqueSchema,
   PlanAsignadoSchema,
+  aplicarAjustesDeFase,
+  faseDeSemana,
   type AsignarPlan,
+  type Bloque,
   type CambiarBloque,
   type PlanAsignado,
   type PlanVigente,
@@ -64,11 +67,20 @@ export class PlanesService {
           datos.patron.sesiones.flatMap((sesion) => sesion.ejercicios),
         )
         const definiciones = Array.from({ length: datos.semanas }, (_, semana) =>
-          datos.patron.sesiones.map((sesion) => ({
-            id: randomUUID(),
-            fecha: sumarDias(datos.semanaInicial, semana * 7 + sesion.diaSemana - 1),
-            prescripcion: prescripcionConNombres(sesion, nombres),
-          })),
+          datos.patron.sesiones.map((sesion) => {
+            const fase = faseDeSemana(datos.bloque?.fases ?? [], semana + 1)
+            const prescripcion = prescripcionConNombres(sesion, nombres)
+            return {
+              id: randomUUID(),
+              fecha: sumarDias(datos.semanaInicial, semana * 7 + sesion.diaSemana - 1),
+              prescripcion: fase?.ajustes
+                ? {
+                    ...aplicarAjustesDeFase(prescripcion, fase.ajustes),
+                    fase: { nombre: fase.nombre, ajustes: fase.ajustes },
+                  }
+                : prescripcion,
+            }
+          }),
         ).flat()
         const planId = randomUUID()
         const respuesta = PlanAsignadoSchema.parse({
@@ -176,6 +188,14 @@ export class PlanesService {
         )
       if (datos.bloque.fases.some((fase) => fase.hasta > plan.semanas))
         throw invalida("Las fases deben caber en las semanas del plan")
+      const anterior = plan.bloque === null ? null : BloqueSchema.parse(plan.bloque)
+      if (
+        JSON.stringify(ajustesPorSemana(anterior, plan.semanas)) !==
+        JSON.stringify(ajustesPorSemana(datos.bloque, plan.semanas))
+      )
+        throw invalida(
+          "Los ajustes se aplican al asignar. Crea un plan nuevo para cambiar la prescripción de una fase.",
+        )
       const actualizado = await tx.planEntrenamiento.update({
         where: { id: planId },
         data: { bloque: datos.bloque, version: { increment: 1 } },
@@ -183,6 +203,20 @@ export class PlanesService {
       return planVigente(actualizado)
     })
   }
+}
+
+function ajustesPorSemana(bloque: Bloque | null, semanas: number): unknown[] {
+  return Array.from({ length: semanas }, (_, n) => {
+    const ajustes = faseDeSemana(bloque?.fases ?? [], n + 1)?.ajustes
+    return [
+      ajustes?.rirCompuestos?.min ?? null,
+      ajustes?.rirCompuestos?.max ?? null,
+      ajustes?.rirAccesorios?.min ?? null,
+      ajustes?.rirAccesorios?.max ?? null,
+      ajustes?.factorSeries ?? 1,
+      ajustes?.factorCarga ?? null,
+    ]
+  })
 }
 
 function planVigente(fila: PlanEntrenamiento): PlanVigente {

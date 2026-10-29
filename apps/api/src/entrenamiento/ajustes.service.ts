@@ -19,7 +19,7 @@ export class AjustesService {
     if (actor.rol !== "entrenador") throw new ForbiddenException()
     return this.prisma.$transaction(async (tx) => {
       const fila = await this.sesiones.bloquear(tx, actor, id)
-      this.sesiones.publica(fila)
+      const actual = this.sesiones.publica(fila)
       if (fila.iniciada || fila.enviadoEn !== null)
         throw conflicto(
           "operacion_incompatible",
@@ -31,7 +31,10 @@ export class AjustesService {
           "La prescripción ha cambiado. Recarga antes de guardar.",
         )
       const nombres = await catalogoParaPrescribir(tx, datos.ejercicios)
-      const prescripcion = prescripcionConNombres(datos, nombres)
+      const prescripcion = {
+        ...prescripcionConNombres(datos, nombres),
+        ...(actual.prescripcion.fase && { fase: actual.prescripcion.fase }),
+      }
       const nueva = await tx.sesionEntrenamiento.update({
         where: { id },
         data: { prescripcion, revisionPrescripcion: { increment: 1 } },

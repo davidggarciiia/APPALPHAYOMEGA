@@ -234,6 +234,36 @@ describe("BloqueDelPlan", () => {
     await render(<BloqueDelPlan plan={null} lunes="2026-09-28" dias={[]} hoy="2026-10-01" />)
     expect(screen.getByText(/no forma parte de ningún bloque/)).toBeTruthy()
   })
+
+  it("D10: enseña los cambios de prescripción de la fase actual", async () => {
+    await render(
+      <BloqueDelPlan
+        plan={{
+          ...plan,
+          bloque: {
+            ...plan.bloque!,
+            fases: [
+              {
+                desde: 1,
+                hasta: 6,
+                nombre: "Descarga",
+                detalle: null,
+                ajustes: { factorSeries: 0.5, factorCarga: 0.875 },
+              },
+            ],
+          },
+        }}
+        lunes="2026-09-28"
+        dias={[]}
+        hoy="2026-10-01"
+      />,
+    )
+    expect(screen.getByText("Descarga")).toBeTruthy()
+    expect(
+      screen.getByText("−50 % series accesorios (compuestos igual) · 87,5 % de carga"),
+    ).toBeTruthy()
+    expect(screen.getByText("Ahora")).toBeTruthy()
+  })
 })
 
 describe("Guia", () => {
