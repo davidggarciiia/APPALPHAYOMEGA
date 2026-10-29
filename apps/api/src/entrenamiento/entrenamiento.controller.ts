@@ -44,6 +44,7 @@ import {
   type ListadoNovedades,
   type MarcarNovedadesLeidas,
   type NovedadesLeidas,
+  type ResumenSemanal,
 } from "@alpha-omega/shared"
 import { EntradaApiPipe } from "../comun/entrada-api.pipe.js"
 import { Roles } from "../identity/roles.decorator.js"
@@ -53,6 +54,7 @@ import { SesionesService } from "./sesiones.service.js"
 import { RegistrosService } from "./registros.service.js"
 import { AjustesService } from "./ajustes.service.js"
 import { NovedadesService } from "./novedades.service.js"
+import { ResumenSemanalService } from "./resumen-semanal.service.js"
 
 @Controller("entrenamiento")
 export class EntrenamientoController {
@@ -62,11 +64,21 @@ export class EntrenamientoController {
     private readonly registros: RegistrosService,
     private readonly ajustes: AjustesService,
     private readonly novedades: NovedadesService,
+    private readonly resumenSemanal: ResumenSemanalService,
   ) {}
 
   private actor(peticion: PeticionAutenticada): IdentidadVerificada {
     if (!peticion.usuario) throw new UnauthorizedException()
     return peticion.usuario
+  }
+
+  @Roles("entrenador")
+  @Get("resumen-semanal")
+  resumen(
+    @Req() peticion: PeticionAutenticada,
+    @Query(new EntradaApiPipe(ConsultarSemanaSchema)) consulta: ConsultarSemana,
+  ): Promise<ResumenSemanal> {
+    return this.resumenSemanal.resumen(this.actor(peticion), consulta.semana)
   }
 
   @Roles("entrenador")

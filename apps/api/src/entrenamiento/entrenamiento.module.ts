@@ -11,6 +11,7 @@ import { MolestiasController } from "./molestias.controller.js"
 import { MolestiasService } from "./molestias.service.js"
 import { ComentariosService } from "./comentarios.service.js"
 import { NovedadesService } from "./novedades.service.js"
+import { ResumenSemanalService } from "./resumen-semanal.service.js"
 
 @Module({
   imports: [AgendaModule],
@@ -24,6 +25,7 @@ import { NovedadesService } from "./novedades.service.js"
     MolestiasService,
     ComentariosService,
     NovedadesService,
+    ResumenSemanalService,
   ],
 })
 export class EntrenamientoModule {}
