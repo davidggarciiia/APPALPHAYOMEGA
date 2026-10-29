@@ -85,12 +85,17 @@ export function Hoja({
       transparent
       animationType="none"
       statusBarTranslucent
-      onRequestClose={alCerrar}
+      onRequestClose={() => {
+        if (visible) alCerrar()
+      }}
     >
       <KeyboardAvoidingView
         testID="hoja-esquiva-teclado"
         style={s.modal}
         accessibilityViewIsModal
+        pointerEvents={visible ? "auto" : "none"}
+        accessibilityElementsHidden={!visible}
+        importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <Animated.View style={[s.fondo, scrim]}>

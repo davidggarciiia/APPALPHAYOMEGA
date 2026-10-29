@@ -49,6 +49,7 @@ import { AvisoDeshacer } from "../../componentes/aviso-deshacer"
 import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
 import { Hoja } from "../../componentes/hoja"
 import { EntradaMarca } from "../../componentes/entrada-marca"
+import { useMovimientoReducido } from "../../componentes/movimiento"
 import { ErrorDePeticion, ErrorDePermiso, ErrorDelServidor } from "../../lib/http"
 import { conRecursoLocalExclusivo } from "../../lib/candado-local"
 import { useEnvioUnico } from "../../lib/envio-unico"
@@ -261,6 +262,7 @@ export function ConstructorPlan({
   volver: () => void
 }): React.JSX.Element {
   const { width } = useWindowDimensions()
+  const reducido = useMovimientoReducido()
   const ancho = width >= 1000
   const acceso = useAccesoAFiguras()
   const [nombre, setNombre] = useState("")
@@ -983,8 +985,12 @@ export function ConstructorPlan({
         </View>
         <Hoja visible={datosDia} alCerrar={() => setDatosDia(false)} titulo="Datos del día">
           <View style={s.datosHoja}>
-            <View
-              style={s.semana}
+            <ScrollView
+              testID="selector-dia-semana"
+              horizontal
+              keyboardShouldPersistTaps="handled"
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.semana}
               accessibilityRole="radiogroup"
               accessibilityLabel="Día de la semana"
             >
@@ -1007,7 +1013,7 @@ export function ConstructorPlan({
                   </Pressable>
                 )
               })}
-            </View>
+            </ScrollView>
             <View style={s.dato}>
               <Text style={s.tenue}>Duración estimada</Text>
               <TextInput
@@ -1257,8 +1263,9 @@ export function ConstructorPlan({
       </Hoja>
 
       <Modal
+        testID="vista-cliente"
         visible={comoCliente}
-        animationType="slide"
+        animationType={reducido ? "none" : "slide"}
         onRequestClose={() => setComoCliente(false)}
       >
         <ScrollView style={s.modal} contentContainerStyle={s.contenidoModal}>
@@ -1417,10 +1424,9 @@ const s = StyleSheet.create({
   nombreDia: { flex: 1, minWidth: 0, fontFamily: tema.fuenteBoton },
   editarDia: { width: 44, minHeight: 44, justifyContent: "center", alignItems: "center" },
   textoEditar: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 24 },
-  semana: { flexDirection: "row", gap: 4, width: "100%" },
+  semana: { flexDirection: "row", gap: 4 },
   diaSemana: {
-    flex: 1,
-    minWidth: 0,
+    width: 44,
     minHeight: 44,
     borderRadius: 10,
     borderWidth: 1,

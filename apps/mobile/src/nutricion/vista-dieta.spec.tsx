@@ -407,6 +407,57 @@ it("bloquea todos los suplementos hasta confirmar y conserva las dos tomas suces
   })
 })
 
+it("una recarga anterior al guardado no borra suplementos ya confirmados", async () => {
+  const seguimiento = seguimientoEnMemoria()
+  const anterior = await seguimiento.dias()
+  let terminarLectura!: () => void
+  seguimiento.dias
+    .mockClear()
+    .mockResolvedValueOnce(anterior)
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          terminarLectura = () => resolve(anterior)
+        }),
+    )
+  const dieta = publicada()
+  dieta.documento.suplementos = [
+    { nombre: "Vitamina D", dosis: null },
+    { nombre: "Omega 3", dosis: null },
+  ]
+  const nutricion = api(async () => ({ dieta, deNutricionista: false }))
+  const almacen = almacenEnMemoria()
+  const vista = await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={nutricion}
+      almacen={almacen}
+      seguimiento={seguimiento}
+    />,
+  )
+  await screen.findByRole("checkbox", { name: "Vitamina D tomada" })
+  await vista.rerender(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={nutricion}
+      almacen={almacen}
+      seguimiento={{ ...seguimiento }}
+    />,
+  )
+  expect(seguimiento.dias).toHaveBeenCalledTimes(2)
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+
+  await act(async () => terminarLectura())
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CUENTA, expect.any(String), {
+    suplementos: ["Vitamina D", "Omega 3"],
+  })
+})
+
 it("un error al guardar suplementos deja reintentar sin mostrarlos como tomados", async () => {
   const seguimiento = seguimientoEnMemoria()
   seguimiento.cambiarDia.mockRejectedValueOnce(new Error("Sin conexión"))

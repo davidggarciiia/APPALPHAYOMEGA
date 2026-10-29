@@ -60,6 +60,50 @@ it("reabrir durante la salida cancela el cierre pendiente", async () => {
   jest.useRealTimers()
 })
 
+it("desactiva los controles y los retira del lector al empezar el cierre", async () => {
+  jest.useFakeTimers()
+  jest.mocked(useMovimientoReducido).mockReturnValue(false)
+  const contenido = <TextInput accessibilityLabel="Respuesta" />
+  await render(
+    <Hoja visible alCerrar={jest.fn()}>
+      {contenido}
+    </Hoja>,
+  )
+  expect(screen.getByLabelText("Respuesta")).toBeOnTheScreen()
+  await screen.rerender(
+    <Hoja visible={false} alCerrar={jest.fn()}>
+      {null}
+    </Hoja>,
+  )
+  expect(screen.queryByLabelText("Respuesta")).toBeNull()
+  expect(screen.queryByRole("button", { name: "Cerrar" })).toBeNull()
+  expect(
+    screen.getByTestId("hoja-esquiva-teclado", { includeHiddenElements: true }).props.pointerEvents,
+  ).toBe("none")
+  expect(screen.getByLabelText("Respuesta", { includeHiddenElements: true })).toBeOnTheScreen()
+  await act(() => jest.advanceTimersByTime(200))
+  expect(screen.queryByLabelText("Respuesta", { includeHiddenElements: true })).toBeNull()
+  jest.useRealTimers()
+})
+
+it("ignora otro Atrás de Android mientras termina de cerrarse", async () => {
+  const cerrar = jest.fn()
+  const vista = await render(
+    <Hoja visible alCerrar={cerrar}>
+      <Text>Contenido</Text>
+    </Hoja>,
+  )
+  await fireEvent(screen.getByTestId("hoja-modal"), "requestClose")
+  expect(cerrar).toHaveBeenCalledTimes(1)
+  await vista.rerender(
+    <Hoja visible={false} alCerrar={cerrar}>
+      {null}
+    </Hoja>,
+  )
+  await fireEvent(screen.getByTestId("hoja-modal"), "requestClose")
+  expect(cerrar).toHaveBeenCalledTimes(1)
+})
+
 it("al activar reducir movimiento durante la salida se cierra sin esperar", async () => {
   jest.useFakeTimers()
   const cerrar = jest.fn()
@@ -111,7 +155,7 @@ it("conserva la altura del contenido durante la salida aunque el padre quite la 
     </Hoja>,
   )
   await act(() => jest.advanceTimersByTime(100))
-  expect(screen.getByText("Días de la sesión")).toBeOnTheScreen()
+  expect(screen.getByText("Días de la sesión", { includeHiddenElements: true })).toBeOnTheScreen()
   await act(() => jest.advanceTimersByTime(100))
   expect(screen.queryByText("Días de la sesión")).toBeNull()
   await screen.rerender(

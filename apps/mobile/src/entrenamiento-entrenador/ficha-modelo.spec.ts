@@ -121,6 +121,16 @@ describe("tabla de la sesión", () => {
       "RPE 7 · 7 de 7 series",
     )
   })
+
+  it.each([
+    ["2026-09-28T17:30:00.000Z", 1800, "30 min"],
+    ["2026-09-21T17:30:00.000Z", 3600, "1 h 0 min"],
+    [null, 0, "0 min"],
+  ])("prioriza la duración activa aunque inicio sea %s", (inicio, segundos, esperado) => {
+    expect(resumenDeResultado(resultado({ inicio, tiempoActivoSegundos: segundos }))).toBe(
+      `${esperado} · RPE 7 · 7 de 7 series`,
+    )
+  })
 })
 
 describe("señales para bajar volumen", () => {

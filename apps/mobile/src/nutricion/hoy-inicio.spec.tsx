@@ -195,6 +195,96 @@ it("Inicio muestra solo los suplementos de la dieta y usa el mismo registro que 
   expect(screen.getByText("1 cápsula")).toBeTruthy()
 })
 
+it("una recarga lenta no elimina una toma confirmada desde Inicio", async () => {
+  const { nutricion, seguimiento } = apis(
+    dieta([
+      { nombre: "Vitamina D", dosis: null },
+      { nombre: "Omega 3", dosis: null },
+    ]),
+  )
+  let terminarLectura!: () => void
+  seguimiento.dias.mockResolvedValueOnce({ dias: [] }).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        terminarLectura = () => resolve({ dias: [] })
+      }),
+  )
+  const propiedades = {
+    clienteId: CLIENTE,
+    nutricion,
+    seguimiento,
+    objetivoPasos: null,
+  }
+  const vista = await render(<HoyInicio {...propiedades} />)
+  await screen.findByRole("checkbox", { name: "Vitamina D tomada" })
+  await vista.rerender(<HoyInicio {...propiedades} seguimiento={{ ...seguimiento }} />)
+  expect(seguimiento.dias).toHaveBeenCalledTimes(2)
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+
+  await act(async () => terminarLectura())
+  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CLIENTE, hoyAgenda(), {
+    suplementos: ["Vitamina D", "Omega 3"],
+  })
+})
+
+it("acepta la recarga del día mientras guarda una medida de cintura independiente", async () => {
+  const { nutricion, seguimiento } = apis(dieta([{ nombre: "Vitamina D", dosis: null }]))
+  seguimiento.configuracion.mockResolvedValue({
+    ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+    indicadores: ["cintura"],
+    registrosSolicitados: [{ indicador: "cintura", frecuencia: "diaria", diaSemana: null }],
+  })
+  let terminarLectura!: () => void
+  seguimiento.dias.mockResolvedValueOnce({ dias: [] }).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        terminarLectura = () =>
+          resolve({
+            dias: [
+              {
+                fecha: hoyAgenda(),
+                pesoKg: null,
+                pasos: null,
+                suenoMin: null,
+                creatina: null,
+                suplementos: ["Vitamina D"],
+              },
+            ],
+          })
+      }),
+  )
+  let terminarMedida!: () => void
+  const pendiente = new Promise<void>((resolve) => {
+    terminarMedida = resolve
+  })
+  const registrar = seguimiento.registrarMedida.getMockImplementation()!
+  seguimiento.registrarMedida.mockImplementationOnce(async (...args) => {
+    await pendiente
+    return registrar(...args)
+  })
+  const propiedades = {
+    clienteId: CLIENTE,
+    nutricion,
+    seguimiento,
+    objetivoPasos: null,
+  }
+  const vista = await render(<HoyInicio {...propiedades} />)
+  await screen.findByRole("button", { name: "Cintura: sin apuntar. Cambiar" })
+  await vista.rerender(<HoyInicio {...propiedades} seguimiento={{ ...seguimiento }} />)
+  await fireEvent.press(screen.getByRole("button", { name: "Cintura: sin apuntar. Cambiar" }))
+  await fireEvent.changeText(screen.getByLabelText("Cintura (cm)"), "92,5")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+  await act(async () => terminarLectura())
+  // El formulario sigue abierto; la tarjeta diaria está detrás de él.
+  expect(
+    screen.getByRole("checkbox", { name: "Vitamina D tomada", includeHiddenElements: true }),
+  ).toBeChecked()
+  await act(async () => terminarMedida())
+})
+
 it("respeta la creatina guardada en el campo antiguo al volver a Inicio", async () => {
   const { nutricion, seguimiento } = apis(dieta([{ nombre: "Creatina", dosis: null }]), {
     fecha: hoyAgenda(),

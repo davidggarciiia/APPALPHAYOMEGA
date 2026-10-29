@@ -164,6 +164,7 @@ export function VistaDieta({
   const [aviso, setAviso] = useState("")
   const [guardandoSuplemento, setGuardandoSuplemento] = useState(false)
   const guardando = useRef(false)
+  const versionDia = useRef(0)
   const hoy = hoyAgenda()
   const [diaElegido, setDiaElegido] = useState<number | null>(null)
   const diaActual = diaDeLaSemana(hoy)
@@ -181,6 +182,7 @@ export function VistaDieta({
           const { dieta, deNutricionista } = await api.vigente(clienteId, cancelacion.signal)
           if (!vigente) return
           setEstado({ fase: "lista", dieta, deNutricionista, copiaDel: null })
+          const lecturaDia = versionDia.current
           // Lo marcado hoy. Sin ello, la dieta se ve igual pero no se marca.
           void api
             .comidas(clienteId, hoy, hoy)
@@ -189,13 +191,13 @@ export function VistaDieta({
           void seguimiento
             ?.dias(clienteId, hoy, hoy)
             .then(({ dias }) => {
-              if (vigente) {
+              if (vigente && lecturaDia === versionDia.current && !guardando.current) {
                 setDia(dias[0] ?? null)
                 setDiaCargado(true)
               }
             })
             .catch(() => {
-              if (vigente)
+              if (vigente && lecturaDia === versionDia.current && !guardando.current)
                 setAviso("No se pudieron cargar los registros de hoy. Revisa la conexión.")
             })
           // Si falla el guardado local, la dieta se sigue viendo: solo se pierde la copia.
@@ -273,6 +275,8 @@ export function VistaDieta({
   const tomarSuplemento = async (suplemento: Suplemento, tomado: boolean): Promise<void> => {
     if (!seguimiento || !diaCargado || guardando.current) return
     guardando.current = true
+    // Invalida las lecturas anteriores y las que coincidan con el guardado.
+    versionDia.current += 1
     setGuardandoSuplemento(true)
     setAviso("")
     try {
@@ -282,6 +286,7 @@ export function VistaDieta({
     } catch (error) {
       setAviso(faltaDe(error, "No se pudo guardar el suplemento.").texto)
     } finally {
+      versionDia.current += 1
       guardando.current = false
       setGuardandoSuplemento(false)
     }

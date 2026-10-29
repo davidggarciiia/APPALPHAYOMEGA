@@ -189,7 +189,9 @@ export function RegistroCliente({
     serie: null,
   })
   const [foco, setFoco] = useState<(FocoSerie & { ejercicioId: string }) | null>(null)
-  const [deshacer, setDeshacer] = useState<(DeshacerSerie & { id: number }) | null>(null)
+  const [deshacer, setDeshacer] = useState<
+    (DeshacerSerie & { id: number; iniciadoEn: number }) | null
+  >(null)
   const avisoId = useRef(0)
   const intentoSerie = useRef(0)
   const reducido = useMovimientoReducido()
@@ -204,6 +206,7 @@ export function RegistroCliente({
     setMostrarDeshacer(true)
   }, [reducido])
   const antesDeSalir = useRef<((salir: () => void) => void) | null>(null)
+  const salidaEnCurso = useRef(false)
   const registrarSalida = useCallback((preparar: ((salir: () => void) => void) | null) => {
     antesDeSalir.current = preparar
   }, [])
@@ -557,10 +560,14 @@ export function RegistroCliente({
     }
   }
   const guardarYSalir = (destino: (() => void) | undefined): void => {
+    if (salidaEnCurso.current) return
+    salidaEnCurso.current = true
     void accion(async () => {
       await control.pausar(new Date().toISOString())
       await control.reintentarGuardado()
       destino?.()
+    }).finally(() => {
+      salidaEnCurso.current = false
     })
   }
   const salirGuardando = (): void => guardarYSalir(salir)
@@ -687,6 +694,21 @@ export function RegistroCliente({
     ejercicioEnFoco && realEnFoco && foco
       ? ajusteDeSerie(ejercicioEnFoco, realEnFoco, foco.celda)
       : null
+  const avisoDeshacer = deshacer && mostrarDeshacer && (
+    <AvisoDeshacer
+      key={deshacer.id}
+      id={deshacer.id}
+      mensaje={deshacer.mensaje}
+      alDeshacer={() => {
+        setDeshacer(null)
+        deshacer.deshacer()
+      }}
+      alExpirar={() => setDeshacer(null)}
+      iniciadoEn={deshacer.iniciadoEn}
+      animar={!ajuste}
+      animarPlazo={false}
+    />
+  )
   const abrirMolestia = (ejercicio: EjercicioPrescrito): void => {
     const indice = ejercicio.series.findIndex((s) => {
       const real = edicion.series.find((r) => r.serieId === s.id)
@@ -805,7 +827,9 @@ export function RegistroCliente({
                   enfocar={(serieId, celda) =>
                     setFoco({ ejercicioId: ejercicio.id, serieId, celda })
                   }
-                  avisarDeshacer={(aviso) => setDeshacer({ ...aviso, id: ++avisoId.current })}
+                  avisarDeshacer={(aviso) =>
+                    setDeshacer({ ...aviso, id: ++avisoId.current, iniciadoEn: Date.now() })
+                  }
                   error={errorSerie?.ejercicioId === ejercicio.id ? errorSerie.mensaje : undefined}
                   intentoError={errorSerie?.intento}
                 />
@@ -825,22 +849,12 @@ export function RegistroCliente({
           />
         )}
       </ScrollView>
-      {deshacer && mostrarDeshacer && (
-        <View style={[e.deshacer, foco && e.deshacerConAjuste]}>
-          <AvisoDeshacer
-            key={deshacer.id}
-            id={deshacer.id}
-            mensaje={deshacer.mensaje}
-            alDeshacer={deshacer.deshacer}
-            alExpirar={() => setDeshacer(null)}
-            animarPlazo={false}
-          />
-        </View>
-      )}
+      {avisoDeshacer && !ajuste && <View style={e.deshacer}>{avisoDeshacer}</View>}
       {ajuste && foco && (
         <BarraAjuste
           key={`${foco.serieId}-${foco.celda}`}
           {...ajuste}
+          encima={avisoDeshacer}
           deshabilitado={bloqueado}
           alCambiarValidez={setAjusteValido}
           alListo={() => setFoco(null)}
@@ -889,7 +903,6 @@ const e = StyleSheet.create({
   esqueleto: { gap: 8, marginBottom: 26 },
   estadoOculto: { height: 0, opacity: 0, position: "absolute" },
   deshacer: { marginHorizontal: 20, marginBottom: 20 },
-  deshacerConAjuste: { marginBottom: 160 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
   titulo: { color: tema.acento, fontFamily: tema.fuenteTitulo, fontSize: 34, lineHeight: 38 },
   nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14, lineHeight: 20 },

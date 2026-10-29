@@ -72,23 +72,7 @@ function textoConsentimiento(estado: EstadoConsentimiento | null): string {
   return estado.version ? "Pendiente de la versión nueva" : "Pendiente"
 }
 
-/**
- * Ficha del cliente para el entrenador, como en el diseño: lo que requiere
- * atención, sesiones, progreso, molestias, nutrición y salud.
- */
-export function FichaCliente({
-  clienteId,
-  leerFicha,
-  api,
-  seguimiento,
-  valoraciones,
-  medios,
-  nutricion,
-  nuevoId,
-  editarPlan,
-  verSemana,
-  abrirNutricion,
-}: {
+type Propiedades = {
   clienteId: string
   cuentaId: string
   leerFicha: () => Promise<FichaDeUsuario>
@@ -101,7 +85,26 @@ export function FichaCliente({
   editarPlan: () => void
   verSemana: (nombre: string) => void
   abrirNutricion: (nombre: string) => void
-}): React.JSX.Element {
+}
+
+/** La identidad delimita también los datos y borradores montados de la ficha. */
+export function FichaCliente(props: Propiedades): React.JSX.Element {
+  return <FichaActual key={`${props.cuentaId}:${props.clienteId}`} {...props} />
+}
+
+function FichaActual({
+  clienteId,
+  leerFicha,
+  api,
+  seguimiento,
+  valoraciones,
+  medios,
+  nutricion,
+  nuevoId,
+  editarPlan,
+  verSemana,
+  abrirNutricion,
+}: Propiedades): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>("resumen")
   const [editandoProgreso, setEditandoProgreso] = useState(false)
   const [datos, setDatos] = useState<Datos | null>(null)

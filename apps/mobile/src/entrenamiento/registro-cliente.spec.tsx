@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals"
-import { AppState } from "react-native"
+import { afterEach, beforeEach, describe, it, jest } from "@jest/globals"
+import { AppState, Keyboard, type KeyboardEvent } from "react-native"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native"
 import type {
   Borrador,
@@ -320,6 +320,36 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await waitFor(() => expect(salir).toHaveBeenCalledTimes(1))
   })
 
+  it("dos pulsaciones de salir durante el guardado navegan una sola vez", async () => {
+    const { comoApi } = crearApi()
+    const salir = jest.fn()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
+    const boton = await screen.findByRole("button", { name: "Salir de la sesión" })
+    await waitFor(() => expect(copiaGuardada()).toBeTruthy())
+    let continuar!: () => void
+    const disco = new Promise<void>((resolver) => {
+      continuar = resolver
+    })
+    const original = almacenDispositivo.guardar.bind(almacenDispositivo)
+    const guardar = jest
+      .spyOn(almacenDispositivo, "guardar")
+      .mockImplementation(async (...argumentos) => {
+        await disco
+        await original(...argumentos)
+      })
+    try {
+      await fireEvent.press(boton)
+      await fireEvent.press(boton)
+      expect(salir).not.toHaveBeenCalled()
+      await act(async () => continuar())
+      await waitFor(() => expect(salir).toHaveBeenCalled())
+      expect(salir).toHaveBeenCalledTimes(1)
+    } finally {
+      continuar()
+      guardar.mockRestore()
+    }
+  })
+
   it("sin red conserva el envío; reabrir y reintentar entrega exactamente lo comprometido", async () => {
     const { api, comoApi } = crearApi()
     api.guardar.mockRejectedValue(new ErrorDeRed("Sin conexión"))
@@ -630,6 +660,83 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
         valor: "8",
       }),
     )
+  })
+
+  it("Deshacer acompaña a la barra de ajuste por encima del teclado", async () => {
+    jest.useFakeTimers()
+    const eventos = new Map<string, (evento: KeyboardEvent) => void>()
+    const teclado = jest.spyOn(Keyboard, "addListener").mockImplementation((nombre, escuchar) => {
+      eventos.set(nombre, escuchar)
+      return { remove: () => undefined } as ReturnType<typeof Keyboard.addListener>
+    })
+    try {
+      const { api, comoApi } = crearApi()
+      api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+      const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await fireEvent.press(
+        await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+      )
+      await act(async () => jest.advanceTimersByTime(1200))
+      await fireEvent.press(screen.getByRole("button", { name: /^Peso — Press banca/ }))
+      await fireEvent.press(screen.getByRole("button", { name: "Escribir KG: 40" }))
+      await act(() =>
+        eventos.get("keyboardDidShow")?.({
+          endCoordinates: { screenY: 400, height: 400 },
+        } as KeyboardEvent),
+      )
+      const barra = screen.getByTestId("barra-ajuste")
+      expect(barra).not.toHaveStyle({ bottom: 20 })
+      expect(within(barra).getByRole("button", { name: "Deshacer" })).toBeEnabled()
+      await vista.unmount()
+    } finally {
+      teclado.mockRestore()
+      jest.useRealTimers()
+    }
+  })
+
+  it("abrir y cerrar el ajuste no reinicia los cinco segundos de Deshacer", async () => {
+    jest.useFakeTimers()
+    try {
+      const { api, comoApi } = crearApi()
+      api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+      const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await fireEvent.press(
+        await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+      )
+      await act(async () => jest.advanceTimersByTime(1200))
+      await fireEvent.press(screen.getByRole("button", { name: /^Peso — Press banca/ }))
+      await act(async () => jest.advanceTimersByTime(2000))
+      await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+      expect(screen.getByRole("button", { name: "Deshacer" })).toBeEnabled()
+      await act(async () => jest.advanceTimersByTime(2000))
+      expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
+      await vista.unmount()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it("un Deshacer ya usado no reaparece al cerrar el ajuste", async () => {
+    jest.useFakeTimers()
+    try {
+      const { api, comoApi } = crearApi()
+      api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+      const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await fireEvent.press(
+        await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+      )
+      await act(async () => jest.advanceTimersByTime(1200))
+      await fireEvent.press(screen.getByRole("button", { name: /^Peso — Press banca/ }))
+      await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+      expect(
+        screen.getByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+      ).not.toBeChecked()
+      await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+      expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
+      await vista.unmount()
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   it("con series pendientes pide confirmar antes de enviar en un toque", async () => {

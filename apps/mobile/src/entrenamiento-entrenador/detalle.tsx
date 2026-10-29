@@ -20,6 +20,8 @@ import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { Icono } from "../componentes/iconos"
 import { caida, useDestello, useMovimientoReducido } from "../componentes/movimiento"
 import { espacio, tema, tipo } from "../tema"
+import { faltaDe } from "../lib/errores"
+import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
 import { resumenDeResultado } from "./ficha-modelo"
 import { EjerciciosRevision } from "./ejercicios-revision"
 
@@ -49,6 +51,14 @@ function RevisionSesion({
   const [intento, setIntento] = useState(0)
   const [revisando, setRevisando] = useState(false)
   const revisionEnCurso = useRef(false)
+  const accesoRevocado = useRef(false)
+  const retirarAcceso = useCallback((causa: unknown): void => {
+    accesoRevocado.current = true
+    setSesion(null)
+    setResultado(undefined)
+    setErrorRevision("")
+    setError(faltaDe(causa, "No se pudo actualizar el entrenamiento.").texto)
+  }, [])
   const vigente = useRef(true)
   useEffect(() => {
     vigente.current = true
@@ -84,6 +94,18 @@ function RevisionSesion({
               : lectura.then((s) => (vigente && s.enviadoEn ? api.resultado(id) : undefined)),
           ])
           if (vigente) {
+            const sinAcceso = [s, r].find(
+              (consulta) =>
+                consulta.status === "rejected" &&
+                (consulta.reason instanceof ErrorDePermiso ||
+                  consulta.reason instanceof ErrorDeSesion),
+            )
+            if (sinAcceso?.status === "rejected") {
+              retirarAcceso(sinAcceso.reason)
+              return
+            }
+            if (s.status === "fulfilled" && r.status === "fulfilled") accesoRevocado.current = false
+            if (accesoRevocado.current) return
             if (s.status === "fulfilled") {
               setSesion(s.value)
               enviada = Boolean(s.value.enviadoEn)
@@ -95,8 +117,11 @@ function RevisionSesion({
                 : "",
             )
           }
-        } catch {
-          if (vigente) setError("No se pudo actualizar el entrenamiento.")
+        } catch (causa) {
+          if (!vigente) return
+          if (causa instanceof ErrorDePermiso || causa instanceof ErrorDeSesion)
+            retirarAcceso(causa)
+          else setError("No se pudo actualizar el entrenamiento.")
         } finally {
           cargando = false
         }
@@ -111,7 +136,7 @@ function RevisionSesion({
         clearInterval(reloj)
         actividad.remove()
       }
-    }, [id, api, intento, completada]),
+    }, [id, api, intento, completada, retirarAcceso]),
   )
   const revisar = async (): Promise<void> => {
     if (revisionEnCurso.current || sesion?.revisadaEn || !resultado) return
@@ -120,12 +145,14 @@ function RevisionSesion({
     setErrorRevision("")
     try {
       const actualizada = await api.revisar(id)
-      if (!vigente.current) return
+      if (!vigente.current || accesoRevocado.current) return
       setSesion(actualizada)
       destello.disparar()
       vibrar("exito")
-    } catch {
-      if (vigente.current) setErrorRevision("No se pudo guardar la revisión. Reintenta.")
+    } catch (causa) {
+      if (!vigente.current) return
+      if (causa instanceof ErrorDePermiso || causa instanceof ErrorDeSesion) retirarAcceso(causa)
+      else setErrorRevision("No se pudo guardar la revisión. Reintenta.")
     } finally {
       revisionEnCurso.current = false
       if (vigente.current) setRevisando(false)

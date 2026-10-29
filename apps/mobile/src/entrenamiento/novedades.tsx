@@ -49,9 +49,14 @@ export function NovedadesEntrenamiento({
   const [error, setError] = useState("")
   const consulta = useRef(0)
   const abriendo = useRef(false)
+  const foco = useRef(0)
   useFocusEffect(
     useCallback(() => {
       abriendo.current = false
+      foco.current += 1
+      return () => {
+        foco.current += 1
+      }
     }, []),
   )
   useFocusEffect(
@@ -115,10 +120,12 @@ export function NovedadesEntrenamiento({
           onPress={() => {
             if (abriendo.current) return
             abriendo.current = true
+            const visita = foco.current
             void (async () => {
               if (!novedad.leidaEn) {
                 try {
                   await api.leerNovedades(novedad.sesionId, { novedadIds: [novedad.id] })
+                  if (visita !== foco.current) return
                   setNovedades((actual) =>
                     actual.map((item) =>
                       item.id === novedad.id
@@ -128,10 +135,11 @@ export function NovedadesEntrenamiento({
                   )
                   setSinLeer((total) => Math.max(0, total - 1))
                 } catch {
+                  if (visita !== foco.current) return
                   setError("No se pudo guardar la lectura. Podrás reintentarlo después.")
                 }
               }
-              abrir(novedad.sesionId)
+              if (visita === foco.current) abrir(novedad.sesionId)
             })()
           }}
         >

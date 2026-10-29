@@ -134,12 +134,18 @@ const DURACION_MAXIMA_MS = 5 * 60 * 60 * 1000
 export function resumenDeResultado(resultado: ResultadoEntrenamiento): string {
   const trabajo = new Set(seriesDeTrabajo(resultado.prescripcion))
   const hechas = resultado.series.filter((s) => s.hecha && trabajo.has(s.serieId)).length
-  const dura = resultado.inicio
-    ? Date.parse(resultado.enviadoEn) - Date.parse(resultado.inicio)
-    : Number.NaN
+  const dura =
+    resultado.tiempoActivoSegundos !== undefined
+      ? resultado.tiempoActivoSegundos * 1000
+      : resultado.inicio
+        ? Date.parse(resultado.enviadoEn) - Date.parse(resultado.inicio)
+        : Number.NaN
   return [
     dura >= 0 && dura <= DURACION_MAXIMA_MS
-      ? duracionLegible(resultado.inicio!, new Date(resultado.enviadoEn))
+      ? duracionLegible(
+          new Date(Date.parse(resultado.enviadoEn) - dura).toISOString(),
+          new Date(resultado.enviadoEn),
+        )
       : null,
     resultado.cierre ? `RPE ${resultado.cierre.esfuerzo}` : null,
     trabajo.size > 0 ? `${hechas} de ${trabajo.size} series` : null,

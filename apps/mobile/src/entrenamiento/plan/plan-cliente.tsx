@@ -12,6 +12,8 @@ import {
 import { useAccesoAFiguras } from "../../catalogo-ejercicios/figura-ejercicio"
 import { useCatalogo } from "../../catalogo-ejercicios/use-catalogo"
 import { AvisoDeError, BotonSecundario } from "../../componentes/formulario"
+import { faltaDe } from "../../lib/errores"
+import { ErrorDePermiso, ErrorDeSesion } from "../../lib/http"
 import { tema } from "../../tema"
 import { almacenDispositivo } from "../almacen-dispositivo"
 import type { ApiEntrenamiento } from "../api"
@@ -58,6 +60,7 @@ export function PlanCliente({
   const [datos, setDatos] = useState<CopiaDelPlan | null>(null)
   const [elegido, setElegido] = useState<string | null>(null)
   const [error, setError] = useState("")
+  const [reintentable, setReintentable] = useState(true)
   const [intento, setIntento] = useState(0)
   const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
   const abriendo = useRef(false)
@@ -75,6 +78,7 @@ export function PlanCliente({
       let vigente = true
       const clave = `plan-${semana}`
       setError("")
+      setReintentable(true)
       const cargar = async (): Promise<void> => {
         try {
           const [listado, { plan }] = await Promise.all([
@@ -92,7 +96,16 @@ export function PlanCliente({
           if (!vigente) return
           setDatos(nuevos)
           await almacenDispositivo.guardar(clienteId, clave, nuevos).catch(() => undefined)
-        } catch {
+        } catch (error) {
+          if (!vigente) return
+          if (error instanceof ErrorDeSesion || error instanceof ErrorDePermiso) {
+            setDatos(null)
+            setTecnica(null)
+            const falta = faltaDe(error, "No se pudo cargar tu plan.")
+            setError(falta.texto)
+            setReintentable(falta.reintentable)
+            return
+          }
           const copia = await almacenDispositivo
             .leer(clienteId, clave, CopiaDelPlanSchema)
             .catch(() => null)
@@ -141,7 +154,9 @@ export function PlanCliente({
       {error !== "" && (
         <View style={s.error}>
           <AvisoDeError mensaje={error} />
-          <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
+          {reintentable && (
+            <BotonSecundario texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
+          )}
         </View>
       )}
       <CambioDeContenido clave={semana}>

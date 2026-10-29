@@ -7,6 +7,7 @@ import {
 } from "@alpha-omega/shared"
 import type { ComentarioSesion, ResultadoEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
+import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
 import { PrescripcionVisible } from "../entrenamiento/resultado"
 import { DetalleEntrenador } from "./detalle"
 
@@ -313,6 +314,28 @@ it("sitúa las molestias de este ejercicio y esta sesión junto a su próxima ve
   expect(screen.queryByText(/lumbar/)).toBeNull()
 })
 
+it("espera a conocer las molestias antes de recomendar la próxima carga", async () => {
+  let rechazar!: (error: Error) => void
+  const molestias = jest
+    .fn()
+    .mockImplementationOnce(() => new Promise((_, reject) => (rechazar = reject)))
+    .mockResolvedValue({ molestias: [], total: 0 })
+  const api = crearApi({
+    leerEntrenador: async () => sesion,
+    resultado: async () => resultadoBase,
+    molestias,
+  })
+  await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+  expect(screen.getByRole("text", { name: /Serie 1.*30 s/ })).toBeOnTheScreen()
+  expect(screen.queryByText(/^Próxima vez/)).toBeNull()
+
+  await act(async () => rechazar(new Error("sin red")))
+  expect(screen.queryByText(/^Próxima vez/)).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar comentarios y molestias" }))
+
+  expect(screen.getByText("Próxima vez · Sube la carga")).toBeOnTheScreen()
+})
+
 it("reintenta la lectura auxiliar sin ocultar las series ni duplicar comentarios", async () => {
   const comentarios = jest
     .fn()
@@ -478,6 +501,46 @@ describe("sondeo del detalle (T-18)", () => {
   afterEach(() => {
     jest.useRealTimers()
     jest.restoreAllMocks()
+  })
+
+  it.each([
+    ["sesion", new ErrorDePermiso("403")],
+    ["resultado", new ErrorDeSesion("401")],
+  ])("retira los datos y acciones al perder acceso en %s", async (origen, error) => {
+    const leerEntrenador = jest.fn().mockResolvedValue(sesion)
+    const resultado = jest.fn().mockResolvedValue(resultadoBase)
+    const api = crearApi({ leerEntrenador, resultado })
+    await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+    expect(screen.getByText("Fuerza")).toBeOnTheScreen()
+    if (origen === "sesion") leerEntrenador.mockRejectedValue(error)
+    else resultado.mockRejectedValue(error)
+
+    await act(async () => jest.advanceTimersByTime(5000))
+
+    expect(screen.queryByText("Fuerza")).toBeNull()
+    expect(screen.queryByLabelText("Comentario para Cliente")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Marcar como revisado" })).toBeNull()
+    expect(screen.getByRole("alert")).toBeOnTheScreen()
+  })
+
+  it("una revisión pendiente no restaura datos después de revocarse el permiso", async () => {
+    let confirmar!: (valor: typeof sesion) => void
+    const leerEntrenador = jest
+      .fn()
+      .mockResolvedValueOnce(sesion)
+      .mockRejectedValue(new ErrorDePermiso("403"))
+    const api = crearApi({
+      leerEntrenador,
+      resultado: async () => resultadoBase,
+      revisar: () => new Promise<typeof sesion>((resolve) => (confirmar = resolve)),
+    })
+    await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+    await fireEvent.press(screen.getByRole("button", { name: "Marcar como revisado" }))
+    await act(async () => jest.advanceTimersByTime(5000))
+    await act(async () => confirmar({ ...sesion, revisadaEn: sesion.enviadoEn }))
+
+    expect(screen.queryByText("Fuerza")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Revisada" })).toBeNull()
   })
 
   it("deja de sondear y de recargar al activar la app si ya está enviada y revisada", async () => {

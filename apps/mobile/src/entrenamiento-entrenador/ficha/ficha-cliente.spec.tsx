@@ -103,6 +103,54 @@ async function mostrarFicha(
   )
 }
 
+it.each(["cliente", "cuenta"])(
+  "aísla la ficha y sus borradores al cambiar de %s",
+  async (cambio) => {
+    const api = apiDeFicha()
+    const propiedades = {
+      clienteId,
+      cuentaId: "entrenador-A",
+      api: api as unknown as ApiEntrenamiento,
+      seguimiento: {
+        medidas: async () => ({ medidas: [], fechaNacimiento: null }),
+        consentimiento: async () => null,
+      } as unknown as ApiSeguimiento,
+      nutricion: { vigente: async () => null } as unknown as ApiNutricion,
+      valoraciones: {} as ApiValoraciones,
+      medios: {} as ApiMedios,
+      nuevoId: () => clienteId,
+      editarPlan: jest.fn(),
+      verSemana: jest.fn(),
+      abrirNutricion: jest.fn(),
+    }
+    await render(
+      <FichaCliente
+        {...propiedades}
+        leerFicha={async () => ({ nombre: "Lara" }) as FichaDeUsuario}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("tab", { name: "Progreso" }))
+    await fireEvent.changeText(screen.getByLabelText("Valoración en edición"), "Dato de Lara")
+    let resolver!: (ficha: FichaDeUsuario) => void
+    await screen.rerender(
+      <FichaCliente
+        {...propiedades}
+        {...(cambio === "cliente" ? { clienteId: "cliente-B" } : { cuentaId: "entrenador-B" })}
+        leerFicha={() => new Promise((resolve) => (resolver = resolve))}
+      />,
+    )
+
+    expect(screen.queryByText("Lara")).toBeNull()
+    expect(screen.queryByDisplayValue("Dato de Lara")).toBeNull()
+    expect(screen.getByLabelText("Cargando ficha")).toBeOnTheScreen()
+    await act(async () => resolver({ nombre: "Bea" } as FichaDeUsuario))
+    expect(screen.getByText("Bea")).toBeOnTheScreen()
+    expect(screen.getByRole("tab", { name: "Resumen" }).props.accessibilityState.selected).toBe(
+      true,
+    )
+  },
+)
+
 describe("actualización de la ficha abierta", () => {
   const estadoAnterior = AppState.currentState
   beforeEach(() => {

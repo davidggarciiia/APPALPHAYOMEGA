@@ -30,11 +30,13 @@ export function EjerciciosRevision({
 }): React.JSX.Element {
   const [comentarios, setComentarios] = useState<ComentarioSesion[]>([])
   const [molestias, setMolestias] = useState<Molestia[]>([])
+  const [molestiasConocidas, setMolestiasConocidas] = useState(false)
   const [abiertos, setAbiertos] = useState<ReadonlySet<string>>(new Set())
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
   useEffect(() => {
     let vigente = true
+    setMolestiasConocidas(false)
     void Promise.allSettled([api.comentarios(resultado.sesionId), api.molestias(clienteId)]).then(
       ([c, m]) => {
         if (!vigente) return
@@ -50,6 +52,7 @@ export function EjerciciosRevision({
           setMolestias(
             m.value.molestias.filter((molestia) => molestia.sesionId === resultado.sesionId),
           )
+        setMolestiasConocidas(m.status === "fulfilled")
         setError(
           c.status === "rejected" || m.status === "rejected"
             ? "No se pudieron cargar los comentarios o las molestias."
@@ -67,10 +70,10 @@ export function EjerciciosRevision({
       .map((m) => m.ejercicioPrescritoId!),
   )
   const proximas = new Map(
-    proximaVez(resultado.prescripcion, edicionDesdeResultado(resultado), abiertas).map((p) => [
-      p.ejercicioId,
-      p,
-    ]),
+    (molestiasConocidas
+      ? proximaVez(resultado.prescripcion, edicionDesdeResultado(resultado), abiertas)
+      : []
+    ).map((p) => [p.ejercicioId, p]),
   )
   const publicado = (nuevo: ComentarioSesion): void =>
     setComentarios((lista) => [...lista.filter((c) => c.id !== nuevo.id), nuevo])

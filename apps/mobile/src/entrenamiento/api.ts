@@ -146,11 +146,23 @@ export function crearApiEntrenamiento(pedir: PeticionAutenticada): ApiEntrenamie
         method: "POST",
         body: JSON.stringify(RegistrarMolestiaSchema.parse(datos)),
       }),
-    molestias: (clienteId, estado = "todas") =>
-      pedir(
-        `/entrenamiento/clientes/${encodeURIComponent(clienteId)}/molestias?estado=${estado}`,
-        ListadoMolestiasSchema,
-      ),
+    molestias: async (clienteId, estado = "todas") => {
+      const molestias = new Map<string, Molestia>()
+      let desplazamiento = 0
+      for (;;) {
+        const pagina = await pedir(
+          `/entrenamiento/clientes/${encodeURIComponent(clienteId)}/molestias?estado=${estado}&limite=100&desplazamiento=${desplazamiento}`,
+          ListadoMolestiasSchema,
+        )
+        const previas = molestias.size
+        for (const molestia of pagina.molestias) molestias.set(molestia.id, molestia)
+        if (molestias.size >= pagina.total)
+          return { molestias: Array.from(molestias.values()), total: pagina.total }
+        desplazamiento += pagina.molestias.length
+        if (molestias.size === previas || desplazamiento > 100000)
+          throw new Error("No se pudieron cargar todas las molestias. Reintenta la consulta.")
+      }
+    },
     atenderMolestia: (id, respuesta) =>
       pedir(`/entrenamiento/molestias/${encodeURIComponent(id)}/atender`, MolestiaSchema, {
         method: "POST",

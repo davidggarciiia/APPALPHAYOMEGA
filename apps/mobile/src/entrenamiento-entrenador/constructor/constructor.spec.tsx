@@ -12,6 +12,7 @@ import type { AlmacenLocal } from "../../entrenamiento/almacen-local"
 import type { ApiRutinas } from "../api-rutinas"
 import { crearPeticionAutenticada } from "../../lib/peticion-autenticada"
 import { ErrorDePeticion } from "../../lib/http"
+import * as movimiento from "../../componentes/movimiento"
 import {
   catalogoEnMemoria,
   ejercicioDePrueba,
@@ -115,6 +116,31 @@ async function abrirDatosDia(): Promise<void> {
   await fireEvent.press(screen.getByRole("button", { name: "Editar datos del día" }))
   await screen.findByLabelText("Duración estimada")
 }
+
+it("mantiene 44 px en cada día y permite recorrer la semana en pantallas estrechas", async () => {
+  await prepararConstructor()
+  await abrirDatosDia()
+
+  expect(screen.getAllByRole("radio")).toHaveLength(7)
+  for (const dia of screen.getAllByRole("radio"))
+    expect(dia).toHaveStyle({ width: 44, minHeight: 44 })
+  expect(screen.getByTestId("selector-dia-semana")).toHaveProp("horizontal", true)
+})
+
+it("abre la vista del cliente sin deslizamiento con movimiento reducido", async () => {
+  const reducido = jest.spyOn(movimiento, "useMovimientoReducido").mockReturnValue(true)
+  try {
+    await prepararConstructor()
+    await screen.findByLabelText("Nombre del día")
+    await completarDia()
+    await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
+
+    expect(screen.getByTestId("vista-cliente")).toHaveProp("animationType", "none")
+  } finally {
+    await screen.unmount()
+    reducido.mockRestore()
+  }
+})
 
 async function cerrarDatosDia(): Promise<void> {
   await fireEvent.press(screen.getByRole("button", { name: "Listo" }))

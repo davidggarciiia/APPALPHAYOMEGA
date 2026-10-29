@@ -89,6 +89,13 @@ it("las pestañas mantienen selección y bloqueo en la variante segmentada", asy
   expect(cambiar).not.toHaveBeenCalled()
 })
 
+it("las pestañas cortas conservan un objetivo táctil de al menos 44 por 44", async () => {
+  await render(
+    <Pestanas opciones={[{ valor: "peso", texto: "Peso" }]} activa="peso" cambiar={jest.fn()} />,
+  )
+  expect(screen.getByRole("tab", { name: "Peso" })).toHaveStyle({ minWidth: 44, minHeight: 44 })
+})
+
 it("el fondo segmentado se desliza hasta la pestaña elegida y conserva la selección accesible", async () => {
   const cambiar = jest.fn()
   await render(<Pestanas opciones={opciones} activa="semana" cambiar={cambiar} variante="pil" />)

@@ -145,6 +145,7 @@ export function HoyInicio({
   const [error, setError] = useState("")
   const [ocupado, setOcupado] = useState(false)
   const guardando = useRef(false)
+  const versionDia = useRef(0)
   const hoy = hoyAgenda()
   const diaSemana = new Date(`${hoy}T00:00:00Z`).getUTCDay() || 7
 
@@ -176,16 +177,18 @@ export function HoyInicio({
         .catch(() => {
           if (vigente) setError("No se pudo cargar el seguimiento pautado. Revisa la conexión.")
         })
+      const lecturaDia = versionDia.current
       seguimiento
         .dias(clienteId, hoy, hoy)
         .then(({ dias }) => {
-          if (vigente) {
+          if (vigente && lecturaDia === versionDia.current) {
             setDia(dias[0] ?? null)
             setDiaCargado(true)
           }
         })
         .catch(() => {
-          if (vigente) setError("No se pudieron cargar los registros de hoy. Revisa la conexión.")
+          if (vigente && lecturaDia === versionDia.current)
+            setError("No se pudieron cargar los registros de hoy. Revisa la conexión.")
         })
       nutricion
         .vigente(clienteId)
@@ -229,7 +232,15 @@ export function HoyInicio({
   }
   const guardar = async (cambio: CambiarDia): Promise<boolean> =>
     diaCargado &&
-    guardarCon(async () => setDia(await seguimiento.cambiarDia(clienteId, hoy, cambio)))
+    guardarCon(async () => {
+      // Solo las escrituras del día invalidan su recarga; la cintura va por medidas.
+      versionDia.current += 1
+      try {
+        setDia(await seguimiento.cambiarDia(clienteId, hoy, cambio))
+      } finally {
+        versionDia.current += 1
+      }
+    })
   const guardarCintura = (cinturaCm: number): Promise<boolean> =>
     guardarCon(async () => {
       if (operacionCintura.current?.cm !== cinturaCm)

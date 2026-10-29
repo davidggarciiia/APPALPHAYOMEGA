@@ -1,4 +1,4 @@
-import { describe, expect, it, jest } from "@jest/globals"
+import { describe, it, jest } from "@jest/globals"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import { PrescripcionSchema, type EjercicioPrescrito, type PlanVigente } from "@alpha-omega/shared"
 
@@ -9,6 +9,8 @@ import { RutinaDeLaSemana, type DiaDelPlan } from "./rutina"
 import { PlanCliente } from "./plan-cliente"
 import type { ApiEntrenamiento } from "../api"
 import { lunesDeSemana } from "../fechas"
+import { almacenDispositivo } from "../almacen-dispositivo"
+import { ErrorDePermiso, ErrorDeSesion } from "../../lib/http"
 
 let mockFoco = 0
 jest.mock("expo-router", () => ({
@@ -107,6 +109,44 @@ it("el plan abre una sola sesión por foco y deja volver a abrirla", async () =>
   await fireEvent.press(await screen.findByRole("button", { name: "Abrir sesión" }))
   expect(abrir).toHaveBeenCalledTimes(2)
 })
+
+it.each([new ErrorDeSesion(), new ErrorDePermiso()])(
+  "retira el plan mostrado y no lee su copia cuando se rechaza el acceso: %s",
+  async (error) => {
+    const sesion = dia(2, lunesDeSemana(), "Empuje")
+    const copia = {
+      listado: { sesiones: [sesion.resumen], total: 1 },
+      plan: null,
+      prescripciones: { [sesion.resumen.agenda.id]: empuje },
+    }
+    jest
+      .mocked(almacenDispositivo.leer)
+      .mockImplementation(async (_cuenta, _clave, esquema) => esquema.parse(copia))
+    const api = {
+      semana: jest.fn(async () => copia.listado),
+      plan: jest.fn(async () => ({ plan: null })),
+      leerCliente: jest.fn(async () => ({ agenda: sesion.resumen.agenda, prescripcion: empuje })),
+    } as unknown as ApiEntrenamiento
+    const abrir = jest.fn()
+    const vista = await render(<PlanCliente clienteId={u(99)} api={api} abrir={abrir} />)
+    await screen.findByRole("button", { name: "Abrir sesión" })
+
+    jest.mocked(api.semana).mockRejectedValue(error)
+    mockFoco += 1
+    await vista.rerender(<PlanCliente clienteId={u(99)} api={api} abrir={abrir} />)
+
+    expect(
+      await screen.findByText(
+        error instanceof ErrorDeSesion
+          ? "Tu sesión ha caducado. Vuelve a entrar."
+          : "No tienes permiso para acceder a estos datos.",
+      ),
+    ).toBeOnTheScreen()
+    expect(screen.queryByRole("button", { name: "Abrir sesión" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull()
+    expect(almacenDispositivo.leer).not.toHaveBeenCalled()
+  },
+)
 
 describe("RutinaDeLaSemana", () => {
   it("enseña el día elegido por partes, con dosis, RIR y descanso", async () => {

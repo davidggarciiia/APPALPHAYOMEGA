@@ -183,7 +183,7 @@ const s = StyleSheet.create({
   deshabilitado: { opacity: 0.5 },
   pestanas: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: tema.borde },
   filaPestanas: { flexDirection: "row", gap: espacio[24] },
-  pestana: { minHeight: alto.tactil, justifyContent: "center" },
+  pestana: { minWidth: alto.tactil, minHeight: alto.tactil, justifyContent: "center" },
   textoPestana: { color: tema.textoTenue, fontFamily: tema.fuenteSemi, fontSize: 16 },
   textoActivo: { color: tema.acento },
   indicador: {

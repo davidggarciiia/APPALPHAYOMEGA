@@ -22,6 +22,38 @@ const novedad: NovedadEntrenamiento = {
   leidaEn: null,
 }
 
+it.each(["resuelta", "rechazada"] as const)(
+  "no abre la sesión tras desmontarse aunque llegue la lectura %s",
+  async (resultado) => {
+    let resolver!: (valor: { leidas: number }) => void
+    let rechazar!: (error: Error) => void
+    const lectura = new Promise<{ leidas: number }>((resolve, reject) => {
+      resolver = resolve
+      rechazar = reject
+    })
+    const abrir = jest.fn()
+    const vista = await render(
+      <NovedadesEntrenamiento
+        clienteId={novedad.clienteId}
+        api={
+          {
+            novedades: jest.fn(async () => ({ novedades: [novedad], total: 1, sinLeer: 1 })),
+            leerNovedades: jest.fn(() => lectura),
+          } as unknown as ApiEntrenamiento
+        }
+        abrir={abrir}
+      />,
+    )
+    await fireEvent.press(await screen.findByRole("button", { name: /revisó Fuerza A/ }))
+    await vista.unmount()
+    await act(async () => {
+      if (resultado === "resuelta") resolver({ leidas: 1 })
+      else rechazar(new Error("Sin conexión"))
+    })
+    expect(abrir).not.toHaveBeenCalled()
+  },
+)
+
 it("no duplica la lectura ni la apertura y permite volver a abrir tras recuperar el foco", async () => {
   let confirmar!: () => void
   const novedades = jest.fn(async () => ({ novedades: [novedad], total: 1, sinLeer: 1 }))
