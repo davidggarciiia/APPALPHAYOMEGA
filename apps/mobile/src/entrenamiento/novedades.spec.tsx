@@ -140,12 +140,73 @@ it("permite consultar y abrir avisos posteriores a los ocho primeros", async () 
   )
 
   expect(await screen.findByText(/revisó Sesión 1/)).toBeTruthy()
+  expect(screen.queryByText(/revisó Sesión 4/)).toBeNull()
   expect(screen.queryByText(/revisó Sesión 9/)).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Ver todas" }))
+  expect(screen.getByText(/revisó Sesión 8/)).toBeOnTheScreen()
+  expect(novedades).toHaveBeenCalledTimes(1)
   await fireEvent.press(screen.getByRole("button", { name: "Ver más novedades" }))
   expect(await screen.findByText(/revisó Sesión 9/)).toBeTruthy()
   await fireEvent.press(screen.getByRole("button", { name: /revisó Sesión 9/ }))
   await waitFor(() => expect(abrir).toHaveBeenCalledWith(novedad.sesionId))
   expect(novedades).toHaveBeenLastCalledWith(novedad.clienteId, 8)
+})
+
+it("agrupa tres filas compactas y permite desplegar las novedades ya cargadas", async () => {
+  const avisos = Array.from({ length: 5 }, (_, indice) => ({
+    ...novedad,
+    id: String(indice),
+    sesionNombre: `Fuerza ${indice + 1}`,
+  }))
+  const novedades = jest.fn(async () => ({ novedades: avisos, total: 5, sinLeer: 5 }))
+  await render(
+    <NovedadesEntrenamiento
+      clienteId={novedad.clienteId}
+      api={{ novedades } as unknown as ApiEntrenamiento}
+      abrir={jest.fn()}
+    />,
+  )
+
+  await screen.findByText("Ana revisó Fuerza 1")
+  expect(screen.getByTestId("tarjeta-novedades")).toHaveStyle({ paddingHorizontal: 16 })
+  expect(screen.getAllByRole("button", { name: /Ana revisó/ })).toHaveLength(3)
+  for (const fila of screen.getAllByRole("button", { name: /Ana revisó/ }))
+    expect(fila).toHaveStyle({ minHeight: 56 })
+  expect(screen.getByText("Ana revisó Fuerza 1")).toHaveProp("numberOfLines", 1)
+  expect(screen.queryByText("Ana revisó Fuerza 4")).toBeNull()
+
+  await fireEvent.press(screen.getByRole("button", { name: "Ver todas" }))
+  expect(screen.getAllByRole("button", { name: /Ana revisó/ })).toHaveLength(5)
+  expect(screen.getByText("Ana revisó Fuerza 5")).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: "Ver todas" })).toBeNull()
+  expect(screen.queryByRole("button", { name: "Ver más novedades" })).toBeNull()
+  expect(novedades).toHaveBeenCalledTimes(1)
+})
+
+it("retira solo el punto de la novedad leída y conserva la fila en el historial", async () => {
+  const leerNovedades = jest.fn(async () => ({ leidas: 1 }))
+  const abrir = jest.fn()
+  await render(
+    <NovedadesEntrenamiento
+      clienteId={novedad.clienteId}
+      api={
+        {
+          novedades: jest.fn(async () => ({ novedades: [novedad], total: 1, sinLeer: 1 })),
+          leerNovedades,
+        } as unknown as ApiEntrenamiento
+      }
+      abrir={abrir}
+    />,
+  )
+
+  const fila = await screen.findByRole("button", { name: /Fuerza A, sin leer/ })
+  expect(screen.getByTestId(`punto-novedad-${novedad.id}`)).toBeOnTheScreen()
+  await fireEvent.press(fila)
+  await waitFor(() => expect(abrir).toHaveBeenCalledWith(novedad.sesionId))
+  expect(screen.queryByTestId(`punto-novedad-${novedad.id}`)).toBeNull()
+  expect(screen.getByRole("button", { name: "Ana revisó Fuerza A" })).toBeOnTheScreen()
+  expect(screen.getByText("Sin novedades pendientes de leer")).toBeOnTheScreen()
+  expect(leerNovedades).toHaveBeenCalledWith(novedad.sesionId, { novedadIds: [novedad.id] })
 })
 
 it("envía el desplazamiento y el límite de página al API", async () => {

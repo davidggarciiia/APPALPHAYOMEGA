@@ -4,18 +4,25 @@ import { NavigationContext, usePreventRemove } from "expo-router/react-navigatio
 import { randomUUID } from "expo-crypto"
 import { AppState, Keyboard, ScrollView, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
-import type { EjercicioPrescrito, ValoresEjecutados } from "@alpha-omega/shared"
+import type { EjercicioPrescrito, SesionCliente, ValoresEjecutados } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import { ErrorDeCopiaLocal } from "./almacen-local"
 import { RegistroControl } from "./registro-control"
 import {
+  mejoraPersonal,
   registroParaEnviar,
   type EdicionRegistro,
   type EjercicioConDistancia,
   type PrescripcionConDistancia,
 } from "./registro-modelo"
-import { ajusteDeSerie, TablaSeries, type DeshacerSerie, type FocoSerie } from "./tabla-series"
+import {
+  ajusteDeSerie,
+  TablaSeries,
+  type DeshacerSerie,
+  type FocoSerie,
+  type RecordPersonal,
+} from "./tabla-series"
 import { ConfirmacionSesion, PrescripcionVisible } from "./resultado"
 import { VerTecnica } from "./ver-tecnica"
 import { Dialogo, Enlace } from "./sesion/controles"
@@ -181,6 +188,17 @@ export function RegistroCliente({
   const [salidaPendiente, setSalidaPendiente] = useState<(() => void) | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
   const [anteriores, setAnteriores] = useState<Map<string, ValoresEjecutados>>(new Map())
+  const [recordPersonal, setRecordPersonal] = useState<RecordPersonal | null>(null)
+  const recordsCelebrados = useRef(new Set<string>())
+  useEffect(() => {
+    recordsCelebrados.current.clear()
+    setRecordPersonal(null)
+  }, [cuenta, id])
+  useEffect(() => {
+    if (!recordPersonal) return
+    const plazo = setTimeout(() => setRecordPersonal(null), 1600)
+    return () => clearTimeout(plazo)
+  }, [recordPersonal])
   const [nota, setNota] = useState(false)
   const [ajusteValido, setAjusteValido] = useState(true)
   const [lugarMolestia, setLugarMolestia] = useState<LugarDeMolestia>({
@@ -216,16 +234,29 @@ export function RegistroCliente({
   useFocusEffect(
     useCallback(() => {
       let vigente = true,
-        comprobando = false
+        comprobando = false,
+        recuperando = true
+      let sesionDeRecords: SesionCliente | undefined
       const c = new RegistroControl(cuenta, id, api, almacenDispositivo, randomUUID, () => {
-        if (vigente) repintar((n) => n + 1)
+        if (!vigente) return
+        if (recuperando && c.documento && sesionDeRecords !== c.documento.sesion) {
+          // Recuperar cambia la sesión; editar conserva su identidad, incluso con disco lento.
+          for (const serie of c.documento.edicion.series)
+            if (serie.hecha) recordsCelebrados.current.add(serie.serieId)
+          sesionDeRecords = c.documento.sesion
+        }
+        repintar((n) => n + 1)
       })
       setControl(c)
       setError("")
       void c
         .abrir()
         .then(async () => {
+          recuperando = false
+          if (!vigente) return
           const local = c.documento
+          for (const serie of local?.edicion.series ?? [])
+            if (serie.hecha) recordsCelebrados.current.add(serie.serieId)
           if (
             vigente &&
             local &&
@@ -238,6 +269,7 @@ export function RegistroCliente({
             await c.editar(iniciarTramo(local.edicion, new Date().toISOString()))
         })
         .catch((fallo: unknown) => {
+          recuperando = false
           if (vigente)
             setError(
               fallo instanceof ErrorDeCopiaLocal
@@ -451,18 +483,20 @@ export function RegistroCliente({
     setErrorSerie(null)
     const actual = control.documento!.edicion
     const anterior = actual.series.find((s) => s.serieId === serieId)
+    const ejercicio = prescripcion.ejercicios.find((e) => e.series.some((s) => s.id === serieId))
     const nueva = {
       ...actual,
       series: actual.series.map((s) => (s.serieId === serieId ? { ...s, ...cambio } : s)),
     }
     let nuevoDescanso: { descansoHasta: string; descansoTotal: number } | undefined
+    let mejora: string | null = null
     if (cambio.hecha) {
       try {
-        registroParaEnviar(prescripcion, nueva)
+        const registro = registroParaEnviar(prescripcion, nueva)
+        const registrada = registro.series.find((s) => s.serieId === serieId)
+        if (!anterior?.hecha && !recordsCelebrados.current.has(serieId) && ejercicio && registrada)
+          mejora = mejoraPersonal(registrada, anteriores.get(ejercicio.ejercicioId))
       } catch {
-        const ejercicio = prescripcion.ejercicios.find((e) =>
-          e.series.some((s) => s.id === serieId),
-        )
         const prescrita = ejercicio?.series.find((s) => s.id === serieId)
         const sinPeso =
           ejercicio?.tipoCarga !== "sinCarga" &&
@@ -477,13 +511,16 @@ export function RegistroCliente({
         return false
       }
       // Tras una serie hecha empieza el descanso que prescribió el entrenador.
-      const ejercicio = prescripcion.ejercicios.find((e) => e.series.some((s) => s.id === serieId))
       const segundos = segundosDeDescanso(ejercicio?.descanso)
       if (!anterior?.hecha && segundos !== null)
         nuevoDescanso = {
           descansoHasta: new Date(Date.now() + segundos * 1000).toISOString(),
           descansoTotal: segundos,
         }
+    }
+    if (cambio.hecha !== undefined || cambio.omitida) {
+      if (mejora) recordsCelebrados.current.add(serieId)
+      setRecordPersonal(mejora ? { serieId, mejora } : null)
     }
     const retener = ejercicioParaRirFinal(prescripcion, nueva, serieId)
     if ((cambio.hecha && !anterior?.hecha) || cambio.omitida) {
@@ -821,6 +858,8 @@ export function RegistroCliente({
                   cambiar={serie}
                   enCurso={enCurso}
                   anterior={anteriores.get(ejercicio.ejercicioId)}
+                  recordPersonal={recordPersonal}
+                  recordsCelebrados={recordsCelebrados.current}
                   verTecnica={() => setTecnica(ejercicio)}
                   verMolestia={() => abrirMolestia(ejercicio)}
                   enfocada={foco?.ejercicioId === ejercicio.id ? foco : null}

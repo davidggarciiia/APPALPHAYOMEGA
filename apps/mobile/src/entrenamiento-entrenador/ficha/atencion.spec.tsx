@@ -41,6 +41,28 @@ it("Responder tiene una caja propia de al menos 44 px de alto", async () => {
   expect(responder).toHaveBeenCalledWith(molestia("a"))
 })
 
+it("Resumen mantiene abiertas las molestias atendibles y enlaza a su sesión; una respuesta atendida retira el aviso", async () => {
+  const responder = jest.fn()
+  const verSesiones = jest.fn()
+  const abierta = { ...molestia("a"), sesionId: "sesion-a" }
+  const vista = (estado: Molestia) => (
+    <RequiereAtencion
+      molestias={[estado]}
+      semana={[]}
+      responder={responder}
+      verSesiones={verSesiones}
+    />
+  )
+  await render(vista(abierta))
+  expect(screen.getByText("Molestia ámbar en otra zona")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Ver sesión" }))
+  expect(verSesiones).toHaveBeenCalledWith("sesion-a")
+  await fireEvent.press(screen.getByRole("button", { name: /^Responder:/ }))
+  expect(responder).toHaveBeenCalledWith(abierta)
+  await screen.rerender(vista({ ...abierta, estado: "atendida", respuesta: "Reduce la carga" }))
+  expect(screen.queryByText("Requiere tu atención")).toBeNull()
+})
+
 it("no ocupa espacio de atención cuando no hay molestias ni señales", async () => {
   await render(
     <RequiereAtencion molestias={[]} semana={[]} responder={jest.fn()} verSesiones={jest.fn()} />,

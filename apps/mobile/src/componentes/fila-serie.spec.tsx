@@ -174,3 +174,28 @@ it("con movimiento reducido cambia al instante y mantiene la háptica de complet
   expect(screen.queryByTestId("serie-destello", { includeHiddenElements: true })).toBeNull()
   expect(vibrar).toHaveBeenCalledWith("exito")
 })
+
+it.each([false, true])(
+  "muestra la mejora de récord sin ocultarla al reducir movimiento (%s)",
+  async (reducido) => {
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(reducido)
+    await render(<FilaSerie {...props} />)
+    await screen.rerender(<FilaSerie {...props} hecha recordPersonal="+2,5 kg" />)
+    expect(screen.getByLabelText("Récord personal: +2,5 kg")).toHaveStyle({ color: tema.acento })
+    expect(screen.getByText("+2,5 kg")).toHaveProp("accessibilityLiveRegion", "polite")
+    if (reducido) expect(withTiming).not.toHaveBeenCalled()
+  },
+)
+
+it("permite deshacer y remarcar sin repetir el destello del récord", async () => {
+  jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
+  await render(<FilaSerie {...props} />)
+  await screen.rerender(<FilaSerie {...props} hecha recordPersonal="+2 reps" />)
+  expect(withTiming).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 420 }))
+  jest.mocked(withTiming).mockClear()
+  await screen.rerender(<FilaSerie {...props} destelloAlCompletar={false} />)
+  expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+  await screen.rerender(<FilaSerie {...props} hecha destelloAlCompletar={false} />)
+  expect(withTiming).not.toHaveBeenCalledWith(1, expect.objectContaining({ duration: 420 }))
+  expect(screen.getByRole("checkbox")).toBeChecked()
+})

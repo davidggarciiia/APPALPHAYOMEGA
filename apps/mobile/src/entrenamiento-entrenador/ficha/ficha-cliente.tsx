@@ -40,15 +40,13 @@ import type { ApiMedios } from "../../seguimiento/medios-api"
 import type { ApiValoraciones } from "../../seguimiento/valoraciones-api"
 import { alto, espacio, radio, tema, tipo } from "../../tema"
 import { DialogoResponder, RequiereAtencion } from "./atencion"
-import { CheckinsYMolestias } from "./checkins"
 import { SesionesDelCliente, UltimaSesion } from "./sesiones"
 
-type Pestana = "resumen" | "sesiones" | "progreso" | "molestias" | "nutricion" | "salud"
+type Pestana = "resumen" | "sesiones" | "progreso" | "nutricion" | "salud"
 const PESTANAS = [
   { valor: "resumen", texto: "Resumen" },
   { valor: "sesiones", texto: "Sesiones" },
   { valor: "progreso", texto: "Progreso" },
-  { valor: "molestias", texto: "Molestias" },
   { valor: "nutricion", texto: "Nutrición" },
   { valor: "salud", texto: "Salud" },
 ] as const
@@ -376,14 +374,6 @@ function FichaActual({
               modo="entrenador"
             />
           </View>
-        )}
-
-        {pestana === "molestias" && (
-          <CheckinsYMolestias
-            resultados={datos.resultados}
-            molestias={datos.molestias}
-            responder={setRespondiendo}
-          />
         )}
 
         {pestana === "nutricion" && (

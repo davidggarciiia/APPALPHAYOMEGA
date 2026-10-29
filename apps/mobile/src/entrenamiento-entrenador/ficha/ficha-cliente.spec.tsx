@@ -513,7 +513,7 @@ it("muestra novedades de la ficha y abre el detalle de su sesión", async () => 
   })
 })
 
-it("muestra cabecera propia, acciones iguales y Molestias sin check-ins", async () => {
+it("muestra cabecera propia y cinco pestañas; las molestias se atienden desde Resumen", async () => {
   await mostrarFicha(apiDeFicha() as unknown as ApiEntrenamiento)
   expect(screen.getByText("ACTIVO")).toBeOnTheScreen()
   expect(
@@ -522,8 +522,14 @@ it("muestra cabecera propia, acciones iguales y Molestias sin check-ins", async 
   expect(screen.getByTestId("ficha-accion-semana")).toHaveStyle({ flex: 1 })
   expect(screen.getByTestId("ficha-accion-plan")).toHaveStyle({ flex: 1 })
   expect(screen.queryByRole("tab", { name: "Check-ins y molestias" })).toBeNull()
-  await fireEvent.press(screen.getByRole("tab", { name: "Molestias" }))
-  expect(screen.getByText("Ninguna molestia registrada.")).toBeOnTheScreen()
+  expect(screen.queryByRole("tab", { name: "Molestias" })).toBeNull()
+  expect(screen.getAllByRole("tab").map((tab) => tab.props.accessibilityLabel)).toEqual([
+    "Resumen",
+    "Sesiones",
+    "Progreso",
+    "Nutrición",
+    "Salud",
+  ])
   expect(screen.queryByText("Check-ins")).toBeNull()
   await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
   expect(mockReplace).toHaveBeenCalledWith("/cartera")

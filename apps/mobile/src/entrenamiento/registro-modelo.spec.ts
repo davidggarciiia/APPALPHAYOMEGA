@@ -2,6 +2,7 @@ import {
   EdicionRegistroSchema,
   desdePrescripcion,
   edicionRecuperada,
+  mejoraPersonal,
   registroParaEnviar,
   registroSinValidar,
   type PrescripcionConDistancia,
@@ -12,6 +13,8 @@ import {
   SerieRegistradaDistanciaSchema,
   mantieneUnidadYCarga,
   type Prescripcion,
+  type SerieRegistrada,
+  type ValoresEjecutados,
 } from "@alpha-omega/shared"
 
 const prescripcion: Prescripcion = {
@@ -39,6 +42,59 @@ const prescripcion: Prescripcion = {
     },
   ],
 }
+
+describe("D8 · mejora frente a la mejor serie anterior disponible", () => {
+  const anterior: ValoresEjecutados = {
+    tipoMedicion: "repeticiones",
+    pesoKg: 40,
+    repeticiones: 8,
+  }
+  const hecha: SerieRegistrada = {
+    serieId: prescripcion.ejercicios[0]!.series[0]!.id,
+    tipoMedicion: "repeticiones",
+    hecha: true,
+    pesoKg: 42.5,
+    repeticiones: 8,
+  }
+
+  it.each([
+    [42.5, 8, "+2,5 kg"],
+    [42.5, 10, "+2,5 kg"],
+    [40, 10, "+2 reps"],
+    [42.5, 7, null],
+    [40, 8, null],
+    [40, 7, null],
+    [37.5, 10, null],
+    [null, 10, null],
+  ])("con %s kg y %s reps devuelve %s", (pesoKg, repeticiones, mejora) => {
+    expect(mejoraPersonal({ ...hecha, pesoKg, repeticiones }, anterior)).toBe(mejora)
+  })
+
+  it("conserva cero kilos y evita decimales binarios en la diferencia", () => {
+    expect(
+      mejoraPersonal({ ...hecha, pesoKg: 0, repeticiones: 10 }, { ...anterior, pesoKg: 0 }),
+    ).toBe("+2 reps")
+    expect(mejoraPersonal({ ...hecha, pesoKg: 0.3 }, { ...anterior, pesoKg: 0.1 })).toBe("+0,2 kg")
+  })
+
+  it("no inventa un récord sin anterior, con cantidad o carga desconocida ni sin completar", () => {
+    expect(mejoraPersonal(hecha)).toBeNull()
+    expect(mejoraPersonal(hecha, { ...anterior, pesoKg: null })).toBeNull()
+    expect(mejoraPersonal({ ...hecha, repeticiones: null }, anterior)).toBeNull()
+    expect(mejoraPersonal({ ...hecha, hecha: false }, anterior)).toBeNull()
+    expect(mejoraPersonal({ ...hecha, omitida: true }, anterior)).toBeNull()
+    expect(mejoraPersonal({ ...hecha, pesoKg: Number.NaN }, anterior)).toBeNull()
+  })
+
+  it.each([
+    { tipoMedicion: "tiempo", pesoKg: 40, segundos: 8 },
+    { tipoMedicion: "distancia", pesoKg: 40, metros: 8 },
+  ] as const)("no compara $tipoMedicion con repeticiones ni con su propia unidad", (valores) => {
+    expect(mejoraPersonal(hecha, valores)).toBeNull()
+    expect(mejoraPersonal({ ...valores, serieId: hecha.serieId, hecha: true }, anterior)).toBeNull()
+    expect(mejoraPersonal({ ...valores, serieId: hecha.serieId, hecha: true }, valores)).toBeNull()
+  })
+})
 it("no convierte objetivos tenues ni campos vacíos en ejecución", () => {
   const edicion = desdePrescripcion(prescripcion)
   expect(edicion.series[0]).toMatchObject({ peso: "", valor: "", hecha: false })

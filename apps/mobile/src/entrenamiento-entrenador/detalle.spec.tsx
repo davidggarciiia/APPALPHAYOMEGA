@@ -5,7 +5,7 @@ import {
   SeriePrescritaDistanciaSchema,
   ValoresEjecutadosDistanciaSchema,
 } from "@alpha-omega/shared"
-import type { ComentarioSesion, ResultadoEntrenamiento } from "@alpha-omega/shared"
+import type { ComentarioSesion, Molestia, ResultadoEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
 import { PrescripcionVisible } from "../entrenamiento/resultado"
@@ -17,6 +17,10 @@ jest.mock("expo-router", () => ({
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
 }))
 jest.mock("../entrenamiento/fecha-sesion", () => ({ FechaSesion: () => null }))
+jest.mock("react-native-safe-area-context", () => ({
+  ...jest.requireActual("react-native-safe-area-context"),
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}))
 jest.mock("../entrenamiento/resultado", () => {
   const real = jest.requireActual("../entrenamiento/resultado")
   return { ...real, PrescripcionVisible: jest.fn(real.PrescripcionVisible) }
@@ -82,6 +86,82 @@ const resultadoBase: ResultadoEntrenamiento = {
     },
   ],
 }
+
+it.each([sesion.prescripcion.ejercicios[0]!.id, null, "fuera-de-prescripcion"])(
+  "responde y actualiza la molestia desde revisión (ejercicio %s)",
+  async (ejercicioPrescritoId) => {
+    const molestia = {
+      id: "molestia-a",
+      sesionId: sesion.agenda.id,
+      clienteId: sesion.agenda.clienteId,
+      ejercicioPrescritoId,
+      zona: "hombro",
+      intensidad: 5,
+      nivel: "ambar",
+      sintomas: [],
+      estado: "abierta",
+      ejercicio: ejercicioPrescritoId ? "Plancha" : null,
+      serie: null,
+      nota: null,
+    } as unknown as Molestia
+    const atenderMolestia = jest.fn(async () => ({
+      ...molestia,
+      estado: "atendida" as const,
+      respuesta: "Reduce la carga",
+    }))
+    const api = crearApi({
+      leerEntrenador: async () => sesion,
+      resultado: async () => resultadoBase,
+      molestias: async () => ({ molestias: [molestia], total: 1 }),
+      atenderMolestia,
+    })
+    await render(<DetalleEntrenador id={sesion.agenda.id} api={api} nombreCliente="Lara" />)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Responder:/ }))
+    await fireEvent.changeText(
+      screen.getByLabelText("Respuesta para el cliente"),
+      "Reduce la carga",
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Enviar respuesta" }))
+    expect(atenderMolestia).toHaveBeenCalledWith("molestia-a", "Reduce la carga")
+    expect(await screen.findByText("Tu respuesta: Reduce la carga")).toBeOnTheScreen()
+    expect(screen.queryByText("Pendiente de ti")).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Responder:/ })).toBeNull()
+  },
+)
+
+it.each([new ErrorDePermiso(), new ErrorDeSesion()])(
+  "retira la revisión si responder pierde el acceso (%s)",
+  async (causa) => {
+    const molestia = {
+      id: "molestia-a",
+      sesionId: sesion.agenda.id,
+      ejercicioPrescritoId: null,
+      zona: "hombro",
+      intensidad: 5,
+      nivel: "ambar",
+      sintomas: [],
+      estado: "abierta",
+    } as unknown as Molestia
+    const api = crearApi({
+      leerEntrenador: async () => sesion,
+      resultado: async () => resultadoBase,
+      molestias: async () => ({ molestias: [molestia], total: 1 }),
+      atenderMolestia: async () => {
+        throw causa
+      },
+    })
+    await render(<DetalleEntrenador id={sesion.agenda.id} api={api} />)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Responder:/ }))
+    await fireEvent.changeText(
+      screen.getByLabelText("Respuesta para el cliente"),
+      "Reduce la carga",
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Enviar respuesta" }))
+    expect(screen.queryByRole("button", { name: "Marcar como revisado" })).toBeNull()
+    expect(screen.queryByText("Plancha")).toBeNull()
+    expect(screen.getByRole("alert")).toHaveTextContent(/No tienes permiso|Tu sesión ha caducado/)
+  },
+)
 
 function comentario(texto: string, ejercicioPrescritoId: string | null = null): ComentarioSesion {
   return {

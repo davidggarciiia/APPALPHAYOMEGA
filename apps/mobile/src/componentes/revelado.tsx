@@ -14,37 +14,60 @@ import { ANGULO, CURVA, useEstadoMovimiento } from "./movimiento"
 export function Revelado({
   children,
   estilo,
+  clave,
+  retraso = 900,
+  duracion = 320,
+  activo = true,
 }: {
   children: ReactNode
   estilo?: StyleProp<ViewStyle>
+  clave?: number
+  retraso?: number
+  duracion?: number
+  activo?: boolean
 }): React.JSX.Element {
   const { reducido, listo } = useEstadoMovimiento()
   const ancho = useSharedValue(0)
+  const alto = useSharedValue(0)
   const fase = useSharedValue(0)
   const resuelto = useRef(false)
+  const anterior = useRef(clave)
   useEffect(() => {
     if (!listo) return
     cancelAnimation(fase)
-    if (reducido || resuelto.current) fase.value = 1
+    const cambia = anterior.current !== clave
+    anterior.current = clave
+    if (!activo || reducido || (resuelto.current && !cambia)) fase.value = 1
     else {
-      fase.value = withDelay(900, withTiming(1, { duration: 320, easing: CURVA.entrada }))
+      fase.value = 0
+      fase.value = withDelay(retraso, withTiming(1, { duration: duracion, easing: CURVA.entrada }))
     }
     resuelto.current = true
     return () => cancelAnimation(fase)
-  }, [listo, reducido, fase])
-  const cortina = useAnimatedStyle(() => ({
-    opacity: fase.value >= 1 ? 0 : 1,
-    transform: [{ translateX: ancho.value * 1.1 * fase.value }, { skewX: `-${ANGULO}deg` }],
-  }))
+  }, [listo, reducido, fase, clave, retraso, duracion, activo])
+  const cortina = useAnimatedStyle(() => {
+    const margen = Math.max(
+      ancho.value * 0.15,
+      (alto.value * Math.tan((ANGULO * Math.PI) / 180)) / 2,
+    )
+    const recorrido = ancho.value + 2 * margen
+    return {
+      left: ancho.value > 0 ? -margen : ("-50%" as const),
+      width: ancho.value > 0 ? recorrido : ("200%" as const),
+      opacity: fase.value >= 1 ? 0 : 1,
+      transform: [{ translateX: recorrido * fase.value }, { skewX: `-${ANGULO}deg` }],
+    }
+  })
   return (
     <View
       style={[estilos.raiz, estilo]}
       onLayout={(evento) => {
         ancho.value = evento.nativeEvent.layout.width
+        alto.value = evento.nativeEvent.layout.height
       }}
     >
       {children}
-      {(!listo || !reducido) && (
+      {activo && (!listo || !reducido) && (
         <Animated.View
           testID="revelado-cortina"
           style={[estilos.cortina, cortina]}

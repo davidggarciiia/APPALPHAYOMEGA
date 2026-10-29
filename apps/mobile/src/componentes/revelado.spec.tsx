@@ -102,3 +102,31 @@ it("si el ajuste inicial era reducido, desactivarlo después conserva el título
   expect(withDelay).not.toHaveBeenCalled()
   expect(withTiming).not.toHaveBeenCalled()
 })
+
+it("repite el corte rápido solo al volver a enfocar, conservando el contenido montado", async () => {
+  await render(
+    <Revelado clave={1} retraso={0} duracion={220}>
+      <Text>Pantalla</Text>
+    </Revelado>,
+  )
+  expect(withTiming).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 220 }))
+  jest.mocked(withTiming).mockClear()
+  await screen.rerender(
+    <Revelado clave={1} retraso={0} duracion={220}>
+      <Text>Pantalla actualizada</Text>
+    </Revelado>,
+  )
+  expect(withTiming).not.toHaveBeenCalled()
+  await screen.rerender(
+    <Revelado clave={2} retraso={0} duracion={220}>
+      <Text>Pantalla actualizada</Text>
+    </Revelado>,
+  )
+  expect(withTiming).toHaveBeenCalledTimes(1)
+  expect(withDelay).toHaveBeenCalledWith(0, expect.anything())
+  expect(screen.getByText("Pantalla actualizada")).toBeOnTheScreen()
+  expect(screen.getByTestId("revelado-cortina", { includeHiddenElements: true })).toHaveProp(
+    "pointerEvents",
+    "none",
+  )
+})

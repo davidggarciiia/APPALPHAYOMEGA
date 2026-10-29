@@ -4,7 +4,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native"
 import type { NovedadEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { AvisoDeError, BotonEnlace } from "../componentes/formulario"
+import { ListaAnimada, useAnimacionLista } from "../componentes/lista-animada"
 import { espacio, radio, tema, tipo } from "../tema"
+
+const MAXIMO_RESUMEN = 3
 
 function cuando(fecha: string): string {
   const minutos = Math.max(0, Math.floor((Date.now() - Date.parse(fecha)) / 60_000))
@@ -45,11 +48,13 @@ export function NovedadesEntrenamiento({
   const [novedades, setNovedades] = useState<NovedadEntrenamiento[]>([])
   const [total, setTotal] = useState(0)
   const [sinLeer, setSinLeer] = useState(0)
+  const [todas, setTodas] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState("")
   const consulta = useRef(0)
   const abriendo = useRef(false)
   const foco = useRef(0)
+  const animacion = useAnimacionLista()
   useFocusEffect(
     useCallback(() => {
       abriendo.current = false
@@ -65,6 +70,7 @@ export function NovedadesEntrenamiento({
       consulta.current += 1
       setNovedades([])
       setTotal(0)
+      setTodas(false)
       setCargando(false)
       void api
         .novedades(clienteId, 0)
@@ -111,72 +117,98 @@ export function NovedadesEntrenamiento({
         {sinLeer > 0 ? `${sinLeer} novedades sin leer` : "Sin novedades pendientes de leer"}
       </Text>
       {error !== "" && <AvisoDeError mensaje={error} />}
-      {novedades.map((novedad) => (
-        <Pressable
-          key={novedad.id}
-          accessibilityRole="button"
-          accessibilityLabel={`${descripcion(novedad)}${novedad.leidaEn ? "" : ", sin leer"}`}
-          style={[s.fila, !novedad.leidaEn && s.nueva]}
-          onPress={() => {
-            if (abriendo.current) return
-            abriendo.current = true
-            const visita = foco.current
-            void (async () => {
-              if (!novedad.leidaEn) {
-                try {
-                  await api.leerNovedades(novedad.sesionId, { novedadIds: [novedad.id] })
-                  if (visita !== foco.current) return
-                  setNovedades((actual) =>
-                    actual.map((item) =>
-                      item.id === novedad.id
-                        ? { ...item, leidaEn: new Date().toISOString() }
-                        : item,
-                    ),
-                  )
-                  setSinLeer((total) => Math.max(0, total - 1))
-                } catch {
-                  if (visita !== foco.current) return
-                  setError("No se pudo guardar la lectura. Podrás reintentarlo después.")
-                }
-              }
-              if (visita === foco.current) abrir(novedad.sesionId)
-            })()
-          }}
-        >
-          <View style={s.textos}>
-            <Text style={s.texto}>{descripcion(novedad)}</Text>
-            <Text style={s.atribucion}>
-              {novedad.autor.rol === "entrenador" ? "Tu entrenador" : novedad.autor.nombre} ·{" "}
-              {cuando(novedad.creadaEn)}
-            </Text>
-          </View>
-          {!novedad.leidaEn && <View style={s.indicador} />}
-        </Pressable>
-      ))}
-      {novedades.length < total && (
-        <BotonEnlace
-          texto="Ver más novedades"
-          ocupado={cargando}
-          onPress={() => void cargarMas()}
-        />
-      )}
+      <View testID="tarjeta-novedades" style={s.tarjeta}>
+        {(todas ? novedades : novedades.slice(0, MAXIMO_RESUMEN)).map((novedad, indice) => (
+          <ListaAnimada key={novedad.id} animacion={animacion} style={indice > 0 && s.separada}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${descripcion(novedad)}${novedad.leidaEn ? "" : ", sin leer"}`}
+              accessibilityHint="Abrir entrenamiento"
+              style={s.fila}
+              onPress={() => {
+                if (abriendo.current) return
+                abriendo.current = true
+                const visita = foco.current
+                void (async () => {
+                  if (!novedad.leidaEn) {
+                    try {
+                      await api.leerNovedades(novedad.sesionId, { novedadIds: [novedad.id] })
+                      if (visita !== foco.current) return
+                      setNovedades((actual) =>
+                        actual.map((item) =>
+                          item.id === novedad.id
+                            ? { ...item, leidaEn: new Date().toISOString() }
+                            : item,
+                        ),
+                      )
+                      setSinLeer((total) => Math.max(0, total - 1))
+                    } catch {
+                      if (visita !== foco.current) return
+                      setError("No se pudo guardar la lectura. Podrás reintentarlo después.")
+                    }
+                  }
+                  if (visita === foco.current) abrir(novedad.sesionId)
+                })()
+              }}
+            >
+              {!novedad.leidaEn && (
+                <ListaAnimada
+                  testID={`punto-novedad-${novedad.id}`}
+                  animacion={{ exiting: animacion.exiting }}
+                  style={s.indicador}
+                >
+                  {null}
+                </ListaAnimada>
+              )}
+              <ListaAnimada style={s.textos} animacion={{ layout: animacion.layout }}>
+                <Text style={s.texto} numberOfLines={1}>
+                  {descripcion(novedad)}
+                </Text>
+                <Text style={s.atribucion} numberOfLines={1}>
+                  {novedad.autor.rol === "entrenador" ? "Tu entrenador" : novedad.autor.nombre} ·{" "}
+                  {cuando(novedad.creadaEn)}
+                </Text>
+              </ListaAnimada>
+            </Pressable>
+          </ListaAnimada>
+        ))}
+        {!todas && (novedades.length > MAXIMO_RESUMEN || novedades.length < total) && (
+          <BotonEnlace
+            texto="Ver todas"
+            onPress={() => {
+              setTodas(true)
+              if (novedades.length <= MAXIMO_RESUMEN) void cargarMas()
+            }}
+          />
+        )}
+        {todas && novedades.length < total && (
+          <BotonEnlace
+            texto="Ver más novedades"
+            ocupado={cargando}
+            onPress={() => void cargarMas()}
+          />
+        )}
+      </View>
     </View>
   )
 }
 
 const s = StyleSheet.create({
   contenedor: { gap: espacio[12] },
-  fila: {
+  tarjeta: {
     backgroundColor: tema.superficie,
     borderRadius: radio.tarjeta,
-    minHeight: 64,
-    padding: espacio[16],
+    paddingHorizontal: espacio[16],
+  },
+  fila: {
+    minHeight: 56,
+    paddingVertical: espacio[8],
     flexDirection: "row",
     alignItems: "center",
     gap: espacio[12],
   },
-  nueva: { borderWidth: 1, borderColor: tema.bordeDestacado },
-  textos: { flex: 1, gap: espacio[8] },
+  separada: { borderTopWidth: 1, borderTopColor: tema.borde },
+  textos: { flex: 1, gap: 2 },
   texto: { ...tipo.cuerpo, color: tema.texto },
   atribucion: tipo.secundario,
   indicador: { width: 8, height: 8, borderRadius: 2, backgroundColor: tema.acento },

@@ -222,6 +222,7 @@ function RevisionSesion({
                   nombreCliente={nombreCliente}
                   api={api}
                   nuevoId={nuevoId}
+                  sinAcceso={retirarAcceso}
                 />
               ) : sesion.enviadoEn ? (
                 <EsqueletoRevision />

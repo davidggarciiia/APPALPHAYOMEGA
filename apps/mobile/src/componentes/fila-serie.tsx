@@ -24,6 +24,9 @@ export type FilaSerieProps = {
   tipoCarga?: EjercicioPrescrito["tipoCarga"]
   modoRir?: EjercicioPrescrito["modoRir"]
   anterior?: string
+  recordPersonal?: string
+  /** Una mejora ya celebrada no vuelve a destellar al deshacer y remarcar. */
+  destelloAlCompletar?: boolean
   peso?: number | string | null
   pesoSugerido?: number | null
   cantidad?: number | string | null
@@ -64,6 +67,8 @@ export function FilaSerie({
   tipoCarga = "conCargaExterna",
   modoRir = "cadaSerie",
   anterior = "—",
+  recordPersonal,
+  destelloAlCompletar = true,
   peso,
   pesoSugerido,
   cantidad,
@@ -129,7 +134,7 @@ export function FilaSerie({
     }
     if (hecha && !previa.current) {
       vibrar("exito")
-      dispararDestello()
+      if (destelloAlCompletar) dispararDestello()
     }
     fase.value =
       reducido || previa.current === hecha
@@ -137,7 +142,7 @@ export function FilaSerie({
         : withTiming(Number(hecha), { duration: hecha ? 220 : 120, easing: CURVA.entrada })
     previa.current = hecha
     return () => cancelAnimation(fase)
-  }, [hecha, reducido, fase, dispararDestello, terminarFase])
+  }, [hecha, reducido, fase, dispararDestello, terminarFase, destelloAlCompletar])
   const omitir = (): void => {
     if (deshabilitado || omitida || !alOmitir) return
     vibrar("aviso")
@@ -286,6 +291,15 @@ export function FilaSerie({
           />
         )}
       </Animated.View>
+      {hecha && recordPersonal && (
+        <Text
+          accessibilityLabel={`Récord personal: ${recordPersonal}`}
+          accessibilityLiveRegion="polite"
+          style={s.record}
+        >
+          {recordPersonal}
+        </Text>
+      )}
     </Pressable>
   )
 }
@@ -358,6 +372,15 @@ const s = StyleSheet.create({
   },
   hecha: { borderColor: tema.exito, backgroundColor: tema.exito },
   omitida: { opacity: 0.5 },
+  record: {
+    color: tema.acento,
+    fontFamily: tema.fuenteSemi,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "right",
+    paddingHorizontal: 8,
+    fontVariant: ["tabular-nums"],
+  },
   destello: {
     position: "absolute",
     left: 0,

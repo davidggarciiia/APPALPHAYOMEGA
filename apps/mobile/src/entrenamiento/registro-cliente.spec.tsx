@@ -131,7 +131,7 @@ const borradorGuardado = async (_id: string, datos: GuardarBorrador): Promise<Bo
 function crearApi() {
   const api = {
     leerCliente: jest.fn(async () => sesion),
-    anteriores: jest.fn(async () => ({ anteriores: [] })),
+    anteriores: jest.fn<ApiEntrenamiento["anteriores"]>(async () => ({ anteriores: [] })),
     guardar: jest.fn<ApiEntrenamiento["guardar"]>(),
     enviar: jest.fn<ApiEntrenamiento["enviar"]>(),
     resultado: jest.fn<ApiEntrenamiento["resultado"]>(),
@@ -660,6 +660,185 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
         valor: "8",
       }),
     )
+  })
+
+  it("celebra el récord una vez, lo retira y no lo repite tras Deshacer y remarcar", async () => {
+    jest.useFakeTimers()
+    try {
+      const { api, comoApi } = crearApi()
+      api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+      api.anteriores.mockResolvedValue({
+        anteriores: [
+          {
+            ejercicioId: sesion.prescripcion.ejercicios[0]!.ejercicioId,
+            fecha: "2026-09-13T10:00:00.000Z",
+            valores: { tipoMedicion: "repeticiones", pesoKg: 37.5, repeticiones: 8 },
+          },
+        ],
+      })
+      const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      const check = await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" })
+      await fireEvent.press(check)
+      expect(screen.getByLabelText("Récord personal: +2,5 kg")).toBeOnTheScreen()
+      await act(async () => jest.advanceTimersByTime(1600))
+      expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+      await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+      expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).not.toBeChecked()
+      await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
+      expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
+      expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+      await vista.unmount()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it("no usa la mejor serie de otro ejercicio para anunciar un récord", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+    api.anteriores.mockResolvedValue({
+      anteriores: [
+        {
+          ejercicioId: "50000000-0000-4000-8000-000000000099",
+          fecha: "2026-09-13T10:00:00.000Z",
+          valores: { tipoMedicion: "repeticiones", pesoKg: 37.5, repeticiones: 8 },
+        },
+      ],
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(await screen.findByRole("checkbox", { name: /Hecha — Press banca/ }))
+    expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
+    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+  })
+
+  it("una serie recuperada hecha no celebra un récord al cargarla ni al remarcarla", async () => {
+    const { api, comoApi } = crearApi()
+    api.anteriores.mockResolvedValue({
+      anteriores: [
+        {
+          ejercicioId: sesion.prescripcion.ejercicios[0]!.ejercicioId,
+          fecha: "2026-09-13T10:00:00.000Z",
+          valores: { tipoMedicion: "repeticiones", pesoKg: 37.5, repeticiones: 8 },
+        },
+      ],
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    const check = await screen.findByRole("checkbox", { name: /Hecha — Press banca/ })
+    expect(check).toBeChecked()
+    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    await fireEvent.press(check)
+    await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
+    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+  })
+
+  it("remarcar una serie recuperada con la red pendiente no vuelve a celebrar el récord", async () => {
+    const { api, comoApi } = crearApi()
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), nuevoDocumento(sesion))
+    api.leerCliente.mockReturnValue(new Promise<SesionCliente>(() => undefined))
+    api.anteriores.mockResolvedValue({
+      anteriores: [
+        {
+          ejercicioId: sesion.prescripcion.ejercicios[0]!.ejercicioId,
+          fecha: "2026-09-13T10:00:00.000Z",
+          valores: { tipoMedicion: "repeticiones", pesoKg: 37.5, repeticiones: 8 },
+        },
+      ],
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    const check = await screen.findByRole("checkbox", { name: /Hecha — Press banca/ })
+    expect(api.leerCliente).toHaveBeenCalledWith(ID)
+    expect(check).toBeChecked()
+    expect(check).toBeEnabled()
+    await fireEvent.press(check)
+    expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).not.toBeChecked()
+    await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
+    expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
+    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+  })
+
+  it("recuerda también las series hechas del borrador remoto tras mostrar una copia local pendiente", async () => {
+    const { api, comoApi } = crearApi()
+    const local = nuevoDocumento(sesion)
+    local.edicion.series[0]!.hecha = false
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), local)
+    let resolver!: (remota: SesionCliente) => void
+    api.leerCliente.mockReturnValue(
+      new Promise<SesionCliente>((r) => {
+        resolver = r
+      }),
+    )
+    api.anteriores.mockResolvedValue({
+      anteriores: [
+        {
+          ejercicioId: sesion.prescripcion.ejercicios[0]!.ejercicioId,
+          fecha: "2026-09-13T10:00:00.000Z",
+          valores: { tipoMedicion: "repeticiones", pesoKg: 37.5, repeticiones: 8 },
+        },
+      ],
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByRole("checkbox", { name: /Hecha — Press banca/ })).not.toBeChecked()
+    await act(() => resolver(sesion))
+    await waitFor(() =>
+      expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked(),
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId("estado-guardado").props.children).toBe("Guardado"),
+    )
+    await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
+    await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
+    expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
+    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+  })
+
+  it("recuerda el borrador remoto antes de que el disco termine de guardarlo", async () => {
+    const { api, comoApi } = crearApi()
+    const local = nuevoDocumento(sesion)
+    local.edicion.series[0]!.hecha = false
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), local)
+    api.anteriores.mockResolvedValue({
+      anteriores: [
+        {
+          ejercicioId: sesion.prescripcion.ejercicios[0]!.ejercicioId,
+          fecha: "2026-09-13T10:00:00.000Z",
+          valores: { tipoMedicion: "repeticiones", pesoKg: 37.5, repeticiones: 8 },
+        },
+      ],
+    })
+    let resolver!: (remota: SesionCliente) => void
+    api.leerCliente.mockReturnValue(
+      new Promise<SesionCliente>((r) => {
+        resolver = r
+      }),
+    )
+    const guardarOriginal = almacenDispositivo.guardar
+    let liberarDisco!: () => void
+    const disco = new Promise<void>((r) => {
+      liberarDisco = r
+    })
+    const guardar = jest
+      .spyOn(almacenDispositivo, "guardar")
+      .mockImplementationOnce(async (...args) => {
+        await disco
+        return guardarOriginal(...args)
+      })
+    try {
+      await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      expect(await screen.findByRole("checkbox", { name: /Hecha — Press banca/ })).not.toBeChecked()
+      await act(() => resolver(sesion))
+      await waitFor(() =>
+        expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked(),
+      )
+      expect(screen.getByTestId("estado-guardado").props.children).toBe("Guardando…")
+      expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeEnabled()
+      await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
+      await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
+      expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
+      expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    } finally {
+      await act(() => liberarDisco())
+      guardar.mockRestore()
+    }
   })
 
   it("Deshacer acompaña a la barra de ajuste por encima del teclado", async () => {

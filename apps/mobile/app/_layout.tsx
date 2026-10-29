@@ -12,6 +12,7 @@ import { ProveedorDeSesion, useSesion } from "../src/sesion"
 import { degradadoOro, fondoDeMarca, tema } from "../src/tema"
 import { Armazon } from "../src/componentes/armazon"
 import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
+import { envolverPantalla } from "../src/componentes/transicion-pantalla"
 import { crearApiConsentimiento, PuertaConsentimiento } from "../src/consentimiento"
 
 /** Rutas a las que se llega sin sesion. Activar y recuperar estan aqui porque,
@@ -84,8 +85,10 @@ function Enrutador(): React.JSX.Element {
   const pila = (
     <Armazon>
       <Stack
+        screenLayout={envolverPantalla}
         screenOptions={{
           headerShown: false,
+          animation: "none",
           contentStyle: { backgroundColor: "transparent" },
         }}
       />

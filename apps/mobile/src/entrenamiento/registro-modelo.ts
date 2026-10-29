@@ -8,6 +8,7 @@ import {
   type Registro,
   type SeriePrescrita,
   type SerieRegistrada,
+  type ValoresEjecutados,
 } from "@alpha-omega/shared"
 
 export type SerieConDistancia = SeriePrescrita
@@ -15,6 +16,34 @@ export type EjercicioConDistancia = EjercicioPrescrito
 export type PrescripcionConDistancia = Prescripcion
 type SerieRegistradaConDistancia = SerieRegistrada
 export type RegistroConDistancia = Registro
+
+/** La API ofrece la mejor serie de la última sesión, solo comparable en reps y kg conocidos. */
+export function mejoraPersonal(
+  serie: SerieRegistrada,
+  anterior?: ValoresEjecutados,
+): string | null {
+  if (
+    !serie.hecha ||
+    serie.omitida ||
+    serie.tipoMedicion !== "repeticiones" ||
+    anterior?.tipoMedicion !== "repeticiones" ||
+    serie.pesoKg === null ||
+    anterior.pesoKg === null ||
+    serie.repeticiones === null ||
+    !Number.isFinite(serie.pesoKg) ||
+    !Number.isFinite(anterior.pesoKg) ||
+    !Number.isFinite(serie.repeticiones) ||
+    !Number.isFinite(anterior.repeticiones)
+  )
+    return null
+  if (serie.pesoKg > anterior.pesoKg && serie.repeticiones >= anterior.repeticiones) {
+    const diferencia = Number((serie.pesoKg - anterior.pesoKg).toPrecision(12))
+    return `+${String(diferencia).replace(".", ",")} kg`
+  }
+  if (serie.pesoKg === anterior.pesoKg && serie.repeticiones > anterior.repeticiones)
+    return `+${serie.repeticiones - anterior.repeticiones} reps`
+  return null
+}
 
 export const EdicionRegistroSchema = z.strictObject({
   notas: z.string().max(2000),

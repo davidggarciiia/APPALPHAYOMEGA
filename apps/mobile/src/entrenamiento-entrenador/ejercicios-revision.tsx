@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import {
   ETIQUETA_DE_ZONA,
@@ -12,8 +12,10 @@ import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { PrescripcionVisible } from "../entrenamiento/resultado"
 import { proximaVez } from "../entrenamiento/sesion/modelo"
 import { espacio, tema, tipo } from "../tema"
+import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
 import { edicionDesdeResultado } from "./ficha-modelo"
 import { ComentariosRevision } from "./comentarios-revision"
+import { DialogoResponder, textoDeMolestia } from "./ficha/atencion"
 
 export function EjerciciosRevision({
   resultado,
@@ -21,12 +23,14 @@ export function EjerciciosRevision({
   nombreCliente,
   api,
   nuevoId,
+  sinAcceso,
 }: {
   resultado: ResultadoEntrenamiento
   clienteId: string
   nombreCliente: string
   api: ApiEntrenamiento
   nuevoId?: () => string
+  sinAcceso: (causa: unknown) => void
 }): React.JSX.Element {
   const [comentarios, setComentarios] = useState<ComentarioSesion[]>([])
   const [molestias, setMolestias] = useState<Molestia[]>([])
@@ -34,12 +38,34 @@ export function EjerciciosRevision({
   const [abiertos, setAbiertos] = useState<ReadonlySet<string>>(new Set())
   const [error, setError] = useState("")
   const [intento, setIntento] = useState(0)
+  const [respondiendo, setRespondiendo] = useState<Molestia | null>(null)
+  const versionMolestias = useRef(0)
+  const montado = useRef(true)
+  useEffect(() => {
+    montado.current = true
+    return () => {
+      montado.current = false
+    }
+  }, [])
   useEffect(() => {
     let vigente = true
+    const version = versionMolestias.current
     setMolestiasConocidas(false)
     void Promise.allSettled([api.comentarios(resultado.sesionId), api.molestias(clienteId)]).then(
       ([c, m]) => {
         if (!vigente) return
+        const revocado = [c, m].find(
+          (lectura) =>
+            lectura.status === "rejected" &&
+            (lectura.reason instanceof ErrorDePermiso || lectura.reason instanceof ErrorDeSesion),
+        )
+        if (revocado?.status === "rejected") {
+          setComentarios([])
+          setMolestias([])
+          setRespondiendo(null)
+          sinAcceso(revocado.reason)
+          return
+        }
         if (c.status === "fulfilled")
           setComentarios((anteriores) => {
             const lista = new Map(
@@ -48,7 +74,7 @@ export function EjerciciosRevision({
             anteriores.forEach((comentario) => lista.set(comentario.id, comentario))
             return [...lista.values()]
           })
-        if (m.status === "fulfilled")
+        if (m.status === "fulfilled" && version === versionMolestias.current)
           setMolestias(
             m.value.molestias.filter((molestia) => molestia.sesionId === resultado.sesionId),
           )
@@ -63,7 +89,19 @@ export function EjerciciosRevision({
     return () => {
       vigente = false
     }
-  }, [api, resultado.sesionId, clienteId, intento])
+  }, [api, resultado.sesionId, clienteId, intento, sinAcceso])
+  const responder = async (molestia: Molestia, texto: string): Promise<void> => {
+    try {
+      const atendida = await api.atenderMolestia(molestia.id, texto)
+      if (!montado.current) return
+      versionMolestias.current += 1
+      setMolestias((lista) => lista.map((m) => (m.id === atendida.id ? atendida : m)))
+    } catch (causa) {
+      if (montado.current && (causa instanceof ErrorDePermiso || causa instanceof ErrorDeSesion))
+        sinAcceso(causa)
+      throw causa
+    }
+  }
   const abiertas = new Set(
     molestias
       .filter((m) => m.estado === "abierta" && m.ejercicioPrescritoId)
@@ -88,6 +126,31 @@ export function EjerciciosRevision({
       publicado={publicado}
       nuevoId={nuevoId}
     />
+  )
+  const avisoMolestia = (m: Molestia): React.JSX.Element => (
+    <View key={m.id} style={s.molestia}>
+      <Text style={s.aviso}>
+        Molestia · {ETIQUETA_DE_ZONA[m.zona].toLocaleLowerCase("es")}
+        {m.serie != null ? `, serie ${m.serie}` : ""}
+      </Text>
+      <Text style={s.proxima}>{textoDeMolestia(m).detalle}</Text>
+      {m.estado === "abierta" ? (
+        <>
+          <Text style={s.aviso}>Pendiente de ti</Text>
+          <BotonEnlace
+            texto="Responder"
+            etiquetaAccesible={`Responder: ${textoDeMolestia(m).titulo}`}
+            onPress={() => setRespondiendo(m)}
+          />
+        </>
+      ) : (
+        <Text style={s.proxima}>Tu respuesta: {m.respuesta}</Text>
+      )}
+    </View>
+  )
+  const ejercicios = new Set(resultado.prescripcion.ejercicios.map((e) => e.id))
+  const generales = molestias.filter(
+    (m) => !m.ejercicioPrescritoId || !ejercicios.has(m.ejercicioPrescritoId),
   )
   return (
     <View style={s.contenido}>
@@ -131,24 +194,20 @@ export function EjerciciosRevision({
                     Próxima vez · {proxima.texto}
                   </Text>
                 )}
-                {molestias
-                  .filter((m) => m.ejercicioPrescritoId === e.id)
-                  .map((m) => (
-                    <View key={m.id} style={s.molestia}>
-                      <Text style={s.aviso}>
-                        Molestia · {ETIQUETA_DE_ZONA[m.zona].toLocaleLowerCase("es")}
-                        {m.serie !== null ? `, serie ${m.serie}` : ""}
-                      </Text>
-                      {m.estado === "abierta" && <Text style={s.aviso}>Pendiente de ti</Text>}
-                    </View>
-                  ))}
+                {molestias.filter((m) => m.ejercicioPrescritoId === e.id).map(avisoMolestia)}
                 {comentariosDe(e.id, e.nombre)}
               </View>
             )
           },
         }}
       />
+      {generales.map(avisoMolestia)}
       {comentariosDe()}
+      <DialogoResponder
+        molestia={respondiendo}
+        cerrar={() => setRespondiendo(null)}
+        responder={responder}
+      />
     </View>
   )
 }

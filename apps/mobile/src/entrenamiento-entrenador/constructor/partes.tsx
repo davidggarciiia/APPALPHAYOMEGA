@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
 import type { Bloque, DeporteDelPlan, FaseDeBloque } from "@alpha-omega/shared"
 
+import { ListaAnimada, useAnimacionLista } from "../../componentes/lista-animada"
 import { INICIALES_DE_DIA } from "../../entrenamiento/plan/modelo"
 import { Enlace } from "../../entrenamiento/sesion/controles"
 import { alto, radio, tema, tipo } from "../../tema"
@@ -21,10 +22,16 @@ export function ListaDeSeccion({
   cambiar: (id: string, cambio: Partial<EjercicioDelConstructor>) => void
   quitar: (id: string) => void
 }): React.JSX.Element {
+  const animacion = useAnimacionLista()
   return (
     <View style={s.lista}>
       {ejercicios.map((e) => (
-        <View key={e.id} style={[s.fila, e.id === elegido && s.activa]}>
+        <ListaAnimada
+          key={e.id}
+          testID={`ejercicio-constructor-${e.id}`}
+          animacion={animacion}
+          style={[s.fila, e.id === elegido && s.activa]}
+        >
           <Pressable
             style={s.detallesEjercicio}
             accessibilityRole="button"
@@ -40,7 +47,7 @@ export function ListaDeSeccion({
             </Text>
           </Pressable>
           <Enlace texto="Quitar" etiqueta={`Quitar ${e.nombre}`} onPress={() => quitar(e.id)} />
-        </View>
+        </ListaAnimada>
       ))}
     </View>
   )

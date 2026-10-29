@@ -14,6 +14,7 @@ import type { BarraAjusteProps } from "../componentes/barra-ajuste"
 import { ChipsRir } from "../componentes/chips-rir"
 import { FilaSerie, type CeldaSerie } from "../componentes/fila-serie"
 import { Icono } from "../componentes/iconos"
+import { ListaAnimada, useAnimacionLista } from "../componentes/lista-animada"
 import { useMovimientoReducido } from "../componentes/movimiento"
 import { tema } from "../tema"
 import type { EdicionRegistro, EjercicioConDistancia, SerieConDistancia } from "./registro-modelo"
@@ -23,6 +24,7 @@ type SerieReal = EdicionRegistro["series"][number]
 type Unidad = SerieConDistancia["tipoMedicion"]
 export type FocoSerie = { serieId: string; celda: CeldaSerie }
 export type DeshacerSerie = { mensaje: string; deshacer: () => void }
+export type RecordPersonal = { serieId: string; mejora: string }
 
 const UNIDADES = {
   repeticiones: { cabecera: "REPS", corta: "REPS", ajuste: "reps", maximo: 10000 },
@@ -118,6 +120,8 @@ export function TablaSeries({
   verMolestia,
   enCurso = null,
   anterior,
+  recordPersonal,
+  recordsCelebrados,
   enfocada = null,
   enfocar,
   avisarDeshacer,
@@ -134,6 +138,8 @@ export function TablaSeries({
   enCurso?: string | null
   /** La API entrega la mejor serie anterior: se repite en cada fila. */
   anterior?: ValoresEjecutados
+  recordPersonal?: RecordPersonal | null
+  recordsCelebrados?: ReadonlySet<string>
   enfocada?: FocoSerie | null
   enfocar?: (serieId: string, celda: CeldaSerie) => void
   avisarDeshacer?: (aviso: DeshacerSerie) => void
@@ -142,6 +148,7 @@ export function TablaSeries({
 }): React.JSX.Element {
   const { fontScale } = useWindowDimensions()
   const reducido = useMovimientoReducido()
+  const animacion = useAnimacionLista()
   const sacudida = useSharedValue(0)
   const validacion = useAnimatedStyle(() => ({ transform: [{ translateX: sacudida.value }] }))
   useEffect(() => {
@@ -245,52 +252,65 @@ export function TablaSeries({
               </Text>
             )
           return (
-            <FilaSerie
+            <ListaAnimada
               key={prescrita.id}
-              numero={n + 1}
-              etiqueta={ejercicio.nombre}
-              tipoMedicion={prescrita.tipoMedicion}
-              tipoCarga={mostrarPeso ? "conCargaExterna" : "sinCarga"}
-              modoRir={modoRir}
-              anterior={anterior && anteriorLegible(anterior)}
-              peso={real.peso}
-              pesoSugerido={prescrita.pesoKg}
-              cantidad={real.valor}
-              cantidadSugerida={cantidadObjetivo(prescrita)}
-              rir={real.rir}
-              rirObjetivo={ejercicio.rir?.min}
-              hecha={real.hecha}
-              omitida={real.omitida}
-              primeraPendiente={prescrita.id === (enCurso ?? pendientes[0]?.id)}
-              enfocada={enfocada?.serieId === prescrita.id ? enfocada.celda : null}
-              deshabilitado={bloqueado}
-              alEnfocar={(celda) => {
-                if (!bloqueado) enfocar?.(prescrita.id, celda)
-              }}
-              alCambiarHecha={(hecha) => {
-                if (bloqueado) return
-                if (!hecha) {
-                  cambiar(prescrita.id, { hecha: false })
-                  return
+              testID={`serie-lista-${prescrita.id}`}
+              animacion={recordPersonal ? { ...animacion, layout: undefined } : animacion}
+            >
+              <FilaSerie
+                numero={n + 1}
+                etiqueta={ejercicio.nombre}
+                tipoMedicion={prescrita.tipoMedicion}
+                tipoCarga={mostrarPeso ? "conCargaExterna" : "sinCarga"}
+                modoRir={modoRir}
+                anterior={anterior && anteriorLegible(anterior)}
+                recordPersonal={
+                  recordPersonal?.serieId === prescrita.id ? recordPersonal.mejora : undefined
                 }
-                conDeshacer(
-                  real,
-                  {
-                    hecha: true,
-                    omitida: undefined,
-                    ...(real.valor.trim() === "" && { valor: String(cantidadObjetivo(prescrita)) }),
-                    ...(real.peso.trim() === "" &&
-                      mostrarPeso &&
-                      prescrita.pesoKg !== null && { peso: decimal(prescrita.pesoKg) }),
-                  },
-                  "Serie hecha",
-                )
-              }}
-              alOmitir={() => conDeshacer(real, { hecha: false, omitida: true }, "Serie omitida")}
-              alRecuperar={() => {
-                if (!bloqueado) cambiar(prescrita.id, { hecha: false, omitida: undefined })
-              }}
-            />
+                destelloAlCompletar={
+                  !recordsCelebrados?.has(prescrita.id) || recordPersonal?.serieId === prescrita.id
+                }
+                peso={real.peso}
+                pesoSugerido={prescrita.pesoKg}
+                cantidad={real.valor}
+                cantidadSugerida={cantidadObjetivo(prescrita)}
+                rir={real.rir}
+                rirObjetivo={ejercicio.rir?.min}
+                hecha={real.hecha}
+                omitida={real.omitida}
+                primeraPendiente={prescrita.id === (enCurso ?? pendientes[0]?.id)}
+                enfocada={enfocada?.serieId === prescrita.id ? enfocada.celda : null}
+                deshabilitado={bloqueado}
+                alEnfocar={(celda) => {
+                  if (!bloqueado) enfocar?.(prescrita.id, celda)
+                }}
+                alCambiarHecha={(hecha) => {
+                  if (bloqueado) return
+                  if (!hecha) {
+                    cambiar(prescrita.id, { hecha: false })
+                    return
+                  }
+                  conDeshacer(
+                    real,
+                    {
+                      hecha: true,
+                      omitida: undefined,
+                      ...(real.valor.trim() === "" && {
+                        valor: String(cantidadObjetivo(prescrita)),
+                      }),
+                      ...(real.peso.trim() === "" &&
+                        mostrarPeso &&
+                        prescrita.pesoKg !== null && { peso: decimal(prescrita.pesoKg) }),
+                    },
+                    "Serie hecha",
+                  )
+                }}
+                alOmitir={() => conDeshacer(real, { hecha: false, omitida: true }, "Serie omitida")}
+                alRecuperar={() => {
+                  if (!bloqueado) cambiar(prescrita.id, { hecha: false, omitida: undefined })
+                }}
+              />
+            </ListaAnimada>
           )
         })}
       </Animated.View>
@@ -316,7 +336,11 @@ export function TablaSeries({
         pendientes.length === 0 &&
         ultimaHecha &&
         !bloqueado && (
-          <View style={s.rirFinal}>
+          <ListaAnimada
+            animacion={{ exiting: animacion.exiting, layout: animacion.layout }}
+            testID="rir-final-lista"
+            style={s.rirFinal}
+          >
             <Text style={s.resumen}>RIR del ejercicio</Text>
             <ChipsRir
               etiqueta={`Repeticiones que te quedaban al terminar ${ejercicio.nombre}`}
@@ -324,7 +348,7 @@ export function TablaSeries({
               valor={series.find((serie) => serie.serieId === ultimaHecha.id)?.rir ?? null}
               cambiar={(rir) => cambiar(ultimaHecha.id, { rir })}
             />
-          </View>
+          </ListaAnimada>
         )}
     </View>
   )

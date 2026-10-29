@@ -1,5 +1,5 @@
 ﻿import { useState, type ComponentProps } from "react"
-import { Dimensions } from "react-native"
+import { AccessibilityInfo, Dimensions } from "react-native"
 import { act, fireEvent, render, screen, userEvent, within } from "@testing-library/react-native"
 import {
   mantieneUnidadYCarga,
@@ -17,10 +17,14 @@ import { ajusteDeSerie, TablaSeries, type FocoSerie } from "./tabla-series"
 import { BarraAjuste } from "../componentes/barra-ajuste"
 
 const ventanaOriginal = Dimensions.get("window")
-beforeEach(() => Dimensions.set({ window: { ...ventanaOriginal, fontScale: 1 } }))
+beforeEach(() => {
+  Dimensions.set({ window: { ...ventanaOriginal, fontScale: 1 } })
+  jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
+})
 afterEach(() => {
   Dimensions.set({ window: ventanaOriginal })
   jest.useRealTimers()
+  jest.restoreAllMocks()
 })
 
 function TablaConBarra(props: ComponentProps<typeof TablaSeries>): React.JSX.Element {
@@ -74,6 +78,62 @@ const ejercicio: EjercicioPrescrito = {
 }
 
 describe("D2 · tabla completa y barra compartida", () => {
+  it.each([false, true])(
+    "las filas conservan animaciones de lista según movimiento reducido (%s)",
+    async (reducido) => {
+      const movimiento = jest
+        .spyOn(AccessibilityInfo, "isReduceMotionEnabled")
+        .mockResolvedValue(reducido)
+      try {
+        await render(
+          <TablaSeries
+            ejercicio={ejercicio}
+            series={[{ serieId, peso: "", valor: "30", hecha: false }]}
+            bloqueado={false}
+            cambiar={jest.fn()}
+          />,
+        )
+        const fila = screen.getByTestId(`serie-lista-${serieId}`)
+        for (const propiedad of ["entering", "exiting", "layout"])
+          if (reducido) expect(fila.props[propiedad]).toBeUndefined()
+          else expect(fila.props[propiedad]).toBeDefined()
+        await screen.rerender(
+          <TablaSeries
+            ejercicio={ejercicio}
+            series={[{ serieId, peso: "", valor: "30", hecha: false, omitida: true }]}
+            bloqueado={false}
+            cambiar={jest.fn()}
+          />,
+        )
+        expect(screen.getAllByTestId("fila-serie")).toHaveLength(1)
+        expect(screen.getByTestId("fila-serie")).toHaveStyle({ opacity: 0.5 })
+      } finally {
+        movimiento.mockRestore()
+      }
+    },
+  )
+
+  it("suspende el reacomodo de filas durante el récord y lo restaura al retirar la etiqueta", async () => {
+    const props = {
+      ejercicio,
+      series: [{ serieId, peso: "", valor: "30", hecha: true }],
+      bloqueado: false,
+      cambiar: jest.fn(),
+    }
+    await render(<TablaSeries {...props} />)
+    expect(screen.getByTestId(`serie-lista-${serieId}`).props.layout).toBeDefined()
+    await screen.rerender(
+      <TablaSeries {...props} recordPersonal={{ serieId, mejora: "+2 reps" }} />,
+    )
+    expect(screen.getByLabelText("Récord personal: +2 reps")).toBeOnTheScreen()
+    const durante = screen.getByTestId(`serie-lista-${serieId}`)
+    expect(durante.props.layout).toBeUndefined()
+    expect(durante.props.entering).toBeDefined()
+    expect(durante.props.exiting).toBeDefined()
+    await screen.rerender(<TablaSeries {...props} />)
+    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    expect(screen.getByTestId(`serie-lista-${serieId}`).props.layout).toBeDefined()
+  })
   it.each([
     ["repeticiones", "cantidad", "reps", 8, 1, 10000],
     ["tiempo", "cantidad", "seg", 30, 1, 86400],
@@ -254,6 +314,37 @@ describe("D2 · tabla completa y barra compartida", () => {
     )
     await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha —/ }))
     expect(avisarDeshacer).not.toHaveBeenCalled()
+  })
+
+  it("Deshacer retira el RIR final con salida de lista y mantiene la serie visible", async () => {
+    const avisarDeshacer = jest.fn()
+    function Controlada(): React.JSX.Element {
+      const [series, actualizar] = useState([{ serieId, peso: "", valor: "30", hecha: false }])
+      return (
+        <TablaSeries
+          ejercicio={{ ...ejercicio, modoRir: "alFinalizarEjercicio", rir: { min: 2, max: 2 } }}
+          series={series}
+          bloqueado={false}
+          cambiar={(id, cambio) =>
+            actualizar((actuales) =>
+              actuales.map((serie) => (serie.serieId === id ? { ...serie, ...cambio } : serie)),
+            )
+          }
+          avisarDeshacer={avisarDeshacer}
+        />
+      )
+    }
+    await render(<Controlada />)
+    await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha —/ }))
+    expect(screen.getByText("RIR del ejercicio")).toBeOnTheScreen()
+    const final = screen.getByTestId("rir-final-lista")
+    expect(final.props.entering).toBeUndefined()
+    expect(final.props.exiting).toBeDefined()
+    expect(final.props.layout).toBeDefined()
+    await act(() => avisarDeshacer.mock.calls[0]![0].deshacer())
+    expect(screen.queryByText("RIR del ejercicio")).toBeNull()
+    expect(screen.getAllByTestId("fila-serie")).toHaveLength(1)
+    expect(screen.getByRole("checkbox", { name: /Hecha —/ })).not.toBeChecked()
   })
 
   it.each(["marcar", "omitir"] as const)(
