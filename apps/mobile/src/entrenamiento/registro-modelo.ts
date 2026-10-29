@@ -173,7 +173,9 @@ export function edicionRecuperada(
   )
   const actuales = new Map(
     prescripcion.ejercicios.flatMap((e) =>
-      e.series.map((s) => [s.id, { serie: s, tipoCarga: e.tipoCarga }] as const),
+      e.series.map(
+        (s) => [s.id, { serie: s, tipoCarga: e.tipoCarga, seccion: e.seccion }] as const,
+      ),
     ),
   )
   const valores = new Map(respaldo.edicion.series.map((s) => [s.serieId, s]))
@@ -191,6 +193,7 @@ export function edicionRecuperada(
       if (
         anterior.hecha &&
         !tienePeso &&
+        (actual.seccion ?? "principal") === "principal" &&
         (actual.tipoCarga === "conCargaExterna" || actual.serie.pesoKg !== null)
       )
         return s

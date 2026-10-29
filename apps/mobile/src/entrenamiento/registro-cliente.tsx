@@ -500,6 +500,7 @@ export function RegistroCliente({
       } catch {
         const prescrita = ejercicio?.series.find((s) => s.id === serieId)
         const sinPeso =
+          (ejercicio?.seccion ?? "principal") === "principal" &&
           ejercicio?.tipoCarga !== "sinCarga" &&
           (ejercicio?.tipoCarga === "conCargaExterna" || prescrita?.pesoKg != null) &&
           !nueva.series.find((s) => s.serieId === serieId)?.peso.trim()

@@ -243,6 +243,75 @@ describe("Registro privado y envío", () => {
   })
 })
 
+describe.each(["registro", "resultado"])("Carga por sección en %s (D13)", (contrato) => {
+  function aceptaPeso(
+    seccion: contratos.SeccionDeSesion | undefined,
+    pesoKg: unknown,
+    tipoCarga: "conCargaExterna" | "sinCarga" = "conCargaExterna",
+  ): boolean {
+    const pautada = contratos.PrescripcionSchema.parse({
+      ...prescripcion,
+      ejercicios: [
+        {
+          ...ejercicioPrescrito,
+          ...(seccion !== undefined && { seccion }),
+          tipoCarga,
+          series: [{ ...serie, pesoKg: tipoCarga === "sinCarga" ? null : serie.pesoKg }],
+        },
+      ],
+    })
+    if (contrato === "registro")
+      return contratos.crearRegistroDeSesionSchema(pautada).safeParse({
+        series: [{ ...registroSerie, pesoKg }],
+        notas: null,
+      }).success
+    return contratos.ResultadoEntrenamientoSchema.safeParse({
+      sesionId: id,
+      prescripcion: pautada,
+      revisionPrescripcion: 0,
+      enviadoEn: "2026-09-18T18:00:00Z",
+      notas: null,
+      series: [
+        {
+          serieId: id,
+          hecha: true,
+          valores: { tipoMedicion: "repeticiones", pesoKg, repeticiones: 8 },
+        },
+      ],
+    }).success
+  }
+
+  it.each([undefined, "principal"] as const)(
+    "la parte %s exige peso con carga externa, incluido cero",
+    (seccion) => {
+      expect(aceptaPeso(seccion, null)).toBe(false)
+      expect(aceptaPeso(seccion, 0)).toBe(true)
+      expect(aceptaPeso(seccion, 35)).toBe(true)
+    },
+  )
+
+  it.each(["calentamiento", "circuito", "final"] as const)(
+    "%s permite completar sin peso aunque haya carga externa pautada",
+    (seccion) => {
+      expect(aceptaPeso(seccion, null)).toBe(true)
+      expect(aceptaPeso(seccion, 0)).toBe(true)
+      expect(aceptaPeso(seccion, 35)).toBe(true)
+    },
+  )
+
+  it.each([undefined, ...contratos.SECCIONES_DE_SESION])(
+    "la parte %s conserva el rechazo de kilos en sinCarga y de pesos inválidos",
+    (seccion) => {
+      expect(aceptaPeso(seccion, null, "sinCarga")).toBe(true)
+      expect(aceptaPeso(seccion, 0, "sinCarga")).toBe(false)
+      expect(aceptaPeso(seccion, 35, "sinCarga")).toBe(false)
+      for (const pesoKg of [-1, 1001, NaN, Infinity, "35", undefined]) {
+        expect(aceptaPeso(seccion, pesoKg)).toBe(false)
+      }
+    },
+  )
+})
+
 describe("Distancia en metros (D01, contrato auxiliar)", () => {
   const objetivoMetros = { id, tipoMedicion: "distancia", pesoKg: 24, metros: 20 }
   const registroMetros = {

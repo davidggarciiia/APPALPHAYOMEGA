@@ -1001,31 +1001,83 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     expect(screen.queryByRole("button", { name: "Terminar entreno" })).toBeNull()
   })
 
-  it("el peso obligatorio se valida junto a la tabla y no marca la serie", async () => {
-    const { api, comoApi } = crearApi()
-    api.leerCliente.mockResolvedValue({
-      ...sesion,
-      prescripcion: {
-        ...sesion.prescripcion,
-        ejercicios: [
+  it.each(["calentamiento", "circuito", "final"] as const)(
+    "D13: marca y envía %s sin exigir ni inventar kilos",
+    async (seccion) => {
+      const { api, comoApi } = crearApi()
+      const pauta: SesionCliente = {
+        ...sesion,
+        prescripcion: {
+          ...sesion.prescripcion,
+          ejercicios: [
+            {
+              ...sesion.prescripcion.ejercicios[0]!,
+              seccion,
+              tipoCarga: "conCargaExterna",
+              series: [{ id: SERIE, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 }],
+            },
+          ],
+        },
+        borrador: null,
+      }
+      api.leerCliente.mockResolvedValue(pauta)
+      api.guardar.mockImplementation(borradorGuardado)
+      api.enviar.mockImplementation(async (_id, envio) => ({
+        ...resultado(envio),
+        prescripcion: pauta.prescripcion,
+        series: [
           {
-            ...sesion.prescripcion.ejercicios[0]!,
-            tipoCarga: "conCargaExterna",
-            calibrar: true,
-            series: [{ id: SERIE, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 }],
+            serieId: SERIE,
+            hecha: true,
+            valores: { tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 },
           },
         ],
-      },
-      borrador: null,
-    })
-    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await fireEvent.press(await screen.findByRole("checkbox", { name: /Hecha — Press banca/ }))
-    const tabla = within(screen.getByTestId("series-del-ejercicio"))
-    expect(tabla.getByRole("alert")).toBeTruthy()
-    expect(tabla.getByText("Falta el peso")).toBeTruthy()
-    expect(
-      screen.getByRole("checkbox", { name: /Hecha — Press banca/ }).props.accessibilityState
-        .checked,
-    ).toBe(false)
-  })
+      }))
+      await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      const casilla = await screen.findByRole("checkbox", { name: /Press banca/ })
+      expect(casilla).toBeEnabled()
+      await fireEvent.press(casilla)
+      await waitFor(() => expect(copiaGuardada().edicion.series[0].hecha).toBe(true))
+      expect(screen.queryByText("Falta el peso")).toBeNull()
+      await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+      await waitFor(() => expect(api.enviar).toHaveBeenCalledTimes(1))
+      expect(api.enviar.mock.calls[0]![1].registro.series[0]).toMatchObject({
+        hecha: true,
+        pesoKg: null,
+        repeticiones: 8,
+      })
+    },
+  )
+
+  it.each(["principal", undefined] as const)(
+    "el peso obligatorio se valida junto a la tabla y no marca la serie (seccion: %s)",
+    async (seccion) => {
+      const { api, comoApi } = crearApi()
+      api.leerCliente.mockResolvedValue({
+        ...sesion,
+        prescripcion: {
+          ...sesion.prescripcion,
+          ejercicios: [
+            {
+              ...sesion.prescripcion.ejercicios[0]!,
+              ...(seccion !== undefined && { seccion }),
+              tipoCarga: "conCargaExterna",
+              calibrar: true,
+              series: [{ id: SERIE, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 }],
+            },
+          ],
+        },
+        borrador: null,
+      })
+      await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      const nombreCasilla = "Hecha — Press banca, serie 1"
+      const casilla = await screen.findByRole("checkbox", { name: nombreCasilla })
+      expect(casilla).toBeEnabled()
+      expect(casilla).not.toBeChecked()
+      await fireEvent.press(casilla)
+      const tabla = within(screen.getByTestId("series-del-ejercicio"))
+      expect(tabla.getByRole("alert", { name: "Falta el peso" })).toBeOnTheScreen()
+      expect(tabla.getByRole("checkbox", { name: nombreCasilla })).not.toBeChecked()
+    },
+  )
 })

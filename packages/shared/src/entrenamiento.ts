@@ -469,9 +469,11 @@ function cargaEjecutadaValida(
   pesoKg: number | null,
   objetivo: { pesoKg: number | null },
   tipoCarga: "conCargaExterna" | "sinCarga" | undefined,
+  seccion?: SeccionDeSesion,
 ): boolean {
   if (!hecha) return true
   if (tipoCarga === "sinCarga") return pesoKg === null
+  if (seccion !== undefined && seccion !== "principal") return true
   if (tipoCarga === "conCargaExterna") return pesoKg !== null
   return objetivo.pesoKg === null || pesoKg !== null
 }
@@ -481,10 +483,11 @@ export function mantieneUnidadYCarga(
   serie: Pick<SerieRegistrada, "tipoMedicion" | "hecha" | "pesoKg">,
   objetivo: Pick<SeriePrescrita, "tipoMedicion" | "pesoKg">,
   tipoCarga: "conCargaExterna" | "sinCarga" | undefined,
+  seccion?: SeccionDeSesion,
 ): boolean {
   return (
     serie.tipoMedicion === objetivo.tipoMedicion &&
-    cargaEjecutadaValida(serie.hecha, serie.pesoKg, objetivo, tipoCarga)
+    cargaEjecutadaValida(serie.hecha, serie.pesoKg, objetivo, tipoCarga, seccion)
   )
 }
 
@@ -493,7 +496,11 @@ export function crearRegistroDeSesionSchema(prescripcion: Prescripcion): z.ZodTy
   const prescritas = new Map(
     prescripcion.ejercicios.flatMap((ejercicio) =>
       ejercicio.series.map(
-        (serie) => [serie.id, { serie, tipoCarga: ejercicio.tipoCarga }] as const,
+        (serie) =>
+          [
+            serie.id,
+            { serie, tipoCarga: ejercicio.tipoCarga, seccion: ejercicio.seccion },
+          ] as const,
       ),
     ),
   )
@@ -503,7 +510,7 @@ export function crearRegistroDeSesionSchema(prescripcion: Prescripcion): z.ZodTy
         const prescrita = prescritas.get(serie.serieId)
         return (
           prescrita !== undefined &&
-          mantieneUnidadYCarga(serie, prescrita.serie, prescrita.tipoCarga)
+          mantieneUnidadYCarga(serie, prescrita.serie, prescrita.tipoCarga, prescrita.seccion)
         )
       }),
     "Las series deben pertenecer a la sesión, mantener su unidad y registrar la carga requerida",
@@ -614,7 +621,11 @@ export const ResultadoEntrenamientoSchema = z
     const prescritas = new Map(
       resultado.prescripcion.ejercicios.flatMap((ejercicio) =>
         ejercicio.series.map(
-          (serie) => [serie.id, { serie, tipoCarga: ejercicio.tipoCarga }] as const,
+          (serie) =>
+            [
+              serie.id,
+              { serie, tipoCarga: ejercicio.tipoCarga, seccion: ejercicio.seccion },
+            ] as const,
         ),
       ),
     )
@@ -631,6 +642,7 @@ export const ResultadoEntrenamientoSchema = z
               { ...serie.valores, hecha: true },
               prescrita.serie,
               prescrita.tipoCarga,
+              prescrita.seccion,
             ))
         )
       })

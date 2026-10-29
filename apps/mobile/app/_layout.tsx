@@ -2,10 +2,17 @@ import anton from "../assets/fonts/Anton-Regular.ttf"
 import archivo from "../assets/fonts/Archivo-Regular.ttf"
 import archivoSemi from "../assets/fonts/Archivo-SemiBold.ttf"
 import archivoBold from "../assets/fonts/Archivo-Bold.ttf"
-import { DarkTheme, Stack, ThemeProvider, useRouter, useSegments } from "expo-router"
+import {
+  DarkTheme,
+  Stack,
+  ThemeProvider,
+  useFocusEffect,
+  useRouter,
+  useSegments,
+} from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useFonts } from "expo-font"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
 
 import { ProveedorDeSesion, useSesion } from "../src/sesion"
@@ -25,31 +32,49 @@ const RUTAS_PUBLICAS = ["login", "activar", "recuperar", "restablecer"]
  * Vive aqui, en la raiz, y no dentro de cada pantalla: una comprobacion por
  * pantalla se olvida en la pantalla numero doce.
  */
-function Enrutador(): React.JSX.Element {
-  const { estado, sinConexion, reintentar, pedir, salir } = useSesion()
-  const consentimiento = useMemo(() => crearApiConsentimiento(pedir), [pedir])
+function RedireccionDeSesion(): null {
+  const { estado } = useSesion()
   const segmentos = useSegments()
   const router = useRouter()
 
-  useEffect(() => {
-    if (estado.fase === "comprobando") {
-      return
-    }
+  // El foco espera a que Expo registre la pila; antes puede reemplazar la raíz y repetir la intro.
+  useFocusEffect(
+    useCallback(() => {
+      if (estado.fase === "comprobando") {
+        return
+      }
 
-    const enRutaPublica = RUTAS_PUBLICAS.includes(segmentos[0] ?? "")
+      const enRutaPublica = RUTAS_PUBLICAS.includes(segmentos[0] ?? "")
 
-    if (estado.fase === "fuera" && !enRutaPublica) {
-      router.replace("/login")
-    } else if (estado.fase === "dentro" && enRutaPublica) {
-      router.replace("/")
-    } else if (
-      estado.fase === "local" &&
-      segmentos[0] !== "entrenamiento" &&
-      segmentos[0] !== "nutricion"
-    ) {
-      router.replace("/entrenamiento")
-    }
-  }, [estado, segmentos, router])
+      if (estado.fase === "fuera" && !enRutaPublica) {
+        router.replace("/login")
+      } else if (estado.fase === "dentro" && enRutaPublica) {
+        router.replace("/")
+      } else if (
+        estado.fase === "local" &&
+        segmentos[0] !== "entrenamiento" &&
+        segmentos[0] !== "nutricion"
+      ) {
+        router.replace("/entrenamiento")
+      }
+    }, [estado, segmentos, router]),
+  )
+
+  return null
+}
+
+function envolverPantallaConSesion({ children }: { children: ReactNode }): React.JSX.Element {
+  return (
+    <>
+      <RedireccionDeSesion />
+      {envolverPantalla({ children })}
+    </>
+  )
+}
+
+function Enrutador(): React.JSX.Element {
+  const { estado, sinConexion, reintentar, pedir, salir } = useSesion()
+  const consentimiento = useMemo(() => crearApiConsentimiento(pedir), [pedir])
 
   if (estado.fase === "comprobando") {
     return (
@@ -85,7 +110,7 @@ function Enrutador(): React.JSX.Element {
   const pila = (
     <Armazon>
       <Stack
-        screenLayout={envolverPantalla}
+        screenLayout={envolverPantallaConSesion}
         screenOptions={{
           headerShown: false,
           animation: "none",

@@ -206,9 +206,10 @@ export function FilaSerie({
   }
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole="none"
       accessibilityLabel={`Serie ${numero} — ${etiqueta}${omitida ? ", omitida" : ""}`}
       accessible={false}
+      tabIndex={-1}
       onLongPress={omitir}
       delayLongPress={500}
       onPress={recuperar}

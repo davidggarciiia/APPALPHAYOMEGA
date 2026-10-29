@@ -92,6 +92,15 @@ it("muestra sugerencias, conserva cero y enfoca celdas sin campos de teclado", a
   expect(screen.queryAllByRole("textbox")).toHaveLength(0)
 })
 
+it("deja el contenedor de la fila sin rol de botón ni parada de teclado redundante", async () => {
+  await render(<FilaSerie {...props} />)
+  const fila = screen.getByLabelText("Serie 1 — Sentadilla")
+  expect(fila.props.accessibilityRole).toBe("none")
+  expect(fila.props.tabIndex).toBe(-1)
+  expect(screen.getAllByRole("button")).toHaveLength(3)
+  expect(screen.getByRole("checkbox", { name: "Hecha — Sentadilla, serie 1" })).toBeOnTheScreen()
+})
+
 it("quita columnas según tipo de carga y modo RIR", async () => {
   await render(<FilaSerie {...props} tipoCarga="sinCarga" modoRir="alFinalizarEjercicio" />)
   expect(screen.queryByRole("button", { name: /Peso —/ })).toBeNull()
@@ -118,20 +127,26 @@ it("ofrece omitir tras 500 ms, recuperación al tocar y acciones para lector", a
   const alOmitir = jest.fn(),
     alRecuperar = jest.fn()
   await render(<FilaSerie {...props} alOmitir={alOmitir} alRecuperar={alRecuperar} />)
+  await userEvent
+    .setup()
+    .longPress(screen.getByLabelText("Serie 1 — Sentadilla"), { duration: 500 })
+  expect(alOmitir).toHaveBeenCalledTimes(1)
   const celda = screen.getByRole("button", { name: /Peso —/ })
   await userEvent.setup().longPress(celda, { duration: 500 })
-  expect(alOmitir).toHaveBeenCalledTimes(1)
+  expect(alOmitir).toHaveBeenCalledTimes(2)
   expect(vibrar).toHaveBeenCalledWith("aviso")
   await screen.rerender(
     <FilaSerie {...props} omitida alOmitir={alOmitir} alRecuperar={alRecuperar} />,
   )
   expect(screen.getByTestId("fila-serie")).toHaveStyle({ opacity: 0.5 })
-  await fireEvent.press(screen.getByRole("button", { name: /Peso —/ }))
+  await fireEvent.press(screen.getByLabelText("Serie 1 — Sentadilla, omitida"))
   expect(alRecuperar).toHaveBeenCalledTimes(1)
+  await fireEvent.press(screen.getByRole("button", { name: /Peso —/ }))
+  expect(alRecuperar).toHaveBeenCalledTimes(2)
   await fireEvent(screen.getByRole("checkbox"), "accessibilityAction", {
     nativeEvent: { actionName: "recuperar" },
   })
-  expect(alRecuperar).toHaveBeenCalledTimes(2)
+  expect(alRecuperar).toHaveBeenCalledTimes(3)
 })
 
 it("distingue foco y RIR bajo, con objetivos táctiles de 44", async () => {

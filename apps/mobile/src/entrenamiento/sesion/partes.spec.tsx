@@ -113,7 +113,34 @@ const ejercicio: EjercicioPrescrito = {
   series: [{ id: serieId, tipoMedicion: "repeticiones", repeticiones: 10, pesoKg: null }],
 }
 
-it("permite escribir los kilos antes de marcar un calentamiento con carga externa", async () => {
+it.each(["calentamiento", "final"] as const)(
+  "D13: permite marcar %s con carga externa sin escribir kilos",
+  async (seccion) => {
+    const marcar = jest.fn()
+    const pauta = { ...ejercicio, seccion }
+    await render(
+      <ListaMarcable
+        titulo={seccion === "calentamiento" ? "Calentamiento" : "Final"}
+        ejercicios={[pauta]}
+        series={[{ serieId, peso: "", valor: "", hecha: false }]}
+        bloqueado={false}
+        marcar={marcar}
+        cambiarPeso={jest.fn()}
+      />,
+    )
+    const casilla = screen.getByRole("checkbox", { name: /Movilidad/ })
+    expect(casilla).toBeEnabled()
+    await fireEvent.press(casilla)
+    expect(marcar).toHaveBeenCalledWith(pauta, true)
+    expect(screen.queryByText("Escribe el peso usado antes de marcar el ejercicio.")).toBeNull()
+    expect(screen.getByLabelText("Peso — Movilidad, serie 1")).toHaveProp(
+      "keyboardType",
+      "decimal-pad",
+    )
+  },
+)
+
+it("permite anotar kilos opcionales antes de marcar un calentamiento con carga externa", async () => {
   const cambiarPeso = jest.fn()
   const marcar = jest.fn()
   const props = {
@@ -127,7 +154,7 @@ it("permite escribir los kilos antes de marcar un calentamiento con carga extern
   const vista = await render(<ListaMarcable {...props} />)
   expect(screen.getByRole("checkbox", { name: /Movilidad/ })).toHaveProp("accessibilityState", {
     checked: false,
-    disabled: true,
+    disabled: false,
   })
   await fireEvent.changeText(screen.getByLabelText("Peso — Movilidad, serie 1"), "12,5")
   expect(cambiarPeso).toHaveBeenCalledWith(serieId, "12,5")
@@ -237,7 +264,7 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
     }
   }
 
-  it("con carga pide kg por serie y marca en metros con el peso escrito", async () => {
+  it("con carga permite anotar kg opcionales por serie y conserva los metros", async () => {
     const marcar = jest.fn()
     const props = {
       titulo: "Calentamiento",
@@ -252,15 +279,14 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
     }
     const vista = await render(<ListaMarcable {...props} />)
     const casilla = screen.getByRole("checkbox", { name: "Paseo del granjero, 2 × 20 m" })
-    // Sin kilos pautados en la segunda serie, no se puede marcar sin escribirlos.
-    expect(casilla).toHaveProp("accessibilityState", { checked: false, disabled: true })
+    expect(casilla).toHaveProp("accessibilityState", { checked: false, disabled: false })
     expect(screen.getByLabelText("Peso — Paseo del granjero, serie 1")).toHaveProp(
       "placeholder",
       "16",
     )
     expect(screen.getByLabelText("Peso — Paseo del granjero, serie 2")).toHaveProp(
       "placeholder",
-      "Escribe kg",
+      "Opcional",
     )
 
     const conPeso = [props.series[0]!, { ...props.series[1]!, peso: "18" }]

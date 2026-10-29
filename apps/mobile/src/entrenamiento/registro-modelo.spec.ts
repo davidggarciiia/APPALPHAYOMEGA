@@ -141,6 +141,67 @@ it("conserva la omisión y el tiempo activo sin convertir pendientes en omitidas
   expect(desdePrescripcion(prescripcion, registro).series[0]?.omitida).toBe(true)
 })
 
+describe("D13 · peso opcional fuera de la parte principal", () => {
+  const conCarga = (
+    seccion: "calentamiento" | "principal" | "circuito" | "final",
+  ): Prescripcion => ({
+    ...prescripcion,
+    ejercicios: [
+      {
+        ...prescripcion.ejercicios[0]!,
+        seccion,
+        tipoCarga: "conCargaExterna",
+        series: [{ ...prescripcion.ejercicios[0]!.series[0]!, pesoKg: null }],
+      },
+    ],
+  })
+
+  it.each(["calentamiento", "circuito", "final"] as const)(
+    "%s se envía sin inventar kilos al dejar el peso vacío",
+    (seccion) => {
+      const pauta = conCarga(seccion)
+      const edicion = desdePrescripcion(pauta)
+      Object.assign(edicion.series[0]!, { valor: "10", hecha: true })
+
+      expect(registroParaEnviar(pauta, edicion).series[0]).toMatchObject({
+        hecha: true,
+        pesoKg: null,
+        repeticiones: 10,
+      })
+    },
+  )
+
+  it.each(["calentamiento", "circuito", "final"] as const)(
+    "recupera %s hecho sin kilos y lo deja pendiente si pasa a principal",
+    (seccion) => {
+      const pauta = conCarga(seccion)
+      const edicion = desdePrescripcion(pauta)
+      Object.assign(edicion.series[0]!, { valor: "10", hecha: true })
+
+      expect(edicionRecuperada({ prescripcion: pauta, edicion }, pauta).series).toEqual(
+        edicion.series,
+      )
+      expect(
+        edicionRecuperada({ prescripcion: pauta, edicion }, conCarga("principal")).series[0]?.hecha,
+      ).toBe(false)
+    },
+  )
+
+  it("mantiene el peso exigido en la parte principal con carga externa", () => {
+    const pauta = conCarga("principal")
+    const edicion = desdePrescripcion(pauta)
+    Object.assign(edicion.series[0]!, { valor: "10", hecha: true })
+
+    expect(() => registroParaEnviar(pauta, edicion)).toThrow()
+    edicion.series[0]!.peso = "12,5"
+    expect(registroParaEnviar(pauta, edicion).series[0]).toMatchObject({
+      hecha: true,
+      pesoKg: 12.5,
+      repeticiones: 10,
+    })
+  })
+})
+
 describe("Distancia en metros (D01)", () => {
   const u = (n: number): string => `50000000-0000-4000-8000-${String(n).padStart(12, "0")}`
   const transportes: PrescripcionConDistancia = {

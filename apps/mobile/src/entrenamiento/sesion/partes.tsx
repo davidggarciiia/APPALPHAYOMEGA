@@ -231,13 +231,6 @@ export function ListaMarcable({
             ejercicio.tipoCarga === "conCargaExterna" ||
             (ejercicio.tipoCarga === undefined &&
               ejercicio.series.some((serie) => serie.pesoKg !== null))
-          const faltaPeso =
-            ejercicio.tipoCarga === "conCargaExterna" &&
-            ejercicio.series.some(
-              (serie) =>
-                serie.pesoKg === null &&
-                !series.find((real) => real.serieId === serie.id)?.peso.trim(),
-            )
           return (
             <View key={ejercicio.id} style={[s.bloqueLista, n === 0 && s.primero]}>
               <Pressable
@@ -246,10 +239,10 @@ export function ListaMarcable({
                 aria-checked={listo}
                 accessibilityState={{
                   checked: listo,
-                  disabled: bloqueado || (!listo && faltaPeso),
+                  disabled: bloqueado,
                 }}
                 accessibilityLabel={`${ejercicio.nombre}, ${ejercicio.dosis ?? resumenPrescrito(ejercicio)}`}
-                disabled={bloqueado || (!listo && faltaPeso)}
+                disabled={bloqueado}
                 onPress={() => marcar(ejercicio, !listo)}
               >
                 <View style={[s.casilla, listo && s.casillaHecha]}>
@@ -263,7 +256,7 @@ export function ListaMarcable({
               {mostrarPeso &&
                 ejercicio.series.map((prescrita, indice) => (
                   <View key={prescrita.id} style={s.filaPeso}>
-                    <Text style={s.tenue}>Serie {indice + 1} · kg</Text>
+                    <Text style={s.tenue}>Serie {indice + 1} · kg opcionales</Text>
                     <TextInput
                       accessibilityLabel={`Peso — ${ejercicio.nombre}, serie ${indice + 1}`}
                       editable={!bloqueado}
@@ -273,7 +266,7 @@ export function ListaMarcable({
                       onChangeText={(peso) => cambiarPeso(prescrita.id, peso)}
                       placeholder={
                         prescrita.pesoKg === null
-                          ? "Escribe kg"
+                          ? "Opcional"
                           : String(prescrita.pesoKg).replace(".", ",")
                       }
                       placeholderTextColor={tema.marcador}
@@ -281,9 +274,6 @@ export function ListaMarcable({
                     />
                   </View>
                 ))}
-              {faltaPeso && !listo && (
-                <Text style={s.tenue}>Escribe el peso usado antes de marcar el ejercicio.</Text>
-              )}
             </View>
           )
         })}
