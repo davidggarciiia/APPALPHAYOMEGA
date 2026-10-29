@@ -10,8 +10,8 @@ package-lock.json
 **/.expo-shared/
 apps/mobile/expo-env.d.ts
 
-# Worktrees de agentes en paralelo: copias locales del repositorio, no código propio.
-.claude/worktrees/
+# Configuración local de Claude Code y worktrees de agentes: no es código de la app.
+.claude/
 
 # Informe generado por un agente externo; no forma parte del código de la app.
 compass_artifact_*.md

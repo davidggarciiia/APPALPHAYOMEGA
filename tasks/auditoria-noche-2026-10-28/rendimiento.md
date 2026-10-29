@@ -45,4 +45,29 @@ Experimentos (sin tocar el repo; config de Metro alternativa vía `EXPO_OVERRIDE
 | + locales de zod reducidos a `en`                                  | 2 250 414 (−28 %) | 591 350 (−19 %) |  461 103 (−11 %) |
 | zod ESM + rutas asíncronas: JS necesario para `/login`             | 2 207 444 (−29 %) | 548 601 (−25 %) |  440 671 (−15 %) |
 
-(Pendiente: arranque medido en navegador, revisión de pantallas, latencia de API.)
+## Bundle nativo Android (MEDIDO, re-verificado en la reanudación)
+
+Cifras web re-verificadas con un recálculo de gzip/brotli sobre `build/rendimiento-2026-10-28/web*`: coinciden con la tabla anterior.
+
+`npx expo export --platform android --source-maps` (Hermes) y `--no-bytecode` (para analizar composición):
+
+| Artefacto                                                   |     Bytes |
+| ----------------------------------------------------------- | --------: |
+| `entry-*.hbc` (bytecode Hermes, lo que viaja en el APK/IPA) | 4 571 732 |
+| `entry-*.js` minificado (mismo grafo, sin bytecode)         | 3 871 698 |
+
+Composición del JS nativo (source-map-explorer 2.5.3 con --no-border-checks; 5,35 % sin mapear):
+
+| Paquete               |      KB |    % |
+| --------------------- | ------: | ---: |
+| zod                   | 1 037,4 | 27,4 |
+| apps/mobile           |   570,2 | 15,1 |
+| react-native          |   565,6 | 15,0 |
+| expo-router           |   443,6 | 11,7 |
+| react-native-svg      |   102,0 |  2,7 |
+| react-native-worklets |    96,7 |  2,6 |
+| react-hook-form       |    92,6 |  2,4 |
+| @expo/ui              |    65,1 |  1,7 |
+| packages/shared       |    60,9 |  1,6 |
+
+zod también va DUPLICADO en nativo: 556 470 B en `.cjs` + 508 660 B en ESM = 1 065 130 B, de los que 591 814 B son los 64 idiomas (128 ficheros `locales/*`) que nadie activa (no hay ningun `z.config(z.locales.xx())` en `apps/mobile` ni `packages/shared`; zod usa `en` por defecto, que es la unica que se queda en la variante reducida).
