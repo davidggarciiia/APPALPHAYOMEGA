@@ -104,25 +104,21 @@ export class UsuariosService {
    * pregunta por un cliente que no aparece.
    */
   async listar(quienPregunta: string, filtros: FiltrosDeListado): Promise<ListadoUsuarios> {
+    const terminos = filtros.buscar?.split(/\s+/).filter(Boolean) ?? []
     const donde: Prisma.UsuarioWhereInput = {
       id: { not: quienPregunta },
       ...(filtros.rol !== undefined && { rol: filtros.rol }),
       ...(filtros.estado !== undefined && { estado: filtros.estado }),
-      ...(filtros.buscar !== undefined &&
-        filtros.buscar !== "" && {
-          // Se busca tambien por correo porque es lo que el entrenador tiene a
-          // mano cuando alguien le escribe.
-          //
-          // La comparacion ignora mayusculas pero NO ignora tildes: buscar
-          // "Garcia" no encuentra a "García". Con una cartera de decenas de
-          // personas se resuelve mirando la lista entera, asi que no compensa
-          // todavia una columna normalizada ni una extension de Postgres.
+      ...(terminos.length > 0 && {
+        // Nombre y apellidos pueden estar en campos distintos de la misma persona.
+        AND: terminos.map((termino) => ({
           OR: [
-            { nombre: { contains: filtros.buscar, mode: "insensitive" } },
-            { apellidos: { contains: filtros.buscar, mode: "insensitive" } },
-            { email: { contains: filtros.buscar, mode: "insensitive" } },
+            { nombre: { contains: termino, mode: "insensitive" } },
+            { apellidos: { contains: termino, mode: "insensitive" } },
+            { email: { contains: termino, mode: "insensitive" } },
           ],
-        }),
+        })),
+      }),
     }
 
     const [usuarios, total] = await Promise.all([

@@ -55,7 +55,8 @@ it("presenta búsqueda y filtros sin repetir el título de la pestaña", async (
   await screen.findByRole("button", { name: "Ana García. ACTIVO. ana@prueba.local" })
   expect(screen.queryByText("TU CARTERA")).toBeNull()
   expect(screen.getByLabelText("Buscar cliente")).toHaveStyle({ minHeight: 52 })
-  for (const nombre of ["TODOS", "PENDIENTES", "ACTIVOS", "BAJAS"]) {
+  expect(screen.getByPlaceholderText("Buscar por nombre y apellidos")).toBeOnTheScreen()
+  for (const nombre of ["TODOS", "PENDIENTES DE ACTIVAR", "ACTIVOS", "DE BAJA"]) {
     const chip = screen.getByRole("button", { name: nombre })
     expect(chip).toHaveStyle({ height: 40 })
     expect(chip).toHaveProp("hitSlop", 2)
@@ -107,9 +108,9 @@ it("espera 300 ms tras escribir y conserva el filtro en la consulta", async () =
   jest.useFakeTimers()
   await render(<Cartera />)
   await act(async () => undefined)
-  await fireEvent.press(screen.getByRole("button", { name: "PENDIENTES" }))
+  await fireEvent.press(screen.getByRole("button", { name: "PENDIENTES DE ACTIVAR" }))
   await act(async () => undefined)
-  expect(screen.getByRole("button", { name: "PENDIENTES" })).toBeSelected()
+  expect(screen.getByRole("button", { name: "PENDIENTES DE ACTIVAR" })).toBeSelected()
   jest.mocked(listarUsuarios).mockClear()
   await fireEvent.changeText(screen.getByLabelText("Buscar cliente"), "  Ana  ")
   await act(async () => jest.advanceTimersByTime(299))
@@ -135,13 +136,64 @@ it("muestra cinco filas y chips esqueleto mientras espera la primera respuesta",
   expect(screen.queryByRole("progressbar")).toBeNull()
 })
 
+it.each([
+  ["ACTIVOS", "activo"],
+  ["PENDIENTES DE ACTIVAR", "pendiente"],
+  ["DE BAJA", "desactivado"],
+] as const)(
+  "filtra %s y permite volver a Todos sin perder la búsqueda",
+  async (etiqueta, estado) => {
+    jest.useFakeTimers()
+    await render(<Cartera />)
+    await fireEvent.changeText(screen.getByLabelText("Buscar cliente"), "García")
+    await act(async () => jest.advanceTimersByTime(300))
+    jest.mocked(listarUsuarios).mockResolvedValue(listado([{ ...cliente, estado }]))
+    await fireEvent.press(screen.getByRole("button", { name: etiqueta }))
+    expect(screen.getByRole("button", { name: etiqueta })).toBeSelected()
+    expect(listarUsuarios).toHaveBeenLastCalledWith(pedir, {
+      rol: "cliente",
+      buscar: "García",
+      estado,
+      limite: 100,
+      desde: 0,
+    })
+    expect(
+      screen.getByRole("button", { name: new RegExp(`Ana García\\. .*ana@prueba.local`) }),
+    ).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "TODOS" }))
+    expect(screen.getByRole("button", { name: "TODOS" })).toBeSelected()
+    expect(listarUsuarios).toHaveBeenLastCalledWith(
+      pedir,
+      expect.objectContaining({
+        buscar: "García",
+        estado: undefined,
+      }),
+    )
+  },
+)
+
+it.each(["Ana", "García Ruiz", "Ana García Ruiz"])(
+  "busca por nombre, apellidos o ambos: %s",
+  async (buscar) => {
+    jest.useFakeTimers()
+    await render(<Cartera />)
+    jest
+      .mocked(listarUsuarios)
+      .mockResolvedValue(listado([{ ...cliente, apellidos: "García Ruiz" }]))
+    await fireEvent.changeText(screen.getByLabelText("Buscar cliente"), `  ${buscar}  `)
+    await act(async () => jest.advanceTimersByTime(300))
+    expect(listarUsuarios).toHaveBeenLastCalledWith(pedir, expect.objectContaining({ buscar }))
+    expect(screen.getByText("Ana García Ruiz")).toBeOnTheScreen()
+  },
+)
+
 it("ofrece dar de alta al primer cliente y distingue un filtro vacío", async () => {
   jest.mocked(listarUsuarios).mockResolvedValue(listado([]))
   await render(<Cartera />)
   expect(await screen.findByText("Aún no tienes clientes")).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: "Dar de alta" }))
   expect(mockPush).toHaveBeenCalledWith("/cliente/nuevo")
-  await fireEvent.press(screen.getByRole("button", { name: "BAJAS" }))
+  await fireEvent.press(screen.getByRole("button", { name: "DE BAJA" }))
   expect(await screen.findByText("Nadie coincide")).toBeOnTheScreen()
   expect(screen.queryByText("Aún no tienes clientes")).toBeNull()
 })

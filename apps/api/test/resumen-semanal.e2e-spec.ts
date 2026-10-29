@@ -229,7 +229,11 @@ describe("Resumen semanal agregado del entrenador", () => {
 
   it("cuenta por fecha actual de agenda y compara la mejor fuerza de E1, incluso con RIR nulo", async () => {
     const cliente = delCliente(await resumen())
-    expect(cliente).toMatchObject({ sesionesPrevistas: 3, sesionesEnviadas: 3 })
+    expect(cliente).toMatchObject({
+      sesionesPrevistas: 3,
+      sesionesEnviadas: 3,
+      ultimaFechaEnviada: "2026-11-01",
+    })
     expect(cliente.ejercicios).toHaveLength(1)
     expect(cliente.ejercicios[0]).toMatchObject({
       ejercicioId: entorno.ids.ejercicio,
@@ -242,10 +246,13 @@ describe("Resumen semanal agregado del entrenador", () => {
         diferencia1RM: 6,
       },
       estado: "Progresa",
+      sesionesConMarca: 24,
       record: true,
     })
     const anterior = delCliente(await resumen("2026-10-19"))
     expect(anterior.sesionesEnviadas).toBe(3)
+    expect(anterior.ultimaFechaEnviada).toBe("2026-10-25")
+    expect(anterior.ejercicios[0]?.sesionesConMarca).toBe(21)
     expect(anterior.ejercicios[0]?.mejorSerie?.fecha).toBe("2026-10-25")
   })
 
@@ -261,8 +268,19 @@ describe("Resumen semanal agregado del entrenador", () => {
     expect(vacio).toMatchObject({
       sesionesPrevistas: 0,
       sesionesEnviadas: 0,
+      ultimaFechaEnviada: null,
       ejercicios: [],
       molestiasAbiertas: [],
+    })
+  })
+
+  it("conserva el último envío de hace más de una semana sin inventar marcas actuales", async () => {
+    const cliente = delCliente(await resumen("2026-11-09"))
+    expect(cliente).toMatchObject({
+      sesionesPrevistas: 0,
+      sesionesEnviadas: 0,
+      ultimaFechaEnviada: "2026-11-01",
+      ejercicios: [],
     })
   })
 
@@ -304,7 +322,12 @@ describe("Resumen semanal agregado del entrenador", () => {
     const sesionId = asignado.sesiones[0]!.agenda.id
     const base = `/entrenamiento/sesiones/${sesionId}`
     const antes = delCliente(await resumen("2026-12-07"))
-    expect(antes).toMatchObject({ sesionesPrevistas: 1, sesionesEnviadas: 0, ejercicios: [] })
+    expect(antes).toMatchObject({
+      sesionesPrevistas: 1,
+      sesionesEnviadas: 0,
+      ultimaFechaEnviada: "2026-11-01",
+      ejercicios: [],
+    })
     const registro = {
       notas: "NOTA PRIVADA DEL BORRADOR",
       series: [
@@ -367,8 +390,16 @@ describe("Resumen semanal agregado del entrenador", () => {
       })
       .expect(200)
     const enviada = delCliente(await resumen("2026-12-07"))
-    expect(enviada).toMatchObject({ sesionesPrevistas: 1, sesionesEnviadas: 1 })
-    expect(enviada.ejercicios[0]).toMatchObject({ mejorSerie: { pesoKg: 90 }, record: true })
+    expect(enviada).toMatchObject({
+      sesionesPrevistas: 1,
+      sesionesEnviadas: 1,
+      ultimaFechaEnviada: "2026-12-07",
+    })
+    expect(enviada.ejercicios[0]).toMatchObject({
+      mejorSerie: { pesoKg: 90 },
+      sesionesConMarca: 25,
+      record: true,
+    })
   })
 
   it("exige sesión de entrenador y una consulta de semana válida", async () => {

@@ -5,7 +5,7 @@ import { ETIQUETA_DE_ZONA, type ResumenSemanal } from "@alpha-omega/shared"
 import { BotonEnlace } from "../componentes/botones"
 import { Icono } from "../componentes/iconos"
 import { Pulsable } from "../componentes/pulsable"
-import { sumarDias } from "../entrenamiento/fechas"
+import { fechaLegible, sumarDias } from "../entrenamiento/fechas"
 import { espacio, radio, tema, tipo } from "../tema"
 import type { TrabajoCliente } from "./cargar-trabajo"
 
@@ -63,6 +63,25 @@ export function TarjetaCliente({
 }): React.JSX.Element {
   const nombre = nombreCliente(cliente)
   const sesiones = `${cliente.sesionesEnviadas} de ${cliente.sesionesPrevistas} sesiones enviadas`
+  const hayMarcas = cliente.ejercicios.some((ejercicio) => ejercicio.mejorSerie !== null)
+  const ejercicios = hayMarcas
+    ? [...cliente.ejercicios]
+        .sort(
+          (a, b) =>
+            Number(b.mejorSerie !== null) - Number(a.mejorSerie !== null) ||
+            (b.sesionesConMarca ?? 0) - (a.sesionesConMarca ?? 0) ||
+            a.nombre.localeCompare(b.nombre, "es"),
+        )
+        .slice(0, 4)
+    : []
+  const sinMarcas = [
+    cliente.sesionesEnviadas === 0 ? "Sin envíos esta semana" : "Sin marcas esta semana",
+    cliente.ultimaFechaEnviada
+      ? `último: ${fechaLegible(cliente.ultimaFechaEnviada).replace(",", "")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
   const molestias = cliente.molestiasAbiertas.map(
     (molestia) => `${ETIQUETA_DE_ZONA[molestia.zona]} · ${molestia.intensidad} de 10 · abierta`,
   )
@@ -70,7 +89,7 @@ export function TarjetaCliente({
     molestias.length > 0 || sinEnvios || cliente.ejercicios.some((e) => e.estado === "Baja")
   const detalle = [
     sesiones,
-    ...cliente.ejercicios.map((ejercicio) =>
+    ...ejercicios.map((ejercicio) =>
       [
         ejercicio.nombre,
         serieLegible(ejercicio),
@@ -81,9 +100,8 @@ export function TarjetaCliente({
         .filter(Boolean)
         .join(". "),
     ),
-    cliente.ejercicios.length === 0 ? "Sin marcas esta semana" : null,
+    !hayMarcas ? sinMarcas : null,
     ...molestias,
-    sinEnvios ? "Sin envíos desde el lunes" : null,
   ]
     .filter(Boolean)
     .join(". ")
@@ -101,12 +119,11 @@ export function TarjetaCliente({
         <View style={s.cabecera}>
           <View style={s.textos}>
             <Text style={s.nombre}>{nombre}</Text>
-            <Text style={s.tenue}>{sesiones}</Text>
+            <Text style={s.tenue}>{hayMarcas ? sesiones : sinMarcas}</Text>
           </View>
           <Icono nombre="adelante" color={tema.textoTenue} />
         </View>
-        {cliente.ejercicios.length === 0 && <Text style={s.tenue}>Sin marcas esta semana</Text>}
-        {cliente.ejercicios.map((ejercicio) => (
+        {ejercicios.map((ejercicio) => (
           <View key={ejercicio.ejercicioId} style={s.ejercicio}>
             <Text style={s.ejercicioNombre}>{ejercicio.nombre}</Text>
             <Text style={s.serie}>{serieLegible(ejercicio)}</Text>
@@ -130,8 +147,21 @@ export function TarjetaCliente({
             {molestia}
           </Text>
         ))}
-        {sinEnvios && <Text style={s.avisoTexto}>Sin envíos desde el lunes</Text>}
       </Pulsable>
+      {hayMarcas && (
+        <View style={s.acciones}>
+          <BotonEnlace
+            texto="Ver todos"
+            etiquetaAccesible={`Ver todos los ejercicios de ${nombre}`}
+            onPress={() =>
+              abrir({
+                pathname: "/entrenador/cliente/[id]",
+                params: { id: cliente.clienteId, pestana: "progreso" },
+              })
+            }
+          />
+        </View>
+      )}
       <AccionesTrabajo trabajo={trabajo} abrir={abrir} />
     </View>
   )

@@ -23,6 +23,7 @@ export const ResumenSemanalSchema = z.strictObject({
       apellidos: z.string().nullable(),
       sesionesPrevistas: z.number().int().nonnegative(),
       sesionesEnviadas: z.number().int().nonnegative(),
+      ultimaFechaEnviada: FechaAgendaSchema.nullable().optional(),
       ejercicios: z.array(
         z.strictObject({
           ejercicioId: z.uuid(),
@@ -38,6 +39,7 @@ export const ResumenSemanalSchema = z.strictObject({
             })
             .nullable(),
           estado: z.enum(["Progresa", "Estancado", "Baja"]).nullable(),
+          sesionesConMarca: z.number().int().nonnegative().optional(),
           /** Supera el histórico anterior por kg y luego reps; la primera marca también cuenta. */
           record: z.boolean(),
         }),

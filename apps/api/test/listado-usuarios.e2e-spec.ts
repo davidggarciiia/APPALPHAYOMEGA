@@ -148,6 +148,47 @@ describe("Listado de la cartera", () => {
     expect(respuesta.body.usuarios[0]?.nombre).toBe("Marta")
   })
 
+  it.each(["Ana García Ruiz", "  aNa   gArCíA\tRuIz  ", "Ruiz Ana"])(
+    "busca nombre y apellidos juntos: %s",
+    async (buscar) => {
+      const consulta = new URLSearchParams({ buscar })
+      const respuesta = await listar("entrenador", `?${consulta.toString()}`).expect(200)
+      expect(respuesta.body.usuarios).toEqual([
+        expect.objectContaining({ nombre: "Ana", apellidos: "García Ruiz" }),
+      ])
+      expect(respuesta.body.total).toBe(1)
+    },
+  )
+
+  it("todos los términos deben pertenecer al mismo usuario", async () => {
+    const consulta = new URLSearchParams({ buscar: "Ana Soler" })
+    const respuesta = await listar("entrenador", `?${consulta.toString()}`).expect(200)
+    expect(respuesta.body).toEqual({ usuarios: [], total: 0 })
+  })
+
+  it("combina nombre completo con rol y estado sin alterar el total paginado", async () => {
+    const consulta = new URLSearchParams({
+      buscar: "Ana García Ruiz",
+      rol: "cliente",
+      estado: "activo",
+      limite: "1",
+      desde: "1",
+    })
+    const pagina = await listar("entrenador", `?${consulta.toString()}`).expect(200)
+    expect(pagina.body).toEqual({ usuarios: [], total: 1 })
+    consulta.set("desde", "0")
+    const primera = await listar("entrenador", `?${consulta.toString()}`).expect(200)
+    expect(primera.body.usuarios).toHaveLength(1)
+    expect(primera.body.total).toBe(1)
+    consulta.set("estado", "pendiente")
+    const pendiente = await listar("entrenador", `?${consulta.toString()}`).expect(200)
+    expect(pendiente.body).toEqual({ usuarios: [], total: 0 })
+    consulta.set("estado", "activo")
+    consulta.set("rol", "nutricionista")
+    const nutricionista = await listar("entrenador", `?${consulta.toString()}`).expect(200)
+    expect(nutricionista.body).toEqual({ usuarios: [], total: 0 })
+  })
+
   it("filtra por rol", async () => {
     const respuesta = await listar("entrenador", "?rol=nutricionista").expect(200)
     const roles = new Set(respuesta.body.usuarios.map((u: { rol: string }) => u.rol))

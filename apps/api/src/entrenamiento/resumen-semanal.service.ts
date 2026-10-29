@@ -97,8 +97,10 @@ export class ResumenSemanalService {
 
     const historiales = new Map<string, Historial>()
     const enviadasPorCliente = new Map<string, number>()
+    const ultimaFechaPorCliente = new Map<string, string>()
     for (const enviada of enviadas) {
       const fecha = enviada.agenda.fechaActual.toISOString().slice(0, 10)
+      ultimaFechaPorCliente.set(enviada.clienteId, fecha)
       if (fecha >= semana)
         enviadasPorCliente.set(
           enviada.clienteId,
@@ -174,6 +176,8 @@ export class ResumenSemanalService {
             mejorSerieAnterior: seriePublica(previa, sesiones),
             comparacion: compararSemanas(mejor, previa),
             estado: mejor ? estadoDeProgresion(sesiones) : null,
+            sesionesConMarca: sesiones.filter(({ series }) => mejorSerieDeSesion(series) !== null)
+              .length,
             record:
               mejor !== null &&
               (!historica || compararSemanas(mejor, historica)?.direccion === "sube"),
@@ -189,6 +193,7 @@ export class ResumenSemanalService {
           apellidos: cliente.apellidos,
           sesionesPrevistas: previstasPorCliente.get(cliente.id) ?? 0,
           sesionesEnviadas: enviadasPorCliente.get(cliente.id) ?? 0,
+          ultimaFechaEnviada: ultimaFechaPorCliente.get(cliente.id) ?? null,
           ejercicios,
           molestiasAbiertas: molestiasPorCliente.get(cliente.id) ?? [],
         }

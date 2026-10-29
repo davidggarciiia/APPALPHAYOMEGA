@@ -40,9 +40,9 @@ const ESPERA_DE_BUSQUEDA_MS = 300
 
 const FILTROS: ReadonlyArray<{ etiqueta: string; estado: EstadoUsuario | null }> = [
   { etiqueta: "TODOS", estado: null },
-  { etiqueta: "PENDIENTES", estado: "pendiente" },
+  { etiqueta: "PENDIENTES DE ACTIVAR", estado: "pendiente" },
   { etiqueta: "ACTIVOS", estado: "activo" },
-  { etiqueta: "BAJAS", estado: "desactivado" },
+  { etiqueta: "DE BAJA", estado: "desactivado" },
 ]
 
 type Fase = "cargando" | "listo" | "error"
@@ -165,7 +165,7 @@ export default function Cartera(): React.JSX.Element {
             onChangeText={setTexto}
             onFocus={() => setEnfocado(true)}
             onBlur={() => setEnfocado(false)}
-            placeholder="Buscar por nombre o correo"
+            placeholder="Buscar por nombre y apellidos"
             placeholderTextColor={tema.textoTenue}
             selectionColor={tema.acento}
             accessibilityLabel="Buscar cliente"

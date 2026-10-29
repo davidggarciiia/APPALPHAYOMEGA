@@ -121,6 +121,9 @@ it("muestra serie, RIR desconocido, diferencia, estado y récord y abre la ficha
   ])
     expect(screen.getByText(texto)).toBeOnTheScreen()
   expect(screen.queryByText(/Sube carga/)).toBeNull()
+  expect(
+    screen.getByRole("button", { name: "Ver todos los ejercicios de Ana López" }),
+  ).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: /^Ver ficha de Ana López/ }))
   expect(abrir).toHaveBeenLastCalledWith({
     pathname: "/entrenador/cliente/[id]",
@@ -129,7 +132,13 @@ it("muestra serie, RIR desconocido, diferencia, estado y récord y abre la ficha
 })
 
 it("ordena los 15 activos por atención y nombre sin paginar ni duplicar molestias", async () => {
-  const sinEnvios = { ...cliente, clienteId: "b", nombre: "Berta", sesionesEnviadas: 0 }
+  const sinEnvios = {
+    ...cliente,
+    clienteId: "b",
+    nombre: "Berta",
+    sesionesEnviadas: 0,
+    ejercicios: [],
+  }
   const baja = {
     ...cliente,
     clienteId: "c",
@@ -174,7 +183,7 @@ it("ordena los 15 activos por atención y nombre sin paginar ni duplicar molesti
     "Ver ficha de Zoe López",
     "Ver ficha de Ana López",
   ])
-  expect(screen.getByText("Sin envíos desde el lunes")).toBeOnTheScreen()
+  expect(screen.getByText("Sin envíos esta semana")).toBeOnTheScreen()
   expect(screen.getAllByText("Hombro · 5 de 10 · abierta")).toHaveLength(1)
   expect(screen.getAllByText("Codo · 3 de 10 · abierta")).toHaveLength(1)
   await fireEvent.press(screen.getByRole("button", { name: /^Ver ficha de Zoe López/ }))
@@ -305,6 +314,95 @@ it("integra revisión y plan en la tarjeta y conserva activación y paginación 
   await fireEvent.press(screen.getByRole("button", { name: "Clientes activos anteriores" }))
   expect(cargarTrabajo).toHaveBeenLastCalledWith(pedir, 0, 8)
   expect(pedir).toHaveBeenCalledTimes(1)
+})
+
+it("resume una semana sin marcas en una línea con la última sesión enviada", async () => {
+  pedir.mockResolvedValue(
+    resumen([
+      {
+        ...cliente,
+        sesionesEnviadas: 0,
+        ultimaFechaEnviada: "2026-10-23",
+        ejercicios: Array.from({ length: 8 }, (_, n) => ({
+          ...cliente.ejercicios[0]!,
+          ejercicioId: `ejercicio-${n}`,
+          nombre: `Ejercicio ${n}`,
+          mejorSerie: null,
+          comparacion: null,
+          record: false,
+        })),
+      },
+    ]),
+  )
+  await render(vista())
+  const texto = "Sin envíos esta semana · último: viernes 23 oct"
+  expect(await screen.findByText(texto)).toBeOnTheScreen()
+  expect(screen.queryByText(/Ejercicio \d/)).toBeNull()
+  expect(screen.queryByText("Sin marca esta semana")).toBeNull()
+  expect(screen.queryByText("Sin envíos desde el lunes")).toBeNull()
+  expect(screen.queryByRole("button", { name: /Ver todos los ejercicios/ })).toBeNull()
+  expect(screen.getByRole("button", { name: /^Ver ficha de Ana López/ })).toHaveProp(
+    "accessibilityLabel",
+    expect.stringContaining(texto),
+  )
+})
+
+it("no inventa una fecha si no hay historial ni confunde envíos sin marcas con falta de envíos", async () => {
+  pedir.mockResolvedValue(
+    resumen([
+      { ...cliente, sesionesEnviadas: 0, ejercicios: [], ultimaFechaEnviada: null },
+      { ...cliente, clienteId: "b", nombre: "Berta", ejercicios: [] },
+    ]),
+  )
+  await render(vista())
+  expect(await screen.findByText("Sin envíos esta semana")).toBeOnTheScreen()
+  expect(screen.getByText("Sin marcas esta semana")).toBeOnTheScreen()
+  expect(screen.queryByText(/último:/)).toBeNull()
+})
+
+it("muestra cuatro ejercicios como máximo, prioriza marcas e historial y enlaza a Progreso", async () => {
+  const ejercicio = cliente.ejercicios[0]!
+  pedir.mockResolvedValue(
+    resumen([
+      {
+        ...cliente,
+        ejercicios: [
+          {
+            ...ejercicio,
+            ejercicioId: "ausente",
+            nombre: "Ausente",
+            mejorSerie: null,
+            sesionesConMarca: 100,
+          },
+          ...[2, 4, 7, 1, 10].map((sesionesConMarca) => ({
+            ...ejercicio,
+            ejercicioId: `ejercicio-${sesionesConMarca}`,
+            nombre: `Ejercicio ${sesionesConMarca}`,
+            sesionesConMarca,
+          })),
+        ],
+      },
+    ]),
+  )
+  await render(vista())
+  expect((await screen.findAllByText(/^Ejercicio /)).map((nodo) => nodo.props.children)).toEqual([
+    "Ejercicio 10",
+    "Ejercicio 7",
+    "Ejercicio 4",
+    "Ejercicio 2",
+  ])
+  expect(screen.queryByText("Ausente")).toBeNull()
+  expect(screen.queryByText("Ejercicio 1")).toBeNull()
+  const tarjeta = screen.getByRole("button", { name: /^Ver ficha de Ana López/ })
+  expect(tarjeta.props.accessibilityLabel).not.toContain("Ausente")
+  expect(tarjeta.props.accessibilityLabel).not.toContain("Ejercicio 1.")
+  await fireEvent.press(
+    screen.getByRole("button", { name: "Ver todos los ejercicios de Ana López" }),
+  )
+  expect(abrir).toHaveBeenLastCalledWith({
+    pathname: "/entrenador/cliente/[id]",
+    params: { id: "a", pestana: "progreso" },
+  })
 })
 
 it("cambia semanas sin aceptar respuestas tardías ni permitir semanas futuras", async () => {

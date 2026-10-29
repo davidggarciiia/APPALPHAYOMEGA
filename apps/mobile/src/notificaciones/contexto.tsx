@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react"
 import { usePathname, useRouter } from "expo-router"
-import { AppState, StyleSheet, Text, View } from "react-native"
+import { AppState, StyleSheet, Text } from "react-native"
 import type { ListadoAvisosSeguimiento } from "@alpha-omega/shared"
 import { Icono } from "../componentes/iconos"
 import { Pulsable } from "../componentes/pulsable"
@@ -142,10 +142,9 @@ export function BotonNotificaciones(): React.JSX.Element | null {
       onPress={() => router.push("/notificaciones")}
     >
       <Icono nombre="notificaciones" color={tema.texto} />
-      {sinLeer > 0 && <View testID="punto-notificaciones" style={s.punto} aria-hidden />}
-      {sinLeer > 0 && sinLeer < 100 && (
-        <Text style={s.numero} aria-hidden>
-          {sinLeer}
+      {sinLeer > 0 && (
+        <Text testID="contador-notificaciones" style={s.numero} aria-hidden>
+          {sinLeer > 99 ? "99+" : sinLeer}
         </Text>
       )}
     </Pulsable>
@@ -160,24 +159,18 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  punto: {
-    position: "absolute",
-    top: 5,
-    right: 5,
-    width: 8,
-    height: 8,
-    borderRadius: 2,
-    backgroundColor: tema.acento,
-  },
   numero: {
     position: "absolute",
     right: 0,
-    bottom: 0,
-    color: tema.acento,
-    backgroundColor: tema.fondo,
+    top: 0,
+    color: tema.sobreAcento,
+    backgroundColor: tema.acento,
+    borderRadius: radio.pastilla,
+    paddingHorizontal: 4,
     fontFamily: tema.fuenteSemi,
     fontSize: 11,
-    minWidth: 14,
+    lineHeight: 18,
+    minWidth: 18,
     textAlign: "center",
     fontVariant: ["tabular-nums"],
   },

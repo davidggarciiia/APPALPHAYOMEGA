@@ -1,5 +1,9 @@
 import { ForbiddenException } from "@nestjs/common"
-import { PrescripcionSchema, ResultadoEntrenamientoSchema } from "@alpha-omega/shared"
+import {
+  PrescripcionSchema,
+  ResultadoEntrenamientoSchema,
+  ResumenSemanalSchema,
+} from "@alpha-omega/shared"
 import type { PrismaService } from "../prisma/prisma.service.js"
 import { ResumenSemanalService } from "./resumen-semanal.service.js"
 
@@ -97,8 +101,10 @@ describe("ResumenSemanalService", () => {
       clienteId: cliente.id,
       sesionesPrevistas: 3,
       sesionesEnviadas: 1,
+      ultimaFechaEnviada: "2026-10-19",
       ejercicios: [
         {
+          sesionesConMarca: 3,
           mejorSerie: { pesoKg: 60, rir: null, estimado1RM: 76 },
           mejorSerieAnterior: { pesoKg: 80 },
           comparacion: { direccion: "baja", diferenciaKg: -20 },
@@ -107,6 +113,81 @@ describe("ResumenSemanalService", () => {
         },
       ],
     })
+  })
+
+  it("conserva el último envío aunque no esté en la semana actual ni en la anterior", async () => {
+    const { servicio } = entorno([cliente], [enviada(20, "2026-09-28", 60)])
+    expect((await servicio.resumen(actor, "2026-10-19")).clientes[0]).toMatchObject({
+      sesionesEnviadas: 0,
+      ultimaFechaEnviada: "2026-09-28",
+      ejercicios: [],
+    })
+  })
+
+  it("sin envíos devuelve fecha nula", async () => {
+    const { servicio } = entorno([cliente], [])
+    expect((await servicio.resumen(actor, "2026-10-19")).clientes[0]).toMatchObject({
+      ultimaFechaEnviada: null,
+      ejercicios: [],
+    })
+  })
+
+  it("cuenta solo las sesiones con una marca de fuerza válida", async () => {
+    const omitida = enviada(21, "2026-10-12", 60)
+    omitida.resultado.prescripcion.ejercicios.push({
+      ...omitida.resultado.prescripcion.ejercicios[0]!,
+      id: uuid(13),
+      seccion: "calentamiento",
+      series: [{ id: uuid(14), tipoMedicion: "repeticiones", pesoKg: 60, repeticiones: 8 }],
+    })
+    omitida.resultado.series = [
+      { serieId: uuid(12), hecha: false, omitida: true },
+      {
+        serieId: uuid(14),
+        hecha: true,
+        valores: { tipoMedicion: "repeticiones", pesoKg: 60, repeticiones: 8, rir: null },
+      },
+    ]
+    const tiempo = enviada(22, "2026-10-15", 60)
+    tiempo.resultado.prescripcion.ejercicios[0]!.series = [
+      { id: uuid(12), tipoMedicion: "tiempo", pesoKg: 60, segundos: 90 },
+    ]
+    tiempo.resultado.series = [
+      {
+        serieId: uuid(12),
+        hecha: true,
+        valores: { tipoMedicion: "tiempo", pesoKg: 60, segundos: 90, rir: null },
+      },
+    ]
+    const calentamiento = enviada(23, "2026-10-16", 60)
+    calentamiento.resultado.prescripcion.ejercicios[0]!.seccion = "calentamiento"
+    const { servicio } = entorno(
+      [cliente],
+      [
+        enviada(20, "2026-10-05", 60),
+        omitida,
+        tiempo,
+        calentamiento,
+        enviada(24, "2026-10-19", 65),
+      ],
+    )
+    expect((await servicio.resumen(actor, "2026-10-19")).clientes[0]?.ejercicios[0]).toMatchObject({
+      sesionesConMarca: 2,
+    })
+  })
+
+  it("el contrato mantiene las respuestas previas y valida los campos nuevos", async () => {
+    const { servicio } = entorno()
+    const datos = await servicio.resumen(actor, "2026-10-19")
+    const respuesta = datos.clientes[0]!
+    delete respuesta.ultimaFechaEnviada
+    delete respuesta.ejercicios[0]!.sesionesConMarca
+    expect(ResumenSemanalSchema.safeParse(datos).success).toBe(true)
+    respuesta.ultimaFechaEnviada = "2026-02-30"
+    expect(ResumenSemanalSchema.safeParse(datos).success).toBe(false)
+    respuesta.ultimaFechaEnviada = null
+    respuesta.ejercicios[0]!.sesionesConMarca = -1
+    expect(ResumenSemanalSchema.safeParse(datos).success).toBe(false)
   })
 
   it("mantiene cuatro consultas por lotes con uno o quince clientes sin leer borradores", async () => {
@@ -121,6 +202,12 @@ describe("ResumenSemanalService", () => {
       expect(consultas).toHaveLength(4)
       expect(JSON.stringify(consultas)).not.toContain("borrador")
       expect(consultas[0]).toMatchObject({ where: { rol: "cliente", estado: "activo" } })
+      expect(consultas[1]).toMatchObject({
+        where: {
+          enviadoEn: { not: null },
+          agenda: { fechaActual: { lt: new Date("2026-10-26") } },
+        },
+      })
     }
   })
 })

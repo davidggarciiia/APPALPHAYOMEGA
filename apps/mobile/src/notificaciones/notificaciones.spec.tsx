@@ -103,13 +103,45 @@ it.each(["cliente", "entrenador"] as const)(
     const boton = await screen.findByRole("button", { name: "Notificaciones, 3 sin leer" })
     expect(boton).toHaveStyle({ minWidth: 44, minHeight: 44 })
     expect(
-      screen.getByTestId("punto-notificaciones", { includeHiddenElements: true }),
-    ).toBeOnTheScreen()
+      screen.getByTestId("contador-notificaciones", { includeHiddenElements: true }),
+    ).toHaveTextContent("3")
+    expect(screen.queryByTestId("punto-notificaciones", { includeHiddenElements: true })).toBeNull()
     await fireEvent.press(boton)
     expect(mockPush).toHaveBeenCalledWith("/notificaciones")
     expect(mockEntrenamiento.leerNovedades).not.toHaveBeenCalled()
   },
 )
+
+it.each([
+  [18, "18"],
+  [99, "99"],
+  [100, "99+"],
+  [120, "99+"],
+])("muestra una sola pastilla para %i sin leer y anuncia el total real", async (total, visible) => {
+  mockEntrenamiento.novedades.mockResolvedValue({ ...novedades, sinLeer: total })
+  await render(<Pantalla />)
+  expect(
+    await screen.findByRole("button", { name: `Notificaciones, ${total} sin leer` }),
+  ).toBeOnTheScreen()
+  expect(
+    screen.getAllByTestId("contador-notificaciones", { includeHiddenElements: true }),
+  ).toHaveLength(1)
+  expect(
+    screen.getByTestId("contador-notificaciones", { includeHiddenElements: true }),
+  ).toHaveTextContent(visible)
+  expect(screen.queryByTestId("punto-notificaciones", { includeHiddenElements: true })).toBeNull()
+})
+
+it("oculta punto y contador cuando no hay notificaciones sin leer", async () => {
+  mockEntrenamiento.novedades.mockResolvedValue({ novedades: [], total: 0, sinLeer: 0 })
+  await render(<Pantalla />)
+  expect(await screen.findByText("No tienes notificaciones.")).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: "Notificaciones" })).toBeOnTheScreen()
+  expect(
+    screen.queryByTestId("contador-notificaciones", { includeHiddenElements: true }),
+  ).toBeNull()
+  expect(screen.queryByTestId("punto-notificaciones", { includeHiddenElements: true })).toBeNull()
+})
 
 it("sustituye las novedades de la ficha: conserva los tres eventos, confirma solo el abierto y navega con nombre completo", async () => {
   jest.mocked(useSesion).mockReturnValue({
@@ -209,7 +241,7 @@ it("lleva fotos recibidas del entrenador a la ficha de Progreso conservando su l
   })
 })
 
-it("muestra vacío sin punto y permite reintentar una carga fallida", async () => {
+it("muestra vacío sin contador y permite reintentar una carga fallida", async () => {
   mockEntrenamiento.novedades.mockRejectedValueOnce(new Error("Sin red"))
   const vista = await render(<Pantalla />)
   await screen.findByText("No se pudieron cargar las notificaciones.")
@@ -218,6 +250,9 @@ it("muestra vacío sin punto y permite reintentar una carga fallida", async () =
   await fireEvent.press(screen.getByRole("button", { name: "Reintentar notificaciones" }))
   expect(await screen.findByText("No tienes notificaciones.")).toBeOnTheScreen()
   expect(screen.queryByTestId("punto-notificaciones", { includeHiddenElements: true })).toBeNull()
+  expect(
+    screen.queryByTestId("contador-notificaciones", { includeHiddenElements: true }),
+  ).toBeNull()
   await act(async () => vista.unmount())
 })
 
