@@ -98,7 +98,8 @@ beforeEach(() => {
 
 it("abre sesiones con el filtro solicitado, sin pestañas de ficha", async () => {
   await render(<Sesiones />)
-  expect(screen.getByText("Sesiones sin revisar")).toBeOnTheScreen()
+  expect(screen.getByText("Todas las sesiones")).toBeOnTheScreen()
+  expect(screen.queryByText(/sin revisar/i)).toBeNull()
   await fireEvent.press(screen.getByRole("button", { name: "Volver a la ficha" }))
   expect(mockReplace).toHaveBeenCalledWith({
     pathname: "/entrenador/cliente/[id]",

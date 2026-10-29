@@ -143,6 +143,66 @@ it("oculta punto y contador cuando no hay notificaciones sin leer", async () => 
   expect(screen.queryByTestId("punto-notificaciones", { includeHiddenElements: true })).toBeNull()
 })
 
+it("una respuesta histórica solo de revisiones deja la campana y la bandeja vacías", async () => {
+  mockEntrenamiento.novedades.mockResolvedValue({
+    novedades: [{ ...novedades.novedades[0]!, tipo: "sesion_revisada" }],
+    total: 1,
+    sinLeer: 1,
+  })
+  await render(<Pantalla />)
+  expect(await screen.findByText("No tienes notificaciones.")).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: "Notificaciones" })).toBeOnTheScreen()
+  expect(
+    screen.queryByTestId("contador-notificaciones", { includeHiddenElements: true }),
+  ).toBeNull()
+  expect(screen.queryAllByText(/revisó|revisada/i)).toHaveLength(0)
+  expect(mockEntrenamiento.leerNovedades).not.toHaveBeenCalled()
+})
+
+it("el contador histórico conserva comentarios y molestias sin contar las revisiones", async () => {
+  mockEntrenamiento.novedades.mockResolvedValue({
+    novedades: [
+      { ...novedades.novedades[0]!, id: "revision", tipo: "sesion_revisada" },
+      {
+        ...novedades.novedades[0]!,
+        id: "revision-leida",
+        tipo: "sesion_revisada",
+        leidaEn: "2026-10-30T10:01:00Z",
+      },
+      { ...novedades.novedades[0]!, id: "comentario", tipo: "comentario" },
+      novedades.novedades[2]!,
+    ],
+    total: 4,
+    sinLeer: 3,
+  })
+  await render(<Pantalla />)
+  expect(
+    await screen.findByRole("button", { name: "Notificaciones, 2 sin leer" }),
+  ).toBeOnTheScreen()
+  expect(screen.getByText("Lara García comentó Fuerza A")).toBeOnTheScreen()
+  expect(screen.getByText("Lara García comunicó una molestia en Fuerza A")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: /comentó Fuerza A/ }))
+  expect(mockEntrenamiento.leerNovedades).toHaveBeenCalledWith("sesion", {
+    novedadIds: ["comentario"],
+  })
+  expect(screen.getByRole("button", { name: "Notificaciones, 1 sin leer" })).toBeOnTheScreen()
+})
+
+it("descuenta solo revisiones recibidas y conserva el acceso a páginas no consultadas", async () => {
+  mockEntrenamiento.novedades.mockResolvedValue({
+    novedades: [{ ...novedades.novedades[0]!, tipo: "sesion_revisada" }],
+    total: 3,
+    sinLeer: 3,
+  })
+  await render(<Pantalla />)
+  expect(
+    await screen.findByRole("button", { name: "Notificaciones, 2 sin leer" }),
+  ).toBeOnTheScreen()
+  expect(screen.queryByText("No tienes notificaciones.")).toBeNull()
+  expect(screen.getByRole("button", { name: "Ver más novedades" })).toBeOnTheScreen()
+  expect(mockEntrenamiento.novedades).toHaveBeenCalledTimes(1)
+})
+
 it("sustituye las novedades de la ficha: conserva los tres eventos, confirma solo el abierto y navega con nombre completo", async () => {
   jest.mocked(useSesion).mockReturnValue({
     estado: { fase: "dentro", usuario: { id: "entrenador", rol: "entrenador" } },

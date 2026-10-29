@@ -232,6 +232,8 @@ describe("ResumenSemanalService", () => {
       expect(resumen.clientes).toHaveLength(cantidad)
       expect(consultas).toHaveLength(4)
       expect(JSON.stringify(consultas)).not.toContain("borrador")
+      expect(JSON.stringify(consultas)).not.toContain("revisadaEn")
+      expect(JSON.stringify(resumen)).not.toMatch(/revisad|porRevisar|sinRevisar/i)
       expect(consultas[0]).toMatchObject({ where: { rol: "cliente", estado: "activo" } })
       expect(consultas[1]).toMatchObject({
         where: {

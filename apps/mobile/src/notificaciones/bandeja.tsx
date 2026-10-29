@@ -9,6 +9,7 @@ import { useValoraciones } from "../seguimiento/use-valoraciones"
 import { useSesion } from "../sesion"
 import { espacio, tema, tipo } from "../tema"
 import { useNotificaciones } from "./contexto"
+import { contadoresEntrenamiento } from "./cargar"
 
 export function BandejaNotificaciones(): React.JSX.Element | null {
   const buzon = useNotificaciones()
@@ -19,7 +20,9 @@ export function BandejaNotificaciones(): React.JSX.Element | null {
   if (!buzon || estado.fase !== "dentro") return null
   const modo = estado.usuario.rol === "entrenador" ? "entrenador" : "cliente"
   const visibles = buzon.clientes?.filter(
-    (cliente) => cliente.entrenamiento.total > 0 || cliente.seguimiento.avisos.length > 0,
+    (cliente) =>
+      contadoresEntrenamiento(cliente.entrenamiento).total > 0 ||
+      cliente.seguimiento.avisos.length > 0,
   )
   return (
     <View style={s.lista}>

@@ -43,9 +43,10 @@ function entorno(nombre: string, apellidos: string | null) {
       },
     ],
   )
+  const count = jest.fn(async (_consulta: unknown) => 1)
   const prisma = {
     usuario: { findFirst: async () => ({ id: clienteId }) },
-    novedadEntrenamiento: { findMany, count: async () => 1 },
+    novedadEntrenamiento: { findMany, count },
   }
   return {
     servicio: new NovedadesService(
@@ -53,10 +54,24 @@ function entorno(nombre: string, apellidos: string | null) {
       { comprobarAcceso: () => undefined } as unknown as SesionesService,
     ),
     findMany,
+    count,
   }
 }
 
 describe("NovedadesService.listar", () => {
+  it("excluye los avisos históricos de revisión del listado y sus dos contadores", async () => {
+    const { servicio, findMany, count } = entorno("Lara", null)
+    await servicio.listar({ sub: clienteId, rol: "cliente", sid: "sesion" }, clienteId, {
+      limite: 10,
+      desplazamiento: 0,
+    })
+
+    const donde = expect.objectContaining({ tipo: { not: "sesion_revisada" } })
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: donde }))
+    expect(count).toHaveBeenCalledTimes(2)
+    for (const [consulta] of count.mock.calls) expect(consulta).toEqual({ where: donde })
+  })
+
   it.each<[string, string | null, string]>([
     ["Lara", "García Pérez", "Lara García Pérez"],
     ["Lara García Pérez", null, "Lara García Pérez"],

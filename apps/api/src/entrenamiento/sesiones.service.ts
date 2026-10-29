@@ -221,7 +221,6 @@ export class SesionesService {
       resultados: filas.map((fila) => ({
         agenda: agendaPublica(fila.agenda),
         resultado: leerDocumento(fila.resultado, ResultadoEntrenamientoSchema, fila.version),
-        revisadaEn: fila.revisadaEn?.toISOString() ?? null,
       })),
     }
   }

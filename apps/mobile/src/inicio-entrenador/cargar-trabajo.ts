@@ -1,4 +1,4 @@
-import type { ListadoUsuarios, ResumenUsuario, SesionEntrenador } from "@alpha-omega/shared"
+import type { ListadoUsuarios, ResumenUsuario } from "@alpha-omega/shared"
 
 import { crearApiEntrenamiento } from "../entrenamiento/api"
 import { lunesDeSemana } from "../entrenamiento/fechas"
@@ -11,7 +11,6 @@ export const ACTIVACIONES_POR_PAGINA = 8
 export type TrabajoCliente = {
   cliente: ResumenUsuario
   sinPlan: boolean
-  sesion: SesionEntrenador | null
 }
 export type TrabajoEntrenador = {
   activos: ListadoUsuarios
@@ -44,18 +43,10 @@ export async function cargarTrabajo(
   const lunes = lunesDeSemana()
   const clientes = await Promise.all(
     usuarios.map(async (cliente): Promise<TrabajoCliente> => {
-      const [plan, resultados] = await Promise.all([
-        api.plan(cliente.id, lunes),
-        api.resultados(cliente.id, 1),
-      ])
-      const ultima = resultados.resultados[0]
-      const sesion = ultima ? await api.leerEntrenador(ultima.resultado.sesionId) : null
-      if (sesion && sesion.revisadaEn === undefined)
-        throw new Error("No se pudo comprobar la revisión de las sesiones.")
+      const plan = await api.plan(cliente.id, lunes)
       return {
         cliente,
         sinPlan: plan.plan === null,
-        sesion,
       }
     }),
   )

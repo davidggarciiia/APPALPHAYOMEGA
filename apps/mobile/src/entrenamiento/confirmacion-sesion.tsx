@@ -19,7 +19,6 @@ export type PropsConfirmacionSesion = {
   total: number
   /** Segundos reales de actividad; null en registros antiguos sin reloj. */
   duracion: number | null
-  revisada?: boolean
   salir?: () => void
   reintentar?: () => void
   ocupado?: boolean
@@ -30,7 +29,6 @@ export function ConfirmacionSesion({
   hechas,
   total,
   duracion,
-  revisada = false,
   salir,
   reintentar,
   ocupado = false,
@@ -113,7 +111,6 @@ export function ConfirmacionSesion({
           </Text>
         </View>
       </View>
-      {revisada && <Text style={estilos.revisada}>Revisado por el entrenador</Text>}
       {estado === "guardado" && (
         <Text style={estilos.pendiente}>Se enviará cuando tengas conexión.</Text>
       )}
@@ -143,6 +140,5 @@ const estilos = StyleSheet.create({
   },
   resumen: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
   resumenTexto: { ...tipo.cuerpo, ...tipo.cifras, color: tema.textoSecundario },
-  revisada: { ...tipo.micro, color: tema.textoTenue },
   pendiente: { ...tipo.cuerpo, color: tema.textoTenue },
 })

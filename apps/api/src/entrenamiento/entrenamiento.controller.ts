@@ -81,6 +81,7 @@ export class EntrenamientoController {
     return this.resumenSemanal.resumen(this.actor(peticion), consulta.semana)
   }
 
+  // Compatibilidad histórica: el móvil ya no consume la revisión de sesiones.
   @Roles("entrenador")
   @Put("sesiones/:id/revision")
   revisar(

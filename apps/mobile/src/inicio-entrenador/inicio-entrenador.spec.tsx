@@ -272,7 +272,7 @@ it("distingue igualdad, falta de marca y primera marca sin inventar comparación
     expect(await screen.findByText(texto)).toBeOnTheScreen()
 })
 
-it("integra revisión y plan en la tarjeta y conserva activación y paginación con alcance", async () => {
+it("muestra plan sin acciones de revisión en la tarjeta y conserva activación y paginación con alcance", async () => {
   pedir.mockResolvedValue(resumen([cliente]))
   const usuario = { id: "a", nombre: "Ana", apellidos: "López" } as never
   jest.mocked(cargarTrabajo).mockResolvedValue({
@@ -282,22 +282,15 @@ it("integra revisión y plan en la tarjeta y conserva activación y paginación 
       {
         cliente: usuario,
         sinPlan: true,
-        sesion: {
-          agenda: { id: "s" },
-          prescripcion: { nombre: "Fuerza" },
-          revisadaEn: null,
-        } as never,
       },
     ],
   })
   await render(vista())
-  expect(await screen.findByText("Revisión y planes · 1–1 de 12")).toBeOnTheScreen()
+  expect(await screen.findByText("Planes · 1–1 de 12")).toBeOnTheScreen()
   expect(screen.getAllByText("Ana López")).toHaveLength(1)
+  expect(screen.queryByRole("button", { name: /revisar/i })).toBeNull()
+  expect(screen.queryByText(/sin revisar|revisada|por revisar/i)).toBeNull()
   for (const [nombre, ruta] of [
-    [
-      "Revisar Fuerza de Ana López",
-      { pathname: "/entrenamiento/[id]", params: { id: "s", nombre: "Ana López" } },
-    ],
     [
       "Crear plan para Ana López",
       { pathname: "/entrenador/cliente/[id]/plan", params: { id: "a" } },
@@ -577,7 +570,7 @@ it("anuncia las cargas en el nombre accesible aunque el lector omita las indicac
   expect(tarjeta.props.accessibilityLabel).toContain("Sube · +2,5 kg · +1 rep")
 })
 
-it("conserva revisión y plan si falla solo el agregado y no inventa las cifras semanales", async () => {
+it("conserva plan sin revisión si falla solo el agregado y no inventa las cifras semanales", async () => {
   pedir.mockRejectedValueOnce(new Error("Sin red"))
   jest.mocked(cargarTrabajo).mockResolvedValue({
     ...vacio,
@@ -585,19 +578,12 @@ it("conserva revisión y plan si falla solo el agregado y no inventa las cifras 
       {
         cliente: { id: "a", nombre: "Ana", apellidos: "López" } as never,
         sinPlan: true,
-        sesion: {
-          agenda: { id: "s" },
-          prescripcion: { nombre: "Fuerza" },
-          revisadaEn: null,
-        } as never,
       },
     ],
   })
   await render(vista())
-  expect(
-    await screen.findByRole("button", { name: "Revisar Fuerza de Ana López" }),
-  ).toBeOnTheScreen()
-  expect(screen.getByRole("button", { name: "Crear plan para Ana López" })).toBeOnTheScreen()
+  expect(await screen.findByRole("button", { name: "Crear plan para Ana López" })).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: /revisar/i })).toBeNull()
   expect(screen.queryByText(/sesiones enviadas/)).toBeNull()
   expect(screen.getAllByText("Ana López")).toHaveLength(1)
 })

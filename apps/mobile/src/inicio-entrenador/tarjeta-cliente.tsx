@@ -200,24 +200,11 @@ function AccionesTrabajo({
   abrir: (ruta: Href) => void
 }): React.JSX.Element | null {
   if (!trabajo) return null
-  const { cliente, sesion, sinPlan } = trabajo
-  const revisar = sesion?.revisadaEn === null
-  if (!revisar && !sinPlan) return null
+  const { cliente, sinPlan } = trabajo
+  if (!sinPlan) return null
   const nombre = nombreCliente(cliente)
   return (
     <View style={s.acciones}>
-      {revisar && sesion && (
-        <BotonEnlace
-          texto="Revisar sesión"
-          etiquetaAccesible={`Revisar ${sesion.prescripcion.nombre} de ${nombre}`}
-          onPress={() =>
-            abrir({
-              pathname: "/entrenamiento/[id]",
-              params: { id: sesion.agenda.id, nombre },
-            })
-          }
-        />
-      )}
       {sinPlan && (
         <BotonEnlace
           texto="Crear plan"

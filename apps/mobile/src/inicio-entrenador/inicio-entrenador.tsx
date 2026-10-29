@@ -140,7 +140,7 @@ export function InicioEntrenador({
       {!resumen.datos && resumen.error?.reintentable && estaSemana && trabajo && (
         <View style={s.grupo}>
           {trabajo.clientes
-            .filter((t) => t.sinPlan || t.sesion?.revisadaEn === null)
+            .filter((t) => t.sinPlan)
             .map((t) => (
               <TarjetaTrabajo key={t.cliente.id} trabajo={t} abrir={abrir} />
             ))}
@@ -167,7 +167,7 @@ export function InicioEntrenador({
                   listado={trabajo.activos}
                   desde={desdeActivos}
                   paso={ACTIVOS_POR_PAGINA}
-                  nombre="Revisión y planes"
+                  nombre="Planes"
                   anterior="Clientes activos anteriores"
                   siguiente="Siguientes clientes activos"
                   cambiar={setDesdeActivos}

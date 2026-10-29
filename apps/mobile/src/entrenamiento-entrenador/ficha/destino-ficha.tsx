@@ -39,10 +39,9 @@ const TITULOS = {
 }
 
 export function DestinoFicha({ destino }: { destino: Destino }): React.JSX.Element {
-  const { id, valoracionInicial, sinRevisar } = useLocalSearchParams<{
+  const { id, valoracionInicial } = useLocalSearchParams<{
     id: string
     valoracionInicial?: string
-    sinRevisar?: string
   }>()
   const { estado, pedir } = useSesion()
   const api = useEntrenamiento()
@@ -68,7 +67,6 @@ export function DestinoFicha({ destino }: { destino: Destino }): React.JSX.Eleme
           nutricion={nutricion}
           leerFicha={leerFicha}
           inicial={valoracionInicial === "1"}
-          sinRevisar={sinRevisar === "1"}
         />
       ) : (
         <Text style={s.texto}>Esta pantalla requiere una cuenta de entrenador.</Text>
@@ -82,11 +80,10 @@ function ContenidoDestino(
     destino: Destino
     medios: ApiMedios
     inicial: boolean
-    sinRevisar: boolean
   },
 ): React.JSX.Element {
-  const { destino, clienteId, api, seguimiento, valoraciones, medios, inicial, sinRevisar } = props
-  const { datos, error, copia, responder, sinAcceso, reintentar } = useDatosFicha(props)
+  const { destino, clienteId, api, seguimiento, valoraciones, medios, inicial } = props
+  const { datos, error, copia, responder, reintentar } = useDatosFicha(props)
   const [editando, setEditando] = useState(false)
   const [respondiendo, setRespondiendo] = useState<Molestia | null>(null)
   const { proteger, proteccion } = useSalidaProtegida(editando)
@@ -134,9 +131,6 @@ function ContenidoDestino(
               resultados={datos.resultados}
               molestias={datos.molestias}
               abrir={abrir}
-              api={api}
-              sinAcceso={sinAcceso}
-              sinRevisarInicial={sinRevisar}
             />
           )}
           {destino === "progreso" && (

@@ -252,7 +252,7 @@ function SesionProgresion({
     <Pulsable
       testID="sesion-progresion"
       style={s.sesion}
-      accessibilityLabel={`${fechaLegible(sesion.fecha)}, ${pautaDelEjercicio(sesion.ejercicio)}. ${sesion.series.map((s, i) => `Serie ${i + 1}, ${serieLegible(s)}${s.hecha ? `, RIR ${s.rir ?? "sin registrar"}` : ""}`).join(". ")}. Abrir revisión`}
+      accessibilityLabel={`${fechaLegible(sesion.fecha)}, ${pautaDelEjercicio(sesion.ejercicio)}. ${sesion.series.map((s, i) => `Serie ${i + 1}, ${serieLegible(s)}${s.hecha ? `, RIR ${s.rir ?? "sin registrar"}` : ""}`).join(". ")}. Abrir sesión`}
       onPress={abrir}
     >
       <View style={s.cabeceraSesion}>

@@ -166,7 +166,7 @@ describe("Ficha del cliente para el entrenador", () => {
       .expect(403)
   })
 
-  it("el listado informa de la revisión sin pedir cada sesión y admite respuestas anteriores", async () => {
+  it("la ficha omite la revisión y el detalle conserva el histórico y su contrato", async () => {
     const { app, como, ids } = entorno
     const http = app.getHttpServer()
     const listar = async () =>
@@ -179,7 +179,7 @@ describe("Ficha del cliente para el entrenador", () => {
         ).body,
       )
     const antes = await listar()
-    expect(antes.resultados[0]?.revisadaEn).toBeNull()
+    expect(antes.resultados[0]).not.toHaveProperty("revisadaEn")
     const antigua = structuredClone(antes)
     delete antigua.resultados[0]!.revisadaEn
     expect(ListadoResultadosSchema.safeParse(antigua).success).toBe(true)
@@ -189,7 +189,14 @@ describe("Ficha del cliente para el entrenador", () => {
       .put(`/entrenamiento/sesiones/${sesionId}/revision`)
       .set(como("entrenador"))
       .expect(200)
-    expect((await listar()).resultados[0]?.revisadaEn).toBe(revisada.body.revisadaEn)
+    const despues = await listar()
+    expect(despues.resultados[0]).not.toHaveProperty("revisadaEn")
+    expect(despues.resultados[0]?.resultado).toEqual(antes.resultados[0]?.resultado)
     expect(revisada.body.revisadaEn).toEqual(expect.any(String))
+    const detalle = await request(http)
+      .get(`/entrenamiento/sesiones/${sesionId}`)
+      .set(como("entrenador"))
+      .expect(200)
+    expect(detalle.body.revisadaEn).toBe(revisada.body.revisadaEn)
   })
 })

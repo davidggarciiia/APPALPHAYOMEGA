@@ -16,7 +16,7 @@ import { useEntrenamiento } from "../entrenamiento/use-entrenamiento"
 import { useValoraciones } from "../seguimiento/use-valoraciones"
 import { useSesion } from "../sesion"
 import { radio, tema } from "../tema"
-import { cargarNotificaciones, type BuzonCliente } from "./cargar"
+import { cargarNotificaciones, contadoresEntrenamiento, type BuzonCliente } from "./cargar"
 
 type Buzon = {
   clientes: BuzonCliente[] | null
@@ -131,7 +131,10 @@ export function BotonNotificaciones(): React.JSX.Element | null {
   if (!buzon) return null
   const sinLeer =
     buzon.clientes?.reduce(
-      (total, cliente) => total + cliente.entrenamiento.sinLeer + cliente.seguimiento.sinLeer,
+      (total, cliente) =>
+        total +
+        contadoresEntrenamiento(cliente.entrenamiento).sinLeer +
+        cliente.seguimiento.sinLeer,
       0,
     ) ?? 0
   return (

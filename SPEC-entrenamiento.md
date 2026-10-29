@@ -179,6 +179,14 @@ Cada ejercicio muestra sus instrucciones y una fila por serie prescrita:
   omitidas, notas y fecha de envío. Se distinguen fecha programada y envío real.
 - Puede consultar resultados por cliente y semana, abriendo las sesiones enviadas
   para comparar objetivo y ejecución. No se calculan gráficas de progreso todavía.
+- Puede abrir cualquier sesión enviada, ver el estado observado de cada ejercicio
+  y mantener comentarios de sesión o ejercicio. Responder molestias sigue siendo
+  una acción independiente. No hay marcado de revisión, etiquetas «Sin revisar» /
+  «Revisada», filtros, contadores ni acciones pendientes de revisión, ni avisos al
+  cliente de que su entrenador revisó una sesión. El resumen semanal y la ficha
+  no calculan ni exponen sesiones por revisar ni las usan para ordenar la atención.
+  Se conserva `revisadaEn` y el endpoint histórico por compatibilidad, sin uso en el
+  móvil, sin borrar datos ni migraciones (decisión del dueño, 30-10-2026).
 - La vista abierta se actualiza automáticamente con conexión, en un máximo de
   diez segundos. Al volver a la pantalla se vuelve a consultar. El plan elegirá
   el mecanismo más simple que cumpla ese comportamiento.
@@ -352,8 +360,9 @@ terminados módulos cuyo alcance restante sigue pendiente.
 El [plan vigente](tasks/plan.md) y sus [tareas](tasks/todo.md) amplían esta
 especificación: sesión guiada por ejercicio, registro de omisiones y RIR
 configurable, tiempo activo con pausa al salir, entrega con estado visible y
-revisión explícita del entrenador. El cliente sigue pudiendo cambiar de día
-dentro de la semana; el entrenador ve el cambio. Las propuestas automáticas de
+consulta de resultados por el entrenador, con comentarios y respuesta a molestias.
+El cliente sigue pudiendo cambiar de día dentro de la semana; el entrenador ve el
+cambio. Las propuestas automáticas de
 progresión se reservan para el panel profesional.
 
 Los planes y pendientes anteriores están en el

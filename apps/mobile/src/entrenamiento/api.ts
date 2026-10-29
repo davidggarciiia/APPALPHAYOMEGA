@@ -82,6 +82,7 @@ export type ApiEntrenamiento = {
   resultados: (clienteId: string, limite?: number) => Promise<ListadoResultados>
   comentar: (sesionId: string, datos: ComentarSesion) => Promise<ComentarioSesion>
   comentarios: (sesionId: string) => Promise<ListadoComentarios>
+  /** Compatibilidad histórica; el móvil ya no ofrece la revisión de sesiones. */
   revisar: (sesionId: string) => Promise<SesionEntrenador>
   novedades: (clienteId: string, desplazamiento?: number) => Promise<ListadoNovedades>
   leerNovedades: (sesionId: string, datos: MarcarNovedadesLeidas) => Promise<NovedadesLeidas>

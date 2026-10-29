@@ -418,33 +418,41 @@ it("Datos reutiliza hoja, enlace antiguo y actualiza el nombre", async () => {
   await fireEvent.press(screen.getByRole("button", { name: "Datos del cliente" }))
   expect(mockDatosDelCliente).toHaveBeenLastCalledWith(expect.objectContaining({ clienteId }))
 })
-it("cuenta revisiones desde resultados sin N+1 y abre la única pendiente", async () => {
+it("muestra los envíos sin contar revisiones y abre todas las sesiones", async () => {
   const datos = fuentes()
   datos.api.resultados.mockResolvedValue({
     resultados: [resultado("Empuje"), resultado("Tracción", "2026-10-27T12:00:00Z")],
   })
   await render(vista(datos))
   expect(datos.api.leerEntrenador).not.toHaveBeenCalled()
-  await fireEvent.press(screen.getByRole("button", { name: /^Revisar:/ }))
-  expect(mockPush).toHaveBeenLastCalledWith({
-    pathname: "/entrenamiento/[id]",
-    params: { id: "Empuje", nombre: "Lara García" },
-  })
-})
-it("varias pendientes abren Sesiones filtradas y la fila abre todas", async () => {
-  const datos = fuentes()
-  datos.api.resultados.mockResolvedValue({ resultados: [resultado("A"), resultado("B")] })
-  await render(vista(datos))
-  await fireEvent.press(screen.getByRole("button", { name: /^Revisar:/ }))
-  expect(mockPush).toHaveBeenLastCalledWith({
-    pathname: "/entrenador/cliente/[id]/sesiones",
-    params: { id: clienteId, sinRevisar: "1" },
-  })
+  expect(screen.queryAllByText(/revis/i)).toHaveLength(0)
+  expect(screen.queryByRole("button", { name: /revis/i })).toBeNull()
+  expect(screen.getByText("2 enviadas")).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: "Sesiones" }))
   expect(mockPush).toHaveBeenLastCalledWith({
     pathname: "/entrenador/cliente/[id]/sesiones",
     params: { id: clienteId },
   })
+})
+it("las sesiones enviadas no desplazan la atención a molestias y fin de bloque", async () => {
+  const datos = fuentes()
+  datos.api.plan
+    .mockResolvedValueOnce({ plan: { ...plan, semanas: 1 } })
+    .mockResolvedValueOnce({ plan: null })
+  datos.api.resultados.mockResolvedValue({ resultados: [resultado("A"), resultado("B")] })
+  datos.api.molestias.mockResolvedValue({ molestias: [molestia], total: 1 })
+  await render(vista(datos))
+  expect(screen.queryAllByText(/revis/i)).toHaveLength(0)
+  const acciones = screen
+    .getAllByRole("button")
+    .filter((boton) => /^(Responder|Preparar|Empezar):/.test(boton.props.accessibilityLabel ?? ""))
+  expect(acciones.map((boton) => boton.props.accessibilityLabel)).toEqual([
+    expect.stringMatching(/^Responder:/),
+    expect.stringMatching(/^Preparar:/),
+    expect.stringMatching(/^Empezar:/),
+  ])
+  await fireEvent.press(acciones[0]!)
+  expect(screen.getByLabelText("Respuesta para el cliente")).toBeOnTheScreen()
 })
 it("consulta siguiente plan solo al final y prepara si no existe", async () => {
   const datos = fuentes()

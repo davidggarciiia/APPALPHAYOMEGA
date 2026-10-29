@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useFocusEffect, useRouter } from "expo-router"
 import {
   AppState,
@@ -11,14 +11,14 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import Animated, { useSharedValue } from "react-native-reanimated"
+import Animated from "react-native-reanimated"
 import type { SesionEntrenador, ResultadoEntrenamiento } from "@alpha-omega/shared"
 
 import type { ApiEntrenamiento } from "../entrenamiento/api"
-import { AvisoDeError, BotonEnlace, BotonPrincipal, vibrar } from "../componentes/formulario"
+import { AvisoDeError, BotonEnlace } from "../componentes/formulario"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { Icono } from "../componentes/iconos"
-import { caida, useDestello, useMovimientoReducido } from "../componentes/movimiento"
+import { caida, useMovimientoReducido } from "../componentes/movimiento"
 import { espacio, tema, tipo } from "../tema"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
@@ -47,33 +47,20 @@ function RevisionSesion({
   const [sesion, setSesion] = useState<SesionEntrenador | null>(null)
   const [resultado, setResultado] = useState<ResultadoEntrenamiento | undefined>()
   const [error, setError] = useState("")
-  const [errorRevision, setErrorRevision] = useState("")
   const [intento, setIntento] = useState(0)
-  const [revisando, setRevisando] = useState(false)
-  const revisionEnCurso = useRef(false)
   const accesoRevocado = useRef(false)
   const retirarAcceso = useCallback((causa: unknown): void => {
     accesoRevocado.current = true
     setSesion(null)
     setResultado(undefined)
-    setErrorRevision("")
     setError(faltaDe(causa, "No se pudo actualizar el entrenamiento.").texto)
-  }, [])
-  const vigente = useRef(true)
-  useEffect(() => {
-    vigente.current = true
-    return () => {
-      vigente.current = false
-    }
   }, [])
   const router = useRouter()
   const reducido = useMovimientoReducido()
-  const ancho = useSharedValue(0)
-  const destello = useDestello(ancho)
-  const completada = Boolean(sesion?.enviadoEn && sesion.revisadaEn && resultado && !error)
+  const completada = Boolean(sesion?.enviadoEn && resultado && !error)
   useFocusEffect(
     useCallback(() => {
-      if (completada) return
+      if (completada || accesoRevocado.current) return
       let vigente = true,
         cargando = false,
         enviada = false
@@ -138,26 +125,6 @@ function RevisionSesion({
       }
     }, [id, api, intento, completada, retirarAcceso]),
   )
-  const revisar = async (): Promise<void> => {
-    if (revisionEnCurso.current || sesion?.revisadaEn || !resultado) return
-    revisionEnCurso.current = true
-    setRevisando(true)
-    setErrorRevision("")
-    try {
-      const actualizada = await api.revisar(id)
-      if (!vigente.current || accesoRevocado.current) return
-      setSesion(actualizada)
-      destello.disparar()
-      vibrar("exito")
-    } catch (causa) {
-      if (!vigente.current) return
-      if (causa instanceof ErrorDePermiso || causa instanceof ErrorDeSesion) retirarAcceso(causa)
-      else setErrorRevision("No se pudo guardar la revisión. Reintenta.")
-    } finally {
-      revisionEnCurso.current = false
-      if (vigente.current) setRevisando(false)
-    }
-  }
   const volver = (): void => {
     if (salir) return salir()
     if (router.canGoBack()) router.back()
@@ -198,7 +165,13 @@ function RevisionSesion({
           {error !== "" && (
             <View>
               <AvisoDeError mensaje={error} />
-              <BotonEnlace texto="Reintentar" onPress={() => setIntento((n) => n + 1)} />
+              <BotonEnlace
+                texto="Reintentar"
+                onPress={() => {
+                  accesoRevocado.current = false
+                  setIntento((n) => n + 1)
+                }}
+              />
             </View>
           )}
           {sesion ? (
@@ -207,11 +180,6 @@ function RevisionSesion({
                 <Text style={s.titulo} accessibilityRole="header">
                   {sesion.prescripcion.nombre}
                 </Text>
-                {sesion.enviadoEn && (
-                  <Text style={[s.insignia, sesion.revisadaEn ? s.revisada : s.sinRevisar]}>
-                    {sesion.revisadaEn ? "Revisada" : "Sin revisar"}
-                  </Text>
-                )}
                 <Text style={s.tenue}>{[fecha, resumen].filter(Boolean).join(" · ")}</Text>
               </View>
               {resultado?.notas && <Text style={s.nota}>«{resultado.notas}»</Text>}
@@ -242,31 +210,6 @@ function RevisionSesion({
             !error && <EsqueletoRevision />
           )}
         </ScrollView>
-        {resultado && sesion && (
-          <View style={s.barraInferior} testID="barra-revision">
-            {errorRevision !== "" && <AvisoDeError mensaje={errorRevision} />}
-            <View
-              style={s.accion}
-              onLayout={(evento) => {
-                ancho.value = evento.nativeEvent.layout.width
-              }}
-            >
-              <BotonPrincipal
-                texto={sesion.revisadaEn ? "Revisada" : "Marcar como revisado"}
-                ocupado={revisando}
-                deshabilitado={Boolean(sesion.revisadaEn)}
-                sinMargen
-                onPress={() => void revisar()}
-              />
-              <Animated.View
-                pointerEvents="none"
-                accessible={false}
-                importantForAccessibility="no-hide-descendants"
-                style={[s.destello, destello.estilo]}
-              />
-            </View>
-          </View>
-        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
@@ -274,11 +217,7 @@ function RevisionSesion({
 
 function EsqueletoRevision(): React.JSX.Element {
   return (
-    <View
-      style={s.sesion}
-      accessibilityLabel="Cargando revisión"
-      accessibilityState={{ busy: true }}
-    >
+    <View style={s.sesion} accessibilityLabel="Cargando sesión" accessibilityState={{ busy: true }}>
       <GrupoEsqueletos>
         <Esqueleto ancho="70%" alto={38} />
         {[0, 1, 2].map((n) => (
@@ -317,31 +256,5 @@ const s = StyleSheet.create({
   titulo: { ...tipo.tituloPantalla, color: tema.texto },
   tenue: { ...tipo.secundario, ...tipo.cifras },
   nota: { ...tipo.cuerpo, color: tema.textoSecundario },
-  insignia: {
-    ...tipo.micro,
-    alignSelf: "flex-start",
-    paddingVertical: espacio[4],
-    paddingHorizontal: espacio[8],
-    borderRadius: 8,
-  },
-  revisada: { backgroundColor: tema.exitoSuave, color: tema.exito },
-  sinRevisar: { backgroundColor: tema.acentoSuave, color: tema.acento },
-  barraInferior: {
-    backgroundColor: tema.fondo,
-    borderTopWidth: 1,
-    borderTopColor: tema.borde,
-    padding: espacio[20],
-    paddingTop: espacio[12],
-    gap: espacio[8],
-  },
-  accion: { overflow: "hidden" },
-  destello: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 34,
-    backgroundColor: tema.acentoClaro,
-  },
   bloqueEsqueleto: { marginTop: espacio[24], gap: espacio[8] },
 })

@@ -58,7 +58,7 @@ export class NovedadesService {
       select: { id: true },
     })
     if (!cliente) throw new NotFoundException("Cliente no disponible")
-    const donde = { clienteId, audiencia: identidad.rol }
+    const donde = { clienteId, audiencia: identidad.rol, tipo: { not: "sesion_revisada" } }
     const [filas, total, sinLeer] = await Promise.all([
       this.prisma.novedadEntrenamiento.findMany({
         where: donde,

@@ -61,11 +61,11 @@ it("distingue el guardado pendiente de un envío y permite reintentarlo", async 
   expect(screen.getByRole("button", { name: "Reintentar ahora" })).toBeDisabled()
 })
 
-it("no inventa duración para un registro antiguo y presenta la revisión como microetiqueta", async () => {
+it("no inventa duración ni muestra revisión en registros antiguos", async () => {
   expect(ConfirmacionSesion).toEqual(expect.any(Function))
-  await render(<ConfirmacionSesion {...base} duracion={null} revisada />)
+  await render(<ConfirmacionSesion {...{ ...base, duracion: null, revisada: true }} />)
   expect(screen.getByRole("text", { name: "12 de 13 series" })).toBeTruthy()
-  expect(screen.getByText("Revisado por el entrenador")).toHaveStyle({ fontSize: 11 })
+  expect(screen.queryByText(/revisad/i)).toBeNull()
   expect(screen.queryByText(/0 min/)).toBeNull()
 })
 

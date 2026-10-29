@@ -3,7 +3,7 @@ import request from "supertest"
 import { PlanAsignadoSchema } from "@alpha-omega/shared"
 import { entornoEntrenamiento } from "./entrenamiento-ayuda.js"
 
-describe("Revisión explícita y novedades por usuario", () => {
+describe("Compatibilidad de revisión y novedades por usuario", () => {
   let entorno: Awaited<ReturnType<typeof entornoEntrenamiento>>
   beforeAll(async () => {
     entorno = await entornoEntrenamiento("novedades")
@@ -23,7 +23,7 @@ describe("Revisión explícita y novedades por usuario", () => {
     return { id, datos, base: `/entrenamiento/sesiones/${id}` }
   }
 
-  it("solo permite revisar una sesión enviada mediante la acción explícita", async () => {
+  it("conserva la revisión histórica sin mostrar avisos ni contarlos para el cliente", async () => {
     const { id, datos, base } = await preparar()
     const { app, como, ids } = entorno
     await request(app.getHttpServer()).put(`${base}/revision`).set(como("entrenador")).expect(409)
@@ -96,9 +96,12 @@ describe("Revisión explícita y novedades por usuario", () => {
       .get(trainerFeed)
       .set(como("cliente"))
       .expect(200)
-    expect(cliente.body.novedades).toEqual([
-      expect.objectContaining({ tipo: "sesion_revisada", sesionId: id, leidaEn: null }),
-    ])
+    expect(cliente.body).toEqual({ novedades: [], total: 0, sinLeer: 0 })
+    expect(
+      await entorno.prisma.novedadEntrenamiento.count({
+        where: { sesionId: id, tipo: "sesion_revisada" },
+      }),
+    ).toBe(1)
   })
 
   it("marca eventos concretos solo para quien los leyó", async () => {

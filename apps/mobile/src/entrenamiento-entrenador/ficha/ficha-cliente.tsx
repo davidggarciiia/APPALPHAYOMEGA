@@ -17,7 +17,6 @@ import { tipoDelDia } from "../../nutricion/hoy-modelo"
 import { miles } from "../../seguimiento/modelo"
 import type { ApiMedios } from "../../seguimiento/medios-api"
 import { alto, radio, tema, tipo } from "../../tema"
-import { resumenDeResultado } from "../ficha-modelo"
 import { DialogoResponder } from "./atencion"
 import { BarraDeBloque } from "./barra-bloque"
 import { CargasFicha } from "./cargas-ficha"
@@ -97,7 +96,6 @@ function FichaActual(props: Propiedades): React.JSX.Element {
   const nombre = [datos.ficha.nombre, datos.ficha.apellidos].filter(Boolean).join(" ")
   const plan = datos.plan
   const semana = plan ? semanaDelBloque(plan, lunes) : null
-  const pendientes = datos.resultados.filter((r) => r.revisadaEn === null)
   const abiertas = datos.molestias
     .filter((m) => m.estado === "abierta")
     .sort((a, b) => b.intensidad - a.intensidad)
@@ -134,29 +132,6 @@ function FichaActual(props: Propiedades): React.JSX.Element {
         onPress: () => setRespondiendo(molestia),
         variante: molestia.intensidad >= 7 ? "error" : "aviso",
       })
-    if (pendientes.length) {
-      const antigua = [...pendientes].sort((a, b) =>
-        a.agenda.fechaActual.localeCompare(b.agenda.fechaActual),
-      )[0]!
-      acciones.push({
-        titulo:
-          pendientes.length === 1
-            ? `${antigua.resultado.prescripcion.nombre} por revisar`
-            : `${pendientes.length} sesiones por revisar`,
-        detalle:
-          pendientes.length === 1
-            ? `${fechaCorta(antigua.agenda.fechaActual)} · ${resumenDeResultado(antigua.resultado)}`
-            : `La más antigua: ${fechaCorta(antigua.agenda.fechaActual)}`,
-        accion: "Revisar",
-        onPress: () =>
-          pendientes.length === 1
-            ? verSesion(antigua.agenda.id)
-            : router.push({
-                pathname: "/entrenador/cliente/[id]/sesiones",
-                params: { id: clienteId, sinRevisar: "1" },
-              }),
-      })
-    }
     if (
       plan &&
       semana === plan.semanas &&
@@ -210,7 +185,7 @@ function FichaActual(props: Propiedades): React.JSX.Element {
       ? [
           {
             titulo: "Sesiones",
-            detalle: `${datos.resultados.length} enviadas${pendientes.length ? ` · ${pendientes.length} sin revisar` : ""}`,
+            detalle: `${datos.resultados.length} enviadas`,
             icono: "entreno" as const,
             onPress: () =>
               router.push({
@@ -397,7 +372,6 @@ function FichaActual(props: Propiedades): React.JSX.Element {
               {datos.semana && (plan || datos.semana.total > 0) && (
                 <TiraSemana
                   semana={datos.semana}
-                  resultados={datos.resultados}
                   molestias={datos.molestias}
                   plan={plan}
                   lunes={lunes}

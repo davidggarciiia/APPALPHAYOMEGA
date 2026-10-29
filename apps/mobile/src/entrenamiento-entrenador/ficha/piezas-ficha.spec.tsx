@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native"
 import { AccessibilityInfo, Dimensions } from "react-native"
 import { cancelAnimation, withRepeat, withTiming } from "react-native-reanimated"
-import type { ListadoResultados, ListadoSesiones, Molestia, PlanVigente } from "@alpha-omega/shared"
+import type { ListadoSesiones, Molestia, PlanVigente } from "@alpha-omega/shared"
 
 import { BarraDeBloque } from "./barra-bloque"
 import { TarjetaDeAccion } from "./tarjeta-accion"
@@ -61,10 +61,6 @@ const semana: ListadoSesiones = {
   ),
 }
 
-const resultados = [
-  { agenda: semana.sesiones[0]!.agenda, revisadaEn: "2026-10-26T13:00:00Z" },
-] as ListadoResultados["resultados"]
-
 it("marca solo fases con ajustes y nombra las semanas completas para lectores", async () => {
   await render(<BarraDeBloque plan={plan} lunes="2026-10-26" />)
   expect(screen.getByRole("image")).toHaveAccessibilityValue({ now: 1, min: 1, max: 4 })
@@ -107,13 +103,12 @@ it("detiene el pulso mientras hay una hoja y lo retoma sin repetir el relleno", 
   expect(withTiming).not.toHaveBeenCalledWith(1, expect.objectContaining({ duration: 400 }))
 })
 
-it("la tira cuenta solo envíos y distingue revisión, días pendientes, no hechos y descanso con K-1", async () => {
+it("la tira cuenta envíos sin revisión y distingue días pendientes, no hechos y descanso con K-1", async () => {
   const abrirSesion = jest.fn()
   const molestias = [{ sesionId: "sesion-1", estado: "abierta" }] as Molestia[]
   await render(
     <TiraSemana
       semana={semana}
-      resultados={resultados}
       molestias={molestias}
       plan={plan}
       lunes="2026-10-26"
@@ -122,11 +117,12 @@ it("la tira cuenta solo envíos y distingue revisión, días pendientes, no hech
     />,
   )
   expect(screen.getByText("3 de 5 hechas")).toBeOnTheScreen()
-  const lunes = screen.getByRole("button", { name: "Lunes 26, Empuje: hecha y revisada." })
+  expect(screen.queryAllByLabelText(/revis/i)).toHaveLength(0)
+  const lunes = screen.getByRole("button", { name: "Lunes 26, Empuje: hecha." })
   await fireEvent.press(lunes)
   expect(abrirSesion).toHaveBeenCalledWith("sesion-0")
   expect(
-    screen.getByRole("button", { name: /Martes 27.*hecha sin revisar.*molestia abierta/ }),
+    screen.getByRole("button", { name: /Martes 27.*hecha.*molestia abierta/ }),
   ).toBeOnTheScreen()
   expect(screen.getByRole("button", { name: /Viernes 30.*pendiente/ })).toBeSelected()
   expect(screen.getByLabelText("Jueves 29, sin fuerza. Además K-1.")).toBeOnTheScreen()
@@ -134,7 +130,6 @@ it("la tira cuenta solo envíos y distingue revisión, días pendientes, no hech
   await screen.rerender(
     <TiraSemana
       semana={semana}
-      resultados={resultados}
       molestias={[]}
       plan={plan}
       lunes="2026-10-26"
@@ -149,15 +144,15 @@ it("el botón de tarjeta transmite la acción y no escribe cuando está deshabil
   const onPress = jest.fn()
   await render(
     <TarjetaDeAccion
-      titulo="Pierna por revisar"
-      detalle="Enviada ayer"
-      accion="Revisar"
+      titulo="Hombro · 7 de 10"
+      detalle="Press inclinado · serie 2"
+      accion="Responder"
       onPress={onPress}
       principal
       deshabilitado
     />,
   )
-  const boton = screen.getByRole("button", { name: "Revisar: Pierna por revisar" })
+  const boton = screen.getByRole("button", { name: "Responder: Hombro · 7 de 10" })
   expect(boton).toBeDisabled()
   await act(() => fireEvent.press(boton))
   expect(onPress).not.toHaveBeenCalled()
@@ -170,7 +165,6 @@ it("con texto grande conserva los siete días en celdas de 56 y permite desplaza
     await render(
       <TiraSemana
         semana={semana}
-        resultados={resultados}
         molestias={[]}
         plan={plan}
         lunes="2026-10-26"

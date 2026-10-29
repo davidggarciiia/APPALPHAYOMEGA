@@ -1,4 +1,4 @@
-import type { UsuarioPublico } from "@alpha-omega/shared"
+import type { ListadoNovedades, UsuarioPublico } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { listarUsuarios } from "../lib/api"
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
@@ -11,6 +11,34 @@ const entrenamiento = {
   novedades: jest.fn(async () => ({ novedades: [], total: 0, sinLeer: 2 })),
 } as unknown as ApiEntrenamiento
 const seguimiento = { avisos: jest.fn(async () => ({ avisos: [], sinLeer: 1 })) }
+
+it("conserva el listado histórico bruto para paginar y no recorre páginas adicionales", async () => {
+  const tipos = ["sesion_revisada", "sesion_revisada", "comentario", "molestia"] as const
+  const lista: ListadoNovedades = {
+    novedades: tipos.map((tipo, i) => ({
+      id: String(i),
+      tipo,
+      clienteId: "cliente",
+      sesionId: "sesion",
+      sesionNombre: "Fuerza",
+      autor: { id: "entrenador", nombre: "Ana", rol: "entrenador" },
+      creadaEn: "2026-10-30T10:00:00Z",
+      leidaEn: i === 0 ? "2026-10-30T10:01:00Z" : null,
+    })),
+    total: 4,
+    sinLeer: 3,
+  }
+  const api = { novedades: jest.fn(async () => lista) }
+  const [buzon] = await cargarNotificaciones(
+    { id: "cliente", rol: "cliente" } as UsuarioPublico,
+    pedir,
+    api,
+    seguimiento,
+  )
+  expect(buzon!.entrenamiento).toEqual(lista)
+  expect(api.novedades).toHaveBeenCalledTimes(1)
+  expect(buzon!.seguimiento.sinLeer).toBe(1)
+})
 
 it("el cliente consulta solo sus avisos sin enumerar otras cuentas", async () => {
   const cuenta = { id: "cliente", nombre: "Lucía", apellidos: "Pérez", rol: "cliente" }

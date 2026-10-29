@@ -81,6 +81,29 @@ function servicio(filas: Enviada[]) {
   return new SesionesService(prisma as unknown as PrismaService)
 }
 describe("SesionesService: ejecuciones anteriores", () => {
+  it("la ficha omite la revisión sin alterar el dato histórico del detalle ni el resultado", async () => {
+    const fila = {
+      ...enviada(100),
+      prescripcion: enviada(100).resultado.prescripcion,
+      revisionPrescripcion: 0,
+      iniciada: true,
+      enviadoEn: new Date("2026-09-28T12:00:00Z"),
+      revisadaEn: new Date("2026-09-28T13:00:00Z"),
+    }
+    const sesiones = new SesionesService({
+      usuario: { findFirst: async () => ({ id: clienteId }) },
+      sesionEntrenamiento: {
+        findUnique: async () => fila,
+        findMany: async () => [fila],
+      },
+    } as unknown as PrismaService)
+    const entrenador = { ...actor, rol: "entrenador" as const }
+    const listado = await sesiones.resultados(entrenador, clienteId, 60)
+    expect(listado.resultados[0]).not.toHaveProperty("revisadaEn")
+    expect(listado.resultados[0]?.resultado).toEqual(fila.resultado)
+    expect((await sesiones.leer(entrenador, fila.id)).revisadaEn).toBe("2026-09-28T13:00:00.000Z")
+  })
+
   it("la fuerza solo usa trabajo principal, excluidas aproximaciones, circuito y vuelta a la calma", async () => {
     const principal = ejercicio(20, 60)
     const fila = enviada(100, [principal])

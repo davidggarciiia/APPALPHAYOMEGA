@@ -21,7 +21,7 @@ function descripcion(novedad: NovedadEntrenamiento): string {
     case "entrenamiento_enviado":
       return `${novedad.autor.nombre} envió ${sesion}`
     case "sesion_revisada":
-      return `${novedad.autor.nombre} revisó ${sesion}`
+      return ""
     case "comentario":
       return `${novedad.autor.nombre} comentó ${sesion}`
     case "molestia":
@@ -98,9 +98,15 @@ export function NovedadesEntrenamiento({
     setCargando(true)
     setError("")
     try {
-      const pagina = await api.novedades(clienteId, novedades.length)
+      const pagina = await api.novedades(
+        clienteId,
+        novedades.filter((n) => n.tipo !== "sesion_revisada").length,
+      )
       if (vigente !== consulta.current) return
-      setNovedades((actual) => [...actual, ...pagina.novedades])
+      setNovedades((actual) => [
+        ...actual.filter((n) => n.tipo !== "sesion_revisada"),
+        ...pagina.novedades,
+      ])
       setTotal(pagina.total)
       setSinLeer(pagina.sinLeer)
     } catch {
@@ -111,11 +117,18 @@ export function NovedadesEntrenamiento({
     }
   }
 
-  if (novedades.length === 0 && !error) return null
+  const visibles = novedades.filter((novedad) => novedad.tipo !== "sesion_revisada")
+  const sinLeerVisibles = Math.max(
+    0,
+    sinLeer - novedades.filter((n) => n.tipo === "sesion_revisada" && !n.leidaEn).length,
+  )
+  if (visibles.length === 0 && novedades.length >= total && !error) return null
   return (
     <View style={s.contenedor}>
       <Text style={s.anuncio} accessibilityLiveRegion="polite">
-        {sinLeer > 0 ? `${sinLeer} novedades sin leer` : "Sin novedades pendientes de leer"}
+        {sinLeerVisibles > 0
+          ? `${sinLeerVisibles} novedades sin leer`
+          : "Sin novedades pendientes de leer"}
       </Text>
       {error !== "" && <AvisoDeError mensaje={error} />}
       <ListaAnimada
@@ -123,7 +136,7 @@ export function NovedadesEntrenamiento({
         style={s.tarjeta}
         animacion={animarEntrada ? { entering: animacion.entering } : undefined}
       >
-        {novedades.map((novedad, indice) => (
+        {visibles.map((novedad, indice) => (
           <View key={novedad.id} style={indice > 0 && s.separada}>
             <Pressable
               accessibilityRole="button"

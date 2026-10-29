@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native"
-import type { ListadoResultados, ListadoSesiones, Molestia, PlanVigente } from "@alpha-omega/shared"
+import type { ListadoSesiones, Molestia, PlanVigente } from "@alpha-omega/shared"
 
 import { Icono } from "../../componentes/iconos"
 import { Pulsable } from "../../componentes/pulsable"
@@ -11,7 +11,6 @@ const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
 export function TiraSemana({
   semana,
-  resultados,
   molestias,
   plan,
   lunes,
@@ -19,7 +18,6 @@ export function TiraSemana({
   abrirSesion,
 }: {
   semana: ListadoSesiones
-  resultados: ListadoResultados["resultados"]
   molestias: Molestia[]
   plan: PlanVigente | null
   lunes: string
@@ -50,10 +48,6 @@ export function TiraSemana({
           const fecha = sumarDias(lunes, i)
           const sesion = semana.sesiones.find((sesion) => sesion.agenda.fechaActual === fecha)
           const enviada = sesion != null && sesion.enviadoEn !== null
-          const resultado = resultados.find(
-            (resultado) => resultado.agenda.id === sesion?.agenda.id,
-          )
-          const revisada = resultado?.revisadaEn != null
           const abierta =
             sesion &&
             molestias.some(
@@ -67,7 +61,7 @@ export function TiraSemana({
           const estado = !sesion
             ? "sin fuerza"
             : enviada
-              ? `hecha ${revisada ? "y revisada" : "sin revisar"}`
+              ? "hecha"
               : noHecha
                 ? "no hecha"
                 : "pendiente"
@@ -75,9 +69,7 @@ export function TiraSemana({
           const etiqueta = `${nombreDia[0]!.toLocaleUpperCase("es")}${nombreDia.slice(1)} ${Number(fecha.slice(8))}, ${sesion ? `${sesion.nombre}: ` : ""}${estado}.${abierta ? " Con molestia abierta." : ""}${deportes.length ? ` Además ${deportes.join(" y ")}.` : ""}`
           const contenido = (
             <>
-              {(abierta || (enviada && !revisada)) && (
-                <View style={[s.marca, { backgroundColor: abierta ? tema.error : tema.acento }]} />
-              )}
+              {abierta && <View style={[s.marca, { backgroundColor: tema.error }]} />}
               <Text style={s.dia}>{dia}</Text>
               <Text style={s.numero}>{Number(fecha.slice(8))}</Text>
               <View

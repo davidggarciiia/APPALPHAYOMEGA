@@ -15,7 +15,7 @@ const novedad: NovedadEntrenamiento = {
   id: "10000000-0000-4000-8000-000000000000",
   sesionId: "20000000-0000-4000-8000-000000000000",
   clienteId: "30000000-0000-4000-8000-000000000000",
-  tipo: "sesion_revisada" as const,
+  tipo: "comentario" as const,
   sesionNombre: "Fuerza A",
   autor: { id: "40000000-0000-4000-8000-000000000000", nombre: "Ana", rol: "entrenador" as const },
   creadaEn: "2026-09-24T10:00:00.000Z",
@@ -44,7 +44,7 @@ it.each(["resuelta", "rechazada"] as const)(
         abrir={abrir}
       />,
     )
-    await fireEvent.press(await screen.findByRole("button", { name: /revisó Fuerza A/ }))
+    await fireEvent.press(await screen.findByRole("button", { name: /comentó Fuerza A/ }))
     await vista.unmount()
     await act(async () => {
       if (resultado === "resuelta") resolver({ leidas: 1 })
@@ -70,13 +70,13 @@ it("no duplica la lectura ni la apertura y permite volver a abrir tras recuperar
     abrir,
   }
   const vista = await render(<NovedadesEntrenamiento {...propiedades} />)
-  const boton = await screen.findByRole("button", { name: /revisó Fuerza A/ })
+  const boton = await screen.findByRole("button", { name: /comentó Fuerza A/ })
   await fireEvent.press(boton)
   await fireEvent.press(boton)
   expect(leerNovedades).toHaveBeenCalledTimes(1)
 
   await vista.rerender(<NovedadesEntrenamiento {...propiedades} api={{ ...propiedades.api }} />)
-  await fireEvent.press(await screen.findByRole("button", { name: /revisó Fuerza A/ }))
+  await fireEvent.press(await screen.findByRole("button", { name: /comentó Fuerza A/ }))
   expect(leerNovedades).toHaveBeenCalledTimes(1)
   await act(async () => confirmar())
   expect(abrir).toHaveBeenCalledTimes(1)
@@ -88,11 +88,11 @@ it("no duplica la lectura ni la apertura y permite volver a abrir tras recuperar
   })
   mockFoco += 1
   await vista.rerender(<NovedadesEntrenamiento {...propiedades} />)
-  await fireEvent.press(await screen.findByRole("button", { name: /revisó Fuerza A/ }))
+  await fireEvent.press(await screen.findByRole("button", { name: /comentó Fuerza A/ }))
   expect(abrir).toHaveBeenCalledTimes(2)
 })
 
-it("muestra la revisión y guarda la lectura al abrir la sesión", async () => {
+it("muestra el comentario y guarda la lectura al abrir la sesión", async () => {
   const novedades = jest.fn(async () => ({ novedades: [novedad], total: 1, sinLeer: 1 }))
   const leerNovedades = jest.fn(async () => ({ leidas: 1 }))
   const abrir = jest.fn()
@@ -103,11 +103,11 @@ it("muestra la revisión y guarda la lectura al abrir la sesión", async () => {
       abrir={abrir}
     />,
   )
-  await waitFor(() => expect(screen.getByText(/revisó Fuerza A/)).toBeTruthy())
+  await waitFor(() => expect(screen.getByText(/comentó Fuerza A/)).toBeTruthy())
   expect(screen.queryByRole("header", { name: /Novedades/ })).toBeNull()
   expect(screen.queryByText("Nueva")).toBeNull()
-  expect(screen.getByRole("button", { name: /revisó Fuerza A, sin leer/ })).toBeTruthy()
-  await fireEvent.press(screen.getByRole("button", { name: /revisó Fuerza A/ }))
+  expect(screen.getByRole("button", { name: /comentó Fuerza A, sin leer/ })).toBeTruthy()
+  await fireEvent.press(screen.getByRole("button", { name: /comentó Fuerza A/ }))
   await waitFor(() =>
     expect(leerNovedades).toHaveBeenCalledWith(novedad.sesionId, { novedadIds: [novedad.id] }),
   )
@@ -139,14 +139,14 @@ it("permite consultar y abrir avisos posteriores a los ocho primeros", async () 
     />,
   )
 
-  expect(await screen.findByText(/revisó Sesión 1/)).toBeTruthy()
-  expect(screen.getByText(/revisó Sesión 4/)).toBeOnTheScreen()
-  expect(screen.queryByText(/revisó Sesión 9/)).toBeNull()
-  expect(screen.getByText(/revisó Sesión 8/)).toBeOnTheScreen()
+  expect(await screen.findByText(/comentó Sesión 1/)).toBeTruthy()
+  expect(screen.getByText(/comentó Sesión 4/)).toBeOnTheScreen()
+  expect(screen.queryByText(/comentó Sesión 9/)).toBeNull()
+  expect(screen.getByText(/comentó Sesión 8/)).toBeOnTheScreen()
   expect(novedades).toHaveBeenCalledTimes(1)
   await fireEvent.press(screen.getByRole("button", { name: "Ver más novedades" }))
-  expect(await screen.findByText(/revisó Sesión 9/)).toBeTruthy()
-  await fireEvent.press(screen.getByRole("button", { name: /revisó Sesión 9/ }))
+  expect(await screen.findByText(/comentó Sesión 9/)).toBeTruthy()
+  await fireEvent.press(screen.getByRole("button", { name: /comentó Sesión 9/ }))
   await waitFor(() => expect(abrir).toHaveBeenCalledWith(novedad.sesionId))
   expect(novedades).toHaveBeenLastCalledWith(novedad.clienteId, 8)
 })
@@ -166,14 +166,14 @@ it("la bandeja muestra toda la primera página en filas compactas sin un resumen
     />,
   )
 
-  await screen.findByText("Ana revisó Fuerza 1")
+  await screen.findByText("Ana comentó Fuerza 1")
   expect(screen.getByTestId("tarjeta-novedades")).toHaveStyle({ paddingHorizontal: 16 })
-  expect(screen.getAllByRole("button", { name: /Ana revisó/ })).toHaveLength(5)
-  for (const fila of screen.getAllByRole("button", { name: /Ana revisó/ }))
+  expect(screen.getAllByRole("button", { name: /Ana comentó/ })).toHaveLength(5)
+  for (const fila of screen.getAllByRole("button", { name: /Ana comentó/ }))
     expect(fila).toHaveStyle({ minHeight: 56 })
-  expect(screen.getByText("Ana revisó Fuerza 1")).toHaveProp("numberOfLines", 1)
-  expect(screen.getByText("Ana revisó Fuerza 4")).toBeOnTheScreen()
-  expect(screen.getByText("Ana revisó Fuerza 5")).toBeOnTheScreen()
+  expect(screen.getByText("Ana comentó Fuerza 1")).toHaveProp("numberOfLines", 1)
+  expect(screen.getByText("Ana comentó Fuerza 4")).toBeOnTheScreen()
+  expect(screen.getByText("Ana comentó Fuerza 5")).toBeOnTheScreen()
   expect(screen.queryByRole("button", { name: "Ver todas" })).toBeNull()
   expect(screen.queryByRole("button", { name: "Ver más novedades" })).toBeNull()
   expect(novedades).toHaveBeenCalledTimes(1)
@@ -200,7 +200,7 @@ it("retira solo el punto de la novedad leída y conserva la fila en el historial
   await fireEvent.press(fila)
   await waitFor(() => expect(abrir).toHaveBeenCalledWith(novedad.sesionId))
   expect(screen.queryByTestId(`punto-novedad-${novedad.id}`)).toBeNull()
-  expect(screen.getByRole("button", { name: "Ana revisó Fuerza A" })).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: "Ana comentó Fuerza A" })).toBeOnTheScreen()
   expect(screen.getByText("Sin novedades pendientes de leer")).toBeOnTheScreen()
   expect(leerNovedades).toHaveBeenCalledWith(novedad.sesionId, { novedadIds: [novedad.id] })
 })
@@ -248,3 +248,82 @@ it.each([
     }
   },
 )
+
+it.each([true, false])(
+  "oculta avisos históricos de revisión sin alterar comentarios (copia inicial: %s)",
+  async (copia) => {
+    const lista = {
+      novedades: [{ ...novedad, id: "revision", tipo: "sesion_revisada" as const }, novedad],
+      total: 2,
+      sinLeer: 2,
+    }
+    const leerNovedades = jest.fn(async () => ({ leidas: 1 }))
+    const abrir = jest.fn()
+    await render(
+      <NovedadesEntrenamiento
+        clienteId={novedad.clienteId}
+        api={
+          { novedades: jest.fn(async () => lista), leerNovedades } as unknown as ApiEntrenamiento
+        }
+        inicial={copia ? lista : undefined}
+        abrir={abrir}
+      />,
+    )
+    await screen.findByText("Ana comentó Fuerza A")
+    expect(screen.queryByText(/revisó|revisad/i)).toBeNull()
+    expect(screen.getAllByRole("button")).toHaveLength(1)
+    expect(screen.getByText("1 novedades sin leer")).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: /comentó/ }))
+    expect(leerNovedades).toHaveBeenCalledWith(novedad.sesionId, { novedadIds: [novedad.id] })
+    expect(abrir).toHaveBeenCalledWith(novedad.sesionId)
+  },
+)
+
+it("pagina desde cero contra la API filtrada si la copia solo contiene revisiones históricas", async () => {
+  const novedades = jest.fn(async () => ({ novedades: [novedad], total: 1, sinLeer: 1 }))
+  const lista = {
+    novedades: Array.from({ length: 8 }, (_, n) => ({
+      ...novedad,
+      id: String(n),
+      tipo: "sesion_revisada" as const,
+    })),
+    total: 9,
+    sinLeer: 9,
+  }
+  await render(
+    <NovedadesEntrenamiento
+      clienteId={novedad.clienteId}
+      api={{ novedades } as unknown as ApiEntrenamiento}
+      inicial={lista}
+      abrir={jest.fn()}
+    />,
+  )
+  expect(screen.queryAllByText(/revisó/)).toHaveLength(0)
+  await fireEvent.press(screen.getByRole("button", { name: "Ver más novedades" }))
+  expect(novedades).toHaveBeenCalledWith(novedad.clienteId, 0)
+  expect(await screen.findByText("Ana comentó Fuerza A")).toBeOnTheScreen()
+  expect(screen.getByText("1 novedades sin leer")).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: "Ver más novedades" })).toBeNull()
+})
+
+it("pagina una copia mixta sin saltar comentarios ni descontar dos veces la revisión", async () => {
+  const siguiente = { ...novedad, id: "siguiente", sesionNombre: "Fuerza B" }
+  const novedades = jest.fn(async () => ({ novedades: [siguiente], total: 2, sinLeer: 2 }))
+  await render(
+    <NovedadesEntrenamiento
+      clienteId={novedad.clienteId}
+      api={{ novedades } as unknown as ApiEntrenamiento}
+      inicial={{
+        novedades: [{ ...novedad, id: "revision", tipo: "sesion_revisada" }, novedad],
+        total: 3,
+        sinLeer: 3,
+      }}
+      abrir={jest.fn()}
+    />,
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Ver más novedades" }))
+  expect(novedades).toHaveBeenCalledWith(novedad.clienteId, 1)
+  expect(screen.getAllByRole("button", { name: /comentó/ })).toHaveLength(2)
+  expect(screen.getByText("2 novedades sin leer")).toBeOnTheScreen()
+  expect(screen.queryByText(/revisó/)).toBeNull()
+})

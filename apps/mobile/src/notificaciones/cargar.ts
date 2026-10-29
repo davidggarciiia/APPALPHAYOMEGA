@@ -15,6 +15,17 @@ export type BuzonCliente = {
   seguimiento: ListadoAvisosSeguimiento
 }
 
+export function contadoresEntrenamiento(listado: ListadoNovedades): {
+  total: number
+  sinLeer: number
+} {
+  const revisiones = listado.novedades.filter((novedad) => novedad.tipo === "sesion_revisada")
+  return {
+    total: Math.max(0, listado.total - revisiones.length),
+    sinLeer: Math.max(0, listado.sinLeer - revisiones.filter((novedad) => !novedad.leidaEn).length),
+  }
+}
+
 /** El contrato ofrece avisos por cliente; se recorre la cartera sin saturar la conexión. */
 export async function cargarNotificaciones(
   usuario: UsuarioPublico,

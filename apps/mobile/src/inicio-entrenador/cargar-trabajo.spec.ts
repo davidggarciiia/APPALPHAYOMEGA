@@ -35,7 +35,7 @@ beforeEach(() => {
   }))
 })
 
-it("acota incluso una respuesta sobredimensionada a 4 activos, 8 activaciones y 14 llamadas", async () => {
+it("acota incluso una respuesta sobredimensionada a 4 activos, 8 activaciones y 6 llamadas sin consultar revisión", async () => {
   const datos = await cargarTrabajo(pedir as never, 4, 8)
   expect(listarUsuarios).toHaveBeenCalledTimes(2)
   expect(listarUsuarios).toHaveBeenCalledWith(pedir, {
@@ -53,23 +53,19 @@ it("acota incluso una respuesta sobredimensionada a 4 activos, 8 activaciones y 
   expect(datos.clientes).toHaveLength(4)
   expect(datos.pendientes.usuarios).toHaveLength(8)
   expect(api.plan).toHaveBeenCalledTimes(4)
-  expect(api.resultados).toHaveBeenCalledTimes(4)
-  expect(api.leerEntrenador).toHaveBeenCalledTimes(4)
-  expect(pedir).not.toHaveBeenCalled()
-  for (const [id, limite] of api.resultados.mock.calls) {
-    expect(id).toMatch(/^cliente-/)
-    expect(limite).toBe(1)
-  }
-})
-
-it("no inventa Sin revisar cuando el servidor no expone el estado de revisión", async () => {
-  api.leerEntrenador.mockResolvedValueOnce({ revisadaEn: undefined } as never)
-  await expect(cargarTrabajo(pedir as never, 0, 0)).rejects.toThrow("revisión")
-})
-
-it("no pide revisión si el cliente nunca ha enviado una sesión", async () => {
-  api.resultados.mockResolvedValue({ resultados: [] })
-  const datos = await cargarTrabajo(pedir as never, 0, 0)
+  expect(api.resultados).not.toHaveBeenCalled()
   expect(api.leerEntrenador).not.toHaveBeenCalled()
-  expect(datos.clientes.every((c) => c.sesion === null)).toBe(true)
+  expect(pedir).not.toHaveBeenCalled()
 })
+
+it.each([null, { id: "plan" }])(
+  "conserva la detección de planes sin depender de revisión: %s",
+  async (plan) => {
+    api.plan.mockResolvedValue({ plan } as never)
+    api.leerEntrenador.mockRejectedValue(new Error("No disponible"))
+    const datos = await cargarTrabajo(pedir as never, 0, 0)
+    expect(datos.clientes.every((c) => c.sinPlan === (plan === null))).toBe(true)
+    expect(api.resultados).not.toHaveBeenCalled()
+    expect(api.leerEntrenador).not.toHaveBeenCalled()
+  },
+)

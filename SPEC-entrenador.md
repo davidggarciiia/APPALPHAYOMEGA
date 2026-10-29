@@ -5,10 +5,9 @@ Estado: borrador para aprobar (29-10-2026). Amplía `SPEC.md` y `SPEC-entrenamie
 ## Objetivo
 
 El criterio de éxito del proyecto es que el entrenador abra el panel y vea qué ha
-levantado cada cliente esta semana sin preguntárselo a nadie. Hoy el Inicio del
-entrenador lista tareas (sesiones por revisar, molestias, clientes sin plan) pero
-no enseña cargas. Este trabajo lleva el perfil de entrenador al nivel del de
-cliente con tres capacidades, en el móvil (390 px) y para carteras de menos de
+levantado cada cliente esta semana sin preguntárselo a nadie. El Inicio del
+entrenador reúne cargas, molestias y clientes sin plan. Este trabajo lleva el perfil
+de entrenador al nivel del de cliente con tres capacidades, en el móvil (390 px) y para carteras de menos de
 15 clientes. Queda fuera una agenda de «hoy»: el dueño la descarta.
 
 | Módulo                 | Qué resuelve                                                              | Depende de          |
@@ -44,8 +43,10 @@ cuanto el dueño apruebe el diseño.
    semanas de historial responde en menos de 500 ms en local (prueba e2e con datos).
 5. Se refresca al volver a la pantalla y como mucho cada 10 s mientras está visible
    y la app activa. Tocar la tarjeta abre la ficha del cliente.
-6. Lo que ya hay en el panel (por revisar, molestias, sin plan) se integra, no se
-   duplica.
+6. Las molestias y los clientes sin plan se integran sin duplicarse. No hay tareas,
+   etiquetas, filtros ni contadores de sesiones pendientes de revisión. El resumen
+   semanal y la ficha no calculan ni exponen ese pendiente; tampoco determina el
+   orden por atención.
 
 ### progresion-ejercicio (ficha → Progreso)
 
@@ -78,6 +79,13 @@ cuanto el dueño apruebe el diseño.
 12. Si la edad y el sexo que necesitan los protocolos de pliegues y el cálculo de
     gasto no se guardan en el cliente, se añaden como columnas opcionales (migración
     aditiva, sin tocar datos existentes) y se editan en «Datos del cliente».
+
+El entrenador puede abrir cualquier sesión enviada y comparar lo prescrito con lo
+hecho y el estado observado de cada ejercicio, además de comentar la sesión o sus
+ejercicios. Las molestias conservan su acción de respuesta. Por decisión del dueño
+(30-10-2026), consultar o comentar una sesión no exige marcarla como revisada y el
+cliente no recibe avisos de revisión. El campo histórico `revisadaEn` y el endpoint
+de revisión se conservan por compatibilidad, sin uso en el móvil ni migraciones.
 
 ### Para los tres
 

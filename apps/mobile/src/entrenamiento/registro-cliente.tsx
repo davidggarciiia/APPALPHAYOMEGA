@@ -409,7 +409,6 @@ export function RegistroCliente({
             }
             total={seriesDeTrabajo(documento.resultado.prescripcion).length}
             duracion={documento.resultado.tiempoActivoSegundos ?? null}
-            revisada={Boolean(documento.sesion.revisadaEn)}
             salir={listo ?? salir}
           />
           <PrescripcionVisible

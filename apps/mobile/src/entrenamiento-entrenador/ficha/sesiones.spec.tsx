@@ -1,18 +1,7 @@
-import { act, fireEvent, render, screen } from "@testing-library/react-native"
+import { fireEvent, render, screen } from "@testing-library/react-native"
 import type { ListadoResultados, Molestia } from "@alpha-omega/shared"
-import type { ApiEntrenamiento } from "../../entrenamiento/api"
 
 import { SesionesDelCliente } from "./sesiones"
-
-const revisiones = { Empuje: null, Tracción: "2026-10-01T12:00:00Z" }
-const api = {
-  leerEntrenador: jest.fn(async (id: keyof typeof revisiones) => ({ revisadaEn: revisiones[id] })),
-} as unknown as ApiEntrenamiento
-const sinAcceso = jest.fn()
-jest.mock("expo-router", () => ({
-  useFocusEffect: (efecto: () => void) =>
-    jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
-}))
 
 const resultados: ListadoResultados["resultados"] = ["Empuje", "Tracción"].map((nombre) => ({
   agenda: {
@@ -80,36 +69,24 @@ const resultados: ListadoResultados["resultados"] = ["Empuje", "Tracción"].map(
   },
 }))
 
-it("lista tarjetas navegables y filtra las revisiones pendientes sin editar la sesión", async () => {
+it("abre cualquier sesión enviada sin etiquetas, filtro ni consultas de revisión", async () => {
   const abrir = jest.fn()
-  await render(
-    <SesionesDelCliente
-      resultados={resultados}
-      molestias={[]}
-      api={api}
-      sinAcceso={sinAcceso}
-      abrir={abrir}
-    />,
-  )
-  expect(screen.getByRole("button", { name: /^Empuje ·/ })).toBeOnTheScreen()
-  expect(screen.getByRole("button", { name: /^Tracción ·/ })).toBeOnTheScreen()
+  await render(<SesionesDelCliente resultados={resultados} molestias={[]} abrir={abrir} />)
+  expect(screen.queryAllByText(/revis/i)).toHaveLength(0)
+  expect(screen.queryByRole("button", { name: "Todas" })).toBeNull()
+  expect(screen.queryAllByLabelText(/revis/i)).toHaveLength(0)
   expect(screen.queryByLabelText("Comentario sobre la sesión")).toBeNull()
   expect(screen.queryByRole("button", { name: "Sesión anterior" })).toBeNull()
-  expect(screen.queryByRole("button", { name: "Marcar como revisada" })).toBeNull()
-  await fireEvent.press(screen.getByRole("button", { name: "Sin revisar" }))
-  expect(screen.queryByRole("button", { name: /^Tracción ·/ })).toBeNull()
-  await fireEvent.press(screen.getByRole("button", { name: /^Empuje ·/ }))
-  expect(abrir).toHaveBeenCalledWith("Empuje")
-  await fireEvent.press(screen.getByRole("button", { name: "Todas" }))
-  expect(screen.getByRole("button", { name: /^Tracción ·/ })).toBeOnTheScreen()
+  for (const nombre of ["Empuje", "Tracción"]) {
+    await fireEvent.press(screen.getByRole("button", { name: new RegExp(`^${nombre} ·`) }))
+    expect(abrir).toHaveBeenLastCalledWith(nombre)
+  }
 })
 
 it("representa cada serie de trabajo y comunica RIR bajo, carga y molestia", async () => {
   await render(
     <SesionesDelCliente
       resultados={[resultados[0]!]}
-      api={api}
-      sinAcceso={sinAcceso}
       molestias={[
         {
           id: "m",
@@ -135,119 +112,28 @@ it("representa cada serie de trabajo y comunica RIR bajo, carga y molestia", asy
   expect(screen.getByText("Molestia pendiente")).toBeOnTheScreen()
 })
 
-it("mantiene el filtro al recibir nuevas sesiones y ofrece un vacío claro", async () => {
+it("incorpora nuevas sesiones sin filtrar y muestra el vacío solo sin envíos", async () => {
   const vista = (lista: typeof resultados) => (
-    <SesionesDelCliente
-      resultados={lista}
-      molestias={[]}
-      api={api}
-      sinAcceso={sinAcceso}
-      abrir={jest.fn()}
-    />
+    <SesionesDelCliente resultados={lista} molestias={[]} abrir={jest.fn()} />
   )
   await render(vista([resultados[1]!]))
-  await fireEvent.press(screen.getByRole("button", { name: "Sin revisar" }))
-  expect(screen.getByText("Todas las sesiones están revisadas.")).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: /^Tracción ·/ })).toBeOnTheScreen()
   await screen.rerender(vista(resultados))
-  expect(
-    screen.getByRole("button", { name: "Sin revisar" }).props.accessibilityState.selected,
-  ).toBe(true)
-  expect(screen.getByRole("button", { name: /^Empuje ·/ })).toBeOnTheScreen()
+  expect(screen.getAllByRole("button")).toHaveLength(2)
   await screen.rerender(vista([]))
   expect(screen.getByText("El cliente aún no ha enviado ninguna sesión.")).toBeOnTheScreen()
 })
 
-it("consulta la revisión real sin inventarla desde el resultado y permite reintentar el error", async () => {
-  let resolver!: (valor: { revisadaEn: null }) => void
-  const leerEntrenador = jest
-    .fn()
-    .mockRejectedValueOnce(new Error("sin red"))
-    .mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolver = resolve
-        }),
-    )
-  await render(
-    <SesionesDelCliente
-      resultados={[resultados[0]!]}
-      molestias={[]}
-      api={{ leerEntrenador } as unknown as ApiEntrenamiento}
-      sinAcceso={sinAcceso}
-      abrir={jest.fn()}
-    />,
-  )
-  expect(screen.getByText("Revisión no disponible")).toBeOnTheScreen()
-  expect(screen.getAllByText("Sin revisar")).toHaveLength(1)
-  await fireEvent.press(screen.getByRole("button", { name: "Reintentar revisión de Empuje" }))
-  expect(screen.getByText("Comprobando revisión")).toBeOnTheScreen()
-  await act(async () => resolver({ revisadaEn: null }))
-  expect(screen.getAllByText("Sin revisar")).toHaveLength(2)
-  expect(leerEntrenador).toHaveBeenCalledTimes(2)
-  expect(leerEntrenador).toHaveBeenLastCalledWith("Empuje")
-})
-
-it("mantiene un máximo de cuatro lecturas cuando llegan sesiones durante una consulta", async () => {
-  const completar: Array<() => void> = []
-  const leerEntrenador = jest.fn<Promise<{ revisadaEn: null }>, [string]>(async () => ({
-    revisadaEn: null,
-  }))
-  for (let n = 0; n < 4; n++)
-    leerEntrenador.mockImplementationOnce(
-      () => new Promise((resolve) => completar.push(() => resolve({ revisadaEn: null }))),
-    )
-  const datos = { ...api, leerEntrenador } as unknown as ApiEntrenamiento
-  const lista = Array.from({ length: 6 }, (_, n) => ({
-    ...resultados[0]!,
-    agenda: { ...resultados[0]!.agenda, id: String(n) },
-  }))
-  const vista = (elementos: typeof lista) => (
-    <SesionesDelCliente
-      resultados={elementos}
-      molestias={[]}
-      api={datos}
-      sinAcceso={sinAcceso}
-      abrir={jest.fn()}
-    />
-  )
-  await render(vista(lista))
-  expect(leerEntrenador).toHaveBeenCalledTimes(4)
-  await screen.rerender(
-    vista([...lista, { ...lista[0]!, agenda: { ...lista[0]!.agenda, id: "nueva" } }]),
-  )
-  expect(leerEntrenador).toHaveBeenCalledTimes(4)
-  await act(async () => completar.forEach((resolver) => resolver()))
-  expect(leerEntrenador).toHaveBeenCalledTimes(7)
-  expect(leerEntrenador.mock.calls.map((llamada) => llamada[0])).toEqual([
-    "0",
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "nueva",
-  ])
-})
-
-it("usa revisadaEn del listado, abre Sin revisar desde la tarjeta y evita lecturas por sesión", async () => {
+it("ignora marcas históricas de revisión y permite abrir ambas sesiones", async () => {
+  const abrir = jest.fn()
   const lista = resultados.map((r, i) => ({
     ...r,
     revisadaEn: i === 0 ? null : "2026-10-01T12:00:00Z",
   }))
-  await render(
-    <SesionesDelCliente
-      resultados={lista}
-      molestias={[]}
-      api={api}
-      sinAcceso={sinAcceso}
-      abrir={jest.fn()}
-      sinRevisarInicial
-    />,
-  )
-  expect(screen.getByRole("button", { name: /^Empuje ·/ })).toBeOnTheScreen()
-  expect(screen.queryByRole("button", { name: /^Tracción ·/ })).toBeNull()
-  expect(api.leerEntrenador).not.toHaveBeenCalled()
-  await fireEvent.press(screen.getByRole("button", { name: "Todas" }))
-  expect(screen.getByRole("button", { name: /^Tracción ·/ })).toBeOnTheScreen()
-  expect(screen.getByText("Revisada")).toBeOnTheScreen()
+  await render(<SesionesDelCliente resultados={lista} molestias={[]} abrir={abrir} />)
+  expect(screen.queryAllByText(/revis/i)).toHaveLength(0)
+  expect(screen.queryAllByLabelText(/revis/i)).toHaveLength(0)
+  expect(screen.getAllByRole("button")).toHaveLength(2)
+  await fireEvent.press(screen.getByRole("button", { name: /^Tracción ·/ }))
+  expect(abrir).toHaveBeenCalledWith("Tracción")
 })
