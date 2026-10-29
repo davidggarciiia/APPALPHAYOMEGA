@@ -86,7 +86,7 @@ export function FilaSerie({
   alRecuperar,
 }: FilaSerieProps): React.JSX.Element {
   const reducido = useMovimientoReducido()
-  const { fontScale } = useWindowDimensions()
+  const { width, fontScale } = useWindowDimensions()
   const ancho = useSharedValue(0)
   const destello = useDestello(ancho)
   const dispararDestello = destello.disparar
@@ -223,10 +223,13 @@ export function FilaSerie({
         }}
         style={[s.fila, filaAnimada, omitida && s.omitida]}
       >
-        <Text style={[s.numero, primeraPendiente && !hecha && !omitida && s.numeroActual]}>
+        <Text
+          numberOfLines={1}
+          style={[s.numero, primeraPendiente && !hecha && !omitida && s.numeroActual]}
+        >
           {numero}
         </Text>
-        {fontScale <= 1.3 && (
+        {width >= 360 && fontScale <= 1.3 && (
           <Text accessibilityLabel={`Anterior: ${anterior}`} style={s.anterior}>
             {anterior}
           </Text>
@@ -319,6 +322,7 @@ const s = StyleSheet.create({
   },
   numero: {
     width: 22,
+    minWidth: 22,
     color: tema.textoTenue,
     fontFamily: tema.fuenteSemi,
     fontSize: 13,

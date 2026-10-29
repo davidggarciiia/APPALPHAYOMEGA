@@ -1,5 +1,5 @@
 ﻿import { useState, type ComponentProps } from "react"
-import { AccessibilityInfo, Dimensions } from "react-native"
+import { AccessibilityInfo, Dimensions, StyleSheet } from "react-native"
 import { act, fireEvent, render, screen, userEvent, within } from "@testing-library/react-native"
 import {
   mantieneUnidadYCarga,
@@ -78,6 +78,81 @@ const ejercicio: EjercicioPrescrito = {
 }
 
 describe("D2 · tabla completa y barra compartida", () => {
+  it.each([
+    [390, 1, true],
+    [360, 1, true],
+    [320, 1, false],
+    [390, 1.4, false],
+  ])(
+    "D14: cabecera y series caben sin partir el número a %i px y escala %s",
+    async (width, fontScale, conAnterior) => {
+      Dimensions.set({ window: { ...ventanaOriginal, width, fontScale } })
+      const prescritas = Array.from({ length: 30 }, (_, n) => ({
+        id: `${serieId}-${n}`,
+        tipoMedicion: "repeticiones" as const,
+        repeticiones: 8,
+        pesoKg: 60,
+      }))
+      await render(
+        <TablaSeries
+          ejercicio={{
+            ...ejercicio,
+            tipoCarga: "conCargaExterna",
+            modoRir: "cadaSerie",
+            rir: { min: 2, max: 3 },
+            series: prescritas,
+          }}
+          series={prescritas.map(({ id }) => ({
+            serieId: id,
+            peso: "",
+            valor: "",
+            hecha: false,
+          }))}
+          bloqueado={false}
+          cambiar={jest.fn()}
+        />,
+      )
+      const cabecera = screen.getByLabelText("Serie")
+      expect(cabecera).toHaveTextContent("#")
+      expect(cabecera).toHaveProp("numberOfLines", 1)
+      expect(cabecera).toHaveStyle({ width: 22, minWidth: 22 })
+      expect(Boolean(screen.queryByText("ANT."))).toBe(conAnterior)
+      expect(screen.queryAllByLabelText("Anterior: —")).toHaveLength(conAnterior ? 30 : 0)
+
+      const fila = screen.getAllByTestId("fila-serie")[29]!
+      const numero = within(fila).getByText("30")
+      expect(numero).toHaveProp("numberOfLines", 1)
+      expect(numero).toHaveStyle({ width: 22, minWidth: 22 })
+      const controles = [...within(fila).getAllByRole("button"), within(fila).getByRole("checkbox")]
+      for (const control of controles) {
+        const estilo = StyleSheet.flatten(control.props.style)
+        expect(estilo.minWidth ?? estilo.width).toBeGreaterThanOrEqual(44)
+        expect(estilo.minHeight).toBeGreaterThanOrEqual(44)
+      }
+
+      const columnas = StyleSheet.flatten(cabecera.parent!.props.style)
+      const estiloFila = StyleSheet.flatten(fila.props.style)
+      expect(columnas.gap).toBe(estiloFila.gap)
+      expect(columnas.paddingHorizontal).toBe(estiloFila.paddingHorizontal)
+      const anchoMinimo = (contenedor: typeof fila): number => {
+        const hijos = contenedor.children
+          .filter((hijo): hijo is typeof fila => typeof hijo !== "string")
+          .filter((hijo) => StyleSheet.flatten(hijo.props.style).position !== "absolute")
+        return (
+          hijos.reduce((ancho, hijo) => {
+            const estilo = StyleSheet.flatten(hijo.props.style)
+            return ancho + (estilo.minWidth ?? estilo.width)
+          }, 0) +
+          (hijos.length - 1) * estiloFila.gap +
+          2 * estiloFila.paddingHorizontal
+        )
+      }
+      // Jest no calcula layout: fijamos el presupuesto de la fila con los gutters de sesión.
+      expect(anchoMinimo(cabecera.parent!)).toBeLessThanOrEqual(width - 40)
+      expect(anchoMinimo(fila)).toBeLessThanOrEqual(width - 40)
+    },
+  )
+
   it("D10: propone carga de descarga desde anterior y conserva lo escrito", async () => {
     const calibrar: EjercicioPrescrito = {
       ...ejercicio,

@@ -150,7 +150,7 @@ export function TablaSeries({
   error?: string
   intentoError?: number
 }): React.JSX.Element {
-  const { fontScale } = useWindowDimensions()
+  const { width, fontScale } = useWindowDimensions()
   const reducido = useMovimientoReducido()
   const animacion = useAnimacionLista()
   const sacudida = useSharedValue(0)
@@ -253,8 +253,10 @@ export function TablaSeries({
         )}
       </View>
       <View style={s.columnas} accessible={false}>
-        <Text style={[s.etiqueta, s.numero]}>SERIE</Text>
-        {fontScale <= 1.3 && <Text style={[s.etiqueta, s.anterior]}>ANT.</Text>}
+        <Text accessibilityLabel="Serie" numberOfLines={1} style={[s.etiqueta, s.numero]}>
+          #
+        </Text>
+        {width >= 360 && fontScale <= 1.3 && <Text style={[s.etiqueta, s.anterior]}>ANT.</Text>}
         {mostrarPeso && <Text style={[s.etiqueta, s.valor]}>KG</Text>}
         <Text style={[s.etiqueta, s.valor]}>{cabecera(ejercicio.series)}</Text>
         {modoRir === "cadaSerie" && <Text style={[s.etiqueta, s.marca]}>RIR</Text>}
@@ -389,7 +391,7 @@ const s = StyleSheet.create({
     color: tema.textoTenue,
     textAlign: "center",
   },
-  numero: { width: 22 },
+  numero: { width: 22, minWidth: 22 },
   anterior: { width: 52 },
   valor: { flex: 1, minWidth: 52 },
   marca: { width: 44 },

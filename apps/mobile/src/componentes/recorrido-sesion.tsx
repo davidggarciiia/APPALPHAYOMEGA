@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react"
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native"
+import {
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native"
 import Animated, {
   cancelAnimation,
   interpolateColor,
@@ -24,6 +31,9 @@ export function RecorridoSesion({
   /** Permite que termine la animación de la serie antes de mover el recorrido. */
   demora?: number
 }): React.JSX.Element {
+  const { fontScale } = useWindowDimensions()
+  // Compensa el alto de línea de Anton sin mover la pista al ampliar la fuente.
+  const margenLetra = { marginVertical: -2 * fontScale }
   const maximo = Math.max(0, Number.isFinite(total) ? total : 0)
   const actual = Math.min(maximo, Math.max(0, Number.isFinite(hechas) ? hechas : 0))
   const proporcion = maximo > 0 ? actual / maximo : 0
@@ -86,7 +96,7 @@ export function RecorridoSesion({
       accessibilityLabel="Progreso de la sesión"
       accessibilityValue={{ min: 0, max: maximo, now: actual }}
     >
-      <Text style={estilos.letra} accessible={false}>
+      <Text style={[estilos.letra, margenLetra]} accessible={false}>
         Α
       </Text>
       <View
@@ -104,7 +114,7 @@ export function RecorridoSesion({
           </View>
         )}
       </View>
-      <Animated.Text style={[estilos.letra, omega]} accessible={false}>
+      <Animated.Text style={[estilos.letra, margenLetra, omega]} accessible={false}>
         Ω
       </Animated.Text>
     </View>
@@ -113,7 +123,13 @@ export function RecorridoSesion({
 
 const estilos = StyleSheet.create({
   fila: { flexDirection: "row", alignItems: "center", gap: 10 },
-  letra: { fontFamily: tema.fuenteTitulo, fontSize: 15, lineHeight: 20, color: tema.textoTenue },
+  letra: {
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 15,
+    lineHeight: 24,
+    overflow: "visible",
+    color: tema.textoTenue,
+  },
   pista: { flex: 1, height: 4, backgroundColor: tema.borde },
   relleno: { ...StyleSheet.absoluteFill, backgroundColor: tema.acento, transformOrigin: "0% 50%" },
   cabeza: {

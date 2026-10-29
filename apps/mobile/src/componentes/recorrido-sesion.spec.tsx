@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native"
-import { AccessibilityInfo } from "react-native"
+import { AccessibilityInfo, Dimensions } from "react-native"
 import { withTiming } from "react-native-reanimated"
 import * as Haptics from "expo-haptics"
 
+import { tema } from "../tema"
 import { RecorridoSesion } from "./recorrido-sesion"
 
 jest.mock("react-native-reanimated", () => {
@@ -16,8 +17,31 @@ jest.mock("expo-haptics", () => ({
   NotificationFeedbackType: { Success: "success", Warning: "warning", Error: "error" },
 }))
 
+const ventanaOriginal = Dimensions.get("window")
 beforeEach(() => jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false))
-afterEach(() => jest.restoreAllMocks())
+afterEach(() => {
+  Dimensions.set({ window: ventanaOriginal })
+  jest.restoreAllMocks()
+})
+
+it.each([1, 1.4])(
+  "deja completas Α y Ω sin desplazar la pista con escala %s",
+  async (fontScale) => {
+    Dimensions.set({ window: { ...ventanaOriginal, fontScale } })
+    await render(<RecorridoSesion hechas={1} total={4} />)
+    for (const letra of ["Α", "Ω"]) {
+      expect(screen.getByText(letra)).toHaveStyle({
+        fontFamily: tema.fuenteTitulo,
+        fontSize: 15,
+        lineHeight: 24,
+        marginVertical: -2 * fontScale,
+        overflow: "visible",
+      })
+    }
+    expect(screen.getByRole("progressbar")).toHaveStyle({ alignItems: "center" })
+    expect(screen.getByTestId("recorrido-pista")).toHaveStyle({ height: 4 })
+  },
+)
 
 it("expone progreso acotado y un total vacío nunca cuenta como completo", async () => {
   const vista = await render(<RecorridoSesion hechas={10} total={0} />)
