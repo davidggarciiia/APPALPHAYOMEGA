@@ -1,8 +1,8 @@
 import { describe, it, jest } from "@jest/globals"
 import { Profiler } from "react"
 import { AccessibilityInfo, Platform, StyleSheet } from "react-native"
-import { withRepeat, withSpring } from "react-native-reanimated"
-import { fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native"
+import { withRepeat, withSpring, withTiming } from "react-native-reanimated"
+import { act, fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native"
 import * as Haptics from "expo-haptics"
 
 import { BotonDestructivo, BotonEnlace, BotonPrincipal, BotonSecundario, vibrar } from "./botones"
@@ -17,6 +17,7 @@ jest.mock("react-native-reanimated", () => {
     ...doble,
     withSpring: jest.fn(doble.withSpring),
     withRepeat: jest.fn(doble.withRepeat),
+    withTiming: jest.fn(doble.withTiming),
   }
 })
 jest.mock("expo-haptics", () => ({
@@ -126,6 +127,7 @@ describe.each<[string, typeof BotonPrincipal]>([
     await fireEvent(boton, "pressIn")
     await fireEvent(boton, "pressOut")
     expect(withSpring).not.toHaveBeenCalled()
+    expect(withTiming).not.toHaveBeenCalled()
     expect(screen.queryByTestId("boton-brillo", decorativo)).toBeNull()
     await fireEvent.press(boton)
     expect(guardar).toHaveBeenCalledTimes(1)
@@ -173,6 +175,25 @@ it("el destello diagonal es solo del principal y con movimiento permitido", asyn
   expect(screen.queryByTestId("boton-brillo", decorativo)).toBeNull()
 })
 
+it("el principal barre una sola vez a los 600 ms y al pulsarlo", async () => {
+  jest.useFakeTimers()
+  try {
+    await render(<BotonPrincipal texto="Guardar" onPress={jest.fn()} />)
+    const barridos = () =>
+      jest.mocked(withTiming).mock.calls.filter(([, opciones]) => opciones?.duration === 420)
+    await act(() => jest.advanceTimersByTime(599))
+    expect(barridos()).toHaveLength(0)
+    await act(() => jest.advanceTimersByTime(1))
+    expect(barridos()).toHaveLength(1)
+    await act(() => jest.advanceTimersByTime(5000))
+    expect(barridos()).toHaveLength(1)
+    await fireEvent(screen.getByRole("button", { name: "Guardar" }), "pressIn")
+    expect(barridos()).toHaveLength(2)
+  } finally {
+    jest.useRealTimers()
+  }
+})
+
 describe("destructivo con mantener pulsado", () => {
   it("un toque no confirma; mantener pulsado llama a onPress una vez y avisa con vibración", async () => {
     const borrar = jest.fn()
@@ -216,6 +237,19 @@ describe("destructivo con mantener pulsado", () => {
     await render(<BotonDestructivo texto="Eliminar" onPress={borrar} />)
     await userEvent.setup().press(screen.getByRole("button", { name: "Eliminar" }))
     expect(borrar).toHaveBeenCalledTimes(1)
+  })
+
+  it("mantener con movimiento reducido confirma y vibra sin interpolar la barra", async () => {
+    movimientoReducido(true)
+    const borrar = jest.fn()
+    await render(<BotonDestructivo texto="Eliminar" onPress={borrar} mantenerParaConfirmar />)
+    await userEvent
+      .setup()
+      .longPress(screen.getByRole("button", { name: "Eliminar" }), { duration: 1000 })
+    expect(borrar).toHaveBeenCalledTimes(1)
+    expect(Haptics.notificationAsync).toHaveBeenCalledWith("warning")
+    expect(withTiming).not.toHaveBeenCalled()
+    expect(withSpring).not.toHaveBeenCalled()
   })
 })
 

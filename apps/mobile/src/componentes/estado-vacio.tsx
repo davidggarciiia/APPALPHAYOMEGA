@@ -18,8 +18,8 @@ export function EstadoVacio({
 }): React.JSX.Element {
   return (
     <View style={s.contenedor}>
-      <View style={s.medallon}>
-        <Icono nombre={icono} color={tema.acento} tamano={32} />
+      <View accessible={false} aria-hidden>
+        <Icono nombre={icono} color={tema.textoTenue} tamano={48} />
       </View>
       <Text style={s.titulo} accessibilityRole="header">
         {titulo}
@@ -31,16 +31,6 @@ export function EstadoVacio({
 
 const s = StyleSheet.create({
   contenedor: { alignItems: "center", gap: 12, paddingVertical: 72, paddingHorizontal: 24 },
-  medallon: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: tema.superficie,
-    borderWidth: 1,
-    borderColor: tema.bordeDestacado,
-  },
   titulo: {
     color: tema.texto,
     fontFamily: tema.fuenteTitulo,

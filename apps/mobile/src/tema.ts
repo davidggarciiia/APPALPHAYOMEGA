@@ -1,4 +1,4 @@
-import { Platform, type ViewStyle } from "react-native"
+import { Platform, type TextStyle, type ViewStyle } from "react-native"
 
 /**
  * Tema oscuro de Design.html (Alpha & Omega, 24-09-2026).
@@ -41,13 +41,71 @@ export const tema = {
   marcador: "#948D80",
   exito: "#3DBB6C",
   exitoSuave: "#1F3A29",
+  exitoFila: "rgba(61,187,108,.12)",
+  exitoBorde: "rgba(61,187,108,.35)",
   sobreExito: "#06220F",
   error: "#E06A5F",
+  avisoBorde: "rgba(240,180,76,.5)",
+  errorSuave: "rgba(224,106,95,.10)",
+  errorBorde: "rgba(224,106,95,.45)",
+  anilloFoco: "rgba(255,195,76,.14)",
+  scrim: "rgba(6,5,4,.72)",
+  barraAjuste: "#201C15",
+  esqueletoBase: "#1F1C18",
+  esqueletoBrillo: "#2D281F",
   fuenteTitulo: "Anton",
   fuenteTexto: "Archivo",
   fuenteSemi: "ArchivoSemiBold",
   fuenteBoton: "ArchivoBold",
 } as const
+
+export const espacio = { 2: 2, 4: 4, 8: 8, 12: 12, 16: 16, 20: 20, 24: 24, 28: 28, 32: 32 } as const
+
+export const radio = {
+  celda: 10,
+  campo: 12,
+  tarjetaInterna: 14,
+  tarjeta: 20,
+  hoja: 28,
+  pastilla: 999,
+} as const
+
+export const alto = {
+  tactil: 44,
+  celda: 44,
+  filaSerie: 52,
+  campo: 52,
+  botonPrincipal: 52,
+  botonSecundario: 48,
+  barraSuperior: 56,
+  barraPestanas: 68,
+} as const
+
+const titulo = { fontFamily: tema.fuenteTitulo, textTransform: "uppercase" } as const
+
+export const tipo = {
+  hero: { ...titulo, fontSize: 52, lineHeight: 56, color: tema.acento },
+  heroCompacto: { ...titulo, fontSize: 44, lineHeight: 48, color: tema.acento },
+  heroGrande: { ...titulo, fontSize: 64, lineHeight: 68, color: tema.acento },
+  tituloPantalla: { ...titulo, fontSize: 34, lineHeight: 38 },
+  titulo: { ...titulo, fontSize: 20, lineHeight: 24 },
+  cuerpo: { fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
+  fila: { fontFamily: tema.fuenteBoton, fontSize: 17, lineHeight: 22 },
+  secundario: {
+    fontFamily: tema.fuenteTexto,
+    fontSize: 13,
+    lineHeight: 18,
+    color: tema.textoTenue,
+  },
+  micro: {
+    fontFamily: tema.fuenteSemi,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  cifras: { fontVariant: ["tabular-nums"] },
+  reloj: { ...titulo, fontVariant: ["tabular-nums"], fontSize: 28, lineHeight: 32, minWidth: 76 },
+} satisfies Record<string, TextStyle>
 
 type ConImagen = ViewStyle & { backgroundImage?: string }
 
@@ -68,7 +126,7 @@ const resplandor = "radial-gradient(circle at 85% 0%, #3A2A0C 0%, #0E0D0B 62%)"
 export const fondoDeMarca: ConImagen = conGradiente(tema.fondo, resplandor)
 export const fondoDeAcceso: ConImagen = conGradiente(tema.fondo, resplandor)
 
-/** Botón principal y opción elegida: dorado en diagonal con texto `sobreAcento`. */
+/** Solo para el botón principal: dorado en diagonal con texto `sobreAcento`. */
 export const degradadoOro: ConImagen = conGradiente(
   tema.boton,
   "linear-gradient(135deg, #FFF09A 0%, #FFCF52 38%, #FFB53C 72%, #E99A1F 100%)",

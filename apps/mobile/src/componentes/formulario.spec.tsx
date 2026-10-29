@@ -2,6 +2,7 @@ import { describe, it, jest } from "@jest/globals"
 import { useState } from "react"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import { BotonDestructivo, BotonPrincipal, BotonSecundario, Campo } from "./formulario"
+import { tema } from "../tema"
 
 describe.each<[string, typeof BotonPrincipal]>([
   ["principal", BotonPrincipal],
@@ -44,4 +45,25 @@ it("un botón deshabilitado conserva su texto sin anunciar una carga", async () 
   expect(boton.props.accessibilityState.busy).toBe(false)
   await fireEvent.press(boton)
   expect(subir).not.toHaveBeenCalled()
+})
+
+it("el campo usa su etiqueta como placeholder y conserva los eventos al enfocar", async () => {
+  const enfocar = jest.fn()
+  const desenfocar = jest.fn()
+  await render(<Campo etiqueta="Correo" onFocus={enfocar} onBlur={desenfocar} />)
+  const campo = screen.getByPlaceholderText("Correo")
+  await fireEvent(campo, "focus", { nativeEvent: {} })
+  expect(campo).toHaveStyle({ borderColor: tema.acento, minHeight: 52 })
+  expect(enfocar).toHaveBeenCalledTimes(1)
+  await fireEvent(campo, "blur", { nativeEvent: {} })
+  expect(campo).toHaveStyle({ borderColor: tema.bordeFuerte })
+  expect(desenfocar).toHaveBeenCalledTimes(1)
+})
+
+it("conserva etiquetas y unidades visibles y permite optar por solo placeholder", async () => {
+  await render(<Campo etiqueta="Peso (kg)" />)
+  expect(screen.getByText("Peso (kg)")).toBeOnTheScreen()
+  await screen.rerender(<Campo etiqueta="Correo" soloPlaceholder />)
+  expect(screen.queryByText("Correo")).toBeNull()
+  expect(screen.getByPlaceholderText("Correo")).toBeOnTheScreen()
 })

@@ -1,7 +1,6 @@
 import * as Haptics from "expo-haptics"
 import { useEffect, useId, useRef, useState } from "react"
 import {
-  AccessibilityInfo,
   Platform,
   Pressable,
   StyleSheet,
@@ -23,6 +22,7 @@ import Animated, {
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg"
 
 import { tema } from "../tema"
+import { ANGULO, ENTRADA, SALIDA, useDestello, useMovimientoReducido } from "./movimiento"
 
 /**
  * Botones "bloque con corte inclinado": rectángulo con la esquina inferior
@@ -48,10 +48,6 @@ const PARADAS_ORO = [
   ["0.72", "#FFB53C"],
   ["1", "#E99A1F"],
 ] as const
-
-const ENTRADA = { damping: 22, stiffness: 520, mass: 0.5 }
-/** Con poco amortiguamiento al soltar: el rebote elástico corto. */
-const SALIDA = { damping: 9, stiffness: 340, mass: 0.55 }
 
 type Variante = "principal" | "secundario" | "destructivo"
 
@@ -112,23 +108,6 @@ export function vibrar(tipo: keyof typeof VIBRACIONES): void {
   VIBRACIONES[tipo]().catch(() => undefined)
 }
 
-/** "Reducir movimiento" del sistema, también si cambia con la app abierta. */
-function useMovimientoReducido(): boolean {
-  const [reducido, fijar] = useState(false)
-  useEffect(() => {
-    let vivo = true
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((activo) => vivo && activo && fijar(true))
-      .catch(() => undefined)
-    const suscripcion = AccessibilityInfo.addEventListener("reduceMotionChanged", fijar)
-    return () => {
-      vivo = false
-      suscripcion.remove()
-    }
-  }, [])
-  return reducido
-}
-
 /** En web el foco por ratón no debe pintar el anillo; el de teclado, sí. */
 function esFocoDeTeclado(evento: unknown): boolean {
   const destino = (evento as { target?: { matches?: (selector: string) => boolean } } | undefined)
@@ -141,6 +120,20 @@ function usePulsacion(reducido: boolean, desactivado: boolean) {
   const pulsado = useSharedValue(0)
   const hover = useSharedValue(0)
   const foco = useSharedValue(0)
+
+  useEffect(() => {
+    if (reducido) {
+      cancelAnimation(pulsado)
+      cancelAnimation(hover)
+      pulsado.value = pulsado.value > 0 ? 1 : 0
+      hover.value = hover.value > 0 ? 1 : 0
+    }
+    return () => {
+      cancelAnimation(pulsado)
+      cancelAnimation(hover)
+      cancelAnimation(foco)
+    }
+  }, [reducido, pulsado, hover, foco])
 
   const entrar = (): void => {
     if (desactivado) return
@@ -224,6 +217,7 @@ function Puntos({ color, animar }: { color: string; animar: boolean }): React.JS
   const fase = useSharedValue(0)
   useEffect(() => {
     if (animar) fase.value = withRepeat(withTiming(1, { duration: 900, easing: Easing.linear }), -1)
+    else fase.value = 0
     return () => cancelAnimation(fase)
   }, [animar, fase])
   return (
@@ -312,15 +306,31 @@ function Boton({
   const ultimaMedida = useRef<Medida | null>(null)
   const idDegradado = useId()
   const ancho = useSharedValue(0)
-  const destello = useSharedValue(1)
   const avance = useSharedValue(0)
+  const confirmacion = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const { estilo: brillo, disparar } = useDestello(ancho)
   const { pulsado, hover, foco, entrar, salir, eventos } = usePulsacion(reducido, desactivado)
   const conDestello = variante === "principal" && !reducido
   const k = reducido ? 0 : 1
+  const destellar = useRef<(() => void) | undefined>(undefined)
+  destellar.current = conDestello && !desactivado ? disparar : undefined
 
   useEffect(() => {
-    if (desactivado) avance.value = withTiming(0, { duration: 160 })
-  }, [desactivado, avance])
+    const inicio = setTimeout(() => destellar.current?.(), 600)
+    return () => clearTimeout(inicio)
+  }, [])
+
+  useEffect(() => {
+    if (reducido || desactivado) {
+      cancelAnimation(avance)
+      avance.value = 0
+      clearTimeout(confirmacion.current)
+    }
+    return () => {
+      cancelAnimation(avance)
+      clearTimeout(confirmacion.current)
+    }
+  }, [desactivado, reducido, avance])
 
   const cuerpo = useAnimatedStyle(() => ({
     transform: [
@@ -333,28 +343,24 @@ function Boton({
     opacity: Math.min(1, Math.max(pulsado.value, 0.55 * hover.value)),
   }))
   const anillo = useAnimatedStyle(() => ({ opacity: foco.value }))
-  // El destello se apaga antes de llegar a la esquina cortada, que el recorte
-  // rectangular de la capa no puede ocultar.
-  const brillo = useAnimatedStyle(() => ({
-    opacity: 0.75 * (1 - destello.value) * (1 - destello.value),
-    transform: [{ translateX: -44 + destello.value * (ancho.value + 88) }, { skewX: "-20deg" }],
-  }))
-  const barra = useAnimatedStyle(() => ({ width: ancho.value * avance.value }))
+  const barra = useAnimatedStyle(() => ({ transform: [{ scaleX: avance.value }] }))
 
   const alEntrar = (): void => {
+    if (desactivado) return
     entrar()
-    if (conDestello) {
-      destello.value = 0
-      destello.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.quad) })
-    }
-    // Es una barra de progreso, no adorno: se anima también con movimiento reducido.
+    if (conDestello) disparar()
     if (mantenerParaConfirmar) {
-      avance.value = withTiming(1, { duration: MANTENER_MS, easing: Easing.linear })
+      if (reducido)
+        confirmacion.current = setTimeout(() => {
+          avance.value = 1
+        }, MANTENER_MS)
+      else avance.value = withTiming(1, { duration: MANTENER_MS, easing: Easing.linear })
     }
   }
   const alSalir = (): void => {
     salir()
-    if (mantenerParaConfirmar) avance.value = withTiming(0, { duration: 160 })
+    clearTimeout(confirmacion.current)
+    if (mantenerParaConfirmar) avance.value = reducido ? 0 : withTiming(0, { duration: 160 })
   }
   // La referencia evita renderizar de nuevo cuando llega la misma medida.
   const medir = (evento: LayoutChangeEvent): void => {
@@ -567,7 +573,15 @@ const estilos = StyleSheet.create({
   },
   deshabilitado: { opacity: 0.45 },
   capa: { ...StyleSheet.absoluteFill },
-  barra: { position: "absolute", left: 0, top: 0, bottom: 0, overflow: "hidden" },
+  barra: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    overflow: "hidden",
+    transformOrigin: "0% 50%",
+  },
   recorte: { ...StyleSheet.absoluteFill, overflow: "hidden" },
   brillo: {
     position: "absolute",
@@ -601,7 +615,7 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     gap: 7,
   },
-  punto: { width: 8, height: 8, transform: [{ skewX: "-20deg" }] },
+  punto: { width: 8, height: 8, transform: [{ skewX: `-${ANGULO}deg` }] },
   sinContornoWeb: { outlineColor: "transparent" },
   sinMargen: { marginTop: 0 },
   enlace: {

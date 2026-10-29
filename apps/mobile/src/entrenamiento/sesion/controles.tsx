@@ -1,8 +1,5 @@
-import { useRef, useState, type ReactNode } from "react"
+import { useRef, useState } from "react"
 import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -63,7 +60,7 @@ export function Opciones<T extends string | number>({
               accessibilityState={{ checked: elegida, disabled: deshabilitado }}
               disabled={deshabilitado}
               onPress={() => cambiar(opcion.valor)}
-              style={[s.opcion, elegida && [s.opcionElegida, degradadoOro]]}
+              style={[s.opcion, elegida && s.opcionElegida]}
             >
               <Text style={[s.textoOpcion, elegida && s.textoElegido]}>{opcion.texto}</Text>
             </Pressable>
@@ -118,7 +115,7 @@ export function Chips<T extends string>({
                   : [opcion.valor],
               )
             }
-            style={[s.chip, elegida && [s.opcionElegida, degradadoOro]]}
+            style={[s.chip, elegida && s.opcionElegida]}
           >
             <Text style={[s.textoChip, elegida && s.textoElegido]}>{opcion.texto}</Text>
           </Pressable>
@@ -199,11 +196,11 @@ export function Deslizador({
       }}
     >
       <View style={s.pista} pointerEvents="none">
-        <View style={[s.relleno, degradadoOro, { width: `${proporcion * 100}%` }]} />
+        <View style={[s.relleno, { width: `${proporcion * 100}%` }]} />
       </View>
       <View
         pointerEvents="none"
-        style={[s.tirador, { left: Math.max(0, proporcion * ancho - 13) }]}
+        style={[s.tirador, { left: Math.max(0, proporcion * ancho - 4) }]}
       />
     </View>
   )
@@ -276,78 +273,7 @@ export function BotonDorado({
   )
 }
 
-/**
- * Diálogo de confirmación del diseño: pregunta, explicación y dos botones.
- * `ocupado` bloquea confirmar, cancelar y el botón atrás mientras se guarda.
- */
-export function Dialogo({
-  visible,
-  titulo,
-  texto,
-  confirmar,
-  cancelar,
-  alConfirmar,
-  alCancelar,
-  peligro = false,
-  ocupado = false,
-  children,
-}: {
-  visible: boolean
-  titulo: string
-  texto: string
-  confirmar: string
-  cancelar: string
-  alConfirmar: () => void
-  alCancelar: () => void
-  peligro?: boolean
-  ocupado?: boolean
-  children?: ReactNode
-}): React.JSX.Element {
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={ocupado ? () => undefined : alCancelar}
-    >
-      {/* Los diálogos con campo (peso, pasos, sueño) quedan anclados abajo: sin esto el
-          teclado tapaba el campo y «Guardar». */}
-      <KeyboardAvoidingView
-        testID="dialogo-esquiva-teclado"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={s.velo}
-      >
-        <View style={s.dialogo} accessibilityViewIsModal>
-          <Text style={s.tituloDialogo} accessibilityRole="header">
-            {titulo}
-          </Text>
-          <Text style={s.textoDialogo}>{texto}</Text>
-          {children}
-          <Pressable
-            style={[peligro ? s.peligro : s.dorado, ocupado && s.pulsado]}
-            accessibilityRole="button"
-            accessibilityLabel={confirmar}
-            accessibilityState={ocupado ? { busy: true, disabled: true } : undefined}
-            disabled={ocupado}
-            onPress={alConfirmar}
-          >
-            <Text style={[s.textoDorado, peligro && s.textoPeligro]}>{confirmar}</Text>
-          </Pressable>
-          <Pressable
-            style={[s.secundario, ocupado && s.pulsado]}
-            accessibilityRole="button"
-            accessibilityLabel={cancelar}
-            accessibilityState={ocupado ? { disabled: true } : undefined}
-            disabled={ocupado}
-            onPress={alCancelar}
-          >
-            <Text style={s.textoSecundario}>{cancelar}</Text>
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  )
-}
+export { Dialogo } from "../../componentes/dialogo"
 
 const s = StyleSheet.create({
   pregunta: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
@@ -366,9 +292,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  opcionElegida: { borderColor: "transparent" },
+  opcionElegida: { borderColor: tema.acento, backgroundColor: tema.acentoSuave },
   textoOpcion: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 16 },
-  textoElegido: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton },
+  textoElegido: { color: tema.acento, fontFamily: tema.fuenteBoton },
   extremos: { flexDirection: "row", justifyContent: "space-between" },
   extremo: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -382,15 +308,15 @@ const s = StyleSheet.create({
   },
   textoChip: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 15 },
   deslizador: { height: 44, justifyContent: "center" },
-  pista: { height: 6, borderRadius: 3, backgroundColor: tema.superficieAlta, overflow: "hidden" },
-  relleno: { height: 6 },
+  pista: { height: 8, borderRadius: 4, backgroundColor: tema.superficieAlta, overflow: "hidden" },
+  relleno: { height: 8, backgroundColor: tema.acento },
   tirador: {
     position: "absolute",
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: tema.texto,
-    top: 9,
+    width: 8,
+    height: 28,
+    borderRadius: 3,
+    backgroundColor: tema.acento,
+    top: 8,
   },
   enlace: { minHeight: 44, justifyContent: "center" },
   textoEnlace: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 15 },
@@ -412,44 +338,4 @@ const s = StyleSheet.create({
   },
   pulsado: { opacity: 0.8 },
   textoDorado: { color: tema.sobreAcento, fontFamily: tema.fuenteBoton, fontSize: 16 },
-  velo: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(6,5,4,.7)",
-    padding: 16,
-  },
-  dialogo: {
-    backgroundColor: tema.superficie,
-    borderRadius: 24,
-    padding: 24,
-    gap: 12,
-    width: "100%",
-    maxWidth: 520,
-    alignSelf: "center",
-  },
-  tituloDialogo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 20 },
-  textoDialogo: {
-    color: tema.textoTenue,
-    fontFamily: tema.fuenteTexto,
-    fontSize: 15,
-    lineHeight: 21,
-  },
-  peligro: {
-    minHeight: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    backgroundColor: tema.error,
-  },
-  textoPeligro: { color: tema.sobreAcento },
-  secundario: {
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: tema.bordeFuerte,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  textoSecundario: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 15 },
 })

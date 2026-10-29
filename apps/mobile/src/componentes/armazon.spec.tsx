@@ -35,6 +35,7 @@ function Pantalla(): React.JSX.Element {
 }
 
 beforeEach(() => {
+  mockAncho = 390
   jest.mocked(usePathname).mockReturnValue("/cartera")
   jest.mocked(useSesion).mockReturnValue({
     estado: {
@@ -50,6 +51,31 @@ beforeEach(() => {
       tokenAcceso: "token",
     },
   } as ReturnType<typeof useSesion>)
+})
+
+it("ofrece los cuatro destinos del entrenador y selecciona Inicio solo en la raíz", async () => {
+  jest.mocked(usePathname).mockReturnValue("/")
+  await render(<Pantalla />)
+  expect(screen.getAllByRole("tab").map((tab) => tab.props.accessibilityLabel)).toEqual([
+    "Inicio",
+    "Clientes",
+    "Rutinas",
+    "Ejercicios",
+  ])
+  expect(screen.getByRole("tab", { name: "Inicio" }).props.accessibilityState).toEqual({
+    selected: true,
+  })
+  await fireEvent.press(screen.getByRole("tab", { name: "Inicio" }))
+  expect(mockRouter.replace).toHaveBeenCalledWith("/")
+
+  jest.mocked(usePathname).mockReturnValue("/cartera")
+  await screen.rerender(<Pantalla />)
+  expect(screen.getByRole("tab", { name: "Inicio" }).props.accessibilityState).toEqual({
+    selected: false,
+  })
+  expect(screen.getByRole("tab", { name: "Clientes" }).props.accessibilityState).toEqual({
+    selected: true,
+  })
 })
 
 it.each([430, 1440])(

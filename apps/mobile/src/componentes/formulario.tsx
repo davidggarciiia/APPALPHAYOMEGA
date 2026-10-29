@@ -1,5 +1,5 @@
 import marca from "../../assets/marca.png"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import {
   Image,
   KeyboardAvoidingView,
@@ -13,7 +13,8 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
-import { fondoDeAcceso, tema } from "../tema"
+import { alto, fondoDeAcceso, radio, tema } from "../tema"
+import { Aviso } from "./aviso"
 
 // Los botones viven en su archivo; se reexportan para no tocar los imports de las pantallas.
 export { BotonDestructivo, BotonEnlace, BotonPrincipal, BotonSecundario, vibrar } from "./botones"
@@ -77,13 +78,28 @@ export function PantallaDeFormulario({
 export function Campo({
   etiqueta,
   error,
+  style,
+  onFocus,
+  onBlur,
+  soloPlaceholder = false,
   ...props
-}: TextInputProps & { etiqueta: string; error?: string }): React.JSX.Element {
+}: TextInputProps & {
+  etiqueta: string
+  error?: string
+  soloPlaceholder?: boolean
+}): React.JSX.Element {
+  const [enfocado, fijarFoco] = useState(false)
   return (
     <>
-      <Text style={estilos.etiqueta}>{etiqueta}</Text>
+      {!soloPlaceholder && <Text style={estilos.etiqueta}>{etiqueta}</Text>}
       <TextInput
-        style={estilos.campo}
+        style={[
+          estilos.campo,
+          soloPlaceholder && estilos.soloPlaceholder,
+          style,
+          enfocado && estilos.campoEnfocado,
+        ]}
+        placeholder={etiqueta}
         placeholderTextColor={tema.marcador}
         selectionColor={tema.acento}
         accessibilityLabel={etiqueta}
@@ -91,6 +107,14 @@ export function Campo({
         // no basta con pintarlo en rojo debajo.
         aria-invalid={error !== undefined}
         {...props}
+        onFocus={(evento) => {
+          fijarFoco(true)
+          onFocus?.(evento)
+        }}
+        onBlur={(evento) => {
+          fijarFoco(false)
+          onBlur?.(evento)
+        }}
       />
       {error !== undefined && (
         <Text style={estilos.error} accessibilityRole="alert">
@@ -102,17 +126,7 @@ export function Campo({
 }
 
 export function AvisoDeError({ mensaje }: { mensaje: string }): React.JSX.Element {
-  return (
-    <Text
-      style={estilos.errorGeneral}
-      accessibilityRole="alert"
-      // Hace que el lector de pantalla lo lea en cuanto aparece, sin que el
-      // usuario tenga que ir a buscarlo.
-      accessibilityLiveRegion="assertive"
-    >
-      {mensaje}
-    </Text>
-  )
+  return <Aviso mensaje={mensaje} tipo="error" />
 }
 
 const estilos = StyleSheet.create({
@@ -165,20 +179,15 @@ const estilos = StyleSheet.create({
     backgroundColor: tema.suave,
     borderColor: tema.bordeFuerte,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: radio.campo,
     color: tema.texto,
     fontSize: 16,
     fontFamily: tema.fuenteTexto,
-    minHeight: 52,
+    minHeight: alto.campo,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  soloPlaceholder: { marginTop: 16 },
+  campoEnfocado: { borderColor: tema.acento },
   error: { color: tema.error, fontFamily: tema.fuenteTexto, fontSize: 13, marginTop: 6 },
-  errorGeneral: {
-    color: tema.error,
-    fontFamily: tema.fuenteSemi,
-    fontSize: 15,
-    marginTop: 16,
-    textAlign: "center",
-  },
 })

@@ -7,9 +7,11 @@ import logotipo from "../../assets/logotipo.png"
 import { useSesion } from "../sesion"
 import { fondoDeMarca, tema } from "../tema"
 import { Icono, type NombreIcono } from "./iconos"
+import { BarraPestanas } from "./barra-pestanas"
 
 type Destino = { ruta: Href; nombre: string; icono: NombreIcono }
 const entrenador: Destino[] = [
+  { ruta: "/", nombre: "Inicio", icono: "inicio" },
   { ruta: "/cartera", nombre: "Clientes", icono: "clientes" },
   { ruta: "/rutinas", nombre: "Rutinas", icono: "plan" },
   { ruta: "/catalogo", nombre: "Ejercicios", icono: "ejercicios" },
@@ -229,24 +231,12 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
             style={enPrincipal ? s.pie : s.transparente}
           >
             {enPrincipal && (
-              <View style={s.navegacion} accessibilityRole="tablist">
-                {destinos.map((d) => {
-                  const activa = ruta === d.ruta
-                  const color = activa ? tema.acento : tema.textoTenue
-                  return (
-                    <Pressable
-                      key={String(d.ruta)}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: activa }}
-                      accessibilityLabel={d.nombre}
-                      onPress={() => router.replace(d.ruta)}
-                      style={s.destino}
-                    >
-                      <Icono nombre={d.icono} color={color} />
-                      <Text style={[s.etiqueta, { color }]}>{d.nombre}</Text>
-                    </Pressable>
-                  )
-                })}
+              <View style={s.navegacion}>
+                <BarraPestanas
+                  destinos={destinos.map((d) => ({ ...d, clave: String(d.ruta) }))}
+                  activa={ruta}
+                  alCambiar={(clave) => router.replace(clave as Href)}
+                />
               </View>
             )}
           </SafeAreaView>
@@ -285,7 +275,7 @@ const s = StyleSheet.create({
     width: 44,
     height: 44,
     backgroundColor: tema.superficie,
-    borderRadius: 22,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -307,8 +297,6 @@ const s = StyleSheet.create({
     alignSelf: "center",
     minHeight: 68,
   },
-  destino: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, minHeight: 60 },
-  etiqueta: { fontSize: 11, fontFamily: tema.fuenteSemi },
   lateral: {
     width: 232,
     backgroundColor: tema.cabecera,
