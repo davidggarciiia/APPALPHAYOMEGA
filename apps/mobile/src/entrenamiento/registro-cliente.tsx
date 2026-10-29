@@ -47,6 +47,7 @@ import { BarraAjuste } from "../componentes/barra-ajuste"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { useMovimientoReducido } from "../componentes/movimiento"
 import { cargaSugeridaDeFase, textoDeAjustes } from "./plan/ajustes-fase"
+import { cargarSugerenciasDeProgresion } from "./progresion-cliente"
 
 type Serie = EdicionRegistro["series"][number]
 type Fase = "sesion" | "molestia"
@@ -189,6 +190,7 @@ export function RegistroCliente({
   const [salidaPendiente, setSalidaPendiente] = useState<(() => void) | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
   const [anteriores, setAnteriores] = useState<Map<string, ValoresEjecutados>>(new Map())
+  const [sugerencias, setSugerencias] = useState<ReadonlyMap<string, number>>(new Map())
   const [recordPersonal, setRecordPersonal] = useState<RecordPersonal | null>(null)
   const recordsCelebrados = useRef(new Set<string>())
   useEffect(() => {
@@ -231,6 +233,28 @@ export function RegistroCliente({
   }, [])
   const catalogo = useCatalogo()
   const acceso = useAccesoAFiguras()
+  const fechaDeProgresion = control?.documento?.sesion.agenda.fechaActual
+  const revisionDeProgresion = control?.documento?.sesion.revisionPrescripcion
+
+  useEffect(() => {
+    let vigente = true
+    setSugerencias(new Map())
+    const sesion = control?.documento?.sesion
+    if (
+      sesion &&
+      sesion.agenda.id === id &&
+      sesion.agenda.clienteId === cuenta &&
+      !sesion.enviadoEn
+    )
+      void cargarSugerenciasDeProgresion(api, catalogo, sesion)
+        .then((nuevas) => {
+          if (vigente) setSugerencias(nuevas)
+        })
+        .catch(() => undefined)
+    return () => {
+      vigente = false
+    }
+  }, [api, catalogo, control, cuenta, id, fechaDeProgresion, revisionDeProgresion])
 
   useFocusEffect(
     useCallback(() => {
@@ -876,6 +900,7 @@ export function RegistroCliente({
                   cambiar={serie}
                   enCurso={enCurso}
                   anterior={anteriores.get(ejercicio.ejercicioId)}
+                  incrementoSugerido={sugerencias.get(ejercicio.id)}
                   factorCarga={prescripcion.fase?.ajustes.factorCarga}
                   recordPersonal={recordPersonal}
                   recordsCelebrados={recordsCelebrados.current}

@@ -122,6 +122,7 @@ export function TablaSeries({
   verMolestia,
   enCurso = null,
   anterior,
+  incrementoSugerido,
   factorCarga,
   recordPersonal,
   recordsCelebrados,
@@ -141,6 +142,7 @@ export function TablaSeries({
   enCurso?: string | null
   /** La API entrega la mejor serie anterior: se repite en cada fila. */
   anterior?: ValoresEjecutados
+  incrementoSugerido?: number
   factorCarga?: number
   recordPersonal?: RecordPersonal | null
   recordsCelebrados?: ReadonlySet<string>
@@ -210,6 +212,11 @@ export function TablaSeries({
           </Text>
           <Text style={s.resumen}>{resumenPrescrito(ejercicio)}</Text>
           {ejercicio.indicaciones && <Text style={s.resumen}>{ejercicio.indicaciones}</Text>}
+          {mostrarPeso && incrementoSugerido !== undefined && (
+            <Text style={[s.resumen, s.progresion]}>
+              {`Sube carga la próxima vez · +${decimal(incrementoSugerido)} kg`}
+            </Text>
+          )}
           {mostrarSugerencia && (
             <Text style={[s.resumen, s.aviso]}>
               {sugerenciaCarga === null
@@ -382,6 +389,7 @@ const s = StyleSheet.create({
   nombre: { fontFamily: tema.fuenteTitulo, fontSize: 20, lineHeight: 24, color: tema.texto },
   resumen: { fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18, color: tema.textoTenue },
   aviso: { color: tema.aviso },
+  progresion: { color: tema.acento },
   icono: { width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
   columnas: { flexDirection: "row", gap: 6, alignItems: "center", paddingHorizontal: 8 },
   etiqueta: {

@@ -132,6 +132,7 @@ function crearApi() {
   const api = {
     leerCliente: jest.fn(async () => sesion),
     anteriores: jest.fn<ApiEntrenamiento["anteriores"]>(async () => ({ anteriores: [] })),
+    resultados: jest.fn<ApiEntrenamiento["resultados"]>(async () => ({ resultados: [] })),
     guardar: jest.fn<ApiEntrenamiento["guardar"]>(),
     enviar: jest.fn<ApiEntrenamiento["enviar"]>(),
     resultado: jest.fn<ApiEntrenamiento["resultado"]>(),
@@ -175,6 +176,86 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await waitFor(() => expect(copiaGuardada().edicion.tramoActivoDesde).toBeTruthy())
     expect(copiaGuardada().edicion.checkin).toBeNull()
     expect(copiaGuardada().edicion.cierre).toBeNull()
+  })
+
+  it.each([false, true])(
+    "E1: muestra la sugerencia y permite enviar manteniendo o editando la carga (%s)",
+    async (editar) => {
+      const { api, comoApi } = crearApi()
+      const ejercicio = sesion.prescripcion.ejercicios[0]!
+      api.guardar.mockImplementation(borradorGuardado)
+      api.enviar.mockImplementation(async (envioId, datos) => ({
+        ...resultado(datos),
+        sesionId: envioId,
+        series: [
+          {
+            serieId: SERIE,
+            hecha: true,
+            valores: {
+              tipoMedicion: "repeticiones",
+              pesoKg: datos.registro.series[0]!.pesoKg,
+              repeticiones: 8,
+            },
+          },
+        ],
+      }))
+      api.resultados.mockResolvedValue({
+        resultados: [
+          {
+            agenda: { ...sesion.agenda, id: "anterior", fechaActual: "2026-09-07" },
+            resultado: {
+              revisionPrescripcion: 0,
+              notas: null,
+              sesionId: "anterior",
+              enviadoEn: "2026-09-07T10:00:00.000Z",
+              prescripcion: {
+                ...sesion.prescripcion,
+                ejercicios: [{ ...ejercicio, subidaKg: 2.5, rir: { min: 2, max: 3 } }],
+              },
+              series: [
+                {
+                  serieId: SERIE,
+                  hecha: true,
+                  valores: {
+                    tipoMedicion: "repeticiones",
+                    pesoKg: 40,
+                    repeticiones: 8,
+                    rir: 2,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      })
+      api.leerCliente.mockResolvedValue({
+        ...sesion,
+        borrador: null,
+        prescripcion: { ...sesion.prescripcion, ejercicios: [{ ...ejercicio, subidaKg: 2.5 }] },
+      })
+      await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      expect(await screen.findByText("Sube carga la próxima vez · +2,5 kg")).toBeTruthy()
+      expect(screen.getByRole("button", { name: "Peso — Press banca, serie 1: 40" })).toBeTruthy()
+      if (editar) {
+        await fireEvent.press(screen.getByRole("button", { name: /^Peso — Press banca/ }))
+        await fireEvent.press(screen.getByRole("button", { name: "Disminuir" }))
+        await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+      }
+      await fireEvent.press(screen.getByRole("checkbox", { name: "Hecha — Press banca, serie 1" }))
+      await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+      await waitFor(() => expect(api.enviar).toHaveBeenCalledTimes(1))
+      expect(api.enviar.mock.calls[0]![1].registro.series[0]!.pesoKg).toBe(editar ? 37.5 : 40)
+    },
+  )
+
+  it("E1: un fallo del historial no impide entrenar ni muestra una sugerencia", async () => {
+    const { api, comoApi } = crearApi()
+    api.resultados.mockRejectedValue(new ErrorDeRed("Sin red"))
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByRole("button", { name: "Terminar" })).toBeTruthy()
+    await waitFor(() => expect(api.resultados).toHaveBeenCalled())
+    expect(screen.queryByText(/Sube carga la próxima vez/)).toBeNull()
+    expect(screen.getByRole("button", { name: /^Peso — Press banca/ })).toBeTruthy()
   })
 
   it("D10: muestra la fase y permite corregir la sugerencia sin fijar kilos prescritos", async () => {
