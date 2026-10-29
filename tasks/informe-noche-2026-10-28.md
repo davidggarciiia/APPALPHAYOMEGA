@@ -1,5 +1,30 @@
 # Informe de la noche — 28-10-2026
 
+## Actualización 29-10: rediseño móvil y control de cargas
+
+Reparto: diseño en Claude Design ([Design](https://claude.ai/artifact/4kQQfzvt4R7qkkAQQciNPq), traducido a [ESPEC.md](diseno-movil/ESPEC.md)); implementación y revisión con Codex `gpt-6.1-sol` por el plugin, una tarea cada vez; cada tarea revisada (diff, pruebas borradas y sus sustitutas, supresiones), verificada y commiteada aquí. Codex no puede escribir en `.git` desde su sandbox, por eso los commits son de esta sesión.
+
+| Commit    | Qué                                                                                                                                                                       |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `c5dc8f1` | Registro de cargas: el reloj no repinta la tabla, sin escrituras cifradas inútiles, deslizador con scroll, descansos bien leídos, kg con coma, tope de 4 h por tramo      |
+| `4ca266c` | Semana del cliente: copia local primero, sin parpadeos ni sesiones duplicadas por doble toque                                                                             |
+| `ae9e518` | Constructor: errores de carga al escribir y al publicar con el campo exacto, «Deshacer» al quitar ejercicio/fase/deporte, «Publicar» al pie, buscador sin parpadeo        |
+| `cc59191` | Entrenador y nutrición: ficha que se refresca, «Ver sesión» de la molestia, revisar desde la ficha, suplementos sin red, confirmar al publicar valoración                 |
+| `8de148c` | D1 · tokens, componentes y movimiento de marca (revelado con el ángulo del corte, destello de oro, marcador, recorrido Α→Ω, trazo del logo), todo con movimiento reducido |
+| `d0ad9bc` | D2 · sesión con todas las series por ejercicio, descanso en franja, sin check-in ni cuestionario: empezar y terminar en un toque                                          |
+| `6ad4a2f` | D3 · Acceso, Hoy, Plan, Nutrición, Progreso y Perfil limpios, con esqueletos de carga                                                                                     |
+| `42d0ef8` | D4 · entrenador: Inicio, Cartera, Ficha, Revisión (prescrito frente a hecho por serie) y Perfil                                                                           |
+| `ff2011c` | D5 · constructor del plan cómodo a 390 px: celdas táctiles, hojas de ajuste, acciones fijas                                                                               |
+| `b90cbe0` | D6 · revisión crítica de toda la rama: 14 regresiones corregidas con su prueba (permisos, fichas mezcladas, navegación doble, duración, progresión prematura…)            |
+
+**Verificado:** 1224 pruebas del móvil (126 suites) y 390 de la API (43 suites) en verde, typecheck y lint. Captura a 390 px de la pantalla de acceso, correcta.
+
+**No verificado:** el resto de capturas y las e2e de la API (Docker Desktop no arranca el motor: tiene una actualización pendiente que debes aceptar tú); nada en un móvil real (teclado nativo, hápticos, lectores de pantalla, 60 fps).
+
+**Decisiones del dueño aplicadas:** sin check-in ni cuestionario de cierre; «+ Serie» queda para después de la demo (amplía el contrato); el trazo del logo usa el vídeo hasta vectorizar el emblema.
+
+**Pendiente:** «+ Serie» y «anterior» por serie (necesitan ampliar la API); vectorizar el emblema; E-06/E-07 (mover sesión de día) y N-07; detalles vistos en captura (subrayado corto de «He olvidado mi contraseña», destello blanco al cargar la web); antes de producción: CI en GitHub, prueba en dispositivo y las decisiones de borrado a petición y login con Google.
+
 Rama de trabajo: `mejoras/base-2026-10-28` (solo commits locales; **ningún push ni despliegue**). Base de la rama: `codex/cliente-intuitivo`. La base `alpha_omega` no se ha tocado.
 
 ## Qué se hizo
