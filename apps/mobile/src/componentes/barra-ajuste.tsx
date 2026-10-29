@@ -1,5 +1,5 @@
 import * as Haptics from "expo-haptics"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import {
   Keyboard,
   Platform,
@@ -29,6 +29,8 @@ export type BarraAjusteProps = {
   unidad: UnidadAjuste
   valor: number | null
   cambiar: (valor: number) => void
+  /** Los campos opcionales pueden retirar el valor sin convertirlo en cero. */
+  alVaciar?: () => void
   alListo: () => void
   /** Impide confirmar la sesión mientras la entrada manual tiene texto sin aceptar. */
   alCambiarValidez?: (valida: boolean) => void
@@ -40,6 +42,11 @@ export type BarraAjusteProps = {
   deshabilitado?: boolean
   /** Incluye el safe-area inferior cuando la pantalla lo necesita. */
   margenInferior?: number
+  /** Contexto y selector de límites del objetivo en el constructor. */
+  encabezado?: ReactNode
+  /** Aviso que comparte el flujo vertical de la tarjeta y queda siempre encima. */
+  encima?: ReactNode
+  paso?: number
 }
 
 function decimal(valor: number): string {
@@ -51,6 +58,7 @@ export function BarraAjuste({
   unidad,
   valor,
   cambiar,
+  alVaciar,
   alListo,
   alCambiarValidez,
   subidaKg,
@@ -60,6 +68,9 @@ export function BarraAjuste({
   visible = true,
   deshabilitado = false,
   margenInferior = 20,
+  encabezado,
+  encima,
+  paso: pasoExplicito,
 }: BarraAjusteProps): React.JSX.Element | null {
   const reducido = useMovimientoReducido()
   const { height: altoVentana, fontScale } = useWindowDimensions()
@@ -76,13 +87,15 @@ export function BarraAjuste({
   const avisarValidez = useRef(alCambiarValidez)
   avisarValidez.current = alCambiarValidez
   const paso =
-    unidad === "kg"
-      ? subidaKg !== null && subidaKg !== undefined && Number.isFinite(subidaKg) && subidaKg > 0
-        ? subidaKg
-        : 2.5
-      : unidad === "seg"
-        ? 5
-        : 1
+    pasoExplicito !== undefined && Number.isFinite(pasoExplicito) && pasoExplicito > 0
+      ? pasoExplicito
+      : unidad === "kg"
+        ? subidaKg !== null && subidaKg !== undefined && Number.isFinite(subidaKg) && subidaKg > 0
+          ? subidaKg
+          : 2.5
+        : unidad === "seg"
+          ? 5
+          : 1
   const limiteInferior = Number.isFinite(minimo) ? Math.max(0, minimo) : 0
   const limiteSuperior = Number.isFinite(maximo)
     ? Math.max(limiteInferior, maximo)
@@ -216,7 +229,7 @@ export function BarraAjuste({
       ? numero
       : null
   }
-  const invalido = manual && leer(texto) === null
+  const invalido = manual && !(texto === "" && alVaciar) && leer(texto) === null
   useEffect(() => {
     alCambiarValidez?.(!invalido)
   }, [alCambiarValidez, invalido])
@@ -271,100 +284,112 @@ export function BarraAjuste({
       accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? "auto" : "no-hide-descendants"}
       style={[
-        s.barra,
+        s.contenedor,
         { bottom: margenInferior + (tecladoY === null ? 0 : Math.max(0, altoVentana - tecladoY)) },
         animado,
       ]}
     >
-      {unidad === "rir" ? (
-        <>
-          <ChipsRir
-            valor={valor}
-            objetivo={objetivo}
-            cambiar={cambiar}
-            deshabilitado={deshabilitado}
-          />
-          {botonListo}
-        </>
-      ) : (
-        <>
-          <View style={s.fila}>
-            {botonPaso(-1)}
-            <View style={s.valor}>
-              {manual ? (
-                <TextInput
-                  accessibilityLabel={`Valor manual ${etiqueta}`}
-                  value={texto}
-                  onChangeText={(nuevo) => {
-                    setTexto(nuevo)
-                    const numero = leer(nuevo)
-                    if (numero !== null) {
-                      actual.current = numero
-                      cambiar(numero)
-                    }
-                  }}
-                  autoFocus
-                  selectTextOnFocus
-                  keyboardType={unidad === "kg" ? "decimal-pad" : "number-pad"}
-                  editable={!deshabilitado}
-                  maxLength={30}
-                  selectionColor={tema.acento}
-                  style={[s.numero, s.anchoCompleto]}
-                  onSubmitEditing={listo}
-                />
-              ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Escribir ${etiqueta}: ${valorLegible}`}
-                  accessibilityHint="Abre el teclado numérico"
-                  disabled={deshabilitado}
-                  accessibilityState={{ disabled: deshabilitado }}
-                  onPress={() => {
-                    cancelar()
-                    setTexto(valorLegible === "—" ? "" : valorLegible)
-                    setManual(true)
-                  }}
-                  style={s.cifra}
-                >
-                  {valorLegible.length > 5 || fontScale > 1.3 ? (
-                    <Text
-                      testID="ajuste-cifra-adaptable"
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.1}
-                      style={[s.numero, s.anchoCompleto]}
-                    >
-                      {valorLegible}
-                    </Text>
-                  ) : (
-                    <NumeroGiro valor={valorLegible} estilo={s.numero} />
-                  )}
-                </Pressable>
-              )}
-              <Text style={s.etiqueta}>
-                {etiqueta} · paso {decimal(paso)}
-              </Text>
-            </View>
-            {botonPaso(1)}
+      {encima && <View style={s.encima}>{encima}</View>}
+      <View testID="tarjeta-ajuste" style={s.barra}>
+        {encabezado}
+        {unidad === "rir" ? (
+          <>
+            <ChipsRir
+              valor={valor}
+              objetivo={objetivo}
+              cambiar={cambiar}
+              deshabilitado={deshabilitado}
+            />
             {botonListo}
-          </View>
-          {invalido && (
-            <Text accessibilityRole="alert" style={s.error}>
-              Introduce un número válido.
-            </Text>
-          )}
-        </>
-      )}
+          </>
+        ) : (
+          <>
+            <View style={s.fila}>
+              {botonPaso(-1)}
+              <View style={s.valor}>
+                {manual ? (
+                  <TextInput
+                    accessibilityLabel={`Valor manual ${etiqueta}`}
+                    value={texto}
+                    onChangeText={(nuevo) => {
+                      setTexto(nuevo)
+                      if (nuevo === "" && alVaciar) {
+                        actual.current = null
+                        alVaciar()
+                        return
+                      }
+                      const numero = leer(nuevo)
+                      if (numero !== null) {
+                        actual.current = numero
+                        cambiar(numero)
+                      }
+                    }}
+                    autoFocus
+                    selectTextOnFocus
+                    keyboardType={unidad === "kg" ? "decimal-pad" : "number-pad"}
+                    editable={!deshabilitado}
+                    maxLength={30}
+                    selectionColor={tema.acento}
+                    style={[s.numero, s.anchoCompleto]}
+                    onSubmitEditing={listo}
+                  />
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Escribir ${etiqueta}: ${valorLegible}`}
+                    accessibilityHint="Abre el teclado numérico"
+                    disabled={deshabilitado}
+                    accessibilityState={{ disabled: deshabilitado }}
+                    onPress={() => {
+                      cancelar()
+                      setTexto(valorLegible === "—" ? "" : valorLegible)
+                      setManual(true)
+                    }}
+                    style={s.cifra}
+                  >
+                    {valorLegible.length > 5 || fontScale > 1.3 ? (
+                      <Text
+                        testID="ajuste-cifra-adaptable"
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.1}
+                        style={[s.numero, s.anchoCompleto]}
+                      >
+                        {valorLegible}
+                      </Text>
+                    ) : (
+                      <NumeroGiro valor={valorLegible} estilo={s.numero} />
+                    )}
+                  </Pressable>
+                )}
+                <Text style={s.etiqueta}>
+                  {etiqueta} · paso {decimal(paso)}
+                </Text>
+              </View>
+              {botonPaso(1)}
+              {botonListo}
+            </View>
+            {invalido && (
+              <Text accessibilityRole="alert" style={s.error}>
+                Introduce un número válido.
+              </Text>
+            )}
+          </>
+        )}
+      </View>
     </Animated.View>
   )
 }
 
 const s = StyleSheet.create({
-  barra: {
+  contenedor: {
     position: "absolute",
     left: 20,
     right: 20,
     marginTop: 12,
+  },
+  encima: { marginBottom: 12 },
+  barra: {
     borderRadius: radio.tarjeta,
     borderWidth: 1,
     borderColor: tema.bordeDestacado,

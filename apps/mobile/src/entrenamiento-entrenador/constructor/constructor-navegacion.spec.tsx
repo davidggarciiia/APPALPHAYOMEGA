@@ -19,6 +19,10 @@ jest.mock("expo-crypto", () => ({
   randomUUID: jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID,
 }))
 jest.mock("../../componentes/iconos", () => ({ Icono: () => null }))
+jest.mock("react-native-safe-area-context", () => ({
+  ...jest.requireActual("react-native-safe-area-context"),
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 18, left: 0 }),
+}))
 jest.mock("../../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 jest.mock("../../catalogo-ejercicios/figura-ejercicio", () => ({
   useAccesoAFiguras: () => ({
@@ -153,6 +157,7 @@ it("publicar correctamente vuelve a la ficha sin pedir descartar el plan confirm
   await fireEvent.changeText(await screen.findByLabelText("Nombre del día"), "Fuerza")
   await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
   await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca con barra" }))
+  await waitFor(() => expect(screen.queryByLabelText("Buscar ejercicio para añadir")).toBeNull())
   await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
   await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
   await waitFor(() => expect(vista.getPathname()).toBe("/"))
@@ -160,4 +165,24 @@ it("publicar correctamente vuelve a la ficha sin pedir descartar el plan confirm
   expect(datos.size).toBe(0)
   expect(screen.getByText("Ficha de prueba")).toBeTruthy()
   expect(screen.queryByText("¿Salir sin guardar el plan?")).toBeNull()
+})
+
+it("Atrás de Android cierra la hoja de datos y conserva sus cambios bajo la protección del router", async () => {
+  const { vista } = preparar()
+  await vista
+  await fireEvent.press(await screen.findByRole("button", { name: "Crear plan" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Editar datos del bloque" }))
+  await fireEvent.changeText(await screen.findByLabelText("Número de semanas"), "8")
+  await fireEvent(screen.getByTestId("hoja-modal"), "requestClose")
+  // renderRouter instala temporizadores simulados; la transición se avanza explícitamente.
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(220)
+  })
+  await waitFor(() => expect(screen.queryByLabelText("Número de semanas")).toBeNull())
+  expect(vista.getPathname()).toBe(RUTA_DEL_PLAN)
+  await act(() => router.back())
+  expect(await screen.findByText("¿Salir sin guardar el plan?")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Seguir editando" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Editar datos del bloque" }))
+  expect(screen.getByLabelText("Número de semanas")).toHaveDisplayValue("8")
 })

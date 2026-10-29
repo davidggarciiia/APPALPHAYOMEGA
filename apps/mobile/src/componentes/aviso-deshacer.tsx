@@ -22,6 +22,7 @@ export function AvisoDeshacer({
   id,
   animar = true,
   animarPlazo = true,
+  iniciadoEn,
 }: {
   mensaje: string
   alDeshacer: () => void
@@ -33,6 +34,8 @@ export function AvisoDeshacer({
   animar?: boolean
   /** La línea puede avanzar por segundos mientras otro componente interpola. */
   animarPlazo?: boolean
+  /** Mantiene el plazo cuando el aviso cambia de contenedor. */
+  iniciadoEn?: number
 }): React.JSX.Element | null {
   const reducido = useMovimientoReducido()
   const estatico = reducido || !animar
@@ -50,19 +53,22 @@ export function AvisoDeshacer({
 
   useEffect(() => {
     resuelta.current = false
-    inicio.current = Date.now()
+    inicio.current = iniciadoEn ?? Date.now()
     fijarFase(visible ? "activa" : "oculta")
     if (visible)
-      plazo.current = setTimeout(() => {
-        if (resuelta.current) return
-        resuelta.current = true
-        fijarFase("saliendo")
-        callbacks.current.alExpirar?.()
-      }, PLAZO)
+      plazo.current = setTimeout(
+        () => {
+          if (resuelta.current) return
+          resuelta.current = true
+          fijarFase("saliendo")
+          callbacks.current.alExpirar?.()
+        },
+        Math.max(0, PLAZO - (Date.now() - inicio.current)),
+      )
     return () => {
       if (plazo.current !== null) clearTimeout(plazo.current)
     }
-  }, [mensaje, visible, id])
+  }, [mensaje, visible, id, iniciadoEn])
 
   useEffect(() => {
     cancelAnimation(avance)
@@ -81,7 +87,7 @@ export function AvisoDeshacer({
       cancelAnimation(avance)
       if (intervalo !== undefined) clearInterval(intervalo)
     }
-  }, [fase, plazoDiscreto, mensaje, id, avance])
+  }, [fase, plazoDiscreto, mensaje, id, iniciadoEn, avance])
 
   useEffect(() => {
     cancelAnimation(apertura)

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { act, fireEvent, render, screen } from "@testing-library/react-native"
-import { Dimensions, Keyboard, StyleSheet, type KeyboardEvent } from "react-native"
+import { Dimensions, Keyboard, StyleSheet, Text, type KeyboardEvent } from "react-native"
 import * as Haptics from "expo-haptics"
 
 import { BarraAjuste, type BarraAjusteProps } from "./barra-ajuste"
@@ -15,6 +15,55 @@ function Controlada(props: Partial<BarraAjusteProps> = {}): React.JSX.Element {
 afterEach(() => {
   jest.useRealTimers()
   jest.restoreAllMocks()
+})
+
+it("permite un encabezado y paso explícito sin cambiar el paso habitual de segundos", async () => {
+  const cambiar = jest.fn()
+  await render(
+    <BarraAjuste
+      unidad="seg"
+      valor={40}
+      paso={1}
+      cambiar={cambiar}
+      encabezado={<Text>Objetivo de Press</Text>}
+      alListo={jest.fn()}
+    />,
+  )
+  expect(screen.getByText("Objetivo de Press")).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Aumentar" }))
+  expect(cambiar).toHaveBeenCalledWith(41)
+})
+
+it("coloca el aviso en el flujo encima de la tarjeta sin solapar sus controles", async () => {
+  await render(<Controlada encima={<Text testID="aviso-encima">Ejercicio quitado</Text>} />)
+  const contenedor = screen.getByTestId("barra-ajuste")
+  const aviso = screen.getByTestId("aviso-encima")
+  const tarjeta = screen.getByTestId("tarjeta-ajuste")
+  expect(contenedor).toHaveStyle({ position: "absolute", bottom: 20 })
+  expect(contenedor.children).toEqual([aviso.parent, tarjeta])
+  expect(aviso.parent).toHaveStyle({ marginBottom: 12 })
+  expect(StyleSheet.flatten(tarjeta.props.style).position).toBeUndefined()
+  expect(screen.getByRole("button", { name: "Aumentar" })).toBeEnabled()
+})
+
+it("permite vaciar un valor solo cuando el consumidor declara que es opcional", async () => {
+  const props = {
+    unidad: "kg" as const,
+    valor: 60,
+    cambiar: jest.fn(),
+    alListo: jest.fn(),
+    alVaciar: jest.fn(),
+  }
+  await render(<BarraAjuste {...props} />)
+  await fireEvent.press(screen.getByRole("button", { name: "Escribir KG: 60" }))
+  await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "")
+  expect(props.alVaciar).toHaveBeenCalledTimes(1)
+  expect(props.cambiar).not.toHaveBeenCalled()
+  expect(screen.getByRole("button", { name: "Listo" })).toBeEnabled()
+  await screen.rerender(<BarraAjuste {...props} valor={null} />)
+  await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+  expect(props.alListo).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole("button", { name: "Escribir KG: —" })).toBeOnTheScreen()
 })
 
 it.each([

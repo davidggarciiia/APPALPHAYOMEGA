@@ -2,7 +2,8 @@ import { useState } from "react"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import { BloqueSchema, type Bloque } from "@alpha-omega/shared"
 
-import { EditorDeBloque } from "./partes"
+import { nuevoEjercicio } from "./modelo"
+import { EditorDeBloque, ListaDeSeccion } from "./partes"
 
 jest.mock("../../componentes/iconos", () => ({ Icono: () => null }))
 
@@ -12,6 +13,57 @@ function EditorConEstado({ inicial }: { inicial: Bloque }): React.JSX.Element {
   const [bloque, cambiar] = useState(inicial)
   return <EditorDeBloque bloque={bloque} semanas={52} cambiar={cambiar} />
 }
+
+describe("ListaDeSeccion · móvil", () => {
+  it("muestra la pauta en su unidad y abre los detalles al tocar el ejercicio", async () => {
+    const ejercicio = {
+      ...nuevoEjercicio({ id: "arrastre", nombre: "Arrastre" }, "calentamiento", () => "fila"),
+      tipo: "distancia" as const,
+      objetivo: "20",
+    }
+    const elegir = jest.fn()
+    const quitar = jest.fn()
+    await render(
+      <ListaDeSeccion
+        ejercicios={[ejercicio]}
+        elegido={null}
+        elegir={elegir}
+        cambiar={jest.fn()}
+        quitar={quitar}
+      />,
+    )
+    expect(screen.getByText("20 m")).toBeOnTheScreen()
+    expect(screen.queryByLabelText("Metros de Arrastre")).toBeNull()
+    await fireEvent.press(screen.getByRole("button", { name: "Arrastre: editar detalles" }))
+    expect(elegir).toHaveBeenCalledWith("fila")
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar Arrastre" }))
+    expect(quitar).toHaveBeenCalledWith("fila")
+  })
+
+  it("conserva la dosis escrita y no resume con la primera unidad una pauta heterogénea", async () => {
+    const base = nuevoEjercicio({ id: "movilidad", nombre: "Movilidad" }, "final", () => "fila")
+    const vista = await render(
+      <ListaDeSeccion
+        ejercicios={[{ ...base, dosis: "30 s por lado" }]}
+        elegido={null}
+        elegir={jest.fn()}
+        cambiar={jest.fn()}
+        quitar={jest.fn()}
+      />,
+    )
+    expect(screen.getByText("30 s por lado")).toBeOnTheScreen()
+    await vista.rerender(
+      <ListaDeSeccion
+        ejercicios={[{ ...base, mezclaUnidades: true }]}
+        elegido={null}
+        elegir={jest.fn()}
+        cambiar={jest.fn()}
+        quitar={jest.fn()}
+      />,
+    )
+    expect(screen.getByText("Mezcla unidades: revisar")).toBeOnTheScreen()
+  })
+})
 
 describe("EditorDeBloque · fases", () => {
   it("sin fases no pinta un contenedor vacío: dejaba un hueco entre «Fases» y «Añadir fase»", async () => {

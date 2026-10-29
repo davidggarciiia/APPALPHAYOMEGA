@@ -19,6 +19,24 @@ beforeEach(() => {
 })
 afterEach(() => jest.useRealTimers())
 
+it("conserva el vencimiento al remontarse encima de otro control", async () => {
+  const iniciadoEn = Date.now()
+  const expirar = jest.fn()
+  await act(() => jest.advanceTimersByTime(2000))
+  await render(
+    <AvisoDeshacer
+      mensaje="Ejercicio quitado"
+      iniciadoEn={iniciadoEn}
+      alDeshacer={jest.fn()}
+      alExpirar={expirar}
+    />,
+  )
+  await act(() => jest.advanceTimersByTime(2999))
+  expect(expirar).not.toHaveBeenCalled()
+  await act(() => jest.advanceTimersByTime(1))
+  expect(expirar).toHaveBeenCalledTimes(1)
+})
+
 it("permite deshacer una sola vez y cancela el vencimiento", async () => {
   const deshacer = jest.fn()
   const expirar = jest.fn()

@@ -1,10 +1,19 @@
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native"
+import { useEffect, useRef, useState } from "react"
+import { Keyboard, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native"
 
+import { ChipsRir } from "../../componentes/chips-rir"
 import { Icono } from "../../componentes/iconos"
 import { Enlace } from "../../entrenamiento/sesion/controles"
-import { tema } from "../../tema"
+import { alto, radio, tema } from "../../tema"
 import type { TipoMedicion } from "../editor-modelo"
-import type { EjercicioDelConstructor } from "./modelo"
+import {
+  EditorNumero,
+  numeroDeTexto,
+  SelectorDescanso,
+  textoDeRango,
+  type CampoPrescripcion,
+} from "./ajuste-prescripcion"
+import { leerRango, type EjercicioDelConstructor } from "./modelo"
 
 type Cambio = (id: string, cambio: Partial<EjercicioDelConstructor>) => void
 
@@ -87,173 +96,141 @@ export function Celda({
   )
 }
 
-/** `null` es la columna del objetivo, que se nombra según la unidad de las filas. */
-const COLUMNAS = [
-  ["Series", 56],
-  [null, 70],
-  ["RIR", 56],
-  ["Descanso", 84],
-  ["Carga inicial", 96],
-  ["Subida", 64],
-] as const
-
-/** «Parte principal» del constructor: una fila editable por ejercicio. */
+/** «Parte principal»: cinco celdas que abren el ajuste sin desplegar teclado. */
 export function TablaPrincipal({
   ejercicios,
   elegido,
   elegir,
-  cambiar,
+  ajustar,
   quitar,
   mover,
-  ancha,
 }: {
   ejercicios: EjercicioDelConstructor[]
   elegido: string | null
   elegir: (id: string) => void
   cambiar: Cambio
+  ajustar: (id: string, campo: CampoPrescripcion) => void
   quitar: (id: string) => void
   mover: (id: string, desplazamiento: number) => void
   ancha: boolean
 }): React.JSX.Element {
   return (
     <View style={s.tabla}>
-      {ancha && (
-        <View style={[s.fila, s.cabecera]} accessible={false}>
-          <Text style={[s.flex, s.etiqueta]}>Ejercicio</Text>
-          {COLUMNAS.map(([texto, ancho]) => (
-            <Text key={texto ?? "objetivo"} style={[s.etiqueta, { width: ancho }]}>
-              {texto ?? columnaDeObjetivo(ejercicios)}
-            </Text>
-          ))}
-        </View>
-      )}
       {ejercicios.map((e, n) => {
         const activo = e.id === elegido
-        const celdas = (
-          <>
-            <Celda
-              etiqueta={`Series de ${e.nombre}`}
-              valor={e.series}
-              cambiar={(v) => cambiar(e.id, { series: v })}
-              ancho={56}
-              teclado="number-pad"
-            />
-            <Celda
-              etiqueta={`${UNIDADES_DE_FILA[e.tipo].nombre} de ${e.nombre}`}
-              valor={e.objetivo}
-              cambiar={(v) => cambiar(e.id, { objetivo: v })}
-              ancho={70}
-              marcador={UNIDADES_DE_FILA[e.tipo].marcador}
-            />
-            <Celda
-              etiqueta={`RIR de ${e.nombre}`}
-              valor={e.rir}
-              cambiar={(v) => cambiar(e.id, { rir: v })}
-              ancho={56}
-              marcador="2–3"
-            />
-            <Celda
-              etiqueta={`Descanso de ${e.nombre}`}
-              maximo={30}
-              valor={e.descanso}
-              cambiar={(v) => cambiar(e.id, { descanso: v })}
-              ancho={84}
-              marcador="2 min"
-            />
-            {e.tipoCarga === "sinCarga" ? (
-              <View style={[s.celda, s.calibrar, { width: 96 }]}>
-                <Text style={s.textoCalibrar}>Sin carga</Text>
-              </View>
-            ) : e.calibrar ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Carga inicial de ${e.nombre}: calibrar. Tocar para fijar una carga`}
-                onPress={() => cambiar(e.id, { calibrar: false })}
-                style={[s.celda, s.calibrar, { width: 96 }]}
-              >
-                <Text style={s.textoCalibrar}>Calibrar</Text>
-              </Pressable>
-            ) : (
-              <Celda
-                etiqueta={`Carga inicial de ${e.nombre} en kg`}
-                valor={e.carga}
-                cambiar={(v) => cambiar(e.id, { carga: v })}
-                ancho={96}
-                teclado="decimal-pad"
-                marcador="kg"
-              />
-            )}
-            {e.tipoCarga === "sinCarga" ? (
-              <View style={[s.celda, s.calibrar, { width: 64 }]}>
-                <Text style={s.textoCalibrar}>—</Text>
-              </View>
-            ) : (
-              <Celda
-                etiqueta={`Subida de ${e.nombre} en kg`}
-                valor={e.subida}
-                cambiar={(v) => cambiar(e.id, { subida: v })}
-                ancho={64}
-                teclado="decimal-pad"
-                marcador="kg"
-              />
-            )}
-          </>
-        )
+        const celdas: [CampoPrescripcion, string, string][] = [
+          ["series", `Series de ${e.nombre}`, e.series],
+          ["objetivo", `${UNIDADES_DE_FILA[e.tipo].nombre} de ${e.nombre}`, e.objetivo],
+          ["rir", `RIR de ${e.nombre}`, e.rir],
+          ["descanso", `Descanso de ${e.nombre}`, e.descanso],
+          [
+            "carga",
+            e.calibrar && e.tipoCarga !== "sinCarga"
+              ? `Carga inicial de ${e.nombre}: calibrar. Tocar para fijar una carga`
+              : `Carga inicial de ${e.nombre} en kg`,
+            e.tipoCarga === "sinCarga" ? "Sin carga" : e.calibrar ? "Calibrar" : e.carga,
+          ],
+        ]
         return (
           <View key={e.id} style={[s.renglon, activo && s.renglonActivo]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: activo }}
-              accessibilityLabel={`${e.nombre}: editar detalles`}
-              onPress={() => elegir(e.id)}
-              style={ancha ? s.flex : undefined}
-            >
-              <Text style={s.nombre}>{e.nombre}</Text>
-              {e.mezclaUnidades && <Text style={s.aviso}>Mezcla unidades: revisar</Text>}
-              {e.seriesDistintas && <Text style={s.aviso}>Series distintas: revisar</Text>}
-              {/* Las repeticiones son lo habitual; otra unidad se dice en la fila. */}
-              {!e.mezclaUnidades && e.tipo !== "repeticiones" && (
-                <Text style={s.tenue}>En {UNIDADES_DE_FILA[e.tipo].nombre.toLowerCase()}</Text>
-              )}
-              {e.compuesto && <Text style={s.tenue}>Compuesto</Text>}
-            </Pressable>
-            {ancha ? (
-              <View style={s.celdas}>{celdas}</View>
-            ) : (
-              <View style={s.celdasEstrechas}>{celdas}</View>
+            <View style={s.lineaNombre}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: activo }}
+                accessibilityLabel={`${e.nombre}: editar detalles`}
+                onPress={() => elegir(e.id)}
+                style={s.nombrePulsable}
+              >
+                <Text style={s.nombre}>{e.nombre}</Text>
+                {e.mezclaUnidades && <Text style={s.aviso}>Mezcla unidades: revisar</Text>}
+                {e.seriesDistintas && <Text style={s.aviso}>Series distintas: revisar</Text>}
+                {/* Las repeticiones son lo habitual; otra unidad se dice en la fila. */}
+                {!e.mezclaUnidades && e.tipo !== "repeticiones" && (
+                  <Text style={s.tenue}>En {UNIDADES_DE_FILA[e.tipo].nombre.toLowerCase()}</Text>
+                )}
+                {e.compuesto && <Text style={s.tenue}>Compuesto</Text>}
+              </Pressable>
+              <View style={s.acciones}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Subir ${e.nombre}`}
+                  disabled={n === 0}
+                  onPress={() => mover(e.id, -1)}
+                  style={s.accion}
+                >
+                  <View style={s.girarArriba}>
+                    <Icono
+                      nombre="adelante"
+                      color={n === 0 ? tema.borde : tema.textoTenue}
+                      tamano={16}
+                    />
+                  </View>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Bajar ${e.nombre}`}
+                  disabled={n === ejercicios.length - 1}
+                  onPress={() => mover(e.id, 1)}
+                  style={s.accion}
+                >
+                  <View style={s.girarAbajo}>
+                    <Icono
+                      nombre="adelante"
+                      color={n === ejercicios.length - 1 ? tema.borde : tema.textoTenue}
+                      tamano={16}
+                    />
+                  </View>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Quitar ${e.nombre}`}
+                  onPress={() => quitar(e.id)}
+                  style={s.quitar}
+                >
+                  <Text style={s.tenue}>Quitar</Text>
+                </Pressable>
+              </View>
+            </View>
+            {n === 0 && (
+              <View style={[s.fila, s.cabecera]} accessible={false}>
+                {["Series", columnaDeObjetivo(ejercicios), "RIR", "Desc.", "Kg"].map((texto) => (
+                  <Text key={texto} style={[s.etiqueta, s.columna]}>
+                    {texto}
+                  </Text>
+                ))}
+              </View>
             )}
-            <View style={s.acciones}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Subir ${e.nombre}`}
-                disabled={n === 0}
-                onPress={() => mover(e.id, -1)}
-                style={s.accion}
-              >
-                <View style={s.girarArriba}>
-                  <Icono
-                    nombre="adelante"
-                    color={n === 0 ? tema.borde : tema.textoTenue}
-                    tamano={16}
-                  />
-                </View>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Bajar ${e.nombre}`}
-                disabled={n === ejercicios.length - 1}
-                onPress={() => mover(e.id, 1)}
-                style={s.accion}
-              >
-                <View style={s.girarAbajo}>
-                  <Icono
-                    nombre="adelante"
-                    color={n === ejercicios.length - 1 ? tema.borde : tema.textoTenue}
-                    tamano={16}
-                  />
-                </View>
-              </Pressable>
-              <Enlace texto="Quitar" etiqueta={`Quitar ${e.nombre}`} onPress={() => quitar(e.id)} />
+            <View style={s.celdasEstrechas}>
+              {celdas.map(([campo, etiqueta, valor]) => (
+                <Pressable
+                  key={campo}
+                  accessibilityRole="button"
+                  accessibilityLabel={etiqueta}
+                  accessibilityValue={{ text: valor || "Sin fijar" }}
+                  accessibilityState={{ disabled: campo === "carga" && e.tipoCarga === "sinCarga" }}
+                  disabled={campo === "carga" && e.tipoCarga === "sinCarga"}
+                  onPress={() => ajustar(e.id, campo)}
+                  style={[
+                    s.celdaPulsable,
+                    campo === "carga" && e.calibrar && e.tipoCarga !== "sinCarga" && s.calibrar,
+                  ]}
+                >
+                  <Text
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.65}
+                    style={[
+                      s.valorCelda,
+                      campo === "carga" &&
+                        e.calibrar &&
+                        e.tipoCarga !== "sinCarga" &&
+                        s.textoCalibrar,
+                    ]}
+                  >
+                    {valor || "—"}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
           </View>
         )
@@ -268,13 +245,33 @@ export function PanelEjercicio({
   nombreCliente,
   cambiar,
   verTecnica,
+  alListo,
+  alCambiarValidez,
 }: {
   ejercicio: EjercicioDelConstructor
   nombreCliente: string
   cambiar: Cambio
   verTecnica: () => void
+  alListo?: () => void
+  alCambiarValidez?: (valida: boolean) => void
 }): React.JSX.Element {
   const primerNombre = nombreCliente.split(" ")[0] ?? nombreCliente
+  const [mas, setMas] = useState(false)
+  const [invalidos, setInvalidos] = useState<Record<string, boolean>>({})
+  const avisar = useRef(alCambiarValidez)
+  avisar.current = alCambiarValidez
+  const valido = !Object.values(invalidos).some(Boolean)
+  useEffect(() => {
+    avisar.current?.(valido)
+  }, [valido])
+  useEffect(() => () => avisar.current?.(true), [])
+  const validez = (campo: string, valida: boolean): void =>
+    setInvalidos((actual) => (actual[campo] === !valida ? actual : { ...actual, [campo]: !valida }))
+  const objetivo = leerRango(ejercicio.objetivo)
+  const rir = leerRango(ejercicio.rir)
+  const unidad = UNIDADES_DE_FILA[ejercicio.tipo].columna
+  const cambiarObjetivo = (min: number, max: number): void =>
+    cambiar(ejercicio.id, { objetivo: textoDeRango(min, max) })
   return (
     <View style={s.panel}>
       <Text style={s.tituloPanel}>{ejercicio.nombre}</Text>
@@ -292,109 +289,279 @@ export function PanelEjercicio({
           />
         </View>
       )}
-      <Text style={s.etiquetaPanel}>Preguntar RIR (respuesta opcional)</Text>
-      <View style={s.opcionesPanel}>
-        {(
-          [
-            ["desactivado", "Desactivado"],
-            ["alFinalizarEjercicio", "Al finalizar ejercicio"],
-            ["cadaSerie", "Cada serie"],
-          ] as const
-        ).map(([modo, etiqueta]) => (
-          <Enlace
-            key={modo}
-            texto={`${ejercicio.modoRir === modo ? "✓ " : ""}${etiqueta}`}
-            etiqueta={`RIR ${etiqueta.toLowerCase()} de ${ejercicio.nombre}`}
-            onPress={() => cambiar(ejercicio.id, { modoRir: modo })}
+      {ejercicio.seccion !== "principal" && (
+        <>
+          <Text style={s.etiquetaPanel}>Dosis</Text>
+          <TextInput
+            accessibilityLabel={`Cómo se hace ${ejercicio.nombre}`}
+            value={ejercicio.dosis}
+            onChangeText={(dosis) => cambiar(ejercicio.id, { dosis })}
+            maxLength={60}
+            placeholder="1 × 8 por lado"
+            placeholderTextColor={tema.marcador}
+            style={s.campo}
           />
-        ))}
-      </View>
-      <Text style={s.etiquetaPanel}>Tipo de carga</Text>
-      <View style={s.opcionesPanel}>
-        <Enlace
-          texto={`${ejercicio.tipoCarga !== "sinCarga" ? "✓ " : ""}Con carga externa`}
-          etiqueta={`Con carga externa de ${ejercicio.nombre}`}
-          onPress={() => cambiar(ejercicio.id, { tipoCarga: "conCargaExterna" })}
-        />
-        <Enlace
-          texto={`${ejercicio.tipoCarga === "sinCarga" ? "✓ " : ""}Sin carga externa`}
-          etiqueta={`Sin carga externa de ${ejercicio.nombre}`}
-          onPress={() =>
-            cambiar(ejercicio.id, { tipoCarga: "sinCarga", calibrar: false, carga: "", subida: "" })
-          }
-        />
-      </View>
-      <View style={s.conmutador}>
-        <Text style={[s.tenue, s.flex]}>
-          {ejercicio.compuesto ? "Compuesto · nunca se recorta" : "Accesorio · se recorta primero"}
-        </Text>
-        <Switch
-          accessibilityLabel="Ejercicio compuesto: nunca se recorta"
-          value={ejercicio.compuesto}
-          onValueChange={(v) => cambiar(ejercicio.id, { compuesto: v })}
-          trackColor={{ true: tema.acento, false: tema.superficieAlta }}
-          thumbColor={tema.texto}
-        />
-      </View>
-      <View style={s.conmutador}>
-        <Text style={[s.tenue, s.flex]}>Calibrar la carga las primeras sesiones</Text>
-        <Switch
-          accessibilityLabel="Calibrar la carga"
-          value={ejercicio.tipoCarga !== "sinCarga" && ejercicio.calibrar}
-          disabled={ejercicio.tipoCarga === "sinCarga"}
-          onValueChange={(v) => cambiar(ejercicio.id, { calibrar: v })}
-          trackColor={{ true: tema.acento, false: tema.superficieAlta }}
-          thumbColor={tema.texto}
-        />
-      </View>
-      <Text style={s.etiquetaPanel}>Se mide en</Text>
-      {ejercicio.mezclaUnidades && (
-        <Text style={s.aviso}>
-          La sesión guardada pauta este ejercicio en varias unidades. Elige una para todas sus
-          series o revísalo en el editor de sesión.
-        </Text>
+        </>
       )}
-      <View style={s.opcionesPanel}>
-        {UNIDADES_OFRECIDAS.map((unidad) => (
-          <Enlace
-            key={unidad}
-            texto={`${ejercicio.tipo === unidad ? "✓ " : ""}${UNIDADES_DE_FILA[unidad].nombre}`}
-            etiqueta={`Medir ${ejercicio.nombre} en ${UNIDADES_DE_FILA[unidad].nombre.toLowerCase()}`}
-            // El objetivo de otra unidad no se reutiliza: 20 m nunca pasan a 20 repeticiones.
-            // Con unidades mezcladas, elegir cualquiera (también la mostrada) es la
-            // decisión explícita de pautar todas las series en ella.
-            onPress={() => {
-              if (ejercicio.mezclaUnidades)
-                cambiar(ejercicio.id, { tipo: unidad, objetivo: "", mezclaUnidades: undefined })
-              else if (unidad !== ejercicio.tipo)
-                cambiar(ejercicio.id, { tipo: unidad, objetivo: "" })
-            }}
+      <EditorNumero
+        titulo="Series"
+        etiqueta={`Series de ${ejercicio.nombre}`}
+        valor={numeroDeTexto(ejercicio.series)}
+        minimo={1}
+        maximo={30}
+        cambiar={(n) => cambiar(ejercicio.id, { series: String(n) })}
+        alCambiarValidez={(v) => validez("series", v)}
+      />
+      <EditorNumero
+        titulo={ejercicio.tipo === "repeticiones" ? `${unidad} mín.` : unidad}
+        etiqueta={`${ejercicio.tipo === "repeticiones" ? `${unidad} mín.` : unidad} de ${ejercicio.nombre}`}
+        valor={objetivo?.min ?? null}
+        minimo={1}
+        maximo={
+          ejercicio.tipo === "repeticiones"
+            ? (objetivo?.max ?? 10000)
+            : ejercicio.tipo === "tiempo"
+              ? 86400
+              : 100000
+        }
+        cambiar={(n) =>
+          cambiarObjetivo(n, ejercicio.tipo === "repeticiones" ? (objetivo?.max ?? n) : n)
+        }
+        alCambiarValidez={(v) => validez("min", v)}
+      />
+      {ejercicio.tipo === "repeticiones" && (
+        <EditorNumero
+          titulo={`${unidad} máx.`}
+          etiqueta={`${unidad} máx. de ${ejercicio.nombre}`}
+          valor={objetivo?.max ?? null}
+          minimo={objetivo?.min ?? 1}
+          maximo={10000}
+          cambiar={(n) => cambiarObjetivo(objetivo?.min ?? n, n)}
+          alCambiarValidez={(v) => validez("max", v)}
+        />
+      )}
+      {ejercicio.tipoCarga === "sinCarga" ? (
+        <Text style={s.tenue}>Sin carga</Text>
+      ) : (
+        <>
+          <EditorNumero
+            titulo={ejercicio.calibrar ? "Carga inicial · Calibrar" : "Carga inicial"}
+            etiqueta={`Carga inicial de ${ejercicio.nombre} en kg`}
+            valor={numeroDeTexto(ejercicio.carga)}
+            decimal
+            paso={numeroDeTexto(ejercicio.subida) || 2.5}
+            maximo={1000}
+            cambiar={(n) =>
+              cambiar(ejercicio.id, { carga: String(n).replace(".", ","), calibrar: false })
+            }
+            alVaciar={() => cambiar(ejercicio.id, { carga: "", calibrar: false })}
+            alCambiarValidez={(v) => validez("carga", v)}
           />
-        ))}
-      </View>
-      <Text style={s.etiquetaPanel}>Nota para {primerNombre}</Text>
-      <TextInput
-        accessibilityLabel={`Nota para ${primerNombre}`}
-        value={ejercicio.nota}
-        onChangeText={(v) => cambiar(ejercicio.id, { nota: v })}
-        placeholder="Orientativo: 60 kg para 4 × 6 si completas con RIR 3."
-        placeholderTextColor={tema.marcador}
-        multiline
-        maxLength={300}
-        style={s.area}
+          <Text style={s.etiquetaPanel}>Subida (kg)</Text>
+          <View style={s.opcionesPanel}>
+            {["1", "2,5", "5"].map((subida) => (
+              <Pressable
+                key={subida}
+                accessibilityRole="button"
+                accessibilityLabel={`Subida ${subida} kg`}
+                accessibilityState={{
+                  selected: numeroDeTexto(ejercicio.subida) === numeroDeTexto(subida),
+                }}
+                onPress={() => cambiar(ejercicio.id, { subida })}
+                style={[
+                  s.chip,
+                  numeroDeTexto(ejercicio.subida) === numeroDeTexto(subida) && s.chipElegido,
+                ]}
+              >
+                <Text style={s.textoChip}>{subida}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+      <Text style={s.etiquetaPanel}>RIR objetivo</Text>
+      <ChipsRir
+        valor={rir && rir.min === rir.max ? rir.min : null}
+        etiqueta={`RIR objetivo de ${ejercicio.nombre}`}
+        cambiar={(n) => cambiar(ejercicio.id, { rir: String(n) })}
       />
-      <Text style={s.etiquetaPanel}>Alternativas si molesta (una por línea)</Text>
-      <TextInput
-        accessibilityLabel="Alternativas si molesta"
-        value={ejercicio.alternativas}
-        onChangeText={(v) => cambiar(ejercicio.id, { alternativas: v })}
-        placeholder={"Press en multipower\nPress con mancuernas"}
-        placeholderTextColor={tema.marcador}
-        multiline
-        maxLength={400}
-        style={s.area}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Sin objetivo"
+        onPress={() => cambiar(ejercicio.id, { rir: "" })}
+        style={s.mas}
+      >
+        <Text style={s.textoChip}>Sin objetivo</Text>
+      </Pressable>
+      <Text style={s.etiquetaPanel}>Descanso</Text>
+      <SelectorDescanso
+        valor={ejercicio.descanso}
+        nombre={ejercicio.nombre}
+        cambiar={(descanso) => cambiar(ejercicio.id, { descanso })}
       />
-      <Enlace texto="Ver técnica en la biblioteca" onPress={verTecnica} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Más"
+        accessibilityState={{ expanded: mas }}
+        onPress={() => setMas(!mas)}
+        style={s.mas}
+      >
+        <Text style={s.textoChip}>Más {mas ? "−" : "+"}</Text>
+      </Pressable>
+      {mas && (
+        <View style={s.detalles}>
+          <Text style={s.etiquetaPanel}>Preguntar RIR (respuesta opcional)</Text>
+          <View style={s.opcionesPanel}>
+            {(
+              [
+                ["desactivado", "Desactivado"],
+                ["alFinalizarEjercicio", "Al finalizar ejercicio"],
+                ["cadaSerie", "Cada serie"],
+              ] as const
+            ).map(([modo, etiqueta]) => (
+              <Enlace
+                key={modo}
+                texto={`${ejercicio.modoRir === modo ? "✓ " : ""}${etiqueta}`}
+                etiqueta={`RIR ${etiqueta.toLowerCase()} de ${ejercicio.nombre}`}
+                onPress={() => cambiar(ejercicio.id, { modoRir: modo })}
+              />
+            ))}
+          </View>
+          <Text style={s.etiquetaPanel}>Tipo de carga</Text>
+          <View style={s.opcionesPanel}>
+            <Enlace
+              texto={`${ejercicio.tipoCarga !== "sinCarga" ? "✓ " : ""}Con carga externa`}
+              etiqueta={`Con carga externa de ${ejercicio.nombre}`}
+              onPress={() => cambiar(ejercicio.id, { tipoCarga: "conCargaExterna" })}
+            />
+            <Enlace
+              texto={`${ejercicio.tipoCarga === "sinCarga" ? "✓ " : ""}Sin carga externa`}
+              etiqueta={`Sin carga externa de ${ejercicio.nombre}`}
+              onPress={() =>
+                cambiar(ejercicio.id, {
+                  tipoCarga: "sinCarga",
+                  calibrar: false,
+                  carga: "",
+                  subida: "",
+                })
+              }
+            />
+          </View>
+          {ejercicio.tipoCarga !== "sinCarga" && (
+            <EditorNumero
+              titulo="Subida (kg)"
+              etiqueta={`Subida de ${ejercicio.nombre} en kg`}
+              valor={numeroDeTexto(ejercicio.subida)}
+              decimal
+              minimo={0.01}
+              maximo={50}
+              paso={0.25}
+              cambiar={(n) => cambiar(ejercicio.id, { subida: String(n).replace(".", ",") })}
+              alVaciar={() => cambiar(ejercicio.id, { subida: "" })}
+              alCambiarValidez={(v) => validez("subida", v)}
+            />
+          )}
+          <View style={s.conmutador}>
+            <Text style={[s.tenue, s.flex]}>
+              {ejercicio.compuesto
+                ? "Compuesto · nunca se recorta"
+                : "Accesorio · se recorta primero"}
+            </Text>
+            <Switch
+              accessibilityLabel="Ejercicio compuesto: nunca se recorta"
+              hitSlop={8}
+              value={ejercicio.compuesto}
+              onValueChange={(v) => cambiar(ejercicio.id, { compuesto: v })}
+              trackColor={{ true: tema.acento, false: tema.superficieAlta }}
+              thumbColor={tema.texto}
+            />
+          </View>
+          <View style={s.conmutador}>
+            <Text style={[s.tenue, s.flex]}>Calibrar la carga las primeras sesiones</Text>
+            <Switch
+              accessibilityLabel="Calibrar la carga"
+              hitSlop={8}
+              value={ejercicio.tipoCarga !== "sinCarga" && ejercicio.calibrar}
+              disabled={ejercicio.tipoCarga === "sinCarga"}
+              onValueChange={(v) => cambiar(ejercicio.id, { calibrar: v })}
+              trackColor={{ true: tema.acento, false: tema.superficieAlta }}
+              thumbColor={tema.texto}
+            />
+          </View>
+          <Text style={s.etiquetaPanel}>Se mide en</Text>
+          {ejercicio.mezclaUnidades && (
+            <Text style={s.aviso}>
+              La sesión guardada pauta este ejercicio en varias unidades. Elige una para todas sus
+              series o revísalo en el editor de sesión.
+            </Text>
+          )}
+          <View style={s.opcionesPanel}>
+            {UNIDADES_OFRECIDAS.map((unidad) => (
+              <Enlace
+                key={unidad}
+                texto={`${ejercicio.tipo === unidad ? "✓ " : ""}${UNIDADES_DE_FILA[unidad].nombre}`}
+                etiqueta={`Medir ${ejercicio.nombre} en ${UNIDADES_DE_FILA[unidad].nombre.toLowerCase()}`}
+                // El objetivo de otra unidad no se reutiliza: 20 m nunca pasan a 20 repeticiones.
+                // Con unidades mezcladas, elegir cualquiera (también la mostrada) es la
+                // decisión explícita de pautar todas las series en ella.
+                onPress={() => {
+                  if (ejercicio.mezclaUnidades)
+                    cambiar(ejercicio.id, { tipo: unidad, objetivo: "", mezclaUnidades: undefined })
+                  else if (unidad !== ejercicio.tipo)
+                    cambiar(ejercicio.id, { tipo: unidad, objetivo: "" })
+                }}
+              />
+            ))}
+          </View>
+          <Text style={s.etiquetaPanel}>Nota para {primerNombre}</Text>
+          <TextInput
+            accessibilityLabel={`Nota para ${primerNombre}`}
+            value={ejercicio.nota}
+            onChangeText={(v) => cambiar(ejercicio.id, { nota: v })}
+            placeholder="Orientativo: 60 kg para 4 × 6 si completas con RIR 3."
+            placeholderTextColor={tema.marcador}
+            multiline
+            maxLength={300}
+            style={s.area}
+          />
+          <Text style={s.etiquetaPanel}>Alternativas si molesta (una por línea)</Text>
+          <TextInput
+            accessibilityLabel="Alternativas si molesta"
+            value={ejercicio.alternativas}
+            onChangeText={(v) => cambiar(ejercicio.id, { alternativas: v })}
+            placeholder={"Press en multipower\nPress con mancuernas"}
+            placeholderTextColor={tema.marcador}
+            multiline
+            maxLength={400}
+            style={s.area}
+          />
+          <Text style={s.etiquetaPanel}>Indicaciones</Text>
+          <TextInput
+            accessibilityLabel={`Indicaciones de ${ejercicio.nombre}`}
+            value={ejercicio.indicaciones}
+            onChangeText={(indicaciones) => cambiar(ejercicio.id, { indicaciones })}
+            multiline
+            maxLength={2000}
+            style={s.area}
+          />
+          <Enlace texto="Ver técnica en la biblioteca" onPress={verTecnica} />
+        </View>
+      )}
+      {alListo && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Listo"
+          accessibilityState={{ disabled: !valido }}
+          disabled={!valido}
+          onPress={() => {
+            Keyboard.dismiss()
+            alListo()
+          }}
+          style={s.listo}
+        >
+          <Text style={s.textoChip}>Listo</Text>
+        </Pressable>
+      )}
     </View>
   )
 }
@@ -403,8 +570,15 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
   tabla: { gap: 2 },
   fila: { flexDirection: "row", alignItems: "center", gap: 8 },
-  cabecera: { paddingHorizontal: 12, paddingBottom: 4 },
-  etiqueta: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 12 },
+  cabecera: { width: "100%", gap: 6 },
+  lineaNombre: { flexDirection: "row", alignItems: "center", width: "100%", gap: 8 },
+  etiqueta: {
+    color: tema.textoTenue,
+    fontFamily: tema.fuenteSemi,
+    fontSize: 11,
+    textAlign: "center",
+  },
+  columna: { flex: 1, minWidth: 0 },
   renglon: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -414,12 +588,32 @@ const s = StyleSheet.create({
     borderRadius: 14,
   },
   renglonActivo: { backgroundColor: tema.superficieAlta },
-  nombre: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
+  nombre: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 17 },
+  nombrePulsable: { minHeight: alto.tactil, flex: 1, minWidth: 0, justifyContent: "center" },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   celdas: { flexDirection: "row", gap: 8 },
-  celdasEstrechas: { flexDirection: "row", flexWrap: "wrap", gap: 6, width: "100%" },
+  celdasEstrechas: { flexDirection: "row", gap: 6, width: "100%" },
+  celdaPulsable: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: alto.celda,
+    paddingHorizontal: 2,
+    borderRadius: radio.celda,
+    borderWidth: 1,
+    borderColor: tema.borde,
+    backgroundColor: tema.superficie,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  valorCelda: {
+    color: tema.texto,
+    fontFamily: tema.fuenteBoton,
+    fontSize: 15,
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
+  },
   celda: {
-    height: 40,
+    height: 44,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: tema.bordeFuerte,
@@ -439,20 +633,50 @@ const s = StyleSheet.create({
   textoCalibrar: { color: tema.aviso, fontFamily: tema.fuenteBoton, fontSize: 13 },
   aviso: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 13, lineHeight: 18 },
   acciones: { flexDirection: "row", alignItems: "center", gap: 4 },
-  accion: { width: 32, height: 40, alignItems: "center", justifyContent: "center" },
+  accion: {
+    width: alto.tactil,
+    height: alto.tactil,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quitar: {
+    minHeight: alto.tactil,
+    minWidth: alto.tactil,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
   girarArriba: { transform: [{ rotate: "-90deg" }] },
   girarAbajo: { transform: [{ rotate: "90deg" }] },
   panel: {
-    backgroundColor: tema.superficie,
-    borderRadius: 20,
-    padding: 16,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: tema.bordeDestacado,
+    gap: 16,
   },
   tituloPanel: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 17 },
-  conmutador: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 40 },
+  conmutador: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44 },
   opcionesPanel: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  detalles: { gap: 10 },
+  chip: {
+    minHeight: alto.tactil,
+    minWidth: alto.tactil,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: radio.celda,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+  },
+  chipElegido: { borderColor: tema.acento, backgroundColor: tema.acentoSuave },
+  textoChip: { color: tema.acento, fontFamily: tema.fuenteSemi, fontSize: 14 },
+  mas: { minHeight: alto.tactil, justifyContent: "center" },
+  listo: { minHeight: alto.tactil, justifyContent: "center", alignItems: "flex-end" },
+  campo: {
+    minHeight: alto.campo,
+    padding: 12,
+    borderRadius: radio.campo,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    color: tema.texto,
+    fontFamily: tema.fuenteTexto,
+  },
   etiquetaPanel: { color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 14, marginTop: 4 },
   area: {
     minHeight: 72,

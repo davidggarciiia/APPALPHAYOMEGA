@@ -3,6 +3,7 @@ import { useNavigation } from "expo-router"
 import { usePreventRemove } from "expo-router/react-navigation"
 import {
   Modal,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +14,7 @@ import {
   useWindowDimensions,
 } from "react-native"
 import { z } from "zod"
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg"
 import {
   AsignarPlanSchema,
   FechaAgendaSchema,
@@ -43,10 +45,14 @@ import { Pestanas, Titulo } from "../../entrenamiento/plan/piezas"
 import { RutinaDeLaSemana, type DiaDelPlan } from "../../entrenamiento/plan/rutina"
 import { BotonAtras, Dialogo, Enlace } from "../../entrenamiento/sesion/controles"
 import { VerTecnica } from "../../entrenamiento/ver-tecnica"
+import { AvisoDeshacer } from "../../componentes/aviso-deshacer"
+import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
+import { Hoja } from "../../componentes/hoja"
+import { EntradaMarca } from "../../componentes/entrada-marca"
 import { ErrorDePeticion, ErrorDePermiso, ErrorDelServidor } from "../../lib/http"
 import { conRecursoLocalExclusivo } from "../../lib/candado-local"
 import { useEnvioUnico } from "../../lib/envio-unico"
-import { degradadoOro, tema } from "../../tema"
+import { tema } from "../../tema"
 import type { ApiRutinas } from "../api-rutinas"
 import { ListadoDeRutinas } from "../listado-rutinas"
 import { SelectorEjercicios } from "../selector-ejercicios"
@@ -63,6 +69,7 @@ import {
 import { EditorDeBloque, ListaDeSeccion } from "./partes"
 import { PanelEjercicio, pautaDeFila, TablaPrincipal } from "./tabla"
 import { errorDeValidacion } from "./validacion"
+import { AjustePrescripcion, type CampoPrescripcion } from "./ajuste-prescripcion"
 
 /** La misma clave que el editor anterior: una asignación pendiente se recupera en ambos. */
 const PendienteSchema = z.strictObject({
@@ -263,6 +270,11 @@ export function ConstructorPlan({
   const [activo, setActivo] = useState<string>(() => dias[0]!.id)
   const [bloque, setBloque] = useState<Bloque>(BLOQUE_VACIO)
   const [elegido, setElegido] = useState<string | null>(null)
+  const [hojaEjercicio, setHojaEjercicio] = useState(false)
+  const [datosBloque, setDatosBloque] = useState(false)
+  const [datosDia, setDatosDia] = useState(false)
+  const [ajustando, setAjustando] = useState<{ id: string; campo: CampoPrescripcion } | null>(null)
+  const [ajusteValido, setAjusteValido] = useState(true)
   const [anadiendo, setAnadiendo] = useState<SeccionDeSesion | null>(null)
   const [plantillas, setPlantillas] = useState(false)
   /** Plantilla elegida sobre un plan ya empezado: se pregunta antes de sustituirlo. */
@@ -270,6 +282,8 @@ export function ConstructorPlan({
   /** «Quitar día» con ejercicios: elimina todo lo del día, así que se pregunta antes. */
   const [quitandoDia, setQuitandoDia] = useState(false)
   const [retirada, setRetirada] = useState<Retirada | null>(null)
+  const retiradaId = useRef(0)
+  const retiradaInicio = useRef(0)
   const retiradaDeshecha = useRef<Retirada | null>(null)
   const [comoCliente, setComoCliente] = useState(false)
   const [confirmando, setConfirmando] = useState<AsignarPlan | null>(null)
@@ -304,7 +318,7 @@ export function ConstructorPlan({
 
   useEffect(() => {
     if (!retirada) return
-    const id = setTimeout(() => setRetirada(null), 6000)
+    const id = setTimeout(() => setRetirada(null), 5000)
     return () => clearTimeout(id)
   }, [retirada])
 
@@ -426,6 +440,8 @@ export function ConstructorPlan({
     cambiarDia({ ejercicios: dia.ejercicios.map((e) => (e.id === id ? { ...e, ...cambio } : e)) })
   const quitarDia = (): void => {
     setRetirada(null)
+    setAjustando(null)
+    setHojaEjercicio(false)
     const resto = dias.filter((d) => d.id !== dia.id)
     setDias(resto)
     setActivo(resto[0]!.id)
@@ -434,11 +450,16 @@ export function ConstructorPlan({
     const indice = dia.ejercicios.findIndex((e) => e.id === id)
     const elemento = dia.ejercicios[indice]
     if (!elemento) return
+    retiradaId.current++
+    retiradaInicio.current = Date.now()
     setRetirada({ tipo: "ejercicio", indice, elemento, diaId: dia.id })
     cambiarDia({ ejercicios: dia.ejercicios.filter((e) => e.id !== id) })
     if (elegido === id) setElegido(null)
+    setAjustando(null)
   }
   const quitarFase = (indice: number): void => {
+    retiradaId.current++
+    retiradaInicio.current = Date.now()
     const elemento = bloque.fases[indice]!
     setRetirada(
       elemento.nombre.trim() || elemento.detalle?.trim()
@@ -448,6 +469,8 @@ export function ConstructorPlan({
     setBloque((actual) => ({ ...actual, fases: actual.fases.filter((_, n) => n !== indice) }))
   }
   const quitarDeporte = (indice: number): void => {
+    retiradaId.current++
+    retiradaInicio.current = Date.now()
     const elemento = bloque.deportes[indice]!
     setRetirada(elemento.nombre.trim() ? { tipo: "deporte", indice, elemento } : null)
     setBloque((actual) => ({ ...actual, deportes: actual.deportes.filter((_, n) => n !== indice) }))
@@ -489,15 +512,19 @@ export function ConstructorPlan({
     setRetirada(null)
   }
   const barraDeshacer = retirada && (
-    <View style={s.barraDeshacer}>
-      <Text accessibilityLiveRegion="polite" style={[s.tenue, s.flex]}>
-        {retirada.tipo === "fase"
+    <AvisoDeshacer
+      key={retiradaId.current}
+      mensaje={
+        retirada.tipo === "fase"
           ? `Fase «${retirada.elemento.nombre || "Sin nombre"}» quitada`
-          : `${retirada.elemento.nombre} quitado`}{" "}
-        ·
-      </Text>
-      <Enlace texto="DESHACER" etiqueta="Deshacer" onPress={deshacer} />
-    </View>
+          : `${retirada.elemento.nombre} quitado`
+      }
+      alDeshacer={deshacer}
+      id={retiradaId.current}
+      iniciadoEn={retiradaInicio.current}
+      alExpirar={() => setRetirada(null)}
+      animar={!ajustando && !datosBloque && !hojaEjercicio}
+    />
   )
   const mover = (id: string, desplazamiento: number): void => {
     const lista = [...dia.ejercicios]
@@ -510,6 +537,12 @@ export function ConstructorPlan({
     cambiarDia({ ejercicios: lista })
   }
   const ejercicioElegido = dia.ejercicios.find((e) => e.id === elegido) ?? null
+  const ejercicioAjustado = dia.ejercicios.find((e) => e.id === ajustando?.id) ?? null
+  const abrirEjercicio = (id: string): void => {
+    setAjustando(null)
+    setElegido(id)
+    setHojaEjercicio(true)
+  }
 
   const sesionesDelPlan = (): AsignarPlan["patron"]["sesiones"] =>
     dias.map((d) => {
@@ -554,6 +587,8 @@ export function ConstructorPlan({
   }
 
   const preparar = (lugar: LugarDelMensaje = "cabecera"): void => {
+    if (!ajusteValido) return
+    setAjustando(null)
     setLugarDelMensaje(lugar)
     setError("")
     try {
@@ -570,6 +605,8 @@ export function ConstructorPlan({
   }
 
   const previsualizar = (): void => {
+    if (!ajusteValido) return
+    setAjustando(null)
     setLugarDelMensaje("cabecera")
     try {
       construir(nuevoId())
@@ -635,6 +672,7 @@ export function ConstructorPlan({
   }
 
   const guardarPlantilla = useEnvioUnico(async (): Promise<void> => {
+    if (!ajusteValido) return
     setLugarDelMensaje("plantilla")
     setGuardandoPlantilla(true)
     setError("")
@@ -665,6 +703,7 @@ export function ConstructorPlan({
       setActivo(cargados[0]?.id ?? "")
       setNombre(rutina.nombre)
       setPlantillas(false)
+      setDatosBloque(false)
       if (retirados.length > 0)
         setError(`Sustituye los ejercicios retirados antes de publicar: ${retirados.join(", ")}`)
     } catch {
@@ -686,21 +725,20 @@ export function ConstructorPlan({
   )
   const faltan = SECCIONES.filter((s) => !seccionesVisibles.includes(s))
 
-  const panel =
-    ejercicioElegido !== null ? (
-      <PanelEjercicio
-        ejercicio={ejercicioElegido}
-        nombreCliente={nombreCliente}
-        cambiar={cambiarEjercicio}
-        verTecnica={() => setTecnica(ejercicioElegido)}
-      />
-    ) : (
-      <View style={s.panelVacio}>
-        <Text style={s.tenue}>
-          Elige un ejercicio para su nota, sus alternativas y si es compuesto.
-        </Text>
-      </View>
-    )
+  const panel = ejercicioElegido !== null && (
+    <PanelEjercicio
+      key={ejercicioElegido.id}
+      ejercicio={ejercicioElegido}
+      nombreCliente={nombreCliente}
+      cambiar={cambiarEjercicio}
+      verTecnica={() => {
+        setHojaEjercicio(false)
+        setTecnica(ejercicioElegido)
+      }}
+      alListo={() => setHojaEjercicio(false)}
+      alCambiarValidez={setAjusteValido}
+    />
+  )
 
   const mensaje = (
     <>
@@ -722,7 +760,18 @@ export function ConstructorPlan({
             />
           </>
         ) : (
-          <Text style={s.tenue}>Recuperando publicaciones pendientes…</Text>
+          <GrupoEsqueletos>
+            <View
+              style={s.carga}
+              accessibilityLabel="Cargando plan"
+              accessibilityRole="progressbar"
+            >
+              <Esqueleto alto={44} />
+              {[0, 1, 2, 3].map((n) => (
+                <Esqueleto key={n} alto={72} />
+              ))}
+            </View>
+          </GrupoEsqueletos>
         )}
       </View>
     )
@@ -757,206 +806,258 @@ export function ConstructorPlan({
   }
 
   return (
-    <View style={s.contenido}>
-      <BotonAtras etiqueta="Volver a la ficha" onPress={pedirSalida} />
-      <View style={s.cabecera}>
-        <View style={s.textos}>
-          <TextInput
-            accessibilityLabel="Nombre del bloque"
-            value={nombre}
-            onChangeText={setNombre}
-            placeholder="BLOQUE 1 · RECOMPOSICIÓN"
-            placeholderTextColor={tema.marcador}
-            maxLength={120}
-            style={s.titulo}
-          />
-          <Text style={s.tenue}>
-            {nombreCliente} ·{" "}
-            {FechaAgendaSchema.safeParse(semanaInicial).success
-              ? `empieza el ${fechaCorta(semanaInicial)}`
-              : "fecha de inicio pendiente"}{" "}
-            · {semanas || "?"} semanas
-          </Text>
+    <KeyboardAvoidingView
+      style={s.raiz}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      enabled={ajustando === null}
+    >
+      <ScrollView
+        testID="scroll-del-plan"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={[s.contenido, ajustando !== null && s.conAjuste]}
+      >
+        <View style={s.barraSuperior}>
+          <BotonAtras etiqueta="Volver a la ficha" onPress={pedirSalida} />
+          {!sinCambios && <Text style={s.sinPublicar}>Sin publicar</Text>}
         </View>
-        {/* Cada botón crece hasta llenar su fila y envuelve en pantallas estrechas. */}
-        <View style={s.botones}>
-          <View style={[s.boton, ancho && s.botonAncho]}>
-            <BotonSecundario texto="Ver como cliente" onPress={previsualizar} sinMargen />
+        <View style={s.cabecera}>
+          <View style={s.textos}>
+            <TextInput
+              accessibilityLabel="Nombre del bloque"
+              value={nombre}
+              onChangeText={setNombre}
+              placeholder="NOMBRE DEL BLOQUE"
+              placeholderTextColor={tema.marcador}
+              maxLength={120}
+              style={s.titulo}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Editar datos del bloque"
+              accessibilityHint="Fecha de inicio, semanas y fases"
+              onPress={() => {
+                setAjustando(null)
+                setDatosBloque(true)
+              }}
+              style={s.metadatos}
+            >
+              <Text style={s.tenue}>
+                {nombreCliente} ·{" "}
+                {FechaAgendaSchema.safeParse(semanaInicial).success
+                  ? `empieza el ${fechaCorta(semanaInicial)}`
+                  : "fecha de inicio pendiente"}{" "}
+                · {semanas || "?"} semanas
+              </Text>
+            </Pressable>
           </View>
-          {Platform.OS === "web" && (
-            <View style={[s.boton, ancho && s.botonAncho]}>
-              <BotonSecundario
-                texto="Exportar PDF"
-                onPress={() => exportarPdf(nombre || "Plan", nombreCliente, dias)}
-                sinMargen
+        </View>
+        {borrador && (
+          <View style={s.recuperacion}>
+            <Text style={s.aviso}>
+              Tienes un plan sin publicar guardado en este dispositivo. ¿Quieres seguir con él?
+            </Text>
+            <BotonSecundario
+              texto="Recuperar mi plan"
+              onPress={() => recuperarBorrador(borrador)}
+            />
+            <BotonSecundario texto="Empezar de cero" onPress={descartarBorrador} />
+          </View>
+        )}
+
+        <Hoja
+          visible={datosBloque}
+          alCerrar={() => setDatosBloque(false)}
+          titulo="Datos del bloque"
+        >
+          <View style={s.datosHoja}>
+            <View style={s.datos}>
+              <View style={s.dato}>
+                <Text style={s.tenue}>Lunes de inicio</Text>
+                <TextInput
+                  accessibilityLabel="Lunes de inicio (AAAA-MM-DD)"
+                  value={semanaInicial}
+                  onChangeText={setSemanaInicial}
+                  placeholder="2026-09-28"
+                  placeholderTextColor={tema.marcador}
+                  maxLength={10}
+                  keyboardType="numbers-and-punctuation"
+                  style={s.campo}
+                />
+              </View>
+              <View style={s.dato}>
+                <Text style={s.tenue}>Semanas</Text>
+                <TextInput
+                  accessibilityLabel="Número de semanas"
+                  value={semanas}
+                  onChangeText={setSemanas}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  style={[s.campo, s.corto]}
+                />
+              </View>
+              <Enlace
+                texto={plantillas ? "Cerrar plantillas" : "Partir de una plantilla"}
+                onPress={() => setPlantillas(!plantillas)}
               />
             </View>
+            {plantillas && (
+              <ListadoDeRutinas
+                api={rutinas}
+                elegir={(r) => {
+                  setDatosBloque(false)
+                  if (sinCambios) void elegirPlantilla(r)
+                  else setSustituyendoPor(r)
+                }}
+              />
+            )}
+
+            <EditorDeBloque
+              bloque={bloque}
+              semanas={Number(semanas) || 1}
+              cambiar={setBloque}
+              quitarFase={quitarFase}
+              quitarDeporte={quitarDeporte}
+              avisoFases={retirada?.tipo === "fase" ? barraDeshacer : null}
+              avisoDeportes={retirada?.tipo === "deporte" ? barraDeshacer : null}
+            />
+            <BotonSecundario texto="Listo" onPress={() => setDatosBloque(false)} sinMargen />
+          </View>
+        </Hoja>
+
+        <View style={s.diasFila}>
+          <View style={s.flex}>
+            <Pestanas
+              opciones={[...dias]
+                .sort((a, b) => a.diaSemana - b.diaSemana)
+                .map((d) => ({
+                  valor: d.id,
+                  texto: `${NOMBRES_DE_DIA[d.diaSemana - 1]!.slice(0, 3).replace(/^./, (c) => c.toUpperCase())} · ${d.nombre || "Sin nombre"}`,
+                }))}
+              activa={dia.id}
+              cambiar={(id) => {
+                setActivo(id)
+                setElegido(null)
+                setAnadiendo(null)
+                setAjustando(null)
+                setHojaEjercicio(false)
+              }}
+            />
+          </View>
+          {libres.length > 0 && (
+            <Enlace
+              texto="+ Día"
+              etiqueta="Añadir día"
+              onPress={() => {
+                const nuevo = nuevoDia(nuevoId, libres[0]!)
+                setDias((todos) => [...todos, nuevo])
+                setActivo(nuevo.id)
+                setElegido(null)
+                setAjustando(null)
+              }}
+            />
           )}
-          <View style={[s.boton, ancho && s.botonAncho]}>
-            <BotonPrincipal
-              texto="Publicar"
-              onPress={() => preparar()}
-              deshabilitado={guardandoPlantilla}
-              sinMargen
-            />
-          </View>
         </View>
-      </View>
-      {lugarDelMensaje === "cabecera" && mensaje}
-      {borrador && (
-        <View style={s.recuperacion}>
-          <Text style={s.aviso}>
-            Tienes un plan sin publicar guardado en este dispositivo. ¿Quieres seguir con él?
-          </Text>
-          <BotonPrincipal texto="Recuperar mi plan" onPress={() => recuperarBorrador(borrador)} />
-          <BotonSecundario texto="Empezar de cero" onPress={descartarBorrador} />
-        </View>
-      )}
 
-      <View style={s.datos}>
-        <View style={s.dato}>
-          <Text style={s.tenue}>Lunes de inicio</Text>
+        <View style={s.diaCabecera}>
           <TextInput
-            accessibilityLabel="Lunes de inicio (AAAA-MM-DD)"
-            value={semanaInicial}
-            onChangeText={setSemanaInicial}
-            placeholder="2026-09-28"
+            accessibilityLabel="Nombre del día"
+            value={dia.nombre}
+            onChangeText={(v) => cambiarDia({ nombre: v })}
+            placeholder="Empuje"
             placeholderTextColor={tema.marcador}
-            maxLength={10}
-            style={s.campo}
+            maxLength={120}
+            style={[s.campo, s.nombreDia]}
           />
-        </View>
-        <View style={s.dato}>
-          <Text style={s.tenue}>Semanas</Text>
-          <TextInput
-            accessibilityLabel="Número de semanas"
-            value={semanas}
-            onChangeText={setSemanas}
-            keyboardType="number-pad"
-            maxLength={2}
-            style={[s.campo, s.corto]}
-          />
-        </View>
-        <Enlace
-          texto={plantillas ? "Cerrar plantillas" : "Partir de una plantilla"}
-          onPress={() => setPlantillas(!plantillas)}
-        />
-      </View>
-      {plantillas && (
-        <ListadoDeRutinas
-          api={rutinas}
-          elegir={(r) => (sinCambios ? void elegirPlantilla(r) : setSustituyendoPor(r))}
-        />
-      )}
-
-      <EditorDeBloque
-        bloque={bloque}
-        semanas={Number(semanas) || 1}
-        cambiar={setBloque}
-        quitarFase={quitarFase}
-        quitarDeporte={quitarDeporte}
-        avisoFases={retirada?.tipo === "fase" ? barraDeshacer : null}
-        avisoDeportes={retirada?.tipo === "deporte" ? barraDeshacer : null}
-      />
-
-      <View style={s.diasFila}>
-        <View style={s.flex}>
-          <Pestanas
-            opciones={[...dias]
-              .sort((a, b) => a.diaSemana - b.diaSemana)
-              .map((d) => ({
-                valor: d.id,
-                texto: `${NOMBRES_DE_DIA[d.diaSemana - 1]!.slice(0, 3).replace(/^./, (c) => c.toUpperCase())} · ${d.nombre || "Sin nombre"}`,
-              }))}
-            activa={dia.id}
-            cambiar={(id) => {
-              setActivo(id)
-              setElegido(null)
-              setAnadiendo(null)
-            }}
-          />
-        </View>
-        {libres.length > 0 && (
-          <Enlace
-            texto="Añadir día"
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Editar datos del día"
+            style={s.editarDia}
             onPress={() => {
-              const nuevo = nuevoDia(nuevoId, libres[0]!)
-              setDias((todos) => [...todos, nuevo])
-              setActivo(nuevo.id)
+              setAjustando(null)
+              setDatosDia(true)
             }}
-          />
-        )}
-      </View>
-
-      <View style={s.diaCabecera}>
-        <TextInput
-          accessibilityLabel="Nombre del día"
-          value={dia.nombre}
-          onChangeText={(v) => cambiarDia({ nombre: v })}
-          placeholder="Empuje"
-          placeholderTextColor={tema.marcador}
-          maxLength={120}
-          style={[s.campo, s.nombreDia]}
-        />
-        <View style={s.semana} accessibilityRole="radiogroup" accessibilityLabel="Día de la semana">
-          {INICIALES_DE_DIA.map((inicial, i) => {
-            const n = i + 1
-            const ocupadoPorOtro = dias.some((d) => d.diaSemana === n && d.id !== dia.id)
-            const elegidoDia = dia.diaSemana === n
-            return (
-              <Pressable
-                key={inicial}
-                accessibilityRole="radio"
-                aria-checked={elegidoDia}
-                accessibilityState={{ checked: elegidoDia, disabled: ocupadoPorOtro }}
-                accessibilityLabel={NOMBRES_DE_DIA[i]}
-                disabled={ocupadoPorOtro}
-                onPress={() => cambiarDia({ diaSemana: n })}
-                style={[
-                  s.diaSemana,
-                  elegidoDia && [s.diaElegido, degradadoOro],
-                  ocupadoPorOtro && s.apagado,
-                ]}
-              >
-                <Text style={[s.textoDia, elegidoDia && s.textoDiaElegido]}>{inicial}</Text>
-              </Pressable>
-            )
-          })}
+          >
+            <Text style={s.textoEditar}>···</Text>
+          </Pressable>
         </View>
-        <View style={s.dato}>
-          <Text style={s.tenue}>Duración estimada</Text>
-          <TextInput
-            accessibilityLabel="Duración estimada"
-            value={dia.duracion}
-            onChangeText={(v) => cambiarDia({ duracion: v })}
-            placeholder="100–115 min"
-            placeholderTextColor={tema.marcador}
-            maxLength={30}
-            style={s.campo}
-          />
-        </View>
-        {(["calentamiento", "fuerza", "cardio", "calma"] as const).map((parte) => (
-          <View key={parte} style={s.dato}>
-            <Text style={s.tenue}>
-              {parte === "calentamiento" ? "Calentar" : parte[0]!.toUpperCase() + parte.slice(1)}{" "}
-              (min)
-            </Text>
+        <Hoja visible={datosDia} alCerrar={() => setDatosDia(false)} titulo="Datos del día">
+          <View style={s.datosHoja}>
+            <View
+              style={s.semana}
+              accessibilityRole="radiogroup"
+              accessibilityLabel="Día de la semana"
+            >
+              {INICIALES_DE_DIA.map((inicial, i) => {
+                const n = i + 1
+                const ocupadoPorOtro = dias.some((d) => d.diaSemana === n && d.id !== dia.id)
+                const elegidoDia = dia.diaSemana === n
+                return (
+                  <Pressable
+                    key={inicial}
+                    accessibilityRole="radio"
+                    aria-checked={elegidoDia}
+                    accessibilityState={{ checked: elegidoDia, disabled: ocupadoPorOtro }}
+                    accessibilityLabel={NOMBRES_DE_DIA[i]}
+                    disabled={ocupadoPorOtro}
+                    onPress={() => cambiarDia({ diaSemana: n })}
+                    style={[s.diaSemana, elegidoDia && s.diaElegido, ocupadoPorOtro && s.apagado]}
+                  >
+                    <Text style={[s.textoDia, elegidoDia && s.textoDiaElegido]}>{inicial}</Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+            <View style={s.dato}>
+              <Text style={s.tenue}>Duración estimada</Text>
+              <TextInput
+                accessibilityLabel="Duración estimada"
+                value={dia.duracion}
+                onChangeText={(v) => cambiarDia({ duracion: v })}
+                placeholder="100–115 min"
+                placeholderTextColor={tema.marcador}
+                maxLength={30}
+                style={s.campo}
+              />
+            </View>
+            {(["calentamiento", "fuerza", "cardio", "calma"] as const).map((parte) => (
+              <View key={parte} style={s.dato}>
+                <Text style={s.tenue}>
+                  {parte === "calentamiento"
+                    ? "Calentar"
+                    : parte[0]!.toUpperCase() + parte.slice(1)}{" "}
+                  (min)
+                </Text>
+                <TextInput
+                  accessibilityLabel={`Minutos de ${parte}`}
+                  value={dia.partes[parte]}
+                  onChangeText={(v) => cambiarDia({ partes: { ...dia.partes, [parte]: v } })}
+                  placeholder="8–10"
+                  placeholderTextColor={tema.marcador}
+                  maxLength={20}
+                  style={[s.campo, s.corto]}
+                />
+              </View>
+            ))}
             <TextInput
-              accessibilityLabel={`Minutos de ${parte}`}
-              value={dia.partes[parte]}
-              onChangeText={(v) => cambiarDia({ partes: { ...dia.partes, [parte]: v } })}
-              placeholder="8–10"
+              accessibilityLabel="Nota del día para el cliente"
+              value={dia.nota}
+              onChangeText={(v) => cambiarDia({ nota: v })}
+              placeholder="Nota para el cliente"
               placeholderTextColor={tema.marcador}
-              maxLength={20}
-              style={[s.campo, s.corto]}
+              maxLength={300}
+              multiline
+              style={s.campo}
             />
+            <BotonSecundario texto="Listo" onPress={() => setDatosDia(false)} sinMargen />
           </View>
-        ))}
+        </Hoja>
         <View testID="acciones-del-dia">
           <View style={s.accionesDia}>
             <BotonEnlace
               texto={guardandoPlantilla ? "Guardando plantilla…" : "Guardar como plantilla"}
               ocupado={guardandoPlantilla}
+              deshabilitado={!ajusteValido}
               onPress={guardarPlantilla}
             />
             {dias.length > 1 && (
@@ -968,136 +1069,192 @@ export function ConstructorPlan({
           </View>
           {lugarDelMensaje === "plantilla" && mensaje}
         </View>
-      </View>
-      <TextInput
-        accessibilityLabel="Nota del día para el cliente"
-        value={dia.nota}
-        onChangeText={(v) => cambiarDia({ nota: v })}
-        placeholder="Banca: 60 kg de inicio para 4×6"
-        placeholderTextColor={tema.marcador}
-        maxLength={300}
-        style={s.campo}
-      />
 
-      <View style={[s.cuerpo, ancho && s.cuerpoAncho]}>
-        <View style={s.flex}>
-          {seccionesVisibles.map(({ seccion, titulo }) => {
-            const ejercicios = dia.ejercicios.filter((e) => e.seccion === seccion)
-            return (
-              <View key={seccion} style={s.seccion}>
-                <Titulo derecha={resumenDeSeccion(dia, seccion)}>
-                  {seccion === "circuito" ? dia.circuito.nombre || titulo : titulo}
-                </Titulo>
-                {seccion === "circuito" && (
-                  <View style={s.datos}>
-                    <TextInput
-                      accessibilityLabel="Nombre del circuito"
-                      value={dia.circuito.nombre}
-                      onChangeText={(v) => cambiarDia({ circuito: { ...dia.circuito, nombre: v } })}
-                      placeholder="Core"
-                      placeholderTextColor={tema.marcador}
-                      maxLength={30}
-                      style={[s.campo, s.flex]}
-                    />
-                    <TextInput
-                      accessibilityLabel="Vueltas del circuito"
-                      value={dia.circuito.vueltas}
-                      onChangeText={(v) =>
-                        cambiarDia({ circuito: { ...dia.circuito, vueltas: v } })
-                      }
-                      placeholder="2"
-                      placeholderTextColor={tema.marcador}
-                      keyboardType="number-pad"
-                      maxLength={2}
-                      style={[s.campo, s.corto]}
-                    />
-                    <TextInput
-                      accessibilityLabel="Descanso entre vueltas"
-                      value={dia.circuito.descanso}
-                      onChangeText={(v) =>
-                        cambiarDia({ circuito: { ...dia.circuito, descanso: v } })
-                      }
-                      placeholder="60–90 s"
-                      placeholderTextColor={tema.marcador}
-                      maxLength={30}
-                      style={[s.campo, s.flex]}
-                    />
-                  </View>
-                )}
-                {seccion === "principal" ? (
-                  <TablaPrincipal
-                    ejercicios={ejercicios}
-                    elegido={elegido}
-                    elegir={setElegido}
-                    cambiar={cambiarEjercicio}
-                    quitar={quitar}
-                    mover={mover}
-                    ancha={ancho}
-                  />
-                ) : (
-                  <ListaDeSeccion
-                    ejercicios={ejercicios}
-                    elegido={elegido}
-                    elegir={setElegido}
-                    cambiar={cambiarEjercicio}
-                    quitar={quitar}
-                  />
-                )}
-                {retirada?.tipo === "ejercicio" &&
-                  retirada.diaId === dia.id &&
-                  retirada.elemento.seccion === seccion &&
-                  barraDeshacer}
-                {anadiendo === seccion ? (
-                  <View style={s.selector}>
-                    <SelectorEjercicios
-                      api={catalogo}
-                      elegir={(e) => {
-                        cambiarDia({
-                          ejercicios: [...dia.ejercicios, nuevoEjercicio(e, seccion, nuevoId)],
-                        })
-                        setAnadiendo(null)
+        <EntradaMarca style={s.cuerpo}>
+          <View style={s.flex}>
+            {seccionesVisibles.map(({ seccion, titulo }) => {
+              const ejercicios = dia.ejercicios.filter((e) => e.seccion === seccion)
+              const minutos =
+                dia.partes[
+                  seccion === "calentamiento"
+                    ? "calentamiento"
+                    : seccion === "circuito"
+                      ? "cardio"
+                      : "calma"
+                ]
+              const resumen =
+                seccion === "principal"
+                  ? `${ejercicios.reduce((total, e) => total + (Number(e.series) || 0), 0)} series`
+                  : minutos
+                    ? `${minutos} min`
+                    : resumenDeSeccion(dia, seccion)
+              return (
+                <View key={seccion} style={s.seccion}>
+                  <Titulo estilo={s.tituloSeccion} derecha={resumen}>
+                    {seccion === "circuito" ? dia.circuito.nombre || titulo : titulo}
+                  </Titulo>
+                  {seccion === "circuito" && (
+                    <View style={s.datos}>
+                      <TextInput
+                        accessibilityLabel="Nombre del circuito"
+                        value={dia.circuito.nombre}
+                        onChangeText={(v) =>
+                          cambiarDia({ circuito: { ...dia.circuito, nombre: v } })
+                        }
+                        placeholder="Core"
+                        placeholderTextColor={tema.marcador}
+                        maxLength={30}
+                        style={[s.campo, s.flex]}
+                      />
+                      <TextInput
+                        accessibilityLabel="Vueltas del circuito"
+                        value={dia.circuito.vueltas}
+                        onChangeText={(v) =>
+                          cambiarDia({ circuito: { ...dia.circuito, vueltas: v } })
+                        }
+                        placeholder="2"
+                        placeholderTextColor={tema.marcador}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        style={[s.campo, s.corto]}
+                      />
+                      <TextInput
+                        accessibilityLabel="Descanso entre vueltas"
+                        value={dia.circuito.descanso}
+                        onChangeText={(v) =>
+                          cambiarDia({ circuito: { ...dia.circuito, descanso: v } })
+                        }
+                        placeholder="60–90 s"
+                        placeholderTextColor={tema.marcador}
+                        maxLength={30}
+                        style={[s.campo, s.flex]}
+                      />
+                    </View>
+                  )}
+                  {seccion === "principal" ? (
+                    <TablaPrincipal
+                      ejercicios={ejercicios}
+                      elegido={elegido}
+                      elegir={abrirEjercicio}
+                      cambiar={cambiarEjercicio}
+                      ajustar={(id, campo) => {
+                        setElegido(id)
+                        setAjustando({ id, campo })
                       }}
+                      quitar={quitar}
+                      mover={mover}
+                      ancha={ancho}
                     />
-                    <BotonSecundario
-                      texto="Cerrar la biblioteca"
-                      onPress={() => setAnadiendo(null)}
+                  ) : (
+                    <ListaDeSeccion
+                      ejercicios={ejercicios}
+                      elegido={elegido}
+                      elegir={abrirEjercicio}
+                      cambiar={cambiarEjercicio}
+                      quitar={quitar}
                     />
-                  </View>
-                ) : (
+                  )}
                   <Enlace
-                    texto="Añadir desde la biblioteca"
-                    onPress={() => setAnadiendo(seccion)}
+                    texto="+ Ejercicio"
+                    etiqueta="Añadir desde la biblioteca"
+                    onPress={() => {
+                      setAjustando(null)
+                      setAnadiendo(seccion)
+                    }}
                   />
-                )}
-                {!ancho && ejercicioElegido?.seccion === seccion && panel}
+                </View>
+              )
+            })}
+            {faltan.length > 0 && (
+              <View style={s.datos}>
+                {faltan.map(({ seccion, titulo }) => (
+                  <Enlace
+                    key={seccion}
+                    texto={`Añadir ${titulo.toLowerCase()}`}
+                    onPress={() => {
+                      setAjustando(null)
+                      setAnadiendo(seccion)
+                    }}
+                  />
+                ))}
               </View>
-            )
-          })}
-          {faltan.length > 0 && (
-            <View style={s.datos}>
-              {faltan.map(({ seccion, titulo }) => (
-                <Enlace
-                  key={seccion}
-                  texto={`Añadir ${titulo.toLowerCase()}`}
-                  onPress={() => setAnadiendo(seccion)}
-                />
-              ))}
-            </View>
-          )}
-        </View>
-        {ancho && <View style={s.lateral}>{panel}</View>}
-      </View>
-
+            )}
+          </View>
+        </EntradaMarca>
+        {Platform.OS === "web" && (
+          <Enlace
+            texto="Exportar PDF"
+            onPress={() => exportarPdf(nombre || "Plan", nombreCliente, dias)}
+          />
+        )}
+      </ScrollView>
       <View testID="pie-del-plan" style={s.pie}>
-        {lugarDelMensaje === "pie" && mensaje}
-        <BotonPrincipal
-          texto="Publicar"
-          etiquetaAccesible="Publicar al pie"
-          onPress={() => preparar("pie")}
-          deshabilitado={guardandoPlantilla}
-          sinMargen
-        />
+        <Svg pointerEvents="none" style={s.degradadoPie} width="100%" height={20}>
+          <Defs>
+            <LinearGradient id="fondo-plan" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={tema.fondo} stopOpacity={0} />
+              <Stop offset="1" stopColor={tema.fondo} />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height={20} fill="url(#fondo-plan)" />
+        </Svg>
+        {retirada?.tipo === "ejercicio" && ajustando === null && barraDeshacer}
+        {lugarDelMensaje !== "plantilla" && mensaje}
+        <View style={s.botones}>
+          <View style={s.boton}>
+            <BotonSecundario
+              texto="Ver como cliente"
+              onPress={previsualizar}
+              deshabilitado={!ajusteValido}
+              compacto
+              sinMargen
+            />
+          </View>
+          <View style={s.boton}>
+            <BotonPrincipal
+              texto="Publicar"
+              onPress={() => preparar("pie")}
+              deshabilitado={guardandoPlantilla || !ajusteValido}
+              compacto
+              sinMargen
+            />
+          </View>
+        </View>
       </View>
+      {ajustando && ejercicioAjustado && (
+        <AjustePrescripcion
+          key={`${ajustando.id}-${ajustando.campo}`}
+          ejercicio={ejercicioAjustado}
+          campo={ajustando.campo}
+          cambiar={cambiarEjercicio}
+          cerrar={() => setAjustando(null)}
+          alCambiarValidez={setAjusteValido}
+          margenInferior={96}
+          aviso={retirada?.tipo === "ejercicio" ? barraDeshacer : null}
+        />
+      )}
+      <Hoja
+        visible={hojaEjercicio && ejercicioElegido !== null}
+        alCerrar={() => setHojaEjercicio(false)}
+        titulo="Editar ejercicio"
+      >
+        {panel}
+      </Hoja>
+      <Hoja visible={anadiendo !== null} alCerrar={() => setAnadiendo(null)} titulo="Ejercicios">
+        {anadiendo !== null && (
+          <View style={s.biblioteca}>
+            <SelectorEjercicios
+              api={catalogo}
+              elegir={(e) => {
+                cambiarDia({
+                  ejercicios: [...dia.ejercicios, nuevoEjercicio(e, anadiendo, nuevoId)],
+                })
+                setAnadiendo(null)
+              }}
+            />
+          </View>
+        )}
+      </Hoja>
 
       <Modal
         visible={comoCliente}
@@ -1197,28 +1354,42 @@ export function ConstructorPlan({
           cerrar={() => setTecnica(null)}
         />
       )}
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
 const s = StyleSheet.create({
+  raiz: { flex: 1 },
   flex: { flex: 1 },
-  contenido: { gap: 20 },
-  cabecera: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", gap: 16 },
-  textos: { flex: 1, minWidth: 260, gap: 4 },
+  contenido: {
+    gap: 20,
+    padding: 20,
+    paddingTop: 8,
+    width: "100%",
+    maxWidth: 1000,
+    alignSelf: "center",
+  },
+  conAjuste: { paddingBottom: 230 },
+  barraSuperior: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  sinPublicar: { color: tema.aviso, fontFamily: tema.fuenteTexto, fontSize: 13 },
+  cabecera: { gap: 8 },
+  textos: { gap: 4 },
+  metadatos: { minHeight: 44, justifyContent: "center" },
+  datosHoja: { gap: 24 },
+  biblioteca: { minHeight: 400 },
+  carga: { gap: 16 },
   titulo: {
     color: tema.texto,
     fontFamily: tema.fuenteTitulo,
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 28,
+    lineHeight: 34,
+    minHeight: 44,
     textTransform: "uppercase",
     paddingVertical: 2,
   },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  // Debajo del título, a todo el ancho: junto a él lo aplastaban en escritorio y se salían en móvil.
-  botones: { flexDirection: "row", flexWrap: "wrap", gap: 8, width: "100%" },
-  boton: { flexGrow: 1, flexBasis: 200 },
-  botonAncho: { maxWidth: 240 },
+  botones: { flexDirection: "row", gap: 8, width: "100%" },
+  boton: { flex: 1, minWidth: 0 },
   recuperacion: { gap: 8 },
   aviso: {
     backgroundColor: tema.exitoSuave,
@@ -1227,18 +1398,10 @@ const s = StyleSheet.create({
     padding: 12,
     fontFamily: tema.fuenteBoton,
   },
-  barraDeshacer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: tema.superficieAlta,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
   datos: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12 },
   dato: { gap: 4 },
   campo: {
-    minHeight: 42,
+    minHeight: 52,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: tema.bordeFuerte,
@@ -1251,29 +1414,40 @@ const s = StyleSheet.create({
   corto: { width: 72, textAlign: "center" },
   diasFila: { flexDirection: "row", alignItems: "center", gap: 12 },
   diaCabecera: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12 },
-  nombreDia: { minWidth: 180, fontFamily: tema.fuenteBoton },
-  semana: { flexDirection: "row", gap: 4 },
+  nombreDia: { flex: 1, minWidth: 0, fontFamily: tema.fuenteBoton },
+  editarDia: { width: 44, minHeight: 44, justifyContent: "center", alignItems: "center" },
+  textoEditar: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 24 },
+  semana: { flexDirection: "row", gap: 4, width: "100%" },
   diaSemana: {
-    width: 36,
-    height: 42,
+    flex: 1,
+    minWidth: 0,
+    minHeight: 44,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: tema.bordeFuerte,
     alignItems: "center",
     justifyContent: "center",
   },
-  diaElegido: { borderColor: "transparent" },
+  diaElegido: { borderColor: tema.acento, backgroundColor: tema.acentoSuave },
   apagado: { opacity: 0.35 },
   textoDia: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 14 },
-  textoDiaElegido: { color: tema.sobreAcento },
-  accionesDia: { flexDirection: "row", gap: 16 },
-  pie: { gap: 12 },
+  textoDiaElegido: { color: tema.acento },
+  accionesDia: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
+  pie: {
+    gap: 12,
+    padding: 20,
+    paddingTop: 12,
+    backgroundColor: tema.fondo,
+  },
+  degradadoPie: { position: "absolute", top: -20, left: 0, right: 0 },
   cuerpo: { gap: 20 },
-  cuerpoAncho: { flexDirection: "row", alignItems: "flex-start" },
-  lateral: { width: 300 },
-  seccion: { gap: 10, marginBottom: 20 },
-  selector: { backgroundColor: tema.superficie, borderRadius: 16, padding: 12, gap: 8 },
-  panelVacio: { backgroundColor: tema.superficie, borderRadius: 20, padding: 16 },
+  tituloSeccion: {
+    fontFamily: tema.fuenteTitulo,
+    fontSize: 20,
+    lineHeight: 24,
+    textTransform: "uppercase",
+  },
+  seccion: { gap: 12, marginBottom: 24 },
   modal: { flex: 1, backgroundColor: tema.fondo },
   contenidoModal: { padding: 20, gap: 20, maxWidth: 720, width: "100%", alignSelf: "center" },
   tituloModal: {

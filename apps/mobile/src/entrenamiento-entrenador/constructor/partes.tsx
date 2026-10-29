@@ -4,16 +4,15 @@ import type { Bloque, DeporteDelPlan, FaseDeBloque } from "@alpha-omega/shared"
 
 import { INICIALES_DE_DIA } from "../../entrenamiento/plan/modelo"
 import { Enlace } from "../../entrenamiento/sesion/controles"
-import { degradadoOro, tema } from "../../tema"
+import { alto, radio, tema, tipo } from "../../tema"
 import type { EjercicioDelConstructor } from "./modelo"
-import { Celda, UNIDADES_DE_FILA } from "./tabla"
+import { Celda, pautaDeFila } from "./tabla"
 
 /** Calentamiento, circuito o final: una lista con la dosis de cada ejercicio. */
 export function ListaDeSeccion({
   ejercicios,
   elegido,
   elegir,
-  cambiar,
   quitar,
 }: {
   ejercicios: EjercicioDelConstructor[]
@@ -24,31 +23,22 @@ export function ListaDeSeccion({
 }): React.JSX.Element {
   return (
     <View style={s.lista}>
-      {ejercicios.map((e, n) => (
+      {ejercicios.map((e) => (
         <View key={e.id} style={[s.fila, e.id === elegido && s.activa]}>
-          <Text style={s.numero}>{n + 1}</Text>
           <Pressable
-            style={s.flex}
+            style={s.detallesEjercicio}
             accessibilityRole="button"
             accessibilityLabel={`${e.nombre}: editar detalles`}
+            accessibilityHint={pautaDeFila(e)}
             onPress={() => elegir(e.id)}
           >
-            <Text style={s.nombre}>{e.nombre}</Text>
+            <Text style={s.nombre} numberOfLines={1}>
+              {e.nombre}
+            </Text>
+            <Text style={s.pauta} numberOfLines={1}>
+              {pautaDeFila(e)}
+            </Text>
           </Pressable>
-          <Celda
-            etiqueta={`Cómo se hace ${e.nombre}`}
-            valor={e.dosis}
-            cambiar={(v) => cambiar(e.id, { dosis: v })}
-            ancho={130}
-            marcador="1×8 por lado"
-          />
-          <Celda
-            etiqueta={`${UNIDADES_DE_FILA[e.tipo].nombre} de ${e.nombre}`}
-            valor={e.objetivo}
-            cambiar={(v) => cambiar(e.id, { objetivo: v })}
-            ancho={64}
-            marcador={UNIDADES_DE_FILA[e.tipo].corta}
-          />
           <Enlace texto="Quitar" etiqueta={`Quitar ${e.nombre}`} onPress={() => quitar(e.id)} />
         </View>
       ))}
@@ -252,7 +242,7 @@ export function EditorDeBloque({
             placeholder="K-1"
             placeholderTextColor={tema.marcador}
             maxLength={40}
-            style={[s.nombreFase, s.flex]}
+            style={[s.nombreFase, s.nombreDeporte]}
           />
           <View
             style={s.dias}
@@ -273,7 +263,7 @@ export function EditorDeBloque({
                     const dias = activo ? d.dias.filter((x) => x !== dia) : [...d.dias, dia].sort()
                     if (dias.length > 0) cambiarDeporte(n, { dias })
                   }}
-                  style={[s.dia, activo && [s.diaActivo, degradadoOro]]}
+                  style={[s.dia, activo && s.diaActivo]}
                 >
                   <Text style={[s.textoDia, activo && s.textoDiaActivo]}>{inicial}</Text>
                 </Pressable>
@@ -356,18 +346,20 @@ export function EditorDeBloque({
 
 const s = StyleSheet.create({
   flex: { flex: 1 },
-  lista: { gap: 2 },
+  lista: { paddingHorizontal: 16 },
   fila: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    minHeight: 56,
     alignItems: "center",
     gap: 8,
-    padding: 10,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: tema.borde,
   },
   activa: { backgroundColor: tema.superficieAlta },
-  numero: { width: 18, color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 13 },
-  nombre: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15 },
+  detallesEjercicio: { flex: 1, minWidth: 0, minHeight: alto.tactil, justifyContent: "center" },
+  nombre: { ...tipo.fila, color: tema.texto },
+  pauta: { ...tipo.secundario },
   bloque: { gap: 14 },
   titulo: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
@@ -382,11 +374,11 @@ const s = StyleSheet.create({
     borderTopWidth: 3,
     borderTopColor: tema.acento,
   },
-  filaFase: { flexDirection: "row", alignItems: "center", gap: 8 },
+  filaFase: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   semana: {
-    width: 44,
-    height: 40,
-    borderRadius: 10,
+    width: alto.celda,
+    height: alto.celda,
+    borderRadius: radio.celda,
     borderWidth: 1,
     borderColor: tema.bordeFuerte,
     backgroundColor: tema.hundido,
@@ -397,12 +389,27 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
   },
   errorSemana: { color: tema.error, fontFamily: tema.fuenteTexto, fontSize: 13 },
-  nombreFase: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 16, paddingVertical: 4 },
+  nombreFase: {
+    minHeight: alto.campo,
+    borderRadius: radio.campo,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    color: tema.texto,
+    fontFamily: tema.fuenteBoton,
+    fontSize: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   detalleFase: {
+    minHeight: alto.tactil,
+    borderRadius: radio.campo,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
     color: tema.textoTenue,
     fontFamily: tema.fuenteTexto,
     fontSize: 13,
-    paddingVertical: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   deporte: {
     flexDirection: "row",
@@ -413,19 +420,20 @@ const s = StyleSheet.create({
     borderRadius: 14,
     padding: 10,
   },
-  dias: { flexDirection: "row", gap: 4 },
+  nombreDeporte: { width: "100%" },
+  dias: { width: "100%", flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   dia: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: alto.tactil,
+    height: alto.tactil,
+    borderRadius: radio.celda,
     borderWidth: 1,
     borderColor: tema.bordeFuerte,
     alignItems: "center",
     justifyContent: "center",
   },
-  diaActivo: { borderColor: "transparent" },
+  diaActivo: { borderColor: tema.acento, backgroundColor: tema.acentoSuave },
   textoDia: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 13 },
-  textoDiaActivo: { color: tema.sobreAcento },
+  textoDiaActivo: { color: tema.acento },
   columnas: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   columna: { flexGrow: 1, flexBasis: 260, gap: 8 },
   area: {

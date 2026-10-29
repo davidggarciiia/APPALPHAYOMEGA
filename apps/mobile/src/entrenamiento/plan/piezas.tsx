@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native"
 
 import { Tarjeta as TarjetaBase, type VarianteTarjeta } from "../../componentes/piezas"
 import { tema } from "../../tema"
@@ -10,15 +10,17 @@ export function Titulo({
   children,
   derecha,
   grande = false,
+  estilo,
 }: {
   children: string
   derecha?: string | null
   /** En Anton y mayúsculas, como «CALENTAMIENTO». */
   grande?: boolean
+  estilo?: StyleProp<TextStyle>
 }): React.JSX.Element {
   return (
     <View style={s.titulo}>
-      <Text style={grande ? s.tituloGrande : s.tituloNormal} accessibilityRole="header">
+      <Text style={[grande ? s.tituloGrande : s.tituloNormal, estilo]} accessibilityRole="header">
         {children}
       </Text>
       {derecha ? <Text style={grande ? s.derechaDorada : s.derechaTenue}>{derecha}</Text> : null}

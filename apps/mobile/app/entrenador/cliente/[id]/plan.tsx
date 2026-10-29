@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react"
 import { randomUUID } from "expo-crypto"
 import { useLocalSearchParams, useRouter } from "expo-router"
-import { Text } from "react-native"
+import { Text, View } from "react-native"
 import { FichaDeUsuarioSchema } from "@alpha-omega/shared"
 
-import { PantallaDeFormulario } from "../../../../src/componentes/formulario"
 import { useCatalogo } from "../../../../src/catalogo-ejercicios/use-catalogo"
 import { useEntrenamiento } from "../../../../src/entrenamiento/use-entrenamiento"
 import { ConstructorPlan } from "../../../../src/entrenamiento-entrenador/constructor/constructor"
@@ -39,7 +38,7 @@ export default function PrepararPlan(): React.JSX.Element {
       ? router.back()
       : router.replace({ pathname: "/entrenador/cliente/[id]", params: { id } })
   return (
-    <PantallaDeFormulario sinTarjeta>
+    <View style={{ flex: 1 }}>
       {estado.fase === "dentro" && estado.usuario.rol === "entrenador" && typeof id === "string" ? (
         <ConstructorPlan
           key={id}
@@ -59,6 +58,6 @@ export default function PrepararPlan(): React.JSX.Element {
           Esta pantalla requiere una cuenta de entrenador.
         </Text>
       )}
-    </PantallaDeFormulario>
+    </View>
   )
 }

@@ -31,6 +31,10 @@ jest.mock("expo-crypto", () => ({
   randomUUID: jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID,
 }))
 jest.mock("../../componentes/iconos", () => ({ Icono: () => null }))
+jest.mock("react-native-safe-area-context", () => ({
+  ...jest.requireActual("react-native-safe-area-context"),
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 18, left: 0 }),
+}))
 jest.mock("../../lib/direccion-api", () => ({ direccionDeLaApi: () => "http://localhost:3000" }))
 jest.mock("../../catalogo-ejercicios/figura-ejercicio", () => ({
   useAccesoAFiguras: () => ({
@@ -86,7 +90,193 @@ async function completarDia(): Promise<void> {
   await fireEvent.changeText(await screen.findByLabelText("Nombre del día"), "Fuerza")
   await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
   await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca" }))
+  await esperarCierreHoja()
+  await waitFor(() => expect(screen.queryByLabelText("Buscar ejercicio para añadir")).toBeNull())
 }
+
+async function esperarCierreHoja(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 220))
+  })
+}
+
+async function abrirDatos(): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: "Editar datos del bloque" }))
+  await screen.findByLabelText("Número de semanas")
+}
+
+async function cerrarDatos(): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+  await esperarCierreHoja()
+  await waitFor(() => expect(screen.queryByLabelText("Número de semanas")).toBeNull())
+}
+
+async function abrirDatosDia(): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: "Editar datos del día" }))
+  await screen.findByLabelText("Duración estimada")
+}
+
+async function cerrarDatosDia(): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+  await esperarCierreHoja()
+  await waitFor(() => expect(screen.queryByLabelText("Duración estimada")).toBeNull())
+}
+
+async function abrirDetalles(nombre: string): Promise<void> {
+  await esperarCierreHoja()
+  await fireEvent.press(screen.getByRole("button", { name: `${nombre}: editar detalles` }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Más" }))
+}
+
+async function cerrarDetalles(): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+  await esperarCierreHoja()
+  await waitFor(() => expect(screen.queryByRole("header", { name: "Editar ejercicio" })).toBeNull())
+}
+
+async function escribirNumero(
+  unidad: "SERIES" | "REPS" | "KG" | "SEG" | "M",
+  valor: string,
+): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: new RegExp(`^Escribir ${unidad}:`) }))
+  await fireEvent.changeText(screen.getByLabelText(`Valor manual ${unidad}`), valor)
+}
+
+async function escribirEnPanel(etiqueta: string, valor: string): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: new RegExp(`^Escribir ${etiqueta}:`) }))
+  const entrada = within(screen.getByTestId("hoja-contenido")).getByLabelText(etiqueta)
+  await fireEvent.changeText(entrada, valor)
+}
+
+async function cambiarSeries(nombre: string, valor: string): Promise<void> {
+  await fireEvent.press(screen.getByRole("button", { name: `Series de ${nombre}` }))
+  await escribirNumero("SERIES", valor)
+  await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+  await waitFor(() => expect(screen.queryByTestId("barra-ajuste")).toBeNull())
+}
+
+describe("constructor móvil (D5)", () => {
+  it("mantiene una sola barra de acciones y abre los datos del bloque en una hoja", async () => {
+    await prepararConstructor()
+    await screen.findByLabelText("Nombre del día")
+    expect(screen.getAllByRole("button", { name: "Publicar" })).toHaveLength(1)
+    expect(screen.getAllByRole("button", { name: "Ver como cliente" })).toHaveLength(1)
+    expect(
+      within(screen.getByTestId("pie-del-plan")).getByRole("button", { name: "Publicar" }),
+    ).toBeOnTheScreen()
+    expect(screen.queryByLabelText("Número de semanas")).toBeNull()
+    await fireEvent.press(screen.getByRole("button", { name: "Editar datos del bloque" }))
+    expect(await screen.findByLabelText("Número de semanas")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Lunes de inicio (AAAA-MM-DD)")).toHaveProp(
+      "keyboardType",
+      "numbers-and-punctuation",
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+    await esperarCierreHoja()
+    await waitFor(() => expect(screen.queryByLabelText("Número de semanas")).toBeNull())
+    expect(screen.getByLabelText("Nombre del día")).toBeOnTheScreen()
+    expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(false)
+  })
+
+  it("autoguarda un cambio de la hoja de datos y lo conserva al cerrarla", async () => {
+    const almacen = almacenEnMemoria()
+    await prepararConstructor(almacen)
+    await screen.findByLabelText("Nombre del día")
+    await fireEvent.press(screen.getByRole("button", { name: "Editar datos del bloque" }))
+    await fireEvent.changeText(await screen.findByLabelText("Número de semanas"), "8")
+    await fireEvent.press(screen.getByRole("button", { name: "Cerrar hoja" }))
+    await esperarCierreHoja()
+    await waitFor(() => expect(screen.queryByLabelText("Número de semanas")).toBeNull())
+    expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(true)
+    await waitFor(
+      () =>
+        expect(almacen.datos.get("borrador-plan-20000000-0000-4000-8000-000000000000")).toEqual(
+          expect.objectContaining({ semanas: "8" }),
+        ),
+      { timeout: 3000 },
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Editar datos del bloque" }))
+    expect(screen.getByLabelText("Número de semanas")).toHaveDisplayValue("8")
+  })
+
+  it("añade desde la biblioteca en una hoja y la cierra al elegir un ejercicio", async () => {
+    await prepararConstructor()
+    await screen.findByLabelText("Nombre del día")
+    expect(screen.queryByLabelText("Buscar ejercicio para añadir")).toBeNull()
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir desde la biblioteca" }))
+    expect(await screen.findByLabelText("Buscar ejercicio para añadir")).toBeOnTheScreen()
+    expect(screen.getByTestId("hoja-modal")).toBeOnTheScreen()
+    await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca" }))
+    await esperarCierreHoja()
+    await waitFor(() => expect(screen.queryByLabelText("Buscar ejercicio para añadir")).toBeNull())
+    expect(screen.getByRole("button", { name: "Press banca: editar detalles" })).toBeOnTheScreen()
+  })
+
+  it("edita las cinco celdas con la barra y bloquea las acciones mientras la cifra manual es inválida", async () => {
+    const rutinas: ApiRutinas = {
+      listar: jest.fn(),
+      leer: jest.fn(),
+      crear: jest.fn(),
+      editar: jest.fn(),
+    }
+    await prepararConstructor(almacenEnMemoria(), rutinas)
+    await completarDia()
+    for (const nombre of ["Series", "Repeticiones", "RIR", "Descanso"]) {
+      expect(screen.getByRole("button", { name: `${nombre} de Press banca` })).toBeOnTheScreen()
+    }
+    expect(
+      screen.getByRole("button", { name: /Carga inicial de Press banca: calibrar/ }),
+    ).toBeOnTheScreen()
+    expect(screen.queryByLabelText("Valor manual SERIES")).toBeNull()
+    await cambiarSeries("Press banca", "4")
+    expect(screen.getByRole("button", { name: "Series de Press banca" })).toHaveTextContent("4")
+    await fireEvent.press(screen.getByRole("button", { name: "Repeticiones de Press banca" }))
+    expect(screen.queryByLabelText("Valor manual REPS")).toBeNull()
+    await escribirNumero("REPS", "0")
+    expect(screen.getByLabelText("Valor manual REPS")).toHaveDisplayValue("0")
+    expect(screen.getByRole("button", { name: "Publicar" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Ver como cliente" })).toBeDisabled()
+    const guardarPlantilla = screen.getByRole("button", { name: "Guardar como plantilla" })
+    expect(guardarPlantilla).toBeDisabled()
+    await fireEvent.press(guardarPlantilla)
+    expect(rutinas.crear).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Listo" })).toBeDisabled()
+    await fireEvent.changeText(screen.getByLabelText("Valor manual REPS"), "9")
+    await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+    expect(screen.getByRole("button", { name: "Repeticiones de Press banca" })).toHaveTextContent(
+      "9–10",
+    )
+    expect(screen.getByRole("button", { name: "Publicar" })).toBeEnabled()
+  })
+
+  it("autoguarda la nota editada en Más aunque se cierre la hoja sin pulsar Listo", async () => {
+    const almacen = almacenEnMemoria()
+    await prepararConstructor(almacen)
+    await completarDia()
+    await fireEvent.press(screen.getByRole("button", { name: "Press banca: editar detalles" }))
+    expect(await screen.findByRole("header", { name: "Editar ejercicio" })).toBeOnTheScreen()
+    expect(screen.queryByLabelText("Nota para Cliente")).toBeNull()
+    await fireEvent.press(screen.getByRole("button", { name: "Más" }))
+    await fireEvent.changeText(screen.getByLabelText("Nota para Cliente"), "Pausa de un segundo")
+    await fireEvent.press(screen.getByRole("button", { name: "Cerrar hoja" }))
+    await esperarCierreHoja()
+    await waitFor(() => expect(screen.queryByLabelText("Nota para Cliente")).toBeNull())
+    await waitFor(
+      () =>
+        expect(almacen.datos.get("borrador-plan-20000000-0000-4000-8000-000000000000")).toEqual(
+          expect.objectContaining({
+            dias: [
+              expect.objectContaining({
+                ejercicios: [expect.objectContaining({ nota: "Pausa de un segundo" })],
+              }),
+            ],
+          }),
+        ),
+      { timeout: 3000 },
+    )
+    expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(true)
+  })
+})
 
 it.each(["guardar", "publicar"] as const)(
   "no deja cancelar mientras espera %s el mismo plan",
@@ -167,11 +357,27 @@ it("pide confirmación del navegador al cerrar o recargar un plan editado sin pu
   }
 })
 
-it("conserva el editor al escribir un objetivo inválido y explica el fallo al previsualizar", async () => {
-  await prepararConstructor()
-  await completarDia()
-  await fireEvent.changeText(screen.getByLabelText("Repeticiones de Press banca"), "0")
-  expect(screen.getByDisplayValue("0")).toBeOnTheScreen()
+it("conserva el editor al recuperar un objetivo inválido y explica el fallo al previsualizar", async () => {
+  const almacen = almacenEnMemoria()
+  const dia = nuevoDia(randomUUID, 1)
+  dia.nombre = "Fuerza"
+  dia.ejercicios = [
+    {
+      ...nuevoEjercicio({ id: randomUUID(), nombre: "Press banca" }, "principal", randomUUID),
+      objetivo: "0",
+    },
+  ]
+  almacen.datos.set("borrador-plan-20000000-0000-4000-8000-000000000000", {
+    v: 1,
+    nombre: "Plan",
+    semanaInicial: "2026-11-02",
+    semanas: "6",
+    dias: [dia],
+    bloque: { objetivos: [], fases: [], deportes: [], notas: [] },
+  })
+  await prepararConstructor(almacen)
+  await fireEvent.press(await screen.findByRole("button", { name: "Recuperar mi plan" }))
+  expect(screen.getByRole("button", { name: "Repeticiones de Press banca" })).toHaveTextContent("0")
   await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
   expect(screen.getByText(/Revisa el plan antes de previsualizar/)).toBeOnTheScreen()
 })
@@ -179,13 +385,17 @@ it("conserva el editor al escribir un objetivo inválido y explica el fallo al p
 it("conserva el editor mientras el lunes está incompleto", async () => {
   await prepararConstructor()
   await completarDia()
+  await abrirDatos()
   await fireEvent.changeText(screen.getByLabelText("Lunes de inicio (AAAA-MM-DD)"), "2026-")
   expect(screen.getByDisplayValue("2026-")).toBeOnTheScreen()
+  await cerrarDatos()
   expect(screen.getByText("Cliente · fecha de inicio pendiente · 6 semanas")).toBeOnTheScreen()
   expect(screen.queryByText(/undefined/)).toBeNull()
   await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
   expect(screen.getByText(/Revisa el plan antes de previsualizar/)).toBeOnTheScreen()
+  await abrirDatos()
   await fireEvent.changeText(screen.getByLabelText("Lunes de inicio (AAAA-MM-DD)"), "2026-10-26")
+  await cerrarDatos()
   expect(screen.getByText("Cliente · empieza el 26 oct · 6 semanas")).toBeOnTheScreen()
 })
 
@@ -318,36 +528,34 @@ it("arma un día con la tabla del diseño y publica el plan con su bloque", asyn
   )
   await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Bloque 1 · Recomposición")
   await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Empuje")
+  await abrirDatosDia()
   await fireEvent.changeText(screen.getByLabelText("Duración estimada"), "100–115 min")
+  await cerrarDatosDia()
 
   // Fase del bloque.
+  await abrirDatos()
   await fireEvent.press(screen.getByRole("button", { name: "Añadir fase" }))
   await fireEvent.changeText(screen.getByLabelText("Nombre de la fase 1"), "Calibrar")
   await fireEvent.changeText(screen.getByLabelText("Última semana de la fase 1"), "2")
+  await cerrarDatos()
 
   // Press banca desde la biblioteca, en la parte principal.
   await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
   await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca con barra" }))
-  await fireEvent.press(
-    screen.getByRole("button", { name: "Press banca con barra: editar detalles" }),
-  )
+  await abrirDetalles("Press banca con barra")
   await fireEvent.press(
     screen.getByRole("button", { name: "RIR cada serie de Press banca con barra" }),
   )
   await fireEvent.press(
     screen.getByRole("button", { name: "Con carga externa de Press banca con barra" }),
   )
-  await fireEvent.changeText(screen.getByLabelText("Series de Press banca con barra"), "4")
-  await fireEvent.changeText(screen.getByLabelText("Repeticiones de Press banca con barra"), "6")
-  await fireEvent.changeText(screen.getByLabelText("RIR de Press banca con barra"), "3")
-  await fireEvent.press(
-    screen.getByRole("button", { name: /Carga inicial de Press banca con barra: calibrar/ }),
-  )
-  await fireEvent.changeText(
-    screen.getByLabelText("Carga inicial de Press banca con barra en kg"),
-    "60",
-  )
-  await fireEvent.changeText(screen.getByLabelText("Subida de Press banca con barra en kg"), "2,5")
+  await escribirEnPanel("Series de Press banca con barra", "4")
+  await escribirEnPanel("Reps mín. de Press banca con barra", "6")
+  await escribirEnPanel("Reps máx. de Press banca con barra", "6")
+  await fireEvent.press(screen.getByRole("radio", { name: "RIR 3" }))
+  await escribirEnPanel("Carga inicial de Press banca con barra en kg", "60")
+  await fireEvent.press(screen.getByRole("button", { name: "Subida 2,5 kg" }))
+  await cerrarDetalles()
 
   await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
   await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
@@ -468,6 +676,7 @@ it("«Qué buscamos» deja escribir la línea siguiente tras un salto", async ()
       volver={jest.fn()}
     />,
   )
+  await abrirDatos()
   const campo = screen.getByLabelText("Qué buscamos, uno por línea")
   await fireEvent.changeText(campo, "Bajar grasa sin perder músculo\n")
   expect(screen.getByLabelText("Qué buscamos, uno por línea")).toHaveProp(
@@ -518,6 +727,7 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
     )
     await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Plan <seguro>")
     await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Día de prueba")
+    await abrirDatosDia()
     await fireEvent.changeText(screen.getByLabelText("Duración estimada"), "50–60 min")
     for (const [parte, minutos] of [
       ["calentamiento", "8–10"],
@@ -527,14 +737,17 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
     ] as const) {
       await fireEvent.changeText(screen.getByLabelText(`Minutos de ${parte}`), minutos)
     }
+    await cerrarDatosDia()
     await fireEvent.press(screen.getByRole("button", { name: "Añadir desde la biblioteca" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Fuerza" }))
     await fireEvent.press(screen.getByRole("button", { name: "Añadir calentamiento" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Movilidad" }))
+    await abrirDetalles("Movilidad")
     await fireEvent.changeText(
       screen.getByLabelText("Cómo se hace Movilidad"),
       "1×8 por lado <suave>",
     )
+    await cerrarDetalles()
     await fireEvent.press(screen.getByRole("button", { name: "Añadir circuito" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Circuito físico" }))
     await fireEvent.changeText(screen.getByLabelText("Nombre del circuito"), "Core <controlado>")
@@ -542,7 +755,9 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
     await fireEvent.changeText(screen.getByLabelText("Descanso entre vueltas"), "30 s")
     await fireEvent.press(screen.getByRole("button", { name: "Añadir vuelta a la calma" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Estirar" }))
+    await abrirDetalles("Estirar")
     await fireEvent.changeText(screen.getByLabelText("Cómo se hace Estirar"), "30 s por lado")
+    await cerrarDetalles()
     await fireEvent.press(screen.getByRole("button", { name: "Exportar PDF" }))
 
     const html = escribir.mock.calls[0]![0]
@@ -622,6 +837,7 @@ describe("unidad de cada fila (D01)", () => {
         elegido={null}
         elegir={jest.fn()}
         cambiar={jest.fn()}
+        ajustar={jest.fn()}
         quitar={jest.fn()}
         mover={jest.fn()}
         ancha
@@ -634,17 +850,12 @@ describe("unidad de cada fila (D01)", () => {
     expect(screen.getByText("Reps / Metros")).toBeOnTheScreen()
     expect(screen.getByText("En metros")).toBeOnTheScreen()
     const metros = screen.getByLabelText("Metros de Paseo del granjero")
-    expect(metros).toHaveProp("value", "20")
-    expect(metros).toHaveProp("placeholder", "m")
-    expect(screen.getByLabelText("Carga inicial de Paseo del granjero en kg")).toHaveProp(
-      "value",
+    expect(metros).toHaveTextContent("20")
+    expect(screen.getByLabelText("Carga inicial de Paseo del granjero en kg")).toHaveTextContent(
       "32",
     )
     expect(screen.queryByLabelText(/^(Repeticiones|Segundos) de Paseo/)).toBeNull()
-    expect(screen.getByLabelText("Repeticiones de Press banca con barra")).toHaveProp(
-      "placeholder",
-      "8–10",
-    )
+    expect(screen.getByLabelText("Repeticiones de Press banca con barra")).toHaveTextContent("8–10")
   })
 
   it("una tabla solo de repeticiones se ve como antes", async () => {
@@ -657,7 +868,7 @@ describe("unidad de cada fila (D01)", () => {
     await tabla([plancha()])
     expect(screen.getByText("Seg")).toBeOnTheScreen()
     expect(screen.getByText("En segundos")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Segundos de Plancha")).toHaveProp("value", "30")
+    expect(screen.getByLabelText("Segundos de Plancha")).toHaveTextContent("30")
     expect(screen.queryByLabelText("Repeticiones de Plancha")).toBeNull()
   })
 
@@ -671,6 +882,7 @@ describe("unidad de cada fila (D01)", () => {
         verTecnica={jest.fn()}
       />,
     )
+    await fireEvent.press(screen.getByRole("button", { name: "Más" }))
     expect(
       screen.getByRole("button", { name: "Medir Paseo del granjero en metros" }),
     ).toHaveTextContent("✓ Metros")
@@ -693,6 +905,7 @@ describe("unidad de cada fila (D01)", () => {
         verTecnica={jest.fn()}
       />,
     )
+    await fireEvent.press(screen.getByRole("button", { name: "Más" }))
     expect(
       screen.getByRole("button", { name: "Medir Press banca con barra en repeticiones" }),
     ).toHaveTextContent("✓ Repeticiones")
@@ -744,24 +957,17 @@ describe("unidad de cada fila (D01)", () => {
     await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Transportes")
     await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Paseo del granjero" }))
-    await fireEvent.press(
-      screen.getByRole("button", { name: "Paseo del granjero: editar detalles" }),
-    )
+    await abrirDetalles("Paseo del granjero")
     await fireEvent.press(
       screen.getByRole("button", { name: "Con carga externa de Paseo del granjero" }),
     )
     await fireEvent.press(
       screen.getByRole("button", { name: "Medir Paseo del granjero en metros" }),
     )
-    await fireEvent.changeText(screen.getByLabelText("Series de Paseo del granjero"), "2")
-    await fireEvent.changeText(screen.getByLabelText("Metros de Paseo del granjero"), "20")
-    await fireEvent.press(
-      screen.getByRole("button", { name: /Carga inicial de Paseo del granjero: calibrar/ }),
-    )
-    await fireEvent.changeText(
-      screen.getByLabelText("Carga inicial de Paseo del granjero en kg"),
-      "32",
-    )
+    await escribirEnPanel("Series de Paseo del granjero", "2")
+    await escribirEnPanel("Metros de Paseo del granjero", "20")
+    await escribirEnPanel("Carga inicial de Paseo del granjero en kg", "32")
+    await cerrarDetalles()
 
     await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
@@ -791,14 +997,15 @@ describe("unidad de cada fila (D01)", () => {
         quitar={jest.fn()}
       />,
     )
-    const metros = screen.getByLabelText("Metros de Zancadas caminando")
-    expect(metros).toHaveProp("value", "20")
-    expect(metros).toHaveProp("placeholder", "m")
-    expect(screen.getByLabelText("Segundos de Plancha")).toHaveProp("placeholder", "s")
-    expect(screen.getByLabelText("Repeticiones de Sentadilla goblet")).toHaveProp(
-      "placeholder",
-      "reps",
+    expect(
+      screen.getByRole("button", { name: "Zancadas caminando: editar detalles" }),
+    ).toHaveTextContent(/20 m/)
+    expect(screen.getByRole("button", { name: "Plancha: editar detalles" })).toHaveTextContent(
+      /30 s/,
     )
+    expect(
+      screen.getByRole("button", { name: "Sentadilla goblet: editar detalles" }),
+    ).toHaveTextContent(/8–10/)
   })
 
   it("«Exportar PDF» escribe el objetivo con su unidad", () => {
@@ -890,8 +1097,10 @@ describe("elegir una plantilla (T-02)", () => {
     editar: jest.fn(),
   })
   const elegirPlantilla = async (): Promise<void> => {
+    await abrirDatos()
     await fireEvent.press(screen.getByRole("button", { name: "Partir de una plantilla" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Elegir Plantilla pierna" }))
+    await esperarCierreHoja()
   }
 
   it("con lo montado pregunta antes de sustituirlo y «Conservar lo mío» no cambia nada", async () => {
@@ -1004,7 +1213,9 @@ describe("errores de publicación (T-05)", () => {
   it("nombra las semanas del plan cuando su número está fuera de rango", async () => {
     await prepararConstructor()
     await completarDia()
+    await abrirDatos()
     await fireEvent.changeText(screen.getByLabelText("Número de semanas"), "53")
+    await cerrarDatos()
     await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
     expect(screen.getByRole("alert").props.children).toMatch(/semanas.*52/i)
   })
@@ -1012,7 +1223,12 @@ describe("errores de publicación (T-05)", () => {
   it("limita el descanso al tamaño admitido al escribir", async () => {
     await prepararConstructor()
     await completarDia()
-    expect(screen.getByLabelText("Descanso de Press banca").props.maxLength).toBe(30)
+    await abrirDetalles("Press banca")
+    await fireEvent.press(screen.getByRole("button", { name: "Descanso Otro" }))
+    expect(
+      within(screen.getByTestId("hoja-contenido")).getByLabelText("Descanso de Press banca").props
+        .maxLength,
+    ).toBe(30)
   })
 })
 
@@ -1061,19 +1277,20 @@ describe("deshacer una retirada (T-04)", () => {
     await prepararRetiradas()
     await fireEvent.press(screen.getByRole("button", { name: "Quitar Segundo" }))
     expect(screen.queryByLabelText("Series de Segundo")).toBeNull()
-    await fireEvent.changeText(screen.getByLabelText("Series de Tercero"), "5")
+    await cambiarSeries("Tercero", "5")
     await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
     expect(screen.getAllByLabelText(/^Series de /).map((c) => c.props.accessibilityLabel)).toEqual([
       "Series de Primero",
       "Series de Segundo",
       "Series de Tercero",
     ])
-    expect(screen.getByLabelText("Series de Tercero").props.value).toBe("5")
+    expect(screen.getByLabelText("Series de Tercero")).toHaveTextContent("5")
     expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
   })
 
   it("restaura solo la fase en su posición y conserva las ediciones posteriores", async () => {
     await prepararRetiradas()
+    await abrirDatos()
     await fireEvent.press(screen.getByRole("button", { name: "Quitar la fase 2" }))
     await fireEvent.changeText(screen.getByLabelText("Detalle de la fase 2"), "Editado después")
     await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
@@ -1085,6 +1302,7 @@ describe("deshacer una retirada (T-04)", () => {
 
   it("restaura solo el deporte en su posición y conserva las ediciones posteriores", async () => {
     await prepararRetiradas()
+    await abrirDatos()
     await fireEvent.press(screen.getByRole("button", { name: "Quitar Nadar" }))
     await fireEvent.changeText(screen.getByLabelText("Minutos de Bici"), "90")
     await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
@@ -1099,6 +1317,7 @@ describe("deshacer una retirada (T-04)", () => {
   it("otra retirada sustituye la barra anterior aunque sea de otro tipo", async () => {
     await prepararRetiradas()
     await fireEvent.press(screen.getByRole("button", { name: "Quitar Segundo" }))
+    await abrirDatos()
     await fireEvent.press(screen.getByRole("button", { name: "Quitar Nadar" }))
     expect(screen.getAllByRole("button", { name: "Deshacer" })).toHaveLength(1)
     await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
@@ -1106,13 +1325,13 @@ describe("deshacer una retirada (T-04)", () => {
     expect(screen.queryByLabelText("Series de Segundo")).toBeNull()
   })
 
-  it("la barra desaparece a los seis segundos y el borrador conserva la retirada", async () => {
+  it("la barra desaparece a los cinco segundos y el borrador conserva la retirada", async () => {
     const almacen = await prepararRetiradas()
     jest.useFakeTimers()
     try {
       await fireEvent.press(screen.getByRole("button", { name: "Quitar Segundo" }))
       await act(async () => {
-        jest.advanceTimersByTime(5999)
+        jest.advanceTimersByTime(4999)
       })
       expect(screen.getByRole("button", { name: "Deshacer" })).toBeTruthy()
       await act(async () => {
@@ -1128,9 +1347,35 @@ describe("deshacer una retirada (T-04)", () => {
     }
   })
 
+  it("una segunda fase con el mismo nombre e índice recibe cinco segundos completos para deshacer", async () => {
+    await prepararRetiradas()
+    await abrirDatos()
+    await fireEvent.changeText(screen.getByLabelText("Nombre de la fase 2"), "Base")
+    jest.useFakeTimers()
+    try {
+      await fireEvent.press(screen.getByRole("button", { name: "Quitar la fase 1" }))
+      await act(async () => {
+        jest.advanceTimersByTime(4000)
+      })
+      await fireEvent.press(screen.getByRole("button", { name: "Quitar la fase 1" }))
+      await act(async () => {
+        jest.advanceTimersByTime(4999)
+      })
+      expect(screen.getByRole("button", { name: "Deshacer" })).toBeOnTheScreen()
+      expect(screen.getByLabelText("Nombre de la fase 1")).toHaveDisplayValue("Descarga")
+      await act(async () => {
+        jest.advanceTimersByTime(1)
+      })
+      expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   it.each(["fase", "deporte"])("quitar una %s vacía no ofrece deshacer", async (tipo) => {
     await prepararConstructor()
     await screen.findByLabelText("Nombre del día")
+    await abrirDatos()
     await fireEvent.press(
       screen.getByRole("button", { name: tipo === "fase" ? "Añadir fase" : "Añadir deporte" }),
     )
@@ -1143,6 +1388,7 @@ describe("deshacer una retirada (T-04)", () => {
     "reserva la plaza del elemento retirado (%s) hasta deshacer o agotar el plazo",
     async (tipo) => {
       await prepararRetiradas(8, 4)
+      await abrirDatos()
       jest.useFakeTimers()
       try {
         await fireEvent.press(
@@ -1153,7 +1399,7 @@ describe("deshacer una retirada (T-04)", () => {
         const anadir = tipo === "fase" ? "Añadir fase" : "Añadir deporte"
         expect(screen.queryByRole("button", { name: anadir })).toBeNull()
         await act(async () => {
-          jest.advanceTimersByTime(6000)
+          jest.advanceTimersByTime(5000)
         })
         expect(screen.getByRole("button", { name: anadir })).toBeTruthy()
       } finally {
@@ -1166,6 +1412,7 @@ describe("deshacer una retirada (T-04)", () => {
     "dos activaciones de Deshacer no duplican lo quitado con %s",
     async (quitar) => {
       await prepararRetiradas()
+      if (quitar !== "Quitar Segundo") await abrirDatos()
       await fireEvent.press(screen.getByRole("button", { name: quitar }))
       const deshacer = screen.getByRole("button", { name: "Deshacer" }).props.onClick as () => void
       await act(() => {
@@ -1173,6 +1420,7 @@ describe("deshacer una retirada (T-04)", () => {
         deshacer()
       })
       expect(screen.getAllByLabelText(/^Series de /)).toHaveLength(3)
+      if (quitar === "Quitar Segundo") await abrirDatos()
       expect(screen.getAllByLabelText(/^Nombre de la fase /)).toHaveLength(3)
       expect(screen.getAllByLabelText(/^Deporte \d/)).toHaveLength(3)
     },
@@ -1180,12 +1428,15 @@ describe("deshacer una retirada (T-04)", () => {
 
   it("recuperar el borrador descarta la retirada de la edición anterior", async () => {
     await prepararRetiradas(3, 3, false)
+    await abrirDatos()
     await fireEvent.press(screen.getByRole("button", { name: "Añadir fase" }))
     await fireEvent.changeText(screen.getByLabelText("Nombre de la fase 1"), "Otra fase")
     await fireEvent.press(screen.getByRole("button", { name: "Quitar la fase 1" }))
     expect(screen.getByRole("button", { name: "Deshacer" })).toBeTruthy()
+    await cerrarDatos()
     await fireEvent.press(screen.getByRole("button", { name: "Recuperar mi plan" }))
     expect(screen.queryByRole("button", { name: "Deshacer" })).toBeNull()
+    await abrirDatos()
     expect(screen.getAllByLabelText(/^Nombre de la fase /)).toHaveLength(3)
   })
 })
@@ -1227,12 +1478,12 @@ describe("acciones y mensajes junto al botón (T-06)", () => {
   it("permite publicar desde el pie y muestra allí el campo que falta", async () => {
     await prepararConstructor()
     await screen.findByLabelText("Nombre del día")
-    await fireEvent.press(screen.getByRole("button", { name: "Publicar al pie" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
     expect(within(screen.getByTestId("pie-del-plan")).getByRole("alert")).toHaveTextContent(
       /Pon nombre a cada día/,
     )
     await completarDia()
-    await fireEvent.press(screen.getByRole("button", { name: "Publicar al pie" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
     expect(screen.getByText("¿Publicar el plan?")).toBeTruthy()
   })
 
