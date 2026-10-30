@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react-native"
 import { AccessibilityInfo } from "react-native"
 import { cancelAnimation, withTiming } from "react-native-reanimated"
 
-import { ANGULO, useDestello, useMovimientoReducido } from "./movimiento"
+import { ANGULO, useDestello, useEstadoMovimiento, useMovimientoReducido } from "./movimiento"
 
 jest.mock("react-native-reanimated", () => {
   const React = jest.requireActual<typeof import("react")>("react")
@@ -29,6 +29,23 @@ afterEach(() => jest.restoreAllMocks())
 
 it("conserva el ángulo de la marca en los destellos", () => {
   expect(ANGULO).toBe(20)
+})
+
+it("comparte una consulta y un oyente del sistema entre todas las animaciones montadas", async () => {
+  const { result, unmount } = await renderHook(() => [
+    useEstadoMovimiento(),
+    useMovimientoReducido(),
+    useDestello(200),
+  ])
+  expect(AccessibilityInfo.isReduceMotionEnabled).toHaveBeenCalledTimes(1)
+  expect(AccessibilityInfo.addEventListener).toHaveBeenCalledTimes(1)
+  expect(result.current[0]).toEqual({ reducido: false, listo: true })
+  await act(() => cambiar(true))
+  expect(result.current[0]).toEqual({ reducido: true, listo: true })
+  expect(result.current[1]).toBe(true)
+  const suscripcion = jest.mocked(AccessibilityInfo.addEventListener).mock.results[0]!.value
+  await unmount()
+  expect(suscripcion.remove).toHaveBeenCalledTimes(1)
 })
 
 it("un cambio del sistema gana a una consulta inicial que termina tarde", async () => {

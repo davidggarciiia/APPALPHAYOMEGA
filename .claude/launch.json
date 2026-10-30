@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api-demo",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "node apps/api/dist/main.js"],
+      "port": 3000
+    },
+    {
+      "name": "web-demo",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npm run dev --workspace apps/mobile -- --web --port 8181"],
+      "port": 8181
+    }
+  ]
+}
