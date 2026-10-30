@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, userEvent, within } from "@testing-library/react-native"
 import { useState } from "react"
-import { AccessibilityInfo, StyleSheet } from "react-native"
+import { AccessibilityInfo, Dimensions, StyleSheet } from "react-native"
 import { cancelAnimation, withTiming } from "react-native-reanimated"
 import * as Reanimated from "react-native-reanimated"
 
@@ -22,7 +22,9 @@ jest.mock("react-native-reanimated", () => {
   }
 })
 
+const ventanaOriginal = Dimensions.get("window")
 afterEach(() => {
+  Dimensions.set({ window: ventanaOriginal })
   jest.useRealTimers()
   jest.restoreAllMocks()
 })
@@ -106,6 +108,14 @@ it("quita columnas según tipo de carga y modo RIR", async () => {
   expect(screen.queryByRole("button", { name: /Peso —/ })).toBeNull()
   expect(screen.queryByRole("button", { name: /RIR —/ })).toBeNull()
   expect(screen.getByRole("button", { name: /Repeticiones —/ })).toBeOnTheScreen()
+})
+
+it("mantiene anterior y RIR en líneas legibles con una sola etiqueta accesible", async () => {
+  Dimensions.set({ window: { ...ventanaOriginal, width: 390, fontScale: 1 } })
+  await render(<FilaSerie {...props} anterior={"67,5×8\nRIR 2"} />)
+  const anterior = screen.getByLabelText("Anterior: 67,5×8, RIR 2")
+  expect(anterior.props.children).toBe("67,5×8\nRIR 2")
+  expect(anterior).toHaveStyle({ width: 52, fontSize: 13, lineHeight: 16 })
 })
 
 it("marca y desmarca mediante callbacks con háptica solo al completar", async () => {

@@ -650,11 +650,25 @@ export const ResultadoEntrenamientoSchema = z
   }, "El resultado debe representar cada serie prescrita, con ejecución válida u omisión explícita")
 export type ResultadoEntrenamiento = z.infer<typeof ResultadoEntrenamientoSchema>
 
-/** «Anterior 65 kg × 6»: la mejor serie hecha la última vez de cada ejercicio. */
+/** La mejor marca para progresión y las series hechas en la última sesión enviada. */
 export const AnteriorSchema = z.strictObject({
   ejercicioId: z.uuid(),
   fecha: z.iso.datetime(),
   valores: ValoresEjecutadosSchema,
+  /** Número en la prescripción histórica (desde 1); las omitidas no tienen marca. */
+  series: z
+    .array(
+      z.strictObject({
+        numero: z.number().int().min(1).max(30),
+        valores: ValoresEjecutadosSchema,
+      }),
+    )
+    .max(30)
+    .refine(
+      (series) => new Set(series.map((serie) => serie.numero)).size === series.length,
+      "Cada número de serie debe aparecer una sola vez",
+    )
+    .optional(),
 })
 export type Anterior = z.infer<typeof AnteriorSchema>
 export const ListadoAnterioresSchema = z.strictObject({

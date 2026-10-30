@@ -126,65 +126,74 @@ export class SesionesService {
   }
 
   /**
-   * Para cada ejercicio de la sesión, la mejor serie hecha la última vez que el
-   * cliente lo envió en otra sesión (más carga; a igual carga, más cantidad; los
-   * metros solo frente a metros).
+   * Para cada ejercicio, las series hechas en su última sesión enviada y la
+   * mejor serie para progresión. Una última sesión omitida no recupera otra antigua.
    */
   async anteriores(identidad: IdentidadVerificada, id: string): Promise<ListadoAnteriores> {
     const fila = await this.fila(this.prisma, identidad, id)
-    const buscados = new Set(
-      leerDocumento(fila.prescripcion, PrescripcionSchema, fila.version).ejercicios.map(
-        (e) => e.ejercicioId,
+    const ejerciciosBuscados = [
+      ...new Set(
+        leerDocumento(fila.prescripcion, PrescripcionSchema, fila.version).ejercicios.map(
+          (e) => e.ejercicioId,
+        ),
       ),
-    )
+    ]
     const anteriores: ListadoAnteriores["anteriores"] = []
-    const ejerciciosBuscados = [...buscados]
-    let cursor: string | undefined
-    while (buscados.size > 0) {
-      const enviadas = await this.prisma.sesionEntrenamiento.findMany({
-        where: {
-          clienteId: fila.clienteId,
-          id: { not: id },
-          resultado: { not: DbNull },
-          referencias: { some: { ejercicioId: { in: ejerciciosBuscados } } },
-        },
-        orderBy: [{ enviadoEn: "desc" }, { id: "desc" }],
-        take: 60,
-        ...(cursor && { cursor: { id: cursor }, skip: 1 }),
-        select: { id: true, resultado: true, version: true },
-      })
-      for (const enviada of enviadas) {
-        const resultado = leerDocumento(
-          enviada.resultado,
-          ResultadoEntrenamientoSchema,
-          enviada.version,
-        )
-        const hechas = new Map(
-          resultado.series.flatMap((s) => (s.hecha ? [[s.serieId, s.valores] as const] : [])),
-        )
-        const mejores = new Map<string, ValoresEjecutados>()
+    const enviadas = await this.prisma.$queryRaw<
+      Array<{ ejercicioIds: string[]; resultado: Prisma.JsonValue; version: number }>
+    >(Prisma.sql`
+      WITH ultimas AS (
+        SELECT DISTINCT ON (r."ejercicioId") r."ejercicioId", s."id"
+        FROM "referencias_ejercicio" r
+        JOIN "sesiones_entrenamiento" s ON s."id" = r."sesionId"
+        WHERE r."ejercicioId" IN (${Prisma.join(ejerciciosBuscados)})
+          AND s."clienteId" = ${fila.clienteId}
+          AND s."id" <> ${id}
+          AND s."enviadoEn" IS NOT NULL
+          AND s."resultado" IS NOT NULL
+        ORDER BY r."ejercicioId", s."enviadoEn" DESC, s."id" DESC
+      )
+      SELECT array_agg(ultimas."ejercicioId") AS "ejercicioIds", s."resultado", s."version"
+      FROM ultimas JOIN "sesiones_entrenamiento" s ON s."id" = ultimas."id"
+      GROUP BY s."id"
+    `)
+    for (const enviada of enviadas) {
+      const resultado = leerDocumento(
+        enviada.resultado,
+        ResultadoEntrenamientoSchema,
+        enviada.version,
+      )
+      const hechas = new Map(
+        resultado.series.flatMap((s) => (s.hecha ? [[s.serieId, s.valores] as const] : [])),
+      )
+      for (const ejercicioId of enviada.ejercicioIds) {
+        const porNumero = new Map<number, ValoresEjecutados>()
+        let mejor: ValoresEjecutados | undefined
         for (const ejercicio of resultado.prescripcion.ejercicios) {
-          if (!buscados.has(ejercicio.ejercicioId)) continue
-          const valores = ejercicio.series
-            .map((serie) => hechas.get(serie.id))
-            .filter((v): v is ValoresEjecutados => v !== undefined)
-          if (valores.length === 0) continue
-          const mejor = valores.reduce(mejorSerie)
-          const anterior = mejores.get(ejercicio.ejercicioId)
-          mejores.set(ejercicio.ejercicioId, anterior ? mejorSerie(anterior, mejor) : mejor)
+          if (ejercicio.ejercicioId !== ejercicioId) continue
+          let mejorDeOcurrencia: ValoresEjecutados | undefined
+          for (const [indice, serie] of ejercicio.series.entries()) {
+            const valores = hechas.get(serie.id)
+            if (!valores) continue
+            mejorDeOcurrencia = mejorDeOcurrencia ? mejorSerie(mejorDeOcurrencia, valores) : valores
+            // Si el ejercicio se repite en varias secciones, conserva la mejor por número.
+            const numero = indice + 1
+            const anterior = porNumero.get(numero)
+            porNumero.set(numero, anterior ? mejorSerie(anterior, valores) : valores)
+          }
+          if (mejorDeOcurrencia)
+            mejor = mejor ? mejorSerie(mejor, mejorDeOcurrencia) : mejorDeOcurrencia
         }
-        for (const [ejercicioId, valores] of mejores) {
-          buscados.delete(ejercicioId)
-          anteriores.push({
-            ejercicioId,
-            fecha: resultado.enviadoEn,
-            valores,
-          })
-        }
-        if (buscados.size === 0) break
+        if (!mejor) continue
+        anteriores.push({
+          ejercicioId,
+          fecha: resultado.enviadoEn,
+          valores: mejor,
+          series: [...porNumero]
+            .sort(([a], [b]) => a - b)
+            .map(([numero, valores]) => ({ numero, valores })),
+        })
       }
-      if (enviadas.length < 60) break
-      cursor = enviadas.at(-1)!.id
     }
     return { anteriores }
   }

@@ -352,6 +352,13 @@ describe("Entrega e histórico con la tercera unidad preparada (D01.f)", () => {
         ejercicioId: ids.ejercicio,
         fecha: historico.enviadoEn,
         valores: { tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10 },
+        series: [
+          {
+            numero: 1,
+            valores: { tipoMedicion: "repeticiones", pesoKg: 20, repeticiones: 10 },
+          },
+          { numero: 2, valores: { tipoMedicion: "tiempo", pesoKg: 5, segundos: 30 } },
+        ],
       },
     ])
     const fila = await prisma.sesionEntrenamiento.findUniqueOrThrow({ where: { id } })
