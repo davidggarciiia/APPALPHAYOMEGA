@@ -2,7 +2,6 @@ import { useCallback, useState } from "react"
 import { randomUUID } from "expo-crypto"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { StyleSheet, Text, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
 import { FichaDeUsuarioSchema, type Molestia } from "@alpha-omega/shared"
 
 import { Aviso } from "../../componentes/aviso"
@@ -53,29 +52,25 @@ export function DestinoFicha({ destino }: { destino: Destino }): React.JSX.Eleme
     () => pedir(`/usuarios/${encodeURIComponent(id)}`, FichaDeUsuarioSchema),
     [pedir, id],
   )
-  const contenido =
-    estado.fase === "dentro" && estado.usuario.rol === "entrenador" && typeof id === "string" ? (
-      <ContenidoDestino
-        key={`${estado.usuario.id}:${id}:${destino}`}
-        destino={destino}
-        clienteId={id}
-        api={api}
-        seguimiento={seguimiento}
-        valoraciones={valoraciones}
-        medios={medios}
-        nutricion={nutricion}
-        leerFicha={leerFicha}
-        inicial={valoracionInicial === "1"}
-      />
-    ) : (
-      <Text style={s.texto}>Esta pantalla requiere una cuenta de entrenador.</Text>
-    )
-  return destino === "sesiones" ? (
-    <SafeAreaView edges={["left", "right"]} style={s.flexible}>
-      <View style={s.pantallaLista}>{contenido}</View>
-    </SafeAreaView>
-  ) : (
-    <PantallaDeFormulario sinTarjeta>{contenido}</PantallaDeFormulario>
+  return (
+    <PantallaDeFormulario sinTarjeta>
+      {estado.fase === "dentro" && estado.usuario.rol === "entrenador" && typeof id === "string" ? (
+        <ContenidoDestino
+          key={`${estado.usuario.id}:${id}:${destino}`}
+          destino={destino}
+          clienteId={id}
+          api={api}
+          seguimiento={seguimiento}
+          valoraciones={valoraciones}
+          medios={medios}
+          nutricion={nutricion}
+          leerFicha={leerFicha}
+          inicial={valoracionInicial === "1"}
+        />
+      ) : (
+        <Text style={s.texto}>Esta pantalla requiere una cuenta de entrenador.</Text>
+      )}
+    </PantallaDeFormulario>
   )
 }
 
@@ -97,11 +92,9 @@ function ContenidoDestino(
       ? router.back()
       : router.replace({ pathname: "/entrenador/cliente/[id]", params: { id: clienteId } })
   const nombre = datos ? [datos.ficha.nombre, datos.ficha.apellidos].filter(Boolean).join(" ") : ""
-  const abrir = useCallback(
-    (id: string): void => router.push({ pathname: "/entrenamiento/[id]", params: { id, nombre } }),
-    [router, nombre],
-  )
-  const cabecera = (
+  const abrir = (id: string): void =>
+    router.push({ pathname: "/entrenamiento/[id]", params: { id, nombre } })
+  return (
     <View style={s.contenido}>
       {proteccion}
       <View style={s.barra}>
@@ -123,20 +116,6 @@ function ContenidoDestino(
             <BotonSecundario texto="Reintentar" onPress={reintentar} />
           </View>
         ))}
-    </View>
-  )
-  if (destino === "sesiones" && datos)
-    return (
-      <SesionesDelCliente
-        resultados={datos.resultados}
-        molestias={datos.molestias}
-        abrir={abrir}
-        cabecera={cabecera}
-      />
-    )
-  return (
-    <View style={s.contenido}>
-      {cabecera}
       {!datos ? (
         error === "" && (
           <GrupoEsqueletos>
@@ -146,6 +125,13 @@ function ContenidoDestino(
         )
       ) : (
         <View style={s.contenido}>
+          {destino === "sesiones" && (
+            <SesionesDelCliente
+              resultados={datos.resultados}
+              molestias={datos.molestias}
+              abrir={abrir}
+            />
+          )}
           {destino === "progreso" && (
             <ProgresoCliente
               clienteId={clienteId}
@@ -229,16 +215,6 @@ function ContenidoDestino(
 }
 
 const s = StyleSheet.create({
-  flexible: { flex: 1 },
-  pantallaLista: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 24,
-    width: "100%",
-    maxWidth: 820,
-    alignSelf: "center",
-  },
   contenido: { gap: 24 },
   grupo: { gap: 12 },
   barra: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56 },

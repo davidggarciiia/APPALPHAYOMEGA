@@ -45,14 +45,9 @@ jest.mock("./use-datos-ficha", () => ({
   })),
 }))
 jest.mock("./sesiones", () => ({
-  SesionesDelCliente: (props: { sinRevisarInicial: boolean; cabecera: React.ReactNode }) => {
+  SesionesDelCliente: (props: { sinRevisarInicial: boolean }) => {
     const { Text } = jest.requireActual<typeof import("react-native")>("react-native")
-    return (
-      <>
-        {props.cabecera}
-        <Text>{props.sinRevisarInicial ? "Sesiones sin revisar" : "Todas las sesiones"}</Text>
-      </>
-    )
+    return <Text>{props.sinRevisarInicial ? "Sesiones sin revisar" : "Todas las sesiones"}</Text>
   },
 }))
 jest.mock("../../seguimiento/progreso", () => ({

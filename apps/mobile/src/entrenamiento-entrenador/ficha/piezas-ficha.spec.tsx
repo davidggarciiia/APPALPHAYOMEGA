@@ -141,16 +141,15 @@ it("no anima la barra con movimiento reducido ni reinicia el relleno en un refre
   await screen.unmount()
   jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
   await render(<BarraDeBloque plan={plan} lunes="2026-11-02" />)
-  expect(withRepeat).not.toHaveBeenCalled()
+  expect(withRepeat).toHaveBeenCalledTimes(1)
   jest.mocked(withTiming).mockClear()
   await screen.rerender(<BarraDeBloque plan={{ ...plan }} lunes="2026-11-02" />)
   expect(withTiming).not.toHaveBeenCalled()
 })
 
-it("abrir y cerrar una hoja no inicia bucles ni repite el relleno del bloque", async () => {
+it("detiene el pulso mientras hay una hoja y lo retoma sin repetir el relleno", async () => {
   jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
   await render(<BarraDeBloque plan={plan} lunes="2026-11-02" />)
-  expect(withRepeat).not.toHaveBeenCalled()
   jest.mocked(cancelAnimation).mockClear()
   jest.mocked(withRepeat).mockClear()
   jest.mocked(withTiming).mockClear()
@@ -159,7 +158,7 @@ it("abrir y cerrar una hoja no inicia bucles ni repite el relleno del bloque", a
   expect(withRepeat).not.toHaveBeenCalled()
   expect(withTiming).not.toHaveBeenCalled()
   await screen.rerender(<BarraDeBloque plan={plan} lunes="2026-11-02" pausada={false} />)
-  expect(withRepeat).not.toHaveBeenCalled()
+  expect(withRepeat).toHaveBeenCalledTimes(1)
   expect(withTiming).not.toHaveBeenCalledWith(1, expect.objectContaining({ duration: 400 }))
 })
 

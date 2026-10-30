@@ -1,6 +1,6 @@
 # Encargo para Codex · 30-10-2026
 
-Reparto de siempre: **Codex implementa; Claude revisa, verifica y hace los commits.** Rama de trabajo: `mejoras/base-2026-10-28-qxnjhw` (ya en GitHub). Antes de empezar, `git pull` de esa rama. **Ojo:** el commit `6c3e457 perf(móvil)…` de esta rama es K hecho por Claude en la nube sobre una foto a medias del WIP; en el escritorio K ya está commiteado como `afee1c5`. Al integrar, quedarse con `afee1c5` y descartar `6c3e457` (Claude lo resuelve si hay conflicto). K (rendimiento en Android) está hecho.
+Reparto de siempre: **Codex implementa; Claude revisa, verifica y hace los commits.** Rama de trabajo: `mejoras/base-2026-10-28-qxnjhw` (ya en GitHub). Antes de empezar, `git pull` de esa rama. La versión de K hecha en la nube (`6c3e457`) está revertida en la rama, así que el código vuelve a ser el de R1 (`ac6c79b`). En el escritorio, `git pull --rebase origin mejoras/base-2026-10-28-qxnjhw` deja `afee1c5` (K) encima sin conflictos. K (rendimiento en Android) está hecho.
 
 ## Reglas
 

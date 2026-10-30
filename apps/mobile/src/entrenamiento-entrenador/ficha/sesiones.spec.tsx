@@ -3,19 +3,6 @@ import type { ListadoResultados, Molestia } from "@alpha-omega/shared"
 
 import { SesionesDelCliente } from "./sesiones"
 
-const mockPintarTarjeta = jest.fn()
-jest.mock("../../componentes/pulsable", () => {
-  const { Pulsable } = jest.requireActual<typeof import("../../componentes/pulsable")>(
-    "../../componentes/pulsable",
-  )
-  return {
-    Pulsable: (props: React.ComponentProps<typeof Pulsable>) => {
-      mockPintarTarjeta(props.accessibilityLabel)
-      return <Pulsable {...props} />
-    },
-  }
-})
-
 const resultados: ListadoResultados["resultados"] = ["Empuje", "Tracción"].map((nombre) => ({
   agenda: {
     id: nombre,
@@ -149,26 +136,4 @@ it("ignora marcas históricas de revisión y permite abrir ambas sesiones", asyn
   expect(screen.getAllByRole("button")).toHaveLength(2)
   await fireEvent.press(screen.getByRole("button", { name: /^Tracción ·/ }))
   expect(abrir).toHaveBeenCalledWith("Tracción")
-})
-
-it("virtualiza el historial de 60 sesiones sin montar todas sus series", async () => {
-  const historial = Array.from({ length: 60 }, (_, i) => ({
-    ...resultados[0]!,
-    agenda: { ...resultados[0]!.agenda, id: `sesion-${i}` },
-  }))
-  await render(<SesionesDelCliente resultados={historial} molestias={[]} abrir={jest.fn()} />)
-  expect(screen.getAllByRole("button").length).toBeLessThan(20)
-  expect(screen.getByTestId("historial-sesiones")).toBeOnTheScreen()
-})
-
-it("conserva las tarjetas al actualizar estado ajeno al historial", async () => {
-  const abrir = jest.fn()
-  const molestias: Molestia[] = []
-  const vista = () => (
-    <SesionesDelCliente resultados={resultados} molestias={molestias} abrir={abrir} />
-  )
-  await render(vista())
-  mockPintarTarjeta.mockClear()
-  await screen.rerender(vista())
-  expect(mockPintarTarjeta).not.toHaveBeenCalled()
 })

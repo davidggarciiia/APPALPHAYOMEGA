@@ -163,8 +163,8 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     almacenDispositivo.habilitar(CUENTA)
     AppState.currentState = "background"
   })
-  afterEach(async () => {
-    await act(() => Dimensions.set({ window: ventanaOriginal }))
+  afterEach(() => {
+    Dimensions.set({ window: ventanaOriginal })
     mockFalloDeDisco = false
     AppState.currentState = "active"
   })
@@ -430,34 +430,6 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia — Remo" }))
     expect(screen.getByRole("header", { name: /MOLESTIA/i })).toBeTruthy()
     expect(screen.getByText("Remo · serie 1")).toBeTruthy()
-  })
-
-  it("virtualiza una sesión larga y conserva todas las series prescritas en sus datos", async () => {
-    const { api, comoApi } = crearApi()
-    const ejercicios = Array.from({ length: 30 }, (_, n) => ({
-      ...sesion.prescripcion.ejercicios[0]!,
-      id: `40000000-0000-4000-8000-${String(n + 1).padStart(12, "0")}`,
-      nombre: `Ejercicio ${n + 1}`,
-      series: [
-        {
-          ...sesion.prescripcion.ejercicios[0]!.series[0]!,
-          id: `30000000-0000-4000-8000-${String(n + 1).padStart(12, "0")}`,
-        },
-      ],
-    }))
-    api.leerCliente.mockResolvedValue({
-      ...sesion,
-      prescripcion: { ...sesion.prescripcion, ejercicios },
-      borrador: null,
-    })
-    const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await screen.findByRole("checkbox", { name: "Hecha — Ejercicio 1, serie 1" })
-    expect(screen.getAllByTestId("series-del-ejercicio").length).toBeLessThanOrEqual(4)
-    expect(screen.getByTestId("lista-sesion")).toHaveProp("removeClippedSubviews", false)
-    await waitFor(() => {
-      expect(copiaGuardada().edicion.series).toHaveLength(30)
-    })
-    await vista.unmount()
   })
 
   it("oculta el estado de guardado sin anunciar cada pulsación al lector", async () => {

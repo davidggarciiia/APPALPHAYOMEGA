@@ -8,7 +8,6 @@ import { crearApiEntrenamiento } from "./api"
 import { crearPeticionAutenticada } from "../lib/peticion-autenticada"
 import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
 import { AgendaSemanal } from "./agenda-semanal"
-import * as agendaSemanal from "./agenda-semanal"
 import { almacenDispositivo } from "./almacen-dispositivo"
 
 let mockVisita = 0
@@ -127,58 +126,6 @@ it("sondea al cliente cada 15 segundos y no vuelve a cifrar ni leer documentos i
   )
   await vista.unmount()
   jest.useRealTimers()
-})
-
-it("los sondeos iguales no repintan la agenda y los cambios siguen llegando", async () => {
-  jest.useFakeTimers()
-  const agenda = jest.spyOn(agendaSemanal, "AgendaSemanal")
-  let vista: Awaited<ReturnType<typeof render>> | undefined
-  try {
-    let nombre = "Fuerza guardada"
-    const api = {
-      semana: jest.fn(async () => listadoDePrueba(nombre)),
-      leerCliente: jest.fn(async () => ({ borrador: null })),
-    } as unknown as ApiEntrenamiento
-    vista = await render(
-      <SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} detectarEmpezadas />,
-    )
-    const rendersIniciales = agenda.mock.calls.length
-    for (let n = 0; n < 3; n++) await act(async () => jest.advanceTimersByTimeAsync(5000))
-    expect(api.semana).toHaveBeenCalledTimes(4)
-    expect(agenda).toHaveBeenCalledTimes(rendersIniciales)
-
-    nombre = "Fuerza actualizada"
-    await act(async () => jest.advanceTimersByTimeAsync(5000))
-    expect(screen.getByText(nombre)).toBeOnTheScreen()
-    expect(agenda.mock.calls.length).toBeGreaterThan(rendersIniciales)
-  } finally {
-    await vista?.unmount()
-    agenda.mockRestore()
-    jest.useRealTimers()
-  }
-})
-
-it("Hoy cambia de día aunque el sondeo devuelva la misma agenda", async () => {
-  jest.useFakeTimers()
-  jest.setSystemTime(new Date("2026-09-14T21:59:58Z"))
-  let vista: Awaited<ReturnType<typeof render>> | undefined
-  try {
-    const listado = listadoDePrueba("Fuerza del lunes", "2026-09-14")
-    const api = {
-      semana: jest.fn(async () => listado),
-      leerCliente: jest.fn(async () => ({ borrador: null })),
-    } as unknown as ApiEntrenamiento
-    vista = await render(
-      <SemanaEntrenamiento clienteId="cliente" api={api} abrir={jest.fn()} resumenHoy />,
-    )
-    expect(screen.getByRole("button", { name: "Empezar Fuerza del lunes" })).toBeOnTheScreen()
-    await act(async () => jest.advanceTimersByTimeAsync(5000))
-    expect(screen.queryByRole("button", { name: "Empezar Fuerza del lunes" })).toBeNull()
-    expect(screen.getByText("Descanso")).toBeOnTheScreen()
-  } finally {
-    await vista?.unmount()
-    jest.useRealTimers()
-  }
 })
 
 it("no presenta datos de otra semana mientras carga la elegida", async () => {

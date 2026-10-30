@@ -104,7 +104,6 @@ export function BarraAjuste({
   contexto.current = { cambiar, deshabilitado, visible, paso, limiteInferior, limiteSuperior }
   const entrada = useSharedValue(56)
   const opacidad = useSharedValue(0)
-  const anteriorVisible = useRef(false)
   const animado = useAnimatedStyle(() => ({
     opacity: opacidad.value,
     transform: [{ translateY: entrada.value }],
@@ -145,20 +144,16 @@ export function BarraAjuste({
   useEffect(() => {
     cancelAnimation(entrada)
     cancelAnimation(opacidad)
-    const animar = !reducido && visible !== anteriorVisible.current
-    anteriorVisible.current = visible
-    if (animar && visible) {
+    if (!reducido && visible) {
       entrada.value = 56
       opacidad.value = 0
     }
-    entrada.value = !animar
-      ? visible
-        ? 0
-        : 56
+    entrada.value = reducido
+      ? 0
       : visible
         ? withSpring(0, HOJA)
         : withTiming(56, { duration: 160, easing: CURVA.salida })
-    opacidad.value = !animar
+    opacidad.value = reducido
       ? visible
         ? 1
         : 0

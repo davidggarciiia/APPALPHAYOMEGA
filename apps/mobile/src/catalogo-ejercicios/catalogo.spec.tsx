@@ -128,25 +128,6 @@ describe("Catálogo de ejercicios", () => {
     expect(screen.getByRole("button", { name: "Sentadilla. Cuádriceps" })).toBeOnTheScreen()
   })
 
-  it("teclear en el buscador no vuelve a pintar las filas que siguen visibles", async () => {
-    const leerNombre = jest.fn(() => PRESS.nombre)
-    const ejercicio = {
-      ...PRESS,
-      get nombre() {
-        return leerNombre()
-      },
-    }
-    const api = {
-      ...catalogoEnMemoria(),
-      buscar: jest.fn(async () => ({ ejercicios: [ejercicio], total: 1 })),
-    }
-    await pintar(api)
-    await screen.findByRole("button", { name: "Press de banca. Pecho" })
-    leerNombre.mockClear()
-    await fireEvent.changeText(screen.getByLabelText("Buscar ejercicio"), "p")
-    expect(leerNombre).not.toHaveBeenCalled()
-  })
-
   it("distingue una búsqueda sin resultados de un catálogo vacío", async () => {
     await pintar(catalogoEnMemoria([PRESS]))
     await screen.findByRole("button", { name: "Press de banca. Pecho" })

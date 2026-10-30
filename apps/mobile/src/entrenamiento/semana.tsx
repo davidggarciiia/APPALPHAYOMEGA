@@ -12,7 +12,7 @@ import {
 import { almacenDispositivo } from "./almacen-dispositivo"
 import type { ApiEntrenamiento } from "./api"
 import { claveSesion, DocumentoSesionSchema } from "./documento-local"
-import { hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
+import { lunesDeSemana, sumarDias } from "./fechas"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePermiso, ErrorDeSesion, ErrorDeRed } from "../lib/http"
@@ -66,14 +66,9 @@ export function SemanaEntrenamiento({
   deportes?: DeporteDelPlan[]
 }): React.JSX.Element {
   const [semana, setSemana] = useState(lunesDeSemana)
-  const [, actualizarDia] = useState(hoyAgenda)
   const semanaActual = useRef(lunesDeSemana())
   const clave = `${clienteId}:${semana}`
-  const [cargado, setCargado] = useState<{
-    clave: string
-    datos: ListadoSesiones
-    contenido: string
-  } | null>(null)
+  const [cargado, setCargado] = useState<{ clave: string; datos: ListadoSesiones } | null>(null)
   const listado = cargado?.clave === clave ? cargado.datos : null
   const ultimaCopia = useRef<{ clave: string; contenido: string } | null>(null)
   const agendasVigentes = useRef(new Map<string, SesionProgramada>())
@@ -82,25 +77,6 @@ export function SemanaEntrenamiento({
   const [sinConexion, setSinConexion] = useState(false)
   const [reintentable, setReintentable] = useState(true)
   const [intento, setIntento] = useState(0)
-  const presentar = useCallback(
-    (datos: ListadoSesiones): void => {
-      const contenido = JSON.stringify(datos)
-      setCargado((anterior) =>
-        anterior?.clave === clave && anterior.contenido === contenido
-          ? anterior
-          : { clave, datos, contenido },
-      )
-    },
-    [clave],
-  )
-  const actualizarEmpezadas = useCallback((nuevas: Record<string, string>): void => {
-    setEmpezadas((anteriores) =>
-      Object.keys(anteriores).length === Object.keys(nuevas).length &&
-      Object.entries(nuevas).every(([id, inicio]) => anteriores[id] === inicio)
-        ? anteriores
-        : nuevas,
-    )
-  }, [])
   const conservarRevisiones = useCallback(
     (datos: ListadoSesiones): ListadoSesiones => ({
       ...datos,
@@ -151,8 +127,6 @@ export function SemanaEntrenamiento({
           (AppState.currentState !== null && AppState.currentState !== "active")
         )
           return
-        // Hoy debe cambiar a medianoche aunque el servidor conserve la misma agenda.
-        actualizarDia(hoyAgenda())
         const actual = lunesDeSemana()
         if (resumenHoy && semanaActual.current !== actual) {
           const anterior = semanaActual.current
@@ -174,13 +148,11 @@ export function SemanaEntrenamiento({
               const datos = conservarRevisiones(copia)
               const contenido = JSON.stringify(copia)
               ultimaCopia.current = { clave, contenido }
-              setCargado((anterior) =>
-                anterior?.clave === clave ? anterior : { clave, datos, contenido },
-              )
+              setCargado((anterior) => (anterior?.clave === clave ? anterior : { clave, datos }))
               if ((resumenHoy && semana === actual) || detectarEmpezadas) {
                 locales = await empezadasLocales(clienteId, datos.sesiones)
                 contenidoLocal = contenido
-                if (vigente) actualizarEmpezadas(locales)
+                if (vigente) setEmpezadas(locales)
               }
             }
           }
@@ -188,7 +160,7 @@ export function SemanaEntrenamiento({
           const respuesta = await api.semana(clienteId, semana, cancelacion.signal)
           if (!vigente) return
           const datos = conservarRevisiones(respuesta)
-          presentar(datos)
+          setCargado({ clave, datos })
           setError("")
           setSinConexion(false)
           await guardarCopia(datos)
@@ -198,7 +170,7 @@ export function SemanaEntrenamiento({
             const clave = pendientes.map((sesion) => sesion.agenda.id).join(",")
             if (pendientes.length === 0) {
               remotas = {}
-              if (vigente) actualizarEmpezadas({})
+              if (vigente) setEmpezadas({})
               idsPendientes = ""
             } else if (clave !== idsPendientes || Date.now() - ultimaConsultaDetalles >= 60_000) {
               if (clave !== idsPendientes) remotas = {}
@@ -228,14 +200,14 @@ export function SemanaEntrenamiento({
               locales = await empezadasLocales(clienteId, datos.sesiones)
               contenidoLocal = contenido
             }
-            if (vigente) actualizarEmpezadas({ ...remotas, ...locales })
+            if (vigente) setEmpezadas({ ...remotas, ...locales })
           }
         } catch (error) {
           if (!vigente) return
           if (error instanceof ErrorDeSesion || error instanceof ErrorDePermiso) {
             accesoRechazado = true
             setCargado(null)
-            actualizarEmpezadas({})
+            setEmpezadas({})
           }
           const falta = faltaDe(
             error,
@@ -270,8 +242,6 @@ export function SemanaEntrenamiento({
       detectarEmpezadas,
       guardarCopia,
       conservarRevisiones,
-      presentar,
-      actualizarEmpezadas,
     ]),
   )
   const actualizar = async (agenda?: SesionProgramada): Promise<void> => {
@@ -282,11 +252,11 @@ export function SemanaEntrenamiento({
           sesion.agenda.id === agenda.id ? { ...sesion, agenda } : sesion,
         ),
       })
-      presentar(datos)
+      setCargado({ clave, datos })
       await guardarCopia(datos)
     }
     const datos = conservarRevisiones(await api.semana(clienteId, semana))
-    presentar(datos)
+    setCargado({ clave, datos })
     await guardarCopia(datos)
   }
   const cargarMes = useCallback(

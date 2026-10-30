@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { AccessibilityInfo, type ViewStyle } from "react-native"
 import {
   cancelAnimation,
@@ -22,21 +22,16 @@ export const SALIDA = { damping: 9, stiffness: 340, mass: 0.55 }
 export const HOJA = { damping: 28, stiffness: 300, mass: 0.9 }
 export const INDICADOR = { damping: 20, stiffness: 260, mass: 0.7 }
 
-type EstadoMovimiento = { reducido: boolean; listo: boolean }
-const PENDIENTE: EstadoMovimiento = { reducido: true, listo: false }
-let estadoMovimiento = PENDIENTE
-const oyentesMovimiento = new Set<() => void>()
-let liberarMovimiento: (() => void) | undefined
-
-function suscribirMovimiento(oyente: () => void): () => void {
-  oyentesMovimiento.add(oyente)
-  if (!liberarMovimiento) {
+/** Distingue la consulta pendiente de un ajuste reducido confirmado. */
+export function useEstadoMovimiento(): { reducido: boolean; listo: boolean } {
+  const [estado, fijar] = useState({ reducido: true, listo: false })
+  useEffect(() => {
     let vivo = true
     let cambio = false
     const actualizar = (activo: boolean): void => {
-      if (!vivo || (estadoMovimiento.listo && estadoMovimiento.reducido === activo)) return
-      estadoMovimiento = { reducido: activo, listo: true }
-      oyentesMovimiento.forEach((avisar) => avisar())
+      fijar((previo) =>
+        previo.listo && previo.reducido === activo ? previo : { reducido: activo, listo: true },
+      )
     }
     const suscripcion = AccessibilityInfo.addEventListener("reduceMotionChanged", (activo) => {
       cambio = true
@@ -47,28 +42,12 @@ function suscribirMovimiento(oyente: () => void): () => void {
       .then((activo) => {
         if (vivo && !cambio) actualizar(activo)
       })
-    liberarMovimiento = () => {
+    return () => {
       vivo = false
       suscripcion.remove()
     }
-  }
-  return () => {
-    oyentesMovimiento.delete(oyente)
-    if (oyentesMovimiento.size === 0) {
-      liberarMovimiento?.()
-      liberarMovimiento = undefined
-      estadoMovimiento = PENDIENTE
-    }
-  }
-}
-
-/** Todas las filas comparten una consulta y un oyente del ajuste del sistema. */
-export function useEstadoMovimiento(): EstadoMovimiento {
-  return useSyncExternalStore(
-    suscribirMovimiento,
-    () => estadoMovimiento,
-    () => PENDIENTE,
-  )
+  }, [])
+  return estado
 }
 
 /** Hasta conocer el ajuste no se inicia ninguna animación decorativa. */
