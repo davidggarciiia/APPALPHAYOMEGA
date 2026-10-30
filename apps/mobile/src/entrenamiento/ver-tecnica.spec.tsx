@@ -90,6 +90,7 @@ describe("Ver la técnica durante el entrenamiento", () => {
   it("enseña la animación y las instrucciones, también de un ejercicio retirado, y guarda la ficha", async () => {
     const { local } = await pintar(async () => CON_FIGURA)
 
+    expect(screen.root?.props.animationType).toBe("none")
     expect(
       await screen.findByRole("image", { name: "Animación de la técnica: Sentadilla trasera" }),
     ).toBeTruthy()

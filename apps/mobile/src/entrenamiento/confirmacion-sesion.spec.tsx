@@ -79,13 +79,16 @@ it("con movimiento reducido presenta todo inmediatamente y no programa interpola
   expect(screen.getByRole("text", { name: "12 de 13 series · 1 h 12 min" })).toBeTruthy()
 })
 
-it("mantiene Listo activo mientras ejecuta la firma de movimiento", async () => {
+it("muestra el título y Listo directamente mientras conserva el marcador", async () => {
   expect(ConfirmacionSesion).toEqual(expect.any(Function))
   jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
   const salir = jest.fn()
   await render(<ConfirmacionSesion {...base} salir={salir} />)
-  expect(screen.getByTestId("confirmacion-cortina", { includeHiddenElements: true })).toBeTruthy()
+  expect(screen.queryByTestId("confirmacion-cortina", { includeHiddenElements: true })).toBeNull()
+  expect(screen.getByRole("header", { name: "ENVIADO" })).toBeOnTheScreen()
   expect(screen.getByRole("button", { name: "Listo" })).toBeEnabled()
+  await act(() => jest.advanceTimersByTime(1340))
+  expect(withTiming).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 140 }))
   await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
   expect(salir).toHaveBeenCalledTimes(1)
 })

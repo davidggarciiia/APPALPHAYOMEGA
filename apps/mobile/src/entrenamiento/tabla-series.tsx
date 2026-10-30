@@ -14,7 +14,6 @@ import type { BarraAjusteProps } from "../componentes/barra-ajuste"
 import { ChipsRir } from "../componentes/chips-rir"
 import { FilaSerie, type CeldaSerie } from "../componentes/fila-serie"
 import { Icono } from "../componentes/iconos"
-import { ListaAnimada, useAnimacionLista } from "../componentes/lista-animada"
 import { useMovimientoReducido } from "../componentes/movimiento"
 import { tema } from "../tema"
 import type { EdicionRegistro, EjercicioConDistancia, SerieConDistancia } from "./registro-modelo"
@@ -154,7 +153,6 @@ export function TablaSeries({
 }): React.JSX.Element {
   const { width, fontScale } = useWindowDimensions()
   const reducido = useMovimientoReducido()
-  const animacion = useAnimacionLista()
   const sacudida = useSharedValue(0)
   const validacion = useAnimatedStyle(() => ({ transform: [{ translateX: sacudida.value }] }))
   useEffect(() => {
@@ -280,11 +278,7 @@ export function TablaSeries({
               </Text>
             )
           return (
-            <ListaAnimada
-              key={prescrita.id}
-              testID={`serie-lista-${prescrita.id}`}
-              animacion={recordPersonal ? { ...animacion, layout: undefined } : animacion}
-            >
+            <View key={prescrita.id} testID={`serie-lista-${prescrita.id}`}>
               <FilaSerie
                 numero={n + 1}
                 etiqueta={ejercicio.nombre}
@@ -338,7 +332,7 @@ export function TablaSeries({
                   if (!bloqueado) cambiar(prescrita.id, { hecha: false, omitida: undefined })
                 }}
               />
-            </ListaAnimada>
+            </View>
           )
         })}
       </Animated.View>
@@ -364,11 +358,7 @@ export function TablaSeries({
         pendientes.length === 0 &&
         ultimaHecha &&
         !bloqueado && (
-          <ListaAnimada
-            animacion={{ exiting: animacion.exiting, layout: animacion.layout }}
-            testID="rir-final-lista"
-            style={s.rirFinal}
-          >
+          <View testID="rir-final-lista" style={s.rirFinal}>
             <Text style={s.resumen}>RIR del ejercicio</Text>
             <ChipsRir
               etiqueta={`Repeticiones que te quedaban al terminar ${ejercicio.nombre}`}
@@ -376,7 +366,7 @@ export function TablaSeries({
               valor={series.find((serie) => serie.serieId === ultimaHecha.id)?.rir ?? null}
               cambiar={(rir) => cambiar(ultimaHecha.id, { rir })}
             />
-          </ListaAnimada>
+          </View>
         )}
     </View>
   )

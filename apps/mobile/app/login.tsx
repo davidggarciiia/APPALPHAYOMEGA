@@ -17,7 +17,6 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import Svg, { Circle, Path } from "react-native-svg"
 
 import emblema from "../assets/emblema.png"
-import { EntradaMarca } from "../src/componentes/entrada-marca"
 import { AvisoDeError, BotonEnlace, BotonPrincipal, Campo } from "../src/componentes/formulario"
 import { ErrorDeRed, ErrorDeSesion } from "../src/lib/api"
 import { useEnvioUnico } from "../src/lib/envio-unico"
@@ -70,13 +69,13 @@ export default function Login(): React.JSX.Element {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
-          <EntradaMarca style={s.identidad}>
+          <View style={s.identidad}>
             <Image source={emblema} style={s.emblema} resizeMode="contain" accessible={false} />
             <Text accessibilityRole="header" style={s.marca}>
               ALPHA &amp; OMEGA
             </Text>
-          </EntradaMarca>
-          <EntradaMarca indice={1}>
+          </View>
+          <View>
             {sesionCaducada && <AvisoDeError mensaje="Tu sesión ha caducado. Entra otra vez." />}
             {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
@@ -150,7 +149,7 @@ export default function Login(): React.JSX.Element {
               texto="HE OLVIDADO MI CONTRASEÑA"
               onPress={() => router.push("/recuperar")}
             />
-          </EntradaMarca>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -147,7 +147,7 @@ async function cerrarDatos(): Promise<void> {
 
 async function abrirDatosDia(): Promise<void> {
   await fireEvent.press(screen.getByRole("button", { name: "Editar datos del día" }))
-  await screen.findByLabelText("Duración estimada")
+  await screen.findByLabelText("Minutos de calentamiento")
 }
 
 it("mantiene 44 px en cada día y permite recorrer la semana en pantallas estrechas", async () => {
@@ -160,25 +160,28 @@ it("mantiene 44 px en cada día y permite recorrer la semana en pantallas estrec
   expect(screen.getByTestId("selector-dia-semana")).toHaveProp("horizontal", true)
 })
 
-it("abre la vista del cliente sin deslizamiento con movimiento reducido", async () => {
-  const reducido = jest.spyOn(movimiento, "useMovimientoReducido").mockReturnValue(true)
-  try {
-    await prepararConstructor()
-    await screen.findByLabelText("Nombre del día")
-    await completarDia()
-    await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
+it.each([false, true])(
+  "abre la vista del cliente sin deslizamiento (movimiento reducido: %s)",
+  async (reducido) => {
+    const ajuste = jest.spyOn(movimiento, "useMovimientoReducido").mockReturnValue(reducido)
+    try {
+      await prepararConstructor()
+      await screen.findByLabelText("Nombre del día")
+      await completarDia()
+      await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
 
-    expect(screen.getByTestId("vista-cliente")).toHaveProp("animationType", "none")
-  } finally {
-    await screen.unmount()
-    reducido.mockRestore()
-  }
-})
+      expect(screen.getByTestId("vista-cliente")).toHaveProp("animationType", "none")
+    } finally {
+      await screen.unmount()
+      ajuste.mockRestore()
+    }
+  },
+)
 
 async function cerrarDatosDia(): Promise<void> {
   await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
   await esperarCierreHoja()
-  await waitFor(() => expect(screen.queryByLabelText("Duración estimada")).toBeNull())
+  await waitFor(() => expect(screen.queryByLabelText("Minutos de calentamiento")).toBeNull())
 }
 
 async function abrirDetalles(nombre: string): Promise<void> {
@@ -508,6 +511,19 @@ function almacenEnMemoria(): AlmacenLocal & { datos: Map<string, unknown> } {
   }
 }
 
+function borradorConDuracion(duracion: string): ReturnType<typeof almacenEnMemoria> {
+  const almacen = almacenEnMemoria()
+  almacen.datos.set("borrador-plan-20000000-0000-4000-8000-000000000000", {
+    v: 1,
+    nombre: "Plan",
+    semanaInicial: "2026-11-02",
+    semanas: "6",
+    dias: [{ ...nuevoDia(randomUUID, 1), duracion }],
+    bloque: { fases: [], deportes: [], objetivos: [], notas: [] },
+  })
+  return almacen
+}
+
 it("reenvía exactamente el plan pendiente tras perder la respuesta, con los mismos ids de series", async () => {
   const api = crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))
   const asignar = jest
@@ -570,7 +586,7 @@ it("arma un día con la tabla del diseño y publica el plan con su bloque", asyn
     ejercicioDePrueba("10000000-0000-4000-8000-000000000000", "Press banca con barra", "pecho", []),
   ])
   const terminado = jest.fn()
-  const almacen = almacenEnMemoria()
+  const almacen = borradorConDuracion("100–115 min")
   await render(
     <ConstructorPlan
       clienteId="20000000-0000-4000-8000-000000000000"
@@ -585,10 +601,12 @@ it("arma un día con la tabla del diseño y publica el plan con su bloque", asyn
       volver={jest.fn()}
     />,
   )
+  await fireEvent.press(await screen.findByRole("button", { name: "Recuperar mi plan" }))
   await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Bloque 1 · Recomposición")
   await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Empuje")
   await abrirDatosDia()
-  await fireEvent.changeText(screen.getByLabelText("Duración estimada"), "100–115 min")
+  expect(screen.queryByLabelText("Duración estimada")).toBeNull()
+  expect(screen.queryByText("100–115 min")).toBeNull()
   await cerrarDatosDia()
 
   // Fase del bloque.
@@ -780,7 +798,7 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
         clienteId="20000000-0000-4000-8000-000000000000"
         cuentaId="30000000-0000-4000-8000-000000000000"
         nombreCliente="Cliente <seguro>"
-        almacen={almacenEnMemoria()}
+        almacen={borradorConDuracion("50–60 min")}
         api={crearApiEntrenamiento(crearPeticionAutenticada(() => "token"))}
         catalogo={catalogoEnMemoria(
           nombres.map((nombre) => ejercicioDePrueba(randomUUID(), nombre, "pecho", [])),
@@ -791,10 +809,10 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
         volver={jest.fn()}
       />,
     )
+    await fireEvent.press(await screen.findByRole("button", { name: "Recuperar mi plan" }))
     await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Plan <seguro>")
     await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Día de prueba")
     await abrirDatosDia()
-    await fireEvent.changeText(screen.getByLabelText("Duración estimada"), "50–60 min")
     for (const [parte, minutos] of [
       ["calentamiento", "8–10"],
       ["fuerza", "30"],
@@ -839,7 +857,8 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
     expect(html).toContain("2 vueltas · 30 s entre vueltas")
     for (const minutos of ["8–10", "30", "6", "5"])
       expect(html).toContain(`Duración: ${minutos} min`)
-    expect(html).toContain("Duración estimada 50–60 min")
+    expect(html).not.toContain("Duración estimada")
+    expect(html).not.toContain("50–60 min")
     expect(html).toContain("Plan &lt;seguro&gt;")
     expect(html).toContain("Cliente &lt;seguro&gt;")
     expect(html).not.toContain("<controlado>")

@@ -1,18 +1,24 @@
 import { useState } from "react"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import { TextInput } from "react-native"
-import { usePathname } from "expo-router"
+import { useCanGoBack, usePathname } from "expo-router"
 
 import { useSesion } from "../sesion"
 import { Armazon } from "./armazon"
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => true }
+const mockRouter = {
+  push: jest.fn(),
+  replace: jest.fn(),
+  back: jest.fn(),
+  canGoBack: jest.fn(() => true),
+}
 let mockAncho = 430
 jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
   __esModule: true,
   default: () => ({ width: mockAncho, height: 800, scale: 1, fontScale: 1 }),
 }))
 jest.mock("expo-router", () => ({
+  useCanGoBack: jest.fn(),
   usePathname: jest.fn(),
   useRouter: () => mockRouter,
 }))
@@ -36,6 +42,7 @@ function Pantalla(): React.JSX.Element {
 
 beforeEach(() => {
   mockAncho = 390
+  jest.mocked(useCanGoBack).mockReturnValue(true)
   jest.mocked(usePathname).mockReturnValue("/cartera")
   jest.mocked(useSesion).mockReturnValue({
     estado: {
@@ -95,6 +102,23 @@ it("reserva la cabecera de Notificaciones para volver y su título en móvil", a
   expect(screen.queryByRole("button", { name: /tu perfil/ })).toBeNull()
   await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
   expect(mockRouter.back).toHaveBeenCalled()
+})
+
+it("actualiza Volver con el historial sin consultar navegación imperativa durante el render", async () => {
+  jest.mocked(usePathname).mockReturnValue("/notificaciones")
+  jest.mocked(useCanGoBack).mockReturnValue(false)
+  await render(<Pantalla />)
+  expect(screen.queryByRole("button", { name: "Volver" })).toBeNull()
+
+  jest.mocked(useCanGoBack).mockReturnValue(true)
+  await screen.rerender(<Pantalla />)
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(mockRouter.back).toHaveBeenCalledTimes(1)
+
+  jest.mocked(useCanGoBack).mockReturnValue(false)
+  await screen.rerender(<Pantalla />)
+  expect(screen.queryByRole("button", { name: "Volver" })).toBeNull()
+  expect(mockRouter.canGoBack).not.toHaveBeenCalled()
 })
 
 it.each([

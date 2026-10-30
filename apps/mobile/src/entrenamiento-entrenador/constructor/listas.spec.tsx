@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { fireEvent, render, screen } from "@testing-library/react-native"
 import { AccessibilityInfo } from "react-native"
 
 import { nuevoEjercicio } from "./modelo"
@@ -20,7 +20,7 @@ const remo = {
 
 afterEach(() => jest.restoreAllMocks())
 
-it("anima las filas al añadir, quitar y cambiar de orden sin mezclar sus valores", async () => {
+it("añade, quita y reordena filas directamente sin mezclar sus valores", async () => {
   jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
   const mover = jest.fn()
   const quitar = jest.fn()
@@ -38,22 +38,12 @@ it("anima las filas al añadir, quitar y cambiar de orden sin mezclar sus valore
     />
   )
   const vista = await render(tabla([banca]))
-  await waitFor(() =>
-    expect(screen.getByTestId("ejercicio-constructor-primero")).toHaveProp(
-      "layout",
-      expect.anything(),
-    ),
-  )
+  for (const propiedad of ["entering", "exiting", "layout"])
+    expect(screen.getByTestId("ejercicio-constructor-primero").props[propiedad]).toBeUndefined()
 
   await vista.rerender(tabla([banca, remo]))
-  expect(screen.getByTestId("ejercicio-constructor-segundo")).toHaveProp(
-    "entering",
-    expect.anything(),
-  )
-  expect(screen.getByTestId("ejercicio-constructor-segundo")).toHaveProp(
-    "exiting",
-    expect.anything(),
-  )
+  for (const propiedad of ["entering", "exiting", "layout"])
+    expect(screen.getByTestId("ejercicio-constructor-segundo").props[propiedad]).toBeUndefined()
   await fireEvent.press(screen.getByRole("button", { name: "Subir Remo" }))
   expect(mover).toHaveBeenCalledWith(remo.id, -1)
   await vista.rerender(tabla([remo, banca]))
@@ -82,7 +72,7 @@ it("anima las filas al añadir, quitar y cambiar de orden sin mezclar sus valore
 })
 
 it.each(["calentamiento", "circuito", "final"] as const)(
-  "anima las filas de %s y conserva la edición y retirada por identificador",
+  "muestra directamente las filas de %s y conserva la edición y retirada por identificador",
   async (seccion) => {
     jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
     const elegir = jest.fn()
@@ -96,12 +86,8 @@ it.each(["calentamiento", "circuito", "final"] as const)(
         quitar={quitar}
       />,
     )
-    await waitFor(() =>
-      expect(screen.getByTestId("ejercicio-constructor-primero")).toHaveProp(
-        "layout",
-        expect.anything(),
-      ),
-    )
+    for (const propiedad of ["entering", "exiting", "layout"])
+      expect(screen.getByTestId("ejercicio-constructor-primero").props[propiedad]).toBeUndefined()
     await fireEvent.press(screen.getByRole("button", { name: "Press banca: editar detalles" }))
     expect(elegir).toHaveBeenCalledWith(banca.id)
     await fireEvent.press(screen.getByRole("button", { name: "Quitar Press banca" }))

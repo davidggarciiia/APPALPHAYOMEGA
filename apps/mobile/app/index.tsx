@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useState } from "react"
 import { useFocusEffect, useRouter, type Href } from "expo-router"
 import type { Bloque } from "@alpha-omega/shared"
 import { Pressable, StyleSheet, Text, View } from "react-native"
@@ -39,7 +39,6 @@ export default function Inicio(): React.JSX.Element {
       }
     }, [api, clienteId]),
   )
-  const detalle = useMemo(() => ({ leerSesion: api.leerCliente }), [api])
   if (estado.fase !== "dentro") return <View />
   const { usuario } = estado
   const acceso = (
@@ -70,7 +69,6 @@ export default function Inicio(): React.JSX.Element {
             api={api}
             copiaLocal
             resumenHoy
-            detalle={detalle}
             deportes={bloque?.deportes}
             abrir={(id) => router.push({ pathname: "/entrenamiento/[id]", params: { id } })}
           />

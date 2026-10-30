@@ -49,7 +49,7 @@ export function BandejaNotificaciones(): React.JSX.Element | null {
       {buzon.clientes !== null && visibles?.length === 0 && !buzon.error && (
         <Text style={tipo.secundario}>No tienes notificaciones.</Text>
       )}
-      {visibles?.map((cliente, indice) => (
+      {visibles?.map((cliente) => (
         <View key={cliente.id} style={s.grupo}>
           {modo === "entrenador" && (
             <Text style={s.nombre} accessibilityRole="header">
@@ -60,7 +60,6 @@ export function BandejaNotificaciones(): React.JSX.Element | null {
             clienteId={cliente.id}
             api={api}
             inicial={cliente.entrenamiento}
-            animarEntrada={indice === 0}
             alLeer={(id) => buzon.confirmarEntrenamiento(cliente.id, id)}
             abrir={(id) =>
               router.push({

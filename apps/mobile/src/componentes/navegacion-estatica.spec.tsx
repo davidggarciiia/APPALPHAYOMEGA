@@ -4,8 +4,6 @@ import { router, Stack, type Href } from "expo-router"
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library"
 import * as Reanimated from "react-native-reanimated"
 
-import { envolverPantalla } from "./transicion-pantalla"
-
 beforeEach(() => jest.spyOn(Reanimated, "withTiming"))
 
 afterEach(() => {
@@ -31,12 +29,7 @@ it.each([false, true])(
     jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(reducido)
     const vista = await renderRouter(
       {
-        _layout: () => (
-          <Stack
-            screenLayout={envolverPantalla}
-            screenOptions={{ headerShown: false, animation: "none" }}
-          />
-        ),
+        _layout: () => <Stack screenOptions={{ headerShown: false, animation: "none" }} />,
         index: Inicio,
         detalle: () => <Text>Detalle</Text>,
       },
@@ -47,22 +40,12 @@ it.each([false, true])(
     await fireEvent.press(screen.getByRole("button", { name: "Abrir detalle" }))
     expect(vista.getPathname()).toBe("/detalle")
     expect(await screen.findByText("Detalle")).toBeOnTheScreen()
-    if (reducido) expect(Reanimated.withTiming).not.toHaveBeenCalled()
-    else
-      expect(Reanimated.withTiming).toHaveBeenCalledWith(
-        1,
-        expect.objectContaining({ duration: 220 }),
-      )
+    expect(Reanimated.withTiming).not.toHaveBeenCalled()
 
     jest.mocked(Reanimated.withTiming).mockClear()
     await act(() => router.back())
     expect(vista.getPathname()).toBe("/")
     expect(await screen.findByDisplayValue("Sin perder")).toBeOnTheScreen()
-    if (reducido) expect(Reanimated.withTiming).not.toHaveBeenCalled()
-    else
-      expect(Reanimated.withTiming).toHaveBeenCalledWith(
-        1,
-        expect.objectContaining({ duration: 220 }),
-      )
+    expect(Reanimated.withTiming).not.toHaveBeenCalled()
   },
 )

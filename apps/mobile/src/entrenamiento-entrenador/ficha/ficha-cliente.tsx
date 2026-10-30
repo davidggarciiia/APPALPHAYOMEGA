@@ -4,7 +4,6 @@ import { StyleSheet, Text, View } from "react-native"
 import { ETIQUETA_DE_ZONA, type Molestia } from "@alpha-omega/shared"
 import { AvisoDeError, BotonPrincipal, BotonSecundario } from "../../componentes/formulario"
 import { Aviso } from "../../componentes/aviso"
-import { EntradaMarca } from "../../componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
 import { Hoja } from "../../componentes/hoja"
 import { Icono, type NombreIcono } from "../../componentes/iconos"
@@ -312,7 +311,7 @@ function FichaActual(props: Propiedades): React.JSX.Element {
         {datos.consentimiento && !datos.consentimiento.vigente && (
           <Aviso mensaje="Sin consentimiento de salud: no se pueden guardar medidas ni fotos hasta que lo acepte." />
         )}
-        <EntradaMarca style={s.contenido}>
+        <View style={s.contenido}>
           {nueva ? (
             <View style={s.grupo}>
               <View style={[s.paso, s.inicial]}>
@@ -395,7 +394,7 @@ function FichaActual(props: Propiedades): React.JSX.Element {
               <FilaDestino key={destino.titulo} {...destino} />
             ))}
           </View>
-        </EntradaMarca>
+        </View>
       </View>
       {menu && (
         <Hoja visible alCerrar={() => setMenu(false)}>

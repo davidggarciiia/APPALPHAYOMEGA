@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react-native"
 import { AccessibilityInfo } from "react-native"
 import { cancelAnimation, withTiming } from "react-native-reanimated"
 
-import { ANGULO, RAYO, caida, useDestello, useMovimientoReducido } from "./movimiento"
+import { ANGULO, useDestello, useMovimientoReducido } from "./movimiento"
 
 jest.mock("react-native-reanimated", () => {
   const React = jest.requireActual<typeof import("react")>("react")
@@ -27,17 +27,8 @@ beforeEach(() => {
 })
 afterEach(() => jest.restoreAllMocks())
 
-it("usa el ángulo y la diagonal de la marca y limita la caída a las primeras ocho filas", () => {
+it("conserva el ángulo de la marca en los destellos", () => {
   expect(ANGULO).toBe(20)
-  expect(RAYO).toEqual({ x: 8, y: -22 })
-  expect(caida(0, true)).toBeUndefined()
-  expect(caida(8)).toBeUndefined()
-  expect(caida(50)).toBeUndefined()
-  const entrada = caida(2)?.()
-  expect(entrada?.initialValues).toEqual({
-    opacity: 0,
-    transform: [{ translateX: 8 }, { translateY: -22 }],
-  })
 })
 
 it("un cambio del sistema gana a una consulta inicial que termina tarde", async () => {

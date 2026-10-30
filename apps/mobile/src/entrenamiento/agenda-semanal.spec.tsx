@@ -123,3 +123,60 @@ it("en descanso muestra la próxima sesión sin ofrecer empezar", async () => {
   expect(screen.getByText("Mañana · Fuerza")).toBeOnTheScreen()
   expect(screen.queryByRole("button", { name: "Empezar Fuerza" })).toBeNull()
 })
+
+it("despliega el mes, abre sesiones de otra semana y vuelve a la tira semanal", async () => {
+  const fecha = `${hoy.slice(0, 7)}-${hoy.slice(-2) === "01" ? "20" : "01"}`
+  const abrir = jest.fn()
+  const cargarMes = jest.fn(async () => [
+    ...listado.sesiones,
+    {
+      ...listado.sesiones[0]!,
+      nombre: "Tracción",
+      agenda: { ...listado.sesiones[0]!.agenda, id: "otra", fechaActual: fecha },
+      enviadoEn: "2026-10-01T12:00:00Z",
+    },
+  ])
+  await render(
+    <AgendaSemanal
+      semana={lunesDeSemana()}
+      listado={listado}
+      cambiarSemana={jest.fn()}
+      abrir={abrir}
+      resumenHoy
+      cargarMes={cargarMes}
+    />,
+  )
+  const desplegar = screen.getByRole("button", { name: "Ver mes" })
+  expect(desplegar.props.accessibilityState).toEqual({ expanded: false })
+  await fireEvent.press(desplegar)
+  expect(cargarMes).toHaveBeenCalledWith(hoy.slice(0, 7))
+  const dia = await screen.findByRole("button", {
+    name: `${fechaLegible(fecha)}: Tracción, hecha`,
+  })
+  await fireEvent.press(dia)
+  expect(abrir).toHaveBeenCalledWith("otra")
+  const plegar = screen.getByRole("button", { name: "Ver semana" })
+  expect(plegar.props.accessibilityState).toEqual({ expanded: true })
+  await fireEvent.press(plegar)
+  expect(screen.getByRole("button", { name: "Ver mes" })).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: "Mes siguiente" })).toBeNull()
+})
+
+it("al tocar un día libre del mes dice que no hay sesión", async () => {
+  await render(
+    <AgendaSemanal
+      semana={lunesDeSemana()}
+      listado={{ total: 0, sesiones: [] }}
+      cambiarSemana={jest.fn()}
+      abrir={jest.fn()}
+      resumenHoy
+      cargarMes={jest.fn(async () => [])}
+    />,
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Ver mes" }))
+  const fecha = `${hoy.slice(0, 7)}-01`
+  await fireEvent.press(
+    await screen.findByRole("button", { name: `${fechaLegible(fecha)}: descanso` }),
+  )
+  expect(screen.getByText(`Sin sesión el ${fechaLegible(fecha)}`)).toBeOnTheScreen()
+})

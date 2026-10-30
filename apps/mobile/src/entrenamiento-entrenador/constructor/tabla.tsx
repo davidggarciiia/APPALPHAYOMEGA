@@ -3,7 +3,6 @@ import { Keyboard, Pressable, StyleSheet, Switch, Text, TextInput, View } from "
 
 import { ChipsRir } from "../../componentes/chips-rir"
 import { Icono } from "../../componentes/iconos"
-import { ListaAnimada, useAnimacionLista } from "../../componentes/lista-animada"
 import { Enlace } from "../../entrenamiento/sesion/controles"
 import { alto, radio, tema } from "../../tema"
 import type { TipoMedicion } from "../editor-modelo"
@@ -115,7 +114,6 @@ export function TablaPrincipal({
   mover: (id: string, desplazamiento: number) => void
   ancha: boolean
 }): React.JSX.Element {
-  const animacion = useAnimacionLista()
   return (
     <View style={s.tabla}>
       {ejercicios.map((e, n) => {
@@ -134,10 +132,10 @@ export function TablaPrincipal({
           ],
         ]
         return (
-          <ListaAnimada
+          <View
             key={e.id}
             testID={`ejercicio-constructor-${e.id}`}
-            animacion={animacion}
+
             style={[s.renglon, activo && s.renglonActivo]}
           >
             <View style={s.lineaNombre}>
@@ -239,7 +237,7 @@ export function TablaPrincipal({
                 </Pressable>
               ))}
             </View>
-          </ListaAnimada>
+          </View>
         )
       })}
     </View>

@@ -719,6 +719,148 @@ it("lista por la fecha actual, abre la sesión y cambia de semana sin conservar 
   ).toBeNull()
 })
 
+it.each([
+  {
+    hoy: "2027-02-17",
+    semanas: ["2027-02-01", "2027-02-08", "2027-02-15", "2027-02-22"],
+  },
+  {
+    hoy: "2026-10-14",
+    semanas: ["2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"],
+  },
+  {
+    hoy: "2026-03-18",
+    semanas: ["2026-02-23", "2026-03-02", "2026-03-09", "2026-03-16", "2026-03-23", "2026-03-30"],
+  },
+])(
+  "Ver mes consulta todas sus semanas y abre una sesión ajena a la actual: $hoy",
+  async ({ hoy, semanas }) => {
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date(`${hoy}T12:00:00Z`))
+    let vista: Awaited<ReturnType<typeof render>> | undefined
+    try {
+      const fecha = `${hoy.slice(0, 7)}-01`
+      const sesion = listadoDePrueba("Sesión de otra semana", fecha)
+      const consultar = jest.fn(async (_clienteId: string, lunes: string) =>
+        lunes === semanas[0] ? sesion : { sesiones: [], total: 0 },
+      )
+      const api = {
+        semana: consultar,
+        leerCliente: jest.fn(async () => ({ borrador: null })),
+      } as unknown as ApiEntrenamiento
+      const abrir = jest.fn()
+      vista = await render(
+        <SemanaEntrenamiento clienteId="cliente" api={api} abrir={abrir} resumenHoy />,
+      )
+      expect(consultar).toHaveBeenCalledWith("cliente", lunesDeSemana(hoy), expect.any(AbortSignal))
+      consultar.mockClear()
+
+      await fireEvent.press(screen.getByRole("button", { name: "Ver mes" }))
+      const dia = await screen.findByRole("button", {
+        name: `${fechaLegible(fecha)}: Sesión de otra semana, pendiente`,
+      })
+      expect(consultar.mock.calls).toEqual(semanas.map((lunes) => ["cliente", lunes]))
+      await fireEvent.press(dia)
+      expect(abrir).toHaveBeenCalledWith(sesion.sesiones[0]!.agenda.id)
+    } finally {
+      await vista?.unmount()
+      jest.useRealTimers()
+    }
+  },
+)
+
+it("si falla una semana del mes muestra el error y permite reintentar sin inventar días vacíos", async () => {
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date("2026-10-14T12:00:00Z"))
+  let vista: Awaited<ReturnType<typeof render>> | undefined
+  try {
+    const sesion = listadoDePrueba("Fuerza del mes", "2026-10-01")
+    let fallar = true
+    const consultar = jest.fn(async (_clienteId: string, lunes: string) => {
+      if (lunes === "2026-10-19" && fallar) throw new ErrorDelServidor(503)
+      return lunes === "2026-09-28" ? sesion : { sesiones: [], total: 0 }
+    })
+    const api = {
+      semana: consultar,
+      leerCliente: jest.fn(async () => ({ borrador: null })),
+    } as unknown as ApiEntrenamiento
+    const abrir = jest.fn()
+    vista = await render(
+      <SemanaEntrenamiento clienteId="cliente" api={api} abrir={abrir} resumenHoy />,
+    )
+
+    await fireEvent.press(screen.getByRole("button", { name: "Ver mes" }))
+    expect(await screen.findByText("No se pudo cargar el mes.")).toBeOnTheScreen()
+    expect(screen.queryByRole("button", { name: /^jueves, 1 oct/ })).toBeNull()
+    expect(abrir).not.toHaveBeenCalled()
+
+    fallar = false
+    consultar.mockClear()
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar mes" }))
+    expect(
+      await screen.findByRole("button", {
+        name: `${fechaLegible("2026-10-01")}: Fuerza del mes, pendiente`,
+      }),
+    ).toBeOnTheScreen()
+    expect(consultar.mock.calls).toEqual(
+      ["2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"].map((lunes) => [
+        "cliente",
+        lunes,
+      ]),
+    )
+    expect(screen.queryByText("No se pudo cargar el mes.")).toBeNull()
+  } finally {
+    await vista?.unmount()
+    jest.useRealTimers()
+  }
+})
+
+it("el mes reconoce en curso una sesión de otra semana con inicio en el borrador", async () => {
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date("2026-10-14T12:00:00Z"))
+  let vista: Awaited<ReturnType<typeof render>> | undefined
+  try {
+    const sesion = listadoDePrueba("Fuerza empezada", "2026-10-01")
+    const leerCliente = jest.fn(async () => ({
+      borrador: {
+        actualizadoEn: "2026-10-01T10:30:00.000Z",
+        registro: {
+          inicio: "2026-10-01T10:00:00.000Z",
+          checkin: null,
+          series: [],
+          notas: null,
+        },
+      },
+    }))
+    const api = {
+      semana: jest.fn(async (_clienteId: string, lunes: string) =>
+        lunes === "2026-09-28" ? sesion : { sesiones: [], total: 0 },
+      ),
+      leerCliente,
+    } as unknown as ApiEntrenamiento
+    const abrir = jest.fn()
+    vista = await render(
+      <SemanaEntrenamiento clienteId="cliente" api={api} abrir={abrir} resumenHoy />,
+    )
+
+    await fireEvent.press(screen.getByRole("button", { name: "Ver mes" }))
+    const dia = await screen.findByRole("button", {
+      name: `${fechaLegible("2026-10-01")}: Fuerza empezada, en curso`,
+    })
+    expect(leerCliente).toHaveBeenCalledWith(sesion.sesiones[0]!.agenda.id)
+    expect(
+      screen.queryByRole("button", {
+        name: `${fechaLegible("2026-10-01")}: Fuerza empezada, pendiente`,
+      }),
+    ).toBeNull()
+    await fireEvent.press(dia)
+    expect(abrir).toHaveBeenCalledWith(sesion.sesiones[0]!.agenda.id)
+  } finally {
+    await vista?.unmount()
+    jest.useRealTimers()
+  }
+})
+
 it("el inicio sigue la semana actual al pasar de domingo a lunes", async () => {
   jest.useFakeTimers()
   jest.setSystemTime(new Date("2026-09-20T21:59:58Z"))

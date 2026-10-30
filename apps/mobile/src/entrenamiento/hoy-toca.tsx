@@ -1,15 +1,9 @@
-import { useEffect, useState } from "react"
 import { StyleSheet, Text, View } from "react-native"
-import type { ResumenSesion, SesionCliente } from "@alpha-omega/shared"
+import type { ResumenSesion } from "@alpha-omega/shared"
 
 import { tema } from "../tema"
 import { BotonPrincipal } from "../componentes/botones"
 import { fechaLegible } from "./fechas"
-
-/** Lo que hace falta para completar la duración de la sesión de hoy. */
-export type DetalleDeHoy = {
-  leerSesion: (id: string) => Promise<SesionCliente>
-}
 
 /**
  * El tamaño del nombre depende de su largo: «Empuje» cabe a 52 px como en el
@@ -22,13 +16,12 @@ export function tamanoDelNombre(nombre: string): number {
   return 26
 }
 
-/** «Hoy toca»: nombre, estado, duración y acción de la sesión. */
+/** «Hoy toca»: nombre, estado y acción de la sesión. */
 export function TarjetaHoy({
   sesion,
   sinSesion,
   hoy,
   abrir,
-  detalle,
   empezada = false,
   siguiente,
 }: {
@@ -37,30 +30,9 @@ export function TarjetaHoy({
   sinSesion: string
   hoy: string
   abrir: (id: string) => void
-  detalle?: DetalleDeHoy
   empezada?: boolean
   siguiente?: string
 }): React.JSX.Element {
-  const [duracion, setDuracion] = useState<string | undefined>(undefined)
-  const id = sesion?.agenda.id
-
-  useEffect(() => {
-    setDuracion(undefined)
-    if (id === undefined || detalle === undefined) return
-    let vigente = true
-    void (async () => {
-      try {
-        const leida = await detalle.leerSesion(id)
-        if (vigente) setDuracion(leida.prescripcion.duracion)
-      } catch {
-        // Sin red la tarjeta conserva el resumen de la semana.
-      }
-    })()
-    return () => {
-      vigente = false
-    }
-  }, [id, detalle])
-
   const nombre = sesion?.nombre ?? sinSesion
   return (
     <View style={s.destacado}>
@@ -80,9 +52,7 @@ export function TarjetaHoy({
             {nombre}
           </Text>
           <Text style={s.detalle}>
-            {sesion
-              ? [duracion, fechaLegible(hoy)].filter(Boolean).join(" · ")
-              : (siguiente ?? fechaLegible(hoy))}
+            {sesion ? fechaLegible(hoy) : (siguiente ?? fechaLegible(hoy))}
           </Text>
           {sesion && sesion.agenda.fechaActual !== sesion.agenda.fechaOriginal && (
             <Text style={s.detalle}>
@@ -117,13 +87,13 @@ const s = StyleSheet.create({
   cuerpo: { paddingHorizontal: 8, paddingBottom: 8, gap: 20 },
   bloque: { gap: 6 },
   hoyToca: {
-    color: tema.acento,
-    fontFamily: tema.fuenteTitulo,
-    fontSize: 44,
-    lineHeight: 48,
+    color: tema.textoTenue,
+    fontFamily: tema.fuenteSemi,
+    fontSize: 11,
+    lineHeight: 18,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
   },
-  // David (24-09): el nombre de la sesión, con la misma letra y el mismo dorado que «Hoy toca».
   nombre: { color: tema.acento, fontFamily: tema.fuenteTitulo, textTransform: "uppercase" },
   detalle: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 16 },
 })

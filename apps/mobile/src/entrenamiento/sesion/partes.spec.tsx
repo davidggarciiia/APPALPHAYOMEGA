@@ -70,6 +70,27 @@ it("permite restar o añadir quince segundos y saltar desde la franja", async ()
   expect(saltar).toHaveBeenCalledTimes(1)
 })
 
+it.each([false, true])(
+  "muestra y retira la franja de descanso sin desplazamientos (reducido: %s)",
+  async (reducido) => {
+    jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(reducido)
+    const props = { total: 60, ajustar: jest.fn(), saltar: jest.fn() }
+    const vista = await render(<Descanso {...props} restante={45} />)
+    const transiciones = () =>
+      screen.container.queryAll((nodo) =>
+        ["entering", "exiting", "layout"].some((propiedad) => nodo.props[propiedad] !== undefined),
+      )
+    expect(screen.getByRole("timer")).toHaveTextContent("0:45")
+    expect(transiciones()).toHaveLength(0)
+    await vista.rerender(<Descanso {...props} restante={0} />)
+    expect(screen.queryByRole("timer")).toBeNull()
+    expect(transiciones()).toHaveLength(0)
+    await vista.rerender(<Descanso {...props} restante={3} />)
+    expect(screen.getByRole("timer")).toHaveTextContent("0:03")
+    expect(transiciones()).toHaveLength(0)
+  },
+)
+
 it("con movimiento reducido avisa en los últimos tres segundos y al acabar sin repetir ni animar", async () => {
   jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true)
   const props = { total: 60, ajustar: jest.fn(), saltar: jest.fn() }
@@ -82,6 +103,20 @@ it("con movimiento reducido avisa en los últimos tres segundos y al acabar sin 
   expect(Haptics.notificationAsync).toHaveBeenCalledWith("warning")
   expect(screen.queryByRole("timer")).toBeNull()
   expect(withTiming).not.toHaveBeenCalled()
+})
+
+it("conserva el pulso de los últimos tres segundos y los avisos sin repetirlos", async () => {
+  jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
+  const props = { total: 60, ajustar: jest.fn(), saltar: jest.fn() }
+  const vista = await render(<Descanso {...props} restante={4} />)
+  jest.mocked(withTiming).mockClear()
+  for (const restante of [3, 3, 2, 1, 0, 0])
+    await vista.rerender(<Descanso {...props} restante={restante} />)
+  expect(jest.mocked(withTiming).mock.calls.filter(([valor]) => valor === 1.12)).toHaveLength(3)
+  expect(Haptics.impactAsync).toHaveBeenCalledTimes(3)
+  expect(Haptics.notificationAsync).toHaveBeenCalledTimes(1)
+  expect(Haptics.notificationAsync).toHaveBeenCalledWith("warning")
+  expect(screen.queryByRole("timer")).toBeNull()
 })
 
 it("la barra de descanso se vacía en el hilo de interfaz durante el tiempo restante", async () => {

@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import Animated from "react-native-reanimated"
 import {
   calcularGrasaPorPliegues,
   PROTOCOLOS_GRASA_POR_PLIEGUES,
@@ -10,7 +9,6 @@ import {
 } from "@alpha-omega/shared"
 
 import { BotonSecundario, Campo } from "../componentes/formulario"
-import { caida, useMovimientoReducido } from "../componentes/movimiento"
 import { alto, radio, tema, tipo } from "../tema"
 import { edadEn, leerDecimal } from "./modelo"
 import { decimal, type CampoCorporal, type CampoGrasa } from "./valoracion-modelo"
@@ -56,7 +54,6 @@ export function CalculoPliegues({
   cambiar: (grasa: CampoGrasa) => void
   bloqueado: boolean
 }): React.JSX.Element {
-  const reducido = useMovimientoReducido()
   const [protocolo, setProtocolo] = useState<ProtocoloGrasaPorPliegues | null>(null)
   const [sexo, setSexo] = useState<"hombre" | "mujer" | null>(null)
   const [edadEscrita, setEdad] = useState<string | null>(null)
@@ -106,7 +103,7 @@ export function CalculoPliegues({
         ))}
       </View>
       {elegido && (
-        <Animated.View key={protocolo} entering={caida(0, reducido)} style={s.grupo}>
+        <View key={protocolo} style={s.grupo}>
           {elegido.requiereSexo && (
             <View
               accessibilityRole="radiogroup"
@@ -163,7 +160,7 @@ export function CalculoPliegues({
               </Text>
             )
           )}
-        </Animated.View>
+        </View>
       )}
     </View>
   )

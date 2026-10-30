@@ -9,6 +9,7 @@ import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { DetalleEntrenador } from "./detalle"
 
 jest.mock("expo-router", () => ({
+  useCanGoBack: () => true,
   usePathname: () => "/entrenamiento/sesion",
   useRouter: () => ({ back: jest.fn(), canGoBack: () => true }),
   useFocusEffect: (efecto: () => void) => {

@@ -20,7 +20,6 @@ import { degradadoOro, fondoDeMarca, tema } from "../src/tema"
 import { Armazon } from "../src/componentes/armazon"
 import { ProveedorNotificaciones } from "../src/notificaciones/contexto"
 import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
-import { envolverPantalla } from "../src/componentes/transicion-pantalla"
 import { crearApiConsentimiento, PuertaConsentimiento } from "../src/consentimiento"
 
 /** Rutas a las que se llega sin sesion. Activar y recuperar estan aqui porque,
@@ -64,12 +63,12 @@ function RedireccionDeSesion(): null {
   return null
 }
 
-function envolverPantallaConSesion({ children }: { children: ReactNode }): React.JSX.Element {
+function PantallaConSesion({ children }: { children: ReactNode }): React.JSX.Element {
   return (
-    <>
+    <View style={estilos.pantalla}>
       <RedireccionDeSesion />
-      {envolverPantalla({ children })}
-    </>
+      {children}
+    </View>
   )
 }
 
@@ -111,7 +110,7 @@ function Enrutador(): React.JSX.Element {
   const contenido = (
     <Armazon>
       <Stack
-        screenLayout={envolverPantallaConSesion}
+        screenLayout={PantallaConSesion}
         screenOptions={{
           headerShown: false,
           animation: "none",
@@ -195,6 +194,7 @@ export default function DisposicionRaiz(): React.JSX.Element {
 }
 
 const estilos = StyleSheet.create({
+  pantalla: { flex: 1 },
   centrado: {
     flex: 1,
     alignItems: "center",

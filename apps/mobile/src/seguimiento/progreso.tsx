@@ -14,7 +14,6 @@ import type {
 } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
-import { EntradaMarca } from "../componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { hoyAgenda, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
@@ -171,7 +170,7 @@ export function ProgresoCliente({
       {datos === null ? (
         error === "" && <CargaProgreso />
       ) : (
-        <EntradaMarca style={s.contenido}>
+        <View style={s.contenido}>
           {!activa && <Text style={s.vacio}>Aún sin indicadores activos.</Text>}
           {activa === "peso" && <Peso datos={datos} hoy={hoy} />}
           {activa === "pasos" && <DatoDiario datos={datos} tipo="pasos" />}
@@ -193,7 +192,7 @@ export function ProgresoCliente({
             </>
           )}
           {modo === "cliente" && <SiguientesRegistros datos={datos} hoy={hoy} />}
-        </EntradaMarca>
+        </View>
       )}
       {modo === "cliente" && valoraciones && (
         <ValoracionesCliente clienteId={clienteId} api={valoraciones} />

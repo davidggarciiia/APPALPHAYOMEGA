@@ -50,8 +50,6 @@ import { VerTecnica } from "../../entrenamiento/ver-tecnica"
 import { AvisoDeshacer } from "../../componentes/aviso-deshacer"
 import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
 import { Hoja } from "../../componentes/hoja"
-import { EntradaMarca } from "../../componentes/entrada-marca"
-import { useMovimientoReducido } from "../../componentes/movimiento"
 import { ErrorDePeticion, ErrorDePermiso, ErrorDelServidor } from "../../lib/http"
 import { conRecursoLocalExclusivo } from "../../lib/candado-local"
 import { useEnvioUnico } from "../../lib/envio-unico"
@@ -225,7 +223,7 @@ function exportarPdf(nombre: string, cliente: string, dias: DiaDelConstructor[])
     .sort((a, b) => a.diaSemana - b.diaSemana)
     .map(
       (d) =>
-        `<h2>${escapar(`${NOMBRES_DE_DIA[d.diaSemana - 1]} · ${d.nombre}`)}</h2>${d.duracion ? `<p>Duración estimada ${escapar(d.duracion)}</p>` : ""}${secciones(d)}`,
+        `<h2>${escapar(`${NOMBRES_DE_DIA[d.diaSemana - 1]} · ${d.nombre}`)}</h2>${secciones(d)}`,
     )
     .join("")}</body></html>`
   const ventana = window.open("", "_blank")
@@ -265,7 +263,6 @@ export function ConstructorPlan({
   volver: () => void
 }): React.JSX.Element {
   const { width } = useWindowDimensions()
-  const reducido = useMovimientoReducido()
   const ancho = width >= 1000
   const acceso = useAccesoAFiguras()
   const [nombre, setNombre] = useState("")
@@ -1020,18 +1017,6 @@ export function ConstructorPlan({
                 )
               })}
             </ScrollView>
-            <View style={s.dato}>
-              <Text style={s.tenue}>Duración estimada</Text>
-              <TextInput
-                accessibilityLabel="Duración estimada"
-                value={dia.duracion}
-                onChangeText={(v) => cambiarDia({ duracion: v })}
-                placeholder="100–115 min"
-                placeholderTextColor={tema.marcador}
-                maxLength={30}
-                style={s.campo}
-              />
-            </View>
             {(["calentamiento", "fuerza", "cardio", "calma"] as const).map((parte) => (
               <View key={parte} style={s.dato}>
                 <Text style={s.tenue}>
@@ -1082,7 +1067,7 @@ export function ConstructorPlan({
           {lugarDelMensaje === "plantilla" && mensaje}
         </View>
 
-        <EntradaMarca style={s.cuerpo}>
+        <View style={s.cuerpo}>
           <View style={s.flex}>
             {seccionesVisibles.map(({ seccion, titulo }) => {
               const ejercicios = dia.ejercicios.filter((e) => e.seccion === seccion)
@@ -1192,7 +1177,7 @@ export function ConstructorPlan({
               </View>
             )}
           </View>
-        </EntradaMarca>
+        </View>
         {Platform.OS === "web" && (
           <Enlace
             texto="Exportar PDF"
@@ -1271,7 +1256,7 @@ export function ConstructorPlan({
       <Modal
         testID="vista-cliente"
         visible={comoCliente}
-        animationType={reducido ? "none" : "slide"}
+        animationType="none"
         onRequestClose={() => setComoCliente(false)}
       >
         <ScrollView style={s.modal} contentContainerStyle={s.contenidoModal}>

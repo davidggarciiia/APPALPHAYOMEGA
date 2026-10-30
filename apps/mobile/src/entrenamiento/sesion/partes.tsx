@@ -11,7 +11,7 @@ import Animated, {
 
 import { vibrar } from "../../componentes/botones"
 import { Icono } from "../../componentes/iconos"
-import { caida, CURVA, RAYO, useMovimientoReducido } from "../../componentes/movimiento"
+import { useMovimientoReducido } from "../../componentes/movimiento"
 import { RecorridoSesion } from "../../componentes/recorrido-sesion"
 import { alto, espacio, radio, tema, tipo } from "../../tema"
 import type { EdicionRegistro, EjercicioConDistancia } from "../registro-modelo"
@@ -75,20 +75,6 @@ export function CabeceraSesion({
   )
 }
 
-const salidaDescanso = () => {
-  "worklet"
-  return {
-    initialValues: { opacity: 1, transform: [{ translateX: 0 }, { translateY: 0 }] },
-    animations: {
-      opacity: withTiming(0, { duration: 160, easing: CURVA.salida }),
-      transform: [
-        { translateX: withTiming(RAYO.x, { duration: 160, easing: CURVA.salida }) },
-        { translateY: withTiming(RAYO.y, { duration: 160, easing: CURVA.salida }) },
-      ],
-    },
-  }
-}
-
 /** Franja en el flujo de la lista; el caller persiste los ajustes del descanso. */
 export function Descanso({
   restante,
@@ -135,11 +121,7 @@ export function Descanso({
   const cuenta = useAnimatedStyle(() => ({ transform: [{ scale: pulso.value }] }))
   if (restante <= 0) return null
   return (
-    <Animated.View
-      style={s.descanso}
-      entering={caida(0, estatico)}
-      exiting={estatico ? undefined : salidaDescanso}
-    >
+    <View style={s.descanso}>
       <View style={s.medidaDescanso}>
         <Animated.Text
           style={[s.cuenta, cuenta]}
@@ -155,7 +137,7 @@ export function Descanso({
       <Enlace texto="−15" etiqueta="Restar 15 segundos de descanso" onPress={() => ajustar(-15)} />
       <Enlace texto="+15" etiqueta="Añadir 15 segundos de descanso" onPress={() => ajustar(15)} />
       <Enlace texto="Saltar" etiqueta="Saltar descanso" onPress={saltar} />
-    </Animated.View>
+    </View>
   )
 }
 

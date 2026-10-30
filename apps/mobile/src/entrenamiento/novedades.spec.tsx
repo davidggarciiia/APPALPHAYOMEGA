@@ -216,9 +216,15 @@ it("envía el desplazamiento y el límite de página al API", async () => {
 })
 
 it.each([
-  [30, "hace 30 minutos"],
-  [120, "hace 2 horas"],
+  [0, "hace un momento"],
+  [5, "hace 5 min"],
+  [30, "hace 30 min"],
+  [120, "hace 2 h"],
+  [180, "hace 3 h"],
+  [1440, "ayer"],
+  [2880, "anteayer"],
   [4320, "hace 3 días"],
+  [12960, "hace 9 días"],
 ])(
   "atribuye el comentario al entrenador con fecha relativa de %s minutos",
   async (minutos, fecha) => {

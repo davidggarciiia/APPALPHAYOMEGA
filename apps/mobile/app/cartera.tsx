@@ -16,7 +16,6 @@ import Svg, { Circle, Path } from "react-native-svg"
 
 import { Aviso } from "../src/componentes/aviso"
 import { BotonPrincipal, BotonSecundario } from "../src/componentes/botones"
-import { EntradaMarca } from "../src/componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../src/componentes/esqueleto"
 import { Icono } from "../src/componentes/iconos"
 import { ETIQUETA_DE_ESTADO, InsigniaDeEstado } from "../src/componentes/insignia-estado"
@@ -221,7 +220,7 @@ export default function Cartera(): React.JSX.Element {
               />
             </View>
           ) : (
-            <EntradaMarca style={estilos.flexible}>
+            <View style={estilos.flexible}>
               <FlatList
                 data={clientes}
                 keyExtractor={(cliente) => cliente.id}
@@ -270,7 +269,7 @@ export default function Cartera(): React.JSX.Element {
                   ) : undefined
                 }
               />
-            </EntradaMarca>
+            </View>
           )}
         </>
       )}

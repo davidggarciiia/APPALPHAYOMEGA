@@ -4,16 +4,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native"
 import type { ListadoNovedades, NovedadEntrenamiento } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { AvisoDeError, BotonEnlace } from "../componentes/formulario"
-import { ListaAnimada, useAnimacionLista } from "../componentes/lista-animada"
+import { tiempoRelativo } from "../lib/tiempo-relativo"
 import { espacio, radio, tema, tipo } from "../tema"
-
-function cuando(fecha: string): string {
-  const minutos = Math.max(0, Math.floor((Date.now() - Date.parse(fecha)) / 60_000))
-  const formato = new Intl.RelativeTimeFormat("es", { numeric: "auto" })
-  if (minutos < 60) return formato.format(-minutos, "minute")
-  if (minutos < 1440) return formato.format(-Math.floor(minutos / 60), "hour")
-  return formato.format(-Math.floor(minutos / 1440), "day")
-}
 
 function descripcion(novedad: NovedadEntrenamiento): string {
   const sesion = novedad.sesionNombre
@@ -39,14 +31,12 @@ export function NovedadesEntrenamiento({
   api,
   abrir,
   inicial,
-  animarEntrada = true,
   alLeer,
 }: {
   clienteId: string
   api: ApiEntrenamiento
   abrir: (sesionId: string) => void
   inicial?: ListadoNovedades
-  animarEntrada?: boolean
   alLeer?: (novedadId: string) => void
 }): React.JSX.Element | null {
   const [novedades, setNovedades] = useState<NovedadEntrenamiento[]>([])
@@ -57,7 +47,6 @@ export function NovedadesEntrenamiento({
   const consulta = useRef(0)
   const abriendo = useRef(false)
   const foco = useRef(0)
-  const animacion = useAnimacionLista()
   useFocusEffect(
     useCallback(() => {
       abriendo.current = false
@@ -131,11 +120,7 @@ export function NovedadesEntrenamiento({
           : "Sin novedades pendientes de leer"}
       </Text>
       {error !== "" && <AvisoDeError mensaje={error} />}
-      <ListaAnimada
-        testID="tarjeta-novedades"
-        style={s.tarjeta}
-        animacion={animarEntrada ? { entering: animacion.entering } : undefined}
-      >
+      <View testID="tarjeta-novedades" style={s.tarjeta}>
         {visibles.map((novedad, indice) => (
           <View key={novedad.id} style={indice > 0 && s.separada}>
             <Pressable
@@ -171,13 +156,7 @@ export function NovedadesEntrenamiento({
               }}
             >
               {!novedad.leidaEn && (
-                <ListaAnimada
-                  testID={`punto-novedad-${novedad.id}`}
-                  animacion={{ exiting: animacion.exiting }}
-                  style={s.indicador}
-                >
-                  {null}
-                </ListaAnimada>
+                <View testID={`punto-novedad-${novedad.id}`} style={s.indicador} />
               )}
               <View style={s.textos}>
                 <Text style={s.texto} numberOfLines={1}>
@@ -185,7 +164,7 @@ export function NovedadesEntrenamiento({
                 </Text>
                 <Text style={s.atribucion} numberOfLines={1}>
                   {novedad.autor.rol === "entrenador" ? "Tu entrenador" : novedad.autor.nombre} ·{" "}
-                  {cuando(novedad.creadaEn)}
+                  {tiempoRelativo(novedad.creadaEn, Date.now())}
                 </Text>
               </View>
             </Pressable>
@@ -198,7 +177,7 @@ export function NovedadesEntrenamiento({
             onPress={() => void cargarMas()}
           />
         )}
-      </ListaAnimada>
+      </View>
     </View>
   )
 }

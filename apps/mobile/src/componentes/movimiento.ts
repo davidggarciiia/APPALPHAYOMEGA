@@ -5,15 +5,12 @@ import {
   Easing,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withTiming,
   type SharedValue,
   type AnimatedStyle,
-  type LayoutAnimation,
 } from "react-native-reanimated"
 
 export const ANGULO = 20
-export const RAYO = { x: 8, y: -22 } as const
 export const DURACION = { rapido: 120, normal: 220, lento: 360 } as const
 export const CURVA = {
   entrada: Easing.out(Easing.cubic),
@@ -93,30 +90,4 @@ export function useDestello(ancho: number | SharedValue<number>): {
     ],
   }))
   return { estilo, disparar }
-}
-
-/** Solo las primeras ocho filas entran; el resto ya está en su sitio al aparecer. */
-export function caida(i: number, reducido = false): (() => LayoutAnimation) | undefined {
-  if (reducido || i >= 8) return undefined
-  const retraso = Math.max(0, i) * 40
-  return () => {
-    "worklet"
-    return {
-      initialValues: {
-        opacity: 0,
-        transform: [{ translateX: RAYO.x }, { translateY: RAYO.y }],
-      },
-      animations: {
-        opacity: withDelay(retraso, withTiming(1, { duration: 260, easing: CURVA.entrada })),
-        transform: [
-          {
-            translateX: withDelay(retraso, withTiming(0, { duration: 260, easing: CURVA.entrada })),
-          },
-          {
-            translateY: withDelay(retraso, withTiming(0, { duration: 260, easing: CURVA.entrada })),
-          },
-        ],
-      },
-    }
-  }
 }

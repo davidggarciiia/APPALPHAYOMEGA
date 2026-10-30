@@ -205,7 +205,7 @@ describe("D2 · tabla completa y barra compartida", () => {
   })
 
   it.each([false, true])(
-    "las filas conservan animaciones de lista según movimiento reducido (%s)",
+    "las filas aparecen en su sitio con cualquier ajuste de movimiento reducido (%s)",
     async (reducido) => {
       const movimiento = jest
         .spyOn(AccessibilityInfo, "isReduceMotionEnabled")
@@ -221,8 +221,7 @@ describe("D2 · tabla completa y barra compartida", () => {
         )
         const fila = screen.getByTestId(`serie-lista-${serieId}`)
         for (const propiedad of ["entering", "exiting", "layout"])
-          if (reducido) expect(fila.props[propiedad]).toBeUndefined()
-          else expect(fila.props[propiedad]).toBeDefined()
+          expect(fila.props[propiedad]).toBeUndefined()
         await screen.rerender(
           <TablaSeries
             ejercicio={ejercicio}
@@ -239,7 +238,7 @@ describe("D2 · tabla completa y barra compartida", () => {
     },
   )
 
-  it("suspende el reacomodo de filas durante el récord y lo restaura al retirar la etiqueta", async () => {
+  it("mantiene las filas en su sitio al mostrar y retirar el récord", async () => {
     const props = {
       ejercicio,
       series: [{ serieId, peso: "", valor: "30", hecha: true }],
@@ -247,18 +246,18 @@ describe("D2 · tabla completa y barra compartida", () => {
       cambiar: jest.fn(),
     }
     await render(<TablaSeries {...props} />)
-    expect(screen.getByTestId(`serie-lista-${serieId}`).props.layout).toBeDefined()
+    expect(screen.getByTestId(`serie-lista-${serieId}`).props.layout).toBeUndefined()
     await screen.rerender(
       <TablaSeries {...props} recordPersonal={{ serieId, mejora: "+2 reps" }} />,
     )
     expect(screen.getByLabelText("Récord personal: +2 reps")).toBeOnTheScreen()
     const durante = screen.getByTestId(`serie-lista-${serieId}`)
     expect(durante.props.layout).toBeUndefined()
-    expect(durante.props.entering).toBeDefined()
-    expect(durante.props.exiting).toBeDefined()
+    expect(durante.props.entering).toBeUndefined()
+    expect(durante.props.exiting).toBeUndefined()
     await screen.rerender(<TablaSeries {...props} />)
     expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
-    expect(screen.getByTestId(`serie-lista-${serieId}`).props.layout).toBeDefined()
+    expect(screen.getByTestId(`serie-lista-${serieId}`).props.layout).toBeUndefined()
   })
   it.each([
     ["repeticiones", "cantidad", "reps", 8, 1, 10000],
@@ -442,7 +441,7 @@ describe("D2 · tabla completa y barra compartida", () => {
     expect(avisarDeshacer).not.toHaveBeenCalled()
   })
 
-  it("Deshacer retira el RIR final con salida de lista y mantiene la serie visible", async () => {
+  it("Deshacer retira el RIR final directamente y mantiene la serie visible", async () => {
     const avisarDeshacer = jest.fn()
     function Controlada(): React.JSX.Element {
       const [series, actualizar] = useState([{ serieId, peso: "", valor: "30", hecha: false }])
@@ -465,8 +464,8 @@ describe("D2 · tabla completa y barra compartida", () => {
     expect(screen.getByText("RIR del ejercicio")).toBeOnTheScreen()
     const final = screen.getByTestId("rir-final-lista")
     expect(final.props.entering).toBeUndefined()
-    expect(final.props.exiting).toBeDefined()
-    expect(final.props.layout).toBeDefined()
+    expect(final.props.exiting).toBeUndefined()
+    expect(final.props.layout).toBeUndefined()
     await act(() => avisarDeshacer.mock.calls[0]![0].deshacer())
     expect(screen.queryByText("RIR del ejercicio")).toBeNull()
     expect(screen.getAllByTestId("fila-serie")).toHaveLength(1)

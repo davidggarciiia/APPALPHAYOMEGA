@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { usePathname, useRouter, type Href } from "expo-router"
+import { useCanGoBack, usePathname, useRouter, type Href } from "expo-router"
 import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import emblema from "../../assets/emblema.png"
@@ -56,6 +56,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const { estado } = useSesion()
   const ruta = usePathname()
   const router = useRouter()
+  const puedeVolver = useCanGoBack()
   const { width } = useWindowDimensions()
   if (!("usuario" in estado)) return <>{children}</>
   const { usuario } = estado
@@ -125,7 +126,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
       </View>
     ) : null
   const atras =
-    !enPrincipal && router.canGoBack() ? (
+    !enPrincipal && puedeVolver ? (
       <Pressable
         style={s.atras}
         accessibilityRole="button"

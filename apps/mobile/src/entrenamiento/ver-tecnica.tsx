@@ -79,7 +79,7 @@ export function VerTecnica({
       : null
 
   return (
-    <Modal visible animationType="slide" onRequestClose={cerrar}>
+    <Modal visible animationType="none" onRequestClose={cerrar}>
       <SafeAreaView style={estilos.pantalla}>
         <ScrollView contentContainerStyle={estilos.contenido}>
           <Pressable

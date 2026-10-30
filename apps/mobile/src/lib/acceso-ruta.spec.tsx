@@ -98,7 +98,7 @@ describe("entrar", () => {
     })
 
     it.each([false, true])(
-      "conserva ambos grupos en su origen tras 5 s y al repetir (movimiento reducido: %s)",
+      "conserva ambos grupos sin desplazamiento tras 5 s y al repetir (movimiento reducido: %s)",
       async (reducido) => {
         jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(reducido)
         const entrar = jest.fn()
@@ -107,6 +107,10 @@ describe("entrar", () => {
           sesionCaducada: false,
         } as unknown as ReturnType<typeof useSesion>)
         await render(<Login />)
+        const iniciales = [
+          screen.getByRole("header").parent,
+          screen.getByLabelText("Correo").parent,
+        ]
 
         for (let intento = 0; intento < 2; intento++) {
           await act(async () => {
@@ -116,15 +120,16 @@ describe("entrar", () => {
           expect(screen.getByText("Escribe tu contraseña")).toHaveProp("accessibilityRole", "alert")
           await act(() => jest.advanceTimersByTime(5000))
 
+          expect(screen.getByRole("header")).toBeOnTheScreen()
+          expect(screen.getByLabelText("Correo")).toBeOnTheScreen()
+          expect(screen.getByLabelText("Contraseña")).toBeOnTheScreen()
           const grupos = [screen.getByRole("header").parent, screen.getByLabelText("Correo").parent]
-          for (const grupo of grupos) {
-            const { transform } = StyleSheet.flatten(grupo?.props.style) as {
-              transform: [{ translateX: number }, { translateY: number }]
-            }
-            expect(transform).toHaveLength(2)
-            expect(transform[0].translateX).toBeCloseTo(0, 6)
-            expect(transform[1].translateY).toBeCloseTo(0, 6)
-          }
+          grupos.forEach((grupo, indice) => {
+            expect(grupo).toBe(iniciales[indice])
+            expect(StyleSheet.flatten(grupo?.props.style)?.transform).toBeUndefined()
+            for (const propiedad of ["entering", "exiting", "layout"])
+              expect(grupo?.props[propiedad]).toBeUndefined()
+          })
         }
         expect(entrar).not.toHaveBeenCalled()
       },

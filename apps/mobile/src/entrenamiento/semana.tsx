@@ -1,5 +1,5 @@
 import { AgendaSemanal } from "./agenda-semanal"
-import type { DetalleDeHoy } from "./hoy-toca"
+import type { SesionCalendario } from "./calendario-hoy"
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { AppState, View } from "react-native"
@@ -17,7 +17,6 @@ import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePermiso, ErrorDeSesion, ErrorDeRed } from "../lib/http"
 import { Aviso } from "../componentes/aviso"
-import { CambioDeContenido } from "../componentes/entrada-marca"
 
 async function empezadasLocales(
   clienteId: string,
@@ -56,7 +55,6 @@ export function SemanaEntrenamiento({
   copiaLocal = false,
   resumenHoy = false,
   detectarEmpezadas = false,
-  detalle,
   deportes,
 }: {
   clienteId: string
@@ -65,7 +63,6 @@ export function SemanaEntrenamiento({
   copiaLocal?: boolean
   resumenHoy?: boolean
   detectarEmpezadas?: boolean
-  detalle?: DetalleDeHoy
   deportes?: DeporteDelPlan[]
 }): React.JSX.Element {
   const [semana, setSemana] = useState(lunesDeSemana)
@@ -262,6 +259,41 @@ export function SemanaEntrenamiento({
     setCargado({ clave, datos })
     await guardarCopia(datos)
   }
+  const cargarMes = useCallback(
+    async (mes: string): Promise<SesionCalendario[]> => {
+      const inicio = `${mes}-01`
+      const siguiente = new Date(`${inicio}T00:00:00Z`)
+      siguiente.setUTCMonth(siguiente.getUTCMonth() + 1)
+      const fin = siguiente.toISOString().slice(0, 10)
+      const semanas: string[] = []
+      for (let lunes = lunesDeSemana(inicio); lunes < fin; lunes = sumarDias(lunes, 7))
+        semanas.push(lunes)
+      const respuestas = await Promise.all(semanas.map((lunes) => api.semana(clienteId, lunes)))
+      const sesiones = [
+        ...new Map(
+          respuestas
+            .flatMap((datos) => conservarRevisiones(datos).sesiones)
+            .map((sesion) => [sesion.agenda.id, sesion]),
+        ).values(),
+      ].filter((s) => s.agenda.fechaActual >= inicio && s.agenda.fechaActual < fin)
+      const locales = copiaLocal ? await empezadasLocales(clienteId, sesiones) : {}
+      const pendientes = sesiones.filter((s) => !s.enviadoEn && !locales[s.agenda.id])
+      const detalles = await Promise.all(pendientes.map((s) => api.leerCliente(s.agenda.id)))
+      const remotas = Object.fromEntries(
+        detalles.flatMap((detalle, n) => {
+          const registro = detalle.borrador?.registro
+          return registro?.inicio || registro?.checkin || registro?.series.some((s) => s.hecha)
+            ? [[pendientes[n]!.agenda.id, registro.inicio ?? detalle.borrador!.actualizadoEn]]
+            : []
+        }),
+      )
+      return sesiones.map((s) => ({
+        ...s,
+        empezadaEn: locales[s.agenda.id] ?? remotas[s.agenda.id],
+      }))
+    },
+    [api, clienteId, conservarRevisiones, copiaLocal],
+  )
   return (
     <View style={{ gap: 14 }}>
       {error !== "" && (
@@ -279,22 +311,20 @@ export function SemanaEntrenamiento({
           )}
         </>
       )}
-      <CambioDeContenido clave={semana}>
-        <AgendaSemanal
-          key={semana}
-          semana={semana}
-          listado={listado}
-          cargando={listado === null && error === ""}
-          abrir={abrir}
-          resumenHoy={resumenHoy}
-          detalle={detalle}
-          deportes={deportes}
-          empezadas={empezadas}
-          api={api}
-          actualizado={actualizar}
-          cambiarSemana={(dias) => setSemana((actual) => sumarDias(actual, dias))}
-        />
-      </CambioDeContenido>
+      <AgendaSemanal
+        key={semana}
+        semana={semana}
+        listado={listado}
+        cargando={listado === null && error === ""}
+        abrir={abrir}
+        resumenHoy={resumenHoy}
+        cargarMes={cargarMes}
+        deportes={deportes}
+        empezadas={empezadas}
+        api={api}
+        actualizado={actualizar}
+        cambiarSemana={(dias) => setSemana((actual) => sumarDias(actual, dias))}
+      />
     </View>
   )
 }

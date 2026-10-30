@@ -26,7 +26,6 @@ import { Guia } from "./guia"
 import { Pestanas } from "./piezas"
 import { RutinaDeLaSemana, type DiaDelPlan } from "./rutina"
 import { EsqueletoEntrenamiento } from "../esqueleto-entrenamiento"
-import { EntradaMarca, CambioDeContenido } from "../../componentes/entrada-marca"
 
 type Pestana = "rutina" | "bloque" | "guia"
 const PESTANAS = [
@@ -159,15 +158,15 @@ export function PlanCliente({
           )}
         </View>
       )}
-      <CambioDeContenido clave={semana}>
+      <View>
         {pestana === "guia" ? (
-          <EntradaMarca>
+          <View>
             <Guia />
-          </EntradaMarca>
+          </View>
         ) : datos === null ? (
           error === "" && <EsqueletoEntrenamiento />
         ) : pestana === "rutina" ? (
-          <EntradaMarca>
+          <View>
             <RutinaDeLaSemana
               dias={dias}
               elegido={elegido ?? porDefecto?.resumen.agenda.id ?? null}
@@ -176,13 +175,13 @@ export function PlanCliente({
               verTecnica={setTecnica}
               abrir={abrirSesion}
             />
-          </EntradaMarca>
+          </View>
         ) : (
-          <EntradaMarca>
+          <View>
             <BloqueDelPlan plan={datos.plan} lunes={semana} dias={dias} hoy={hoy} />
-          </EntradaMarca>
+          </View>
         )}
-      </CambioDeContenido>
+      </View>
       {pestana !== "guia" && (
         <View style={s.semanas}>
           <Enlace texto="‹ Semana anterior" onPress={() => cambiarSemana(-7)} />

@@ -12,7 +12,6 @@ import {
   Campo,
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
-import { EntradaMarca } from "../src/componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../src/componentes/esqueleto"
 import { Icono } from "../src/componentes/iconos"
 import { TarjetaConsentimiento } from "../src/consentimiento"
@@ -159,7 +158,7 @@ export default function Perfil(): React.JSX.Element {
     <PantallaDeFormulario sinTarjeta>
       <View style={s.contenido}>
         {volver}
-        <EntradaMarca style={s.contenido}>
+        <View style={s.contenido}>
           <View style={[s.tarjeta, s.identidad]}>
             <View style={s.avatar}>
               <Text style={s.iniciales}>{iniciales}</Text>
@@ -180,8 +179,8 @@ export default function Perfil(): React.JSX.Element {
             <Text style={s.etiqueta}>CORREO</Text>
             <Text style={s.valor}>{perfil.email}</Text>
           </View>
-        </EntradaMarca>
-        <EntradaMarca indice={1} style={s.contenido}>
+        </View>
+        <View style={s.contenido}>
           <View style={s.tarjeta}>
             <View style={s.cabeceraDatos}>
               <Text accessibilityRole="header" style={s.titulo}>
@@ -256,7 +255,7 @@ export default function Perfil(): React.JSX.Element {
           )}
           {perfil.rol === "cliente" && <TarjetaConsentimiento />}
           <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
-        </EntradaMarca>
+        </View>
       </View>
     </PantallaDeFormulario>
   )

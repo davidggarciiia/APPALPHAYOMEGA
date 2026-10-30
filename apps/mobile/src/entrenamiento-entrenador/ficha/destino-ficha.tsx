@@ -5,7 +5,6 @@ import { StyleSheet, Text, View } from "react-native"
 import { FichaDeUsuarioSchema, type Molestia } from "@alpha-omega/shared"
 
 import { Aviso } from "../../componentes/aviso"
-import { EntradaMarca } from "../../componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
 import {
   AvisoDeError,
@@ -125,7 +124,7 @@ function ContenidoDestino(
           </GrupoEsqueletos>
         )
       ) : (
-        <EntradaMarca style={s.contenido}>
+        <View style={s.contenido}>
           {destino === "sesiones" && (
             <SesionesDelCliente
               resultados={datos.resultados}
@@ -204,7 +203,7 @@ function ContenidoDestino(
                 </View>
               ))
             ))}
-        </EntradaMarca>
+        </View>
       )}
       <DialogoResponder
         molestia={error === "" ? respondiendo : null}

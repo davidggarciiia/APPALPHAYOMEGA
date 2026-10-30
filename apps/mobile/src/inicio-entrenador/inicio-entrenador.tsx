@@ -5,7 +5,6 @@ import type { ListadoUsuarios } from "@alpha-omega/shared"
 
 import { Aviso } from "../componentes/aviso"
 import { BotonEnlace } from "../componentes/botones"
-import { CambioDeContenido, EntradaMarca } from "../componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { Icono } from "../componentes/iconos"
 import { Pulsable } from "../componentes/pulsable"
@@ -101,7 +100,7 @@ export function InicioEntrenador({
           alReintentar={resumen.error.reintentable ? resumen.reintentar : undefined}
         />
       )}
-      <CambioDeContenido clave={semana}>
+      <View>
         {!resumen.datos && !resumen.error ? (
           <View accessibilityLabel="Cargando resumen semanal" accessibilityState={{ busy: true }}>
             <GrupoEsqueletos>
@@ -114,7 +113,7 @@ export function InicioEntrenador({
           </View>
         ) : (
           resumen.datos && (
-            <EntradaMarca style={s.grupo}>
+            <View style={s.grupo}>
               {clientes.length === 0 && <Text style={s.tenue}>Aún no tienes clientes activos</Text>}
               {clientes.map((cliente) => (
                 <TarjetaCliente
@@ -133,10 +132,10 @@ export function InicioEntrenador({
                   abrir={abrir}
                 />
               ))}
-            </EntradaMarca>
+            </View>
           )
         )}
-      </CambioDeContenido>
+      </View>
       {!resumen.datos && resumen.error?.reintentable && estaSemana && trabajo && (
         <View style={s.grupo}>
           {trabajo.clientes

@@ -1,9 +1,9 @@
-import { describe, expect, it, jest } from "@jest/globals"
 import { fireEvent, render, screen } from "@testing-library/react-native"
-import { EjercicioSchema, SesionClienteSchema, type ResumenSesion } from "@alpha-omega/shared"
+import type { ResumenSesion } from "@alpha-omega/shared"
 
 import { fechaLegible } from "./fechas"
 import { TarjetaHoy, tamanoDelNombre } from "./hoy-toca"
+import { tema } from "../tema"
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
@@ -23,51 +23,6 @@ const agenda = {
   revision: 0,
 }
 const resumen: ResumenSesion = { agenda, nombre: "Empuje y pierna", enviadoEn: null }
-const sesion = SesionClienteSchema.parse({
-  agenda,
-  prescripcion: {
-    nombre: "Empuje y pierna",
-    duracion: "100–115 min",
-    ejercicios: [
-      {
-        id: u(3),
-        ejercicioId: u(4),
-        nombre: "Movilidad",
-        indicaciones: null,
-        seccion: "calentamiento",
-        series: [{ id: u(5), tipoMedicion: "tiempo", pesoKg: null, segundos: 60 }],
-      },
-      {
-        id: u(6),
-        ejercicioId: u(7),
-        nombre: "Sentadilla trasera con barra",
-        indicaciones: null,
-        series: [{ id: u(8), tipoMedicion: "repeticiones", pesoKg: 80, repeticiones: 6 }],
-      },
-    ],
-  },
-  revisionPrescripcion: 0,
-  permiteAjuste: false,
-  enviadoEn: null,
-  borrador: null,
-})
-const sentadilla = EjercicioSchema.parse({
-  id: u(7),
-  nombre: "Sentadilla trasera con barra",
-  grupoPrincipal: "cuadriceps",
-  gruposSecundarios: [],
-  instrucciones: "Baja controlando.",
-  estado: "publicado",
-  figura: {
-    medioId: "vital-0054",
-    version: "1",
-    origen: "licenciado",
-    licencia: "Vital",
-    sinConexion: true,
-  },
-  video: null,
-})
-
 describe("Hoy toca", () => {
   it("ajusta el tamaño del nombre a su largo", () => {
     expect(tamanoDelNombre("Empuje")).toBe(52)
@@ -75,31 +30,17 @@ describe("Hoy toca", () => {
     expect(tamanoDelNombre("Torso completo y core final")).toBe(26)
   })
 
-  it("enseña solo la sesión y su duración, sin consultar ni mostrar medios de ejercicios", async () => {
-    const leerEjercicio = jest.fn(async (_id: string) => sentadilla)
+  it("destaca el nombre, con una etiqueta discreta y sin duración estimada ni medios", async () => {
     const abrir = jest.fn()
-    const detalle = {
-      leerSesion: async () => sesion,
-      leerEjercicio,
-      acceso: { base: "http://api", token: "t", renovar: async () => undefined },
-    }
-    await render(
-      <TarjetaHoy
-        sesion={resumen}
-        sinSesion="Descanso"
-        hoy={HOY}
-        abrir={abrir}
-        detalle={detalle}
-      />,
-    )
+    await render(<TarjetaHoy sesion={resumen} sinSesion="Descanso" hoy={HOY} abrir={abrir} />)
 
-    expect(await screen.findByText(`100–115 min · ${fechaLegible(HOY)}`)).toBeTruthy()
-    expect(leerEjercicio).not.toHaveBeenCalled()
+    expect(screen.getByText(fechaLegible(HOY))).toBeOnTheScreen()
+    expect(screen.queryByText(/100–115 min/)).toBeNull()
     expect(screen.queryAllByRole("image")).toHaveLength(0)
     expect(screen.container.queryAll((nodo) => nodo.type === "Image")).toHaveLength(0)
-    expect(screen.queryByText(sentadilla.nombre)).toBeNull()
     expect(screen.getByText(resumen.nombre)).toBeTruthy()
     expect(screen.getByRole("header", { name: "Hoy toca:" })).toBeTruthy()
+    expect(screen.getByText("Hoy toca:")).toHaveStyle({ fontSize: 11, color: tema.textoTenue })
     await fireEvent.press(screen.getByRole("button", { name: "Empezar Empuje y pierna" }))
     expect(abrir).toHaveBeenCalledWith(agenda.id)
   })

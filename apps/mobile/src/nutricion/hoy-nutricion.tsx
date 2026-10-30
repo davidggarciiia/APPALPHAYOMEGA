@@ -9,7 +9,6 @@ import type {
 import { tieneAlgunNumero } from "@alpha-omega/shared"
 
 import { Icono } from "../componentes/iconos"
-import { EntradaMarca } from "../componentes/entrada-marca"
 import { BotonSecundario } from "../componentes/botones"
 import { radio, tema, tipo as tipografia } from "../tema"
 import { Objetivo } from "./dia-dieta"
@@ -63,14 +62,14 @@ export function HoyNutricion({
 
   return (
     <View style={s.contenido}>
-      <EntradaMarca indice={0}>
+      <View>
         {tipo?.objetivo && tieneAlgunNumero(tipo.objetivo) && (
           <View style={s.objetivo}>
             <Objetivo macros={tipo.objetivo} margenKcal={tipo.margenKcal} />
           </View>
         )}
-      </EntradaMarca>
-      <EntradaMarca indice={1} style={s.contenido}>
+      </View>
+      <View style={s.contenido}>
         {comidas.length > 0 && (
           <View style={s.grupo}>
             <View style={s.cabecera}>
@@ -192,7 +191,7 @@ export function HoyNutricion({
               ? "Dieta de tu nutricionista"
               : "Dieta de tu entrenador"}
         </Text>
-      </EntradaMarca>
+      </View>
     </View>
   )
 }

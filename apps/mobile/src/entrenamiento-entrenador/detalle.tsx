@@ -11,14 +11,12 @@ import {
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import Animated from "react-native-reanimated"
 import type { SesionEntrenador, ResultadoEntrenamiento } from "@alpha-omega/shared"
 
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { AvisoDeError, BotonEnlace } from "../componentes/formulario"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { Icono } from "../componentes/iconos"
-import { caida, useMovimientoReducido } from "../componentes/movimiento"
 import { espacio, tema, tipo } from "../tema"
 import { faltaDe } from "../lib/errores"
 import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
@@ -56,7 +54,6 @@ function RevisionSesion({
     setError(faltaDe(causa, "No se pudo actualizar el entrenamiento.").texto)
   }, [])
   const router = useRouter()
-  const reducido = useMovimientoReducido()
   const completada = Boolean(sesion?.enviadoEn && resultado && !error)
   useFocusEffect(
     useCallback(() => {
@@ -175,7 +172,7 @@ function RevisionSesion({
             </View>
           )}
           {sesion ? (
-            <Animated.View entering={caida(0, reducido)} style={s.sesion}>
+            <View style={s.sesion}>
               <View style={s.cabecera}>
                 <Text style={s.titulo} accessibilityRole="header">
                   {sesion.prescripcion.nombre}
@@ -205,7 +202,7 @@ function RevisionSesion({
                   }
                 />
               )}
-            </Animated.View>
+            </View>
           ) : (
             !error && <EsqueletoRevision />
           )}

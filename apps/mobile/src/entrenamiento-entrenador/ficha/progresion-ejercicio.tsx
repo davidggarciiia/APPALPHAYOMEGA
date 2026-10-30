@@ -9,7 +9,6 @@ import {
   type ProgresionFuerza,
 } from "@alpha-omega/shared"
 import { AvisoDeError, BotonSecundario } from "../../componentes/formulario"
-import { EntradaMarca } from "../../componentes/entrada-marca"
 import { Esqueleto, GrupoEsqueletos } from "../../componentes/esqueleto"
 import { Pulsable } from "../../componentes/pulsable"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
@@ -136,7 +135,7 @@ function ProgresionActual({
           </View>
         )
       ) : (
-        <EntradaMarca style={s.contenido}>
+        <View style={s.contenido}>
           <Text style={s.titulo} accessibilityRole="header">
             {(fuerza?.nombre ?? ejercicio?.nombre ?? "Ejercicio").toLocaleUpperCase("es")}
           </Text>
@@ -234,7 +233,7 @@ function ProgresionActual({
               <Text style={s.tenue}>Aún sin sesiones de este ejercicio.</Text>
             )}
           </View>
-        </EntradaMarca>
+        </View>
       )}
     </View>
   )
