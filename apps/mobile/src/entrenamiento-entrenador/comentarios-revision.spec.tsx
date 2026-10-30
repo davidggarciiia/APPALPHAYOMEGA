@@ -28,6 +28,7 @@ it("separa el borrador y la operación de dos sesiones durante un reintento inci
         comentarios={[]}
         api={api}
         publicado={publicado}
+        sinAcceso={jest.fn()}
         nuevoId={() => "operacion-A"}
       />
       <ComentariosRevision
@@ -36,6 +37,7 @@ it("separa el borrador y la operación de dos sesiones durante un reintento inci
         comentarios={[]}
         api={api}
         publicado={publicado}
+        sinAcceso={jest.fn()}
         nuevoId={() => "operacion-B"}
       />
     </View>,

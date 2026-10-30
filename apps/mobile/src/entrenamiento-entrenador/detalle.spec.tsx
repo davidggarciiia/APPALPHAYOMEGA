@@ -178,6 +178,43 @@ function comentario(texto: string, ejercicioPrescritoId: string | null = null): 
   }
 }
 
+it.each([
+  [new ErrorDePermiso(), false],
+  [new ErrorDeSesion(), false],
+  [new ErrorDePermiso(), true],
+  [new ErrorDeSesion(), true],
+])(
+  "retira los datos de salud si comentar pierde el acceso (%s, ejercicio: %s)",
+  async (causa, ejercicio) => {
+    const api = crearApi({
+      leerEntrenador: async () => sesion,
+      resultado: async () => resultadoBase,
+      comentar: async () => {
+        throw causa
+      },
+    })
+    await render(<DetalleEntrenador id={sesion.agenda.id} api={api} nombreCliente="David" />)
+    if (ejercicio)
+      await fireEvent.press(await screen.findByRole("button", { name: "Comentar Plancha" }))
+    await fireEvent.changeText(
+      await screen.findByLabelText(
+        ejercicio ? "Comentario sobre Plancha" : "Comentario para David",
+      ),
+      "Baja el ritmo",
+    )
+    await fireEvent.press(
+      screen.getByRole("button", {
+        name: ejercicio ? "Enviar comentario sobre Plancha" : "Enviar comentario general",
+      }),
+    )
+    expect(screen.queryByText("Plancha")).toBeNull()
+    expect(screen.queryByLabelText("Comentario para David")).toBeNull()
+    expect(screen.getByRole("alert")).toHaveTextContent(/No tienes permiso|Tu sesión ha caducado/)
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
+    expect(screen.getByText("Plancha")).toBeOnTheScreen()
+  },
+)
+
 it("envía comentarios con efectos de StrictMode sin ofrecer revisión", async () => {
   const revisar = jest.fn(async () => ({ ...sesion, revisadaEn: sesion.enviadoEn }))
   const api = crearApi({

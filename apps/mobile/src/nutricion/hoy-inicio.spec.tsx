@@ -285,6 +285,36 @@ it("acepta la recarga del día mientras guarda una medida de cintura independien
   await act(async () => terminarMedida())
 })
 
+it("una recarga lenta de medidas no sustituye la cintura que acaba de guardar", async () => {
+  const { nutricion, seguimiento } = apis(null)
+  seguimiento.configuracion.mockResolvedValue({
+    ...CONFIGURACION_SEGUIMIENTO_INICIAL,
+    indicadores: ["cintura"],
+    registrosSolicitados: [{ indicador: "cintura", frecuencia: "diaria", diaSemana: null }],
+  })
+  let terminarLectura!: () => void
+  seguimiento.medidas
+    .mockResolvedValueOnce({ medidas: [], fechaNacimiento: null })
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          terminarLectura = () => resolve({ medidas: [], fechaNacimiento: null })
+        }),
+    )
+  const propiedades = { clienteId: CLIENTE, nutricion, seguimiento, objetivoPasos: null }
+  const vista = await render(<HoyInicio {...propiedades} />)
+  await screen.findByRole("button", { name: "Cintura: sin apuntar. Cambiar" })
+  await vista.rerender(<HoyInicio {...propiedades} seguimiento={{ ...seguimiento }} />)
+  expect(seguimiento.medidas).toHaveBeenCalledTimes(2)
+  await fireEvent.press(screen.getByRole("button", { name: "Cintura: sin apuntar. Cambiar" }))
+  await fireEvent.changeText(screen.getByLabelText("Cintura (cm)"), "92,5")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+  expect(screen.getByRole("button", { name: "Cintura: 92,5 cm. Cambiar" })).toBeOnTheScreen()
+
+  await act(async () => terminarLectura())
+  expect(screen.getByRole("button", { name: "Cintura: 92,5 cm. Cambiar" })).toBeOnTheScreen()
+})
+
 it("respeta la creatina guardada en el campo antiguo al volver a Inicio", async () => {
   const { nutricion, seguimiento } = apis(dieta([{ nombre: "Creatina", dosis: null }]), {
     fecha: hoyAgenda(),

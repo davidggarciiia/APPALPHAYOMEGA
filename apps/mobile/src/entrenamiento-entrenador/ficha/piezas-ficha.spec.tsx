@@ -68,10 +68,69 @@ it("marca solo fases con ajustes y nombra las semanas completas para lectores", 
     "semana 3 es de intensificación",
   )
   expect(screen.getByText("S1")).toBeOnTheScreen()
-  expect(screen.getByText("S3 intensif.")).toBeOnTheScreen()
-  expect(screen.getByText("S4 descarga")).toBeOnTheScreen()
+  expect(screen.getByText("S3 · Intensificación")).toBeOnTheScreen()
+  expect(screen.getByText("S4 · Descarga")).toBeOnTheScreen()
   expect(screen.getByTestId("bloque-semana-1")).not.toHaveStyle({ borderStyle: "dashed" })
   expect(screen.getByTestId("bloque-semana-3")).toHaveStyle({ borderStyle: "dashed" })
+})
+
+it("muestra la numeración real de las fases y el ajuste sin repetir semana ni puntos", async () => {
+  const fases = [
+    { desde: 1, hasta: 1, nombre: "Semana 5 · Doble progresión", detalle: null },
+    {
+      desde: 2,
+      hasta: 2,
+      nombre: "Semana 6 · Estímulo",
+      detalle: null,
+      ajustes: { factorCarga: 1.05 },
+    },
+    {
+      desde: 3,
+      hasta: 3,
+      nombre: "Semana 7 · Descarga",
+      detalle: null,
+      ajustes: { factorCarga: 0.8 },
+    },
+    { desde: 4, hasta: 4, nombre: "Semana 8 · Vuelta", detalle: null },
+  ]
+  await render(
+    <BarraDeBloque plan={{ ...plan, bloque: { ...plan.bloque!, fases } }} lunes="2026-11-02" />,
+  )
+  for (const etiqueta of ["S5", "S6 · Estímulo", "S7 · Descarga", "S8"]) {
+    expect(screen.getByText(etiqueta)).toBeOnTheScreen()
+  }
+  expect(screen.getByTestId("bloque-semana-2")).toHaveStyle({ borderStyle: "dashed" })
+  expect(screen.getByTestId("bloque-semana-3")).toHaveStyle({ borderStyle: "dashed" })
+  expect(screen.getByTestId("bloque-semana-4")).not.toHaveStyle({ borderStyle: "dashed" })
+  expect(screen.getByRole("image").props.accessibilityLabel).toContain("semana 6 es de estímulo")
+  expect(screen.getByRole("image")).toHaveAccessibilityValue({ now: 2, min: 1, max: 4 })
+})
+
+it("conserva la marca del ajuste cuando la fase solo nombra la semana", async () => {
+  await render(
+    <BarraDeBloque
+      plan={{
+        ...plan,
+        bloque: {
+          ...plan.bloque!,
+          fases: [
+            {
+              desde: 1,
+              hasta: 4,
+              nombre: "Semana 5",
+              detalle: null,
+              ajustes: { factorCarga: 0.9 },
+            },
+          ],
+        },
+      }}
+      lunes="2026-10-26"
+    />,
+  )
+  expect(screen.getByText("S5 · Ajuste")).toBeOnTheScreen()
+  expect(screen.getByText("S6 · Ajuste")).toBeOnTheScreen()
+  expect(screen.getByTestId("bloque-semana-1")).toHaveStyle({ borderStyle: "dashed" })
+  expect(screen.getByRole("image").props.accessibilityLabel).toContain("semana 5 es de ajuste")
 })
 
 it("no anima la barra con movimiento reducido ni reinicia el relleno en un refresco", async () => {

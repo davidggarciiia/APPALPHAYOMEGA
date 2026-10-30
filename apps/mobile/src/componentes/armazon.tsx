@@ -88,7 +88,9 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const cabeceraPropia =
     principal === "perfil" ||
     (esEntrenador &&
-      (/^\/entrenador\/cliente\/[^/]+(?:\/plan|\/ejercicio\/[^/]+)?$/.test(ruta) ||
+      (/^\/entrenador\/cliente\/[^/]+(?:\/(?:plan|sesiones|progreso|valoraciones|molestias)|\/ejercicio\/[^/]+)?$/.test(
+        ruta,
+      ) ||
         /^\/entrenamiento\/[^/]+$/.test(ruta)))
   const cabeceraDeMarca =
     enPrincipal &&

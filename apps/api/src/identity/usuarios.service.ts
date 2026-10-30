@@ -104,38 +104,45 @@ export class UsuariosService {
    * pregunta por un cliente que no aparece.
    */
   async listar(quienPregunta: string, filtros: FiltrosDeListado): Promise<ListadoUsuarios> {
-    const terminos = filtros.buscar?.split(/\s+/).filter(Boolean) ?? []
+    const terminos = normalizarBusqueda(filtros.buscar ?? "")
+      .split(/\s+/)
+      .filter(Boolean)
     const donde: Prisma.UsuarioWhereInput = {
       id: { not: quienPregunta },
       ...(filtros.rol !== undefined && { rol: filtros.rol }),
       ...(filtros.estado !== undefined && { estado: filtros.estado }),
-      ...(terminos.length > 0 && {
-        // Nombre y apellidos pueden estar en campos distintos de la misma persona.
-        AND: terminos.map((termino) => ({
-          OR: [
-            { nombre: { contains: termino, mode: "insensitive" } },
-            { apellidos: { contains: termino, mode: "insensitive" } },
-            { email: { contains: termino, mode: "insensitive" } },
-          ],
-        })),
-      }),
+    }
+    const consulta = {
+      where: donde,
+      orderBy: [{ nombre: "asc" }, { apellidos: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        nombre: true,
+        apellidos: true,
+        email: true,
+        rol: true,
+        estado: true,
+      },
+    } satisfies Prisma.UsuarioFindManyArgs
+
+    if (terminos.length > 0) {
+      // La cartera es pequeña: normalizar sus campos públicos evita depender de unaccent.
+      // Filtrar antes de paginar conserva el total y permite buscar nombre y apellidos juntos.
+      const cartera = await this.prisma.usuario.findMany(consulta)
+      const coincidencias = cartera.filter((usuario) => {
+        const campos = [usuario.nombre, usuario.apellidos ?? "", usuario.email].map(
+          normalizarBusqueda,
+        )
+        return terminos.every((termino) => campos.some((campo) => campo.includes(termino)))
+      })
+      return {
+        usuarios: coincidencias.slice(filtros.desde, filtros.desde + filtros.limite),
+        total: coincidencias.length,
+      }
     }
 
     const [usuarios, total] = await Promise.all([
-      this.prisma.usuario.findMany({
-        where: donde,
-        orderBy: [{ nombre: "asc" }, { apellidos: "asc" }, { id: "asc" }],
-        skip: filtros.desde,
-        take: filtros.limite,
-        select: {
-          id: true,
-          nombre: true,
-          apellidos: true,
-          email: true,
-          rol: true,
-          estado: true,
-        },
-      }),
+      this.prisma.usuario.findMany({ ...consulta, skip: filtros.desde, take: filtros.limite }),
       this.prisma.usuario.count({ where: donde }),
     ])
 
@@ -375,6 +382,13 @@ export class UsuariosService {
 
     return usuario
   }
+}
+
+function normalizarBusqueda(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
 }
 
 type UsuarioCompleto = {

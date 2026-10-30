@@ -6,7 +6,7 @@ import type { ComentarioSesion, ComentarSesion } from "@alpha-omega/shared"
 import { AvisoDeError, BotonEnlace } from "../componentes/formulario"
 import type { ApiEntrenamiento } from "../entrenamiento/api"
 import { faltaDe } from "../lib/errores"
-import { ErrorDePermiso, ErrorDelServidor } from "../lib/http"
+import { ErrorDePermiso, ErrorDeSesion, ErrorDelServidor } from "../lib/http"
 import { espacio, radio, tema, tipo } from "../tema"
 
 function fecha(iso: string): string {
@@ -28,6 +28,7 @@ export function ComentariosRevision({
   abierto = true,
   api,
   publicado,
+  sinAcceso,
   nuevoId = randomUUID,
 }: {
   sesionId: string
@@ -37,6 +38,7 @@ export function ComentariosRevision({
   abierto?: boolean
   api: ApiEntrenamiento
   publicado: (comentario: ComentarioSesion) => void
+  sinAcceso: (causa: unknown) => void
   nuevoId?: () => string
 }): React.JSX.Element {
   const [texto, setTexto] = useState("")
@@ -73,10 +75,12 @@ export function ComentariosRevision({
       setTexto("")
       setIncierto(false)
     } catch (e) {
-      if (
-        e instanceof ErrorDePermiso ||
-        (e instanceof ErrorDelServidor && e.codigo >= 400 && e.codigo < 500 && e.codigo !== 401)
-      )
+      if (e instanceof ErrorDePermiso || e instanceof ErrorDeSesion) {
+        solicitud.current = null
+        if (vigente.current) sinAcceso(e)
+        return
+      }
+      if (e instanceof ErrorDelServidor && e.codigo >= 400 && e.codigo < 500 && e.codigo !== 401)
         solicitud.current = null
       if (vigente.current) {
         setIncierto(solicitud.current !== null)

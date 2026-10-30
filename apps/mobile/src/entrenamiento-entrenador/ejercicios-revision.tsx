@@ -129,6 +129,7 @@ export function EjerciciosRevision({
       abierto={!ejercicioId || abiertos.has(ejercicioId)}
       api={api}
       publicado={publicado}
+      sinAcceso={sinAcceso}
       nuevoId={nuevoId}
     />
   )

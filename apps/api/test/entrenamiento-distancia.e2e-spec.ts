@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import request from "supertest"
 import {
+  estimar1RM,
   PlanAsignadoSchema,
   ResultadoEntrenamientoSchema,
   RutinaGuardadaSchema,
@@ -13,7 +14,7 @@ import {
   type ValoresEjecutadosDistancia,
 } from "@alpha-omega/shared"
 import { valoresHechos } from "../src/entrenamiento/registros.service.js"
-import { fuerzaEstimada, mejorSerie } from "../src/entrenamiento/sesiones.service.js"
+import { mejorSerie } from "../src/entrenamiento/sesiones.service.js"
 import { entornoEntrenamiento } from "./entrenamiento-ayuda.js"
 
 // D01 · Distancia en metros. Datos sintéticos: ningún dato real de clientes.
@@ -102,16 +103,12 @@ describe("Lo hecho y las métricas en metros (D01.f)", () => {
   })
 
   it("la fuerza estimada sale solo de repeticiones con carga: ni metros ni segundos", () => {
-    expect(fuerzaEstimada(repeticiones(20, 10))).toEqual({
-      pesoKg: 20,
-      repeticiones: 10,
-      estimado: 26.7,
-    })
-    expect(fuerzaEstimada(metros(32, 20))).toBeNull()
-    expect(fuerzaEstimada(metros(null, 30))).toBeNull()
-    expect(fuerzaEstimada(segundos(10, 30))).toBeNull()
-    expect(fuerzaEstimada(repeticiones(null, 10))).toBeNull()
-    expect(fuerzaEstimada(undefined)).toBeNull()
+    expect(estimar1RM(repeticiones(20, 10))).toBe(26.7)
+    expect(estimar1RM(metros(32, 20))).toBeNull()
+    expect(estimar1RM(metros(null, 30))).toBeNull()
+    expect(estimar1RM(segundos(10, 30))).toBeNull()
+    expect(estimar1RM(repeticiones(null, 10))).toBeNull()
+    expect(estimar1RM(undefined)).toBeNull()
   })
 })
 

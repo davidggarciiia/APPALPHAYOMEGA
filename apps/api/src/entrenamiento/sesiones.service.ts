@@ -56,16 +56,6 @@ export function mejorSerie<T extends ValoresEnUnidad>(a: T, b: T): T {
   return cantidad(b) > cantidad(a) ? b : a
 }
 
-/** Epley con repeticiones y carga. Tiempo y distancia no estiman fuerza. */
-export function fuerzaEstimada(
-  valores: ValoresEnUnidad | undefined,
-): { pesoKg: number; repeticiones: number; estimado: number } | null {
-  if (valores?.tipoMedicion !== "repeticiones") return null
-  const estimado = estimar1RM(valores)
-  if (estimado === null || valores.pesoKg === null) return null
-  return { pesoKg: valores.pesoKg, repeticiones: valores.repeticiones, estimado }
-}
-
 @Injectable()
 export class SesionesService {
   constructor(private readonly prisma: PrismaService) {}

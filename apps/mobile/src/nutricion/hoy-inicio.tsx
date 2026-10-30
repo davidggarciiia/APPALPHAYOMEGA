@@ -146,6 +146,7 @@ export function HoyInicio({
   const [ocupado, setOcupado] = useState(false)
   const guardando = useRef(false)
   const versionDia = useRef(0)
+  const versionCintura = useRef(0)
   const hoy = hoyAgenda()
   const diaSemana = new Date(`${hoy}T00:00:00Z`).getUTCDay() || 7
 
@@ -165,13 +166,16 @@ export function HoyInicio({
             setCintura(undefined)
             return
           }
+          const lecturaCintura = versionCintura.current
           seguimiento
             .medidas(clienteId)
             .then(({ medidas }) => {
-              if (vigente) setCintura(cinturaDeHoy(medidas, hoy))
+              if (vigente && lecturaCintura === versionCintura.current)
+                setCintura(cinturaDeHoy(medidas, hoy))
             })
             .catch(() => {
-              if (vigente) setError("No se pudo cargar la cintura de hoy. Revisa la conexión.")
+              if (vigente && lecturaCintura === versionCintura.current)
+                setError("No se pudo cargar la cintura de hoy. Revisa la conexión.")
             })
         })
         .catch(() => {
@@ -245,16 +249,21 @@ export function HoyInicio({
     guardarCon(async () => {
       if (operacionCintura.current?.cm !== cinturaCm)
         operacionCintura.current = { id: randomUUID(), cm: cinturaCm }
-      const medida = await seguimiento.registrarMedida(clienteId, {
-        operacionId: operacionCintura.current.id,
-        fecha: hoy,
-        pesoKg: null,
-        cinturaCm,
-        grasaPct: null,
-        alturaCm: null,
-      })
-      operacionCintura.current = null
-      setCintura(medida.cinturaCm)
+      versionCintura.current += 1
+      try {
+        const medida = await seguimiento.registrarMedida(clienteId, {
+          operacionId: operacionCintura.current.id,
+          fecha: hoy,
+          pesoKg: null,
+          cinturaCm,
+          grasaPct: null,
+          alturaCm: null,
+        })
+        operacionCintura.current = null
+        setCintura(medida.cinturaCm)
+      } finally {
+        versionCintura.current += 1
+      }
     })
   const abrir = (dato: Dato): void => {
     setTexto(textoInicial(dato, dato === "cinturaCm" ? (cintura ?? null) : (dia?.[dato] ?? null)))

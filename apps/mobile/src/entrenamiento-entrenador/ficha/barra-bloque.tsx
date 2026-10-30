@@ -31,7 +31,14 @@ export function BarraDeBloque({
   const semanas = Array.from({ length: plan.semanas }, (_, i) => {
     const numero = i + 1
     const fase = faseDeSemana(plan.bloque?.fases ?? [], numero)
-    return { numero, ajuste: fase?.ajustes ? fase.nombre.toLocaleLowerCase("es") : null }
+    const semanaNombrada = fase?.nombre.match(/^semana\s+(\d+)\s*(?:[·:–—-]\s*|$)/i)
+    const semanaReal = semanaNombrada ? Number(semanaNombrada[1]) + numero - fase!.desde : numero
+    const nombre =
+      (semanaNombrada ? fase!.nombre.slice(semanaNombrada[0].length) : fase?.nombre)
+        ?.trim()
+        .replace(/\.+$/, "") || "Ajuste"
+    const ajuste = fase?.ajustes ? nombre[0]!.toLocaleUpperCase("es") + nombre.slice(1) : null
+    return { numero, semanaReal, ajuste }
   })
   useEffect(() => {
     cancelAnimation(relleno)
@@ -57,7 +64,10 @@ export function BarraDeBloque({
   const encendido = useAnimatedStyle(() => ({ opacity: pulso.value }))
   const ajustes = semanas.filter((semana) => semana.ajuste)
   const descripcion = ajustes
-    .map(({ numero, ajuste }) => `la semana ${numero} es de ${ajuste}`)
+    .map(
+      ({ semanaReal, ajuste }) =>
+        `la semana ${semanaReal} es de ${ajuste!.toLocaleLowerCase("es")}`,
+    )
     .join(" y ")
 
   return (
@@ -68,8 +78,7 @@ export function BarraDeBloque({
       accessibilityValue={{ min: 1, max: plan.semanas, now: actual }}
       style={s.barra}
     >
-      {semanas.map(({ numero, ajuste }) => {
-        const nombreCorto = ajuste && ajuste.length > 9 ? `${ajuste.slice(0, 8)}.` : ajuste
+      {semanas.map(({ numero, semanaReal, ajuste }) => {
         const mostrarEtiqueta =
           plan.semanas <= 12 && (plan.semanas <= 8 || numero === actual || ajuste)
         return (
@@ -88,7 +97,7 @@ export function BarraDeBloque({
                   numero === actual && s.etiquetaActual,
                 ]}
               >
-                {`S${numero}${nombreCorto ? ` ${nombreCorto}` : ""}`}
+                {`S${semanaReal}${ajuste ? ` · ${ajuste}` : ""}`}
               </Text>
             )}
           </View>

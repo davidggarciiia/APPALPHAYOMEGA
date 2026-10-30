@@ -148,6 +148,21 @@ describe("Listado de la cartera", () => {
     expect(respuesta.body.usuarios[0]?.nombre).toBe("Marta")
   })
 
+  it.each(["Garcia", "ANA GARCIA RUIZ", "aNa garci\u0301a"])(
+    "ignora tildes sin perder nombre completo ni total: %s",
+    async (buscar) => {
+      const consulta = new URLSearchParams({ buscar, rol: "cliente", estado: "activo" })
+      const respuesta = await listar("entrenador", `?${consulta.toString()}`).expect(200)
+      expect(respuesta.body.usuarios).toEqual([
+        expect.objectContaining({ nombre: "Ana", apellidos: "García Ruiz" }),
+      ])
+      expect(respuesta.body.total).toBe(1)
+      consulta.set("desde", "1")
+      const siguiente = await listar("entrenador", `?${consulta.toString()}`).expect(200)
+      expect(siguiente.body).toEqual({ usuarios: [], total: 1 })
+    },
+  )
+
   it.each(["Ana García Ruiz", "  aNa   gArCíA\tRuIz  ", "Ruiz Ana"])(
     "busca nombre y apellidos juntos: %s",
     async (buscar) => {
