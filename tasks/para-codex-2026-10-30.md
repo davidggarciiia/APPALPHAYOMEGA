@@ -16,17 +16,20 @@ Reparto de siempre: **Codex implementa; Claude revisa, verifica y hace los commi
 
 ### 1. Reservas R2–R6 ([plan-reservas.md](plan-reservas.md), [SPEC-reservas.md](../SPEC-reservas.md))
 
-R1 está hecho (`ac6c79b`). Seguir el plan tal cual:
+R1 está hecho (`ac6c79b`). **Decisión del dueño del 30-10, ya en la spec: RESERVA EL ENTRENADOR.** El cliente no reserva ni pide cancelar: el entrenador le asigna un hueco (que gasta su crédito o su cupo) y el cliente lo ve en su calendario con su saldo y cupo. Donde los criterios 6, 7, 9 y 11 dicen «el cliente reserva / pide cancelar», léase «el entrenador»; la pantalla del cliente es solo de consulta.
 
-- **R2 · disponibilidad** (API + e2e): huecos del entrenador, repetición semanal, cierre y huecos libres para el cliente. Criterios 5–6.
-- **R3 · reservas** (API + e2e): reservar con crédito o cupo, concurrencia (dos reservas simultáneas al último hueco: solo una gana), petición de cancelación, decisión del entrenador, asistencia y notificaciones. Criterios 7–10.
+- **R2 · disponibilidad** (API + e2e): el entrenador abre huecos (día, hora, duración, servicios), los repite semanalmente N semanas y cierra los libres. Criterio 5. No hace falta un listado de huecos libres para el cliente; el cliente solo ve sus propias reservas.
+- **R3 · reservas** (API + e2e): **el entrenador** asigna un hueco libre a un cliente con un servicio; personal gasta 1 crédito, seguimiento gasta la duración del cupo mensual; sin saldo se rechaza con motivo claro. Concurrencia: dos asignaciones simultáneas del mismo hueco → solo una gana y la otra no gasta nada. El entrenador cancela (decide si devuelve) y marca asistencia. Notificación al cliente en la campana cuando se le asigna o cancela una reserva. E2E de permisos: el cliente no puede reservar, cancelar ni ver reservas o saldos de otros. Criterios 7–10 reinterpretados.
 - **Checkpoint 1:** API y e2e en verde → avisar aquí antes de pasar al móvil, para que Claude revise el contrato.
-- **R4 · cliente**, **R5 · entrenador**, **R6 · datos de demo**: criterios 11–12 y la cuenta de demo (`build/manual-20261027/perfil-demo.mjs`, idempotente).
-- **Checkpoint 2:** vídeo a 390 px de reservar (cliente) y de la agenda (entrenador).
+- **R4 · cliente (solo consulta):** en el calendario expandido de Hoy, sus reservas junto a las sesiones del plan, y su saldo de créditos y minutos de seguimiento del mes. Sin botón «Reservar». Criterio 11 reinterpretado.
+- **R5 · entrenador:** agenda por día y semana que distingue personal y seguimiento; abrir huecos, asignar un hueco a un cliente, cancelar y marcar asistencia; desde la ficha («Datos del cliente» o fila «Bonos»), cargar bonos y activar el seguimiento. Criterio 12. Sin animaciones de entrada con desplazamiento (criterio 13 y commit J).
+- **R6 · datos de demo:** David con bono de 10 entrenos, seguimiento activo y huecos de la semana (`build/manual-20261027/perfil-demo.mjs`, idempotente).
+- **Checkpoint 2:** vídeo a 390 px de la agenda del entrenador asignando una reserva y del calendario del cliente mostrándola con el saldo.
+- Actualizar `tasks/plan-reservas.md` (R2–R4) para que diga lo mismo que esta sección.
 
 ### 2. P1/P2 pendientes de las auditorías ([informe-noche-2026-10-28.md](informe-noche-2026-10-28.md), «Pendiente»)
 
-Comprobar primero si alguno ya quedó resuelto en D7–H; marcar los resueltos con el commit.
+Comprobar primero si alguno ya quedó resuelto en D7–J (`bf15ed4` resolvió E-06/E-07, N-07 y el destello blanco de la web; `e0952a2` quitó las animaciones de entrada); marcar los resueltos con el commit.
 
 - T-04: confirmar al quitar un ejercicio, una fase o un deporte.
 - N-06: parpadeo al recargar Nutrición. N-04/N-05: copia sin conexión en nutrición.
