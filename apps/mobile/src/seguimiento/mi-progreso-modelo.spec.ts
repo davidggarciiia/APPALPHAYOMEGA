@@ -1,10 +1,14 @@
-import { CONFIGURACION_SEGUIMIENTO_INICIAL, type SerieEvolucion } from "@alpha-omega/shared"
+import {
+  CONFIGURACION_SEGUIMIENTO_INICIAL,
+  type MedioFoto,
+  type SerieEvolucion,
+} from "@alpha-omega/shared"
 
 import {
+  antesYAhora,
   diferencia,
   lineasDeEvolucion,
   lineasDeFuerza,
-  resumen,
   seccionDe,
 } from "./mi-progreso-modelo"
 
@@ -180,60 +184,47 @@ describe("lineasDeFuerza", () => {
   })
 })
 
-describe("resumen", () => {
-  it("elige peso, cintura, grasa y el ejercicio que más sube, solo si han cambiado", () => {
-    const lineas = lineasDeEvolucion(
-      [
-        serie("h:dia:pesoKg", "Peso en ayunas", "kg", [
-          ["2026-09-01", 111.6],
-          ["2026-10-20", 104.2],
-        ]),
-        serie("h:medida:cinturaCm:autorregistro", "Cintura", "cm", [["2026-10-01", 90]]),
-        serie(
-          "c:grasa:1",
-          "Grasa corporal",
-          "%",
-          [
-            ["2026-09-01", 30],
-            ["2026-10-01", 27.5],
-          ],
-          { bloque: "bioimpedancia" },
-        ),
-      ],
-      configuracion,
-    )
-    const fuerza = lineasDeFuerza([
-      {
-        ejercicioId: "a",
-        nombre: "Press banca",
-        puntos: [
-          { fecha: "2026-09-01", pesoKg: 80, repeticiones: 5, estimado: 93 },
-          { fecha: "2026-10-01", pesoKg: 95, repeticiones: 5, estimado: 111 },
-        ],
-      },
-      {
-        ejercicioId: "b",
-        nombre: "Remo",
-        puntos: [
-          { fecha: "2026-09-01", pesoKg: 60, repeticiones: 8, estimado: 76 },
-          { fecha: "2026-10-01", pesoKg: 65, repeticiones: 8, estimado: 82 },
-        ],
-      },
+describe("antesYAhora", () => {
+  const foto = (
+    n: number,
+    vista: MedioFoto["vista"],
+    fechaToma: string,
+    estado: MedioFoto["estado"] = "disponible",
+  ): MedioFoto =>
+    ({ id: `f${n}`, vista, fechaToma, estado, creadoEn: `${fechaToma}T09:00:00.000Z` }) as MedioFoto
+
+  it("elige la primera y la última de frente aunque haya otras vistas", () => {
+    const par = antesYAhora([
+      foto(1, "espalda", "2026-08-01"),
+      foto(2, "frente", "2026-10-20"),
+      foto(3, "frente", "2026-08-03"),
+      foto(4, "frente", "2026-09-10"),
+      foto(5, "espalda", "2026-10-20"),
     ])
-    expect(resumen(lineas, fuerza)).toEqual([
-      expect.objectContaining({
-        nombre: "Peso en ayunas",
-        inicio: "111,6 kg",
-        actual: "104,2 kg",
-        cambio: "−7,4 kg",
-      }),
-      expect.objectContaining({ nombre: "Grasa corporal", cambio: "−2,5 %" }),
-      expect.objectContaining({ nombre: "Press banca", cambio: "+15 kg", sentido: "favorable" }),
-    ])
+    expect([par?.antes.id, par?.ahora.id]).toEqual(["f3", "f2"])
   })
 
-  it("sin cambios que contar, el resumen queda vacío", () => {
-    expect(resumen([], [])).toEqual([])
+  it("si el frente no tiene dos fechas, usa otra vista; nunca mezcla vistas", () => {
+    const par = antesYAhora([
+      foto(1, "frente", "2026-08-01"),
+      foto(2, "espalda", "2026-08-01"),
+      foto(3, "espalda", "2026-10-01"),
+    ])
+    expect([par?.antes.id, par?.ahora.id]).toEqual(["f2", "f3"])
+    expect(
+      antesYAhora([foto(1, "frente", "2026-08-01"), foto(2, "espalda", "2026-10-01")]),
+    ).toBeNull()
+  })
+
+  it("ignora fotos no disponibles y la vista «otra»", () => {
+    expect(
+      antesYAhora([
+        foto(1, "frente", "2026-08-01"),
+        foto(2, "frente", "2026-10-01", "eliminando"),
+        foto(3, "otra", "2026-07-01"),
+        foto(4, "otra", "2026-10-01"),
+      ]),
+    ).toBeNull()
   })
 })
 

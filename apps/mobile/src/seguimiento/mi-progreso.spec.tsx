@@ -140,82 +140,115 @@ const vista = (f: ReturnType<typeof fuentes>) => (
   />
 )
 
-it("arriba resume lo que ha cambiado desde el inicio, con el sentido del objetivo", async () => {
+function foto(n: number, vista: "frente" | "espalda", fechaToma: string) {
+  return MedioFotoSchema.parse({
+    id: `40000000-0000-4000-8000-00000000000${n}`,
+    clienteId: CLIENTE,
+    autor: { id: "70000000-0000-4000-8000-000000000001", nombre: "Entrenadora" },
+    origen: "profesional",
+    vista,
+    etiqueta: null,
+    fechaToma,
+    estado: "disponible",
+    tipoMime: "image/jpeg",
+    bytes: 120_000,
+    valoracionId: null,
+    solicitudId: null,
+    creadoEn: `${fechaToma}T09:00:00.000Z`,
+    confirmadoEn: `${fechaToma}T09:01:00.000Z`,
+  })
+}
+
+it("el peso es protagonista: antes → ahora en grande y su diferencia según el objetivo", async () => {
   await render(
     vista(fuentes({ configuracion: { objetivoPeso: { direccion: "bajar", rangoKg: null } } })),
   )
-  expect(await screen.findByRole("header", { name: "Desde el inicio" })).toBeOnTheScreen()
-  expect(screen.getByLabelText("Peso en ayunas: de 111,6 kg a 104,2 kg, −7,4 kg")).toBeOnTheScreen()
-  expect(screen.getByLabelText("Grasa corporal: de 30 % a 27,5 %, −2,5 %")).toBeOnTheScreen()
-  expect(screen.getByLabelText("Press banca: de 80 kg a 95 kg, +15 kg")).toBeOnTheScreen()
+  const peso = await screen.findByRole("button", {
+    name: "Peso en ayunas: de 111,6 kg a 104,2 kg, −7,4 kg",
+  })
+  expect(within(peso).getByText("111,6")).toBeOnTheScreen()
+  expect(within(peso).getByText("104,2")).toBeOnTheScreen()
+  expect(within(peso).getByText("−7,4 kg")).toBeOnTheScreen()
 })
 
-it("una sección por tipo de dato, en orden fijo y sin pestañas", async () => {
+it("cada bloque compara antes y ahora, en orden fijo y sin pestañas", async () => {
   await render(vista(fuentes()))
   await screen.findByRole("header", { name: "Fuerza" })
-  const titulos = screen.getAllByRole("header").map((h) => h.props.children)
-  expect(titulos).toEqual([
-    "Desde el inicio",
-    "Fuerza",
+  expect(screen.getAllByRole("header").map((h) => h.props.children)).toEqual([
     "Medidas",
-    "Composición corporal",
-    "Pruebas físicas",
+    "Composición",
+    "Fuerza",
+    "Pruebas",
   ])
   expect(screen.queryByRole("tab")).toBeNull()
+  expect(
+    screen.getByRole("button", { name: "Grasa corporal: de 30 % a 27,5 %, −2,5 %" }),
+  ).toBeOnTheScreen()
+  expect(
+    screen.getByRole("button", { name: "Press banca: de 80 kg a 95 kg, +15 kg" }),
+  ).toBeOnTheScreen()
+  expect(
+    screen.getByRole("button", { name: "Salto vertical: de 30 cm a 34 cm, +4 cm" }),
+  ).toBeOnTheScreen()
 })
 
-it("tocar una fila abre su evolución con la gráfica y el historial del más reciente al más antiguo", async () => {
+it("tocar un dato abre su evolución con la gráfica y el historial del más reciente al más antiguo", async () => {
   await render(vista(fuentes()))
-  await fireEvent.press(
-    await screen.findByRole("button", { name: "Salto vertical: 34 cm, +4 cm desde el inicio" }),
-  )
-  const hoja = await screen.findByRole("header", { name: "Salto vertical" })
-  expect(hoja).toBeOnTheScreen()
+  await fireEvent.press(await screen.findByRole("button", { name: /^Salto vertical:/ }))
+  expect(await screen.findByRole("header", { name: "Salto vertical" })).toBeOnTheScreen()
   expect(screen.getByRole("image", { name: /^Salto vertical: de 30 cm/ })).toBeOnTheScreen()
   const filas = screen.getAllByText(/^\d+ cm$/).map((t) => t.props.children)
   expect(filas.slice(-2)).toEqual(["34 cm", "30 cm"])
 })
 
-it("la fuerza muestra la mejor serie y abre su progresión", async () => {
+it("un ejercicio abre su progresión serie a serie", async () => {
   await render(vista(fuentes()))
-  await fireEvent.press(
-    await screen.findByRole("button", { name: "Press banca: 95 kg × 5, +15 kg desde el inicio" }),
-  )
+  await fireEvent.press(await screen.findByRole("button", { name: /^Press banca:/ }))
   expect(await screen.findByText("80 kg × 5")).toBeOnTheScreen()
+  expect(screen.getByText("95 kg × 5")).toBeOnTheScreen()
 })
 
 it("respeta los indicadores: sin fuerza ni pruebas activadas no salen", async () => {
   await render(vista(fuentes({ configuracion: { indicadores: ["peso"] } })))
   await screen.findByRole("header", { name: "Medidas" })
   expect(screen.queryByRole("header", { name: "Fuerza" })).toBeNull()
-  expect(screen.queryByRole("header", { name: "Pruebas físicas" })).toBeNull()
-  expect(screen.queryByText("Press banca")).toBeNull()
+  expect(screen.queryByRole("header", { name: "Pruebas" })).toBeNull()
+})
+
+it("con solo el peso, Medidas conserva «Añadir» sin una tarjeta vacía", async () => {
+  await render(vista(fuentes({ series: [PESO], ejercicios: [] })))
+  expect(await screen.findByRole("button", { name: "Añadir a medidas" })).toBeOnTheScreen()
+  expect(screen.queryByText("Aún sin medidas.")).toBeNull()
 })
 
 it("sin ningún dato lo dice una vez y deja añadir medidas", async () => {
-  const f = fuentes({ series: [], ejercicios: [] })
-  await render(vista(f))
+  await render(vista(fuentes({ series: [], ejercicios: [] })))
   expect(
     await screen.findByText(
       "Tu entrenador registrará tu punto de partida en la primera valoración.",
     ),
   ).toBeOnTheScreen()
-  expect(screen.queryByRole("header", { name: "Desde el inicio" })).toBeNull()
   expect(screen.queryByText(/Aún no tienes valoraciones publicadas/)).toBeNull()
   expect(screen.queryByText("No tienes fotos pendientes de enviar.")).toBeNull()
+  expect(screen.queryByText("Sin programar")).toBeNull()
   expect(screen.getByRole("button", { name: "Añadir a medidas" })).toBeOnTheScreen()
 })
 
-it("las pruebas pautadas se pueden añadir desde su sección", async () => {
-  const f = fuentes({
-    configuracion: {
-      pruebasPrescritas: [
-        { id: "30000000-0000-4000-8000-000000000001", nombre: "Salto vertical", unidad: "cm" },
-      ],
-    },
-  })
-  await render(vista(f))
-  expect(await screen.findByRole("button", { name: "Añadir a pruebas físicas" })).toBeOnTheScreen()
+it("las pruebas pautadas se pueden añadir desde su bloque", async () => {
+  await render(
+    vista(
+      fuentes({
+        series: [],
+        configuracion: {
+          pruebasPrescritas: [
+            { id: "30000000-0000-4000-8000-000000000001", nombre: "Salto vertical", unidad: "cm" },
+          ],
+        },
+      }),
+    ),
+  )
+  expect(await screen.findByRole("button", { name: "Añadir a pruebas" })).toBeOnTheScreen()
+  expect(screen.getByText("Aún sin resultados.")).toBeOnTheScreen()
 })
 
 it("las fotos pedidas por el entrenador salen arriba solo si hay alguna", async () => {
@@ -238,31 +271,34 @@ it("las fotos pedidas por el entrenador salen arriba solo si hay alguna", async 
   ).toBeOnTheScreen()
 })
 
-it("con fotos compara antes y ahora; si fallan, lo dice sin ocultar el resto", async () => {
-  const foto = MedioFotoSchema.parse({
-    id: "40000000-0000-4000-8000-000000000001",
-    clienteId: CLIENTE,
-    autor: { id: "70000000-0000-4000-8000-000000000001", nombre: "Entrenadora" },
-    origen: "profesional",
-    vista: "frente",
-    etiqueta: null,
-    fechaToma: "2026-09-24",
-    estado: "disponible",
-    tipoMime: "image/jpeg",
-    bytes: 120_000,
-    valoracionId: null,
-    solicitudId: null,
-    creadoEn: "2026-09-24T09:00:00.000Z",
-    confirmadoEn: "2026-09-24T09:01:00.000Z",
+it("arriba, la primera y la última foto de frente; un toque abre todas para comparar", async () => {
+  const f = fuentes({
+    fotos: [
+      foto(1, "frente", "2026-10-27"),
+      foto(2, "espalda", "2026-08-01"),
+      foto(3, "frente", "2026-08-03"),
+    ],
   })
-  await render(vista(fuentes({ fotos: [foto] })))
-  expect(await screen.findByRole("header", { name: "Fotos" })).toBeOnTheScreen()
+  await render(vista(f))
+  const fotos = await screen.findByRole("button", { name: "Fotos: antes, 3 ago; ahora, 27 oct" })
+  expect(within(fotos).getByText("Antes")).toBeOnTheScreen()
+  expect(within(fotos).getByText("Ahora")).toBeOnTheScreen()
+  expect(f.medios.acceso).toHaveBeenCalledWith(foto(3, "frente", "2026-08-03").id)
+  expect(f.medios.acceso).toHaveBeenCalledWith(foto(1, "frente", "2026-10-27").id)
+  await fireEvent.press(fotos)
+  expect(await screen.findByRole("header", { name: "Tus fotos" })).toBeOnTheScreen()
+})
+
+it("sin pareja de fotos ofrece verlas; si fallan, lo dice sin ocultar el resto", async () => {
+  await render(vista(fuentes({ fotos: [foto(1, "frente", "2026-10-27")] })))
+  expect(await screen.findByRole("button", { name: "Ver tus fotos" })).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: /^Fotos: antes/ })).toBeNull()
 
   const f = fuentes()
   f.medios.fotosDeCliente.mockRejectedValueOnce(new Error("sin red"))
   await render(vista(f))
   expect(await screen.findByText("No se pudieron cargar las fotos.")).toBeOnTheScreen()
-  expect(screen.getByRole("header", { name: "Medidas" })).toBeOnTheScreen()
+  expect(screen.getByRole("header", { name: "Fuerza" })).toBeOnTheScreen()
 })
 
 it("muestra un esqueleto mientras carga y reintenta un fallo", async () => {
@@ -279,12 +315,5 @@ it("muestra un esqueleto mientras carga y reintenta un fallo", async () => {
     await screen.findByText("No se pudo cargar tu progreso. Revisa la conexión."),
   ).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
-  expect(await screen.findByRole("header", { name: "Medidas" })).toBeOnTheScreen()
-})
-
-it("ninguna fila usa tamaños de letra que cambien con el espacio", async () => {
-  await render(vista(fuentes()))
-  const fila = await screen.findByRole("button", { name: /^Peso en ayunas/ })
-  for (const texto of within(fila).getAllByText(/.+/))
-    expect(texto.props.adjustsFontSizeToFit).toBeUndefined()
+  expect(await screen.findByRole("header", { name: "Fuerza" })).toBeOnTheScreen()
 })

@@ -552,14 +552,17 @@ function comoDatos(blob: Blob): Promise<string> {
  * adelantado): la renovación se intenta cargar siempre y decide la carga.
  * Ni el enlace ni la foto se guardan en ningún almacenamiento.
  */
-function ImagenPrivada({
+export function ImagenPrivada({
   medioId,
   etiqueta,
   acceso,
+  recorte = false,
 }: {
   medioId: string
   etiqueta: string
   acceso: Api["acceso"]
+  /** Llena el marco recortando, como en «antes / ahora»; si no, la foto entera. */
+  recorte?: boolean
 }): React.JSX.Element {
   // Cada objeto nuevo es una petición; `renovacion` indica si ya es la renovación.
   const [peticion, setPeticion] = useState({ renovacion: false })
@@ -603,7 +606,7 @@ function ImagenPrivada({
       <Image
         source={carga.fuente}
         style={s.marco}
-        resizeMode="contain"
+        resizeMode={recorte ? "cover" : "contain"}
         accessible
         accessibilityRole="image"
         accessibilityLabel={etiqueta}

@@ -1,5 +1,6 @@
 import type {
   ConfiguracionSeguimiento,
+  MedioFoto,
   ProgresionFuerza,
   SerieEvolucion,
 } from "@alpha-omega/shared"
@@ -150,49 +151,26 @@ export function lineasDeFuerza(ejercicios: ProgresionFuerza["ejercicios"]): Line
     )
 }
 
-export type FilaResumen = {
-  clave: string
-  nombre: string
-  inicio: string
-  actual: string
-  cambio: string
-  sentido: Sentido
-}
+export type AntesYAhora = { antes: MedioFoto; ahora: MedioFoto }
+
+const ORDEN_VISTAS = ["frente", "perfilIzquierdo", "perfilDerecho", "espalda"] as const
 
 /**
- * «Desde el inicio»: lo que más dice de un vistazo. Peso, cintura y grasa si
- * han cambiado, y el ejercicio que más ha subido. Nada con un solo dato.
+ * La primera y la última foto de una misma vista, en fechas distintas: de
+ * frente si se puede. Nunca compara vistas distintas ni la vista «otra».
  */
-export function resumen(lineas: readonly Linea[], fuerza: readonly LineaFuerza[]): FilaResumen[] {
-  const filas: FilaResumen[] = []
-  const elegir = (seccion: Seccion, prueba: (nombre: string) => boolean): void => {
-    const linea = lineas.find((l) => l.seccion === seccion && prueba(l.nombre) && l.cambio)
-    if (!linea) return
-    filas.push({
-      clave: linea.clave,
-      nombre: linea.nombre,
-      inicio: conUnidad(linea.inicio.valor, linea.unidad),
-      actual: conUnidad(linea.actual.valor, linea.unidad),
-      cambio: diferencia(linea.cambio!, linea.unidad),
-      sentido: linea.sentido,
-    })
+export function antesYAhora(fotos: readonly MedioFoto[]): AntesYAhora | null {
+  for (const vista of ORDEN_VISTAS) {
+    const deLaVista = fotos
+      .filter((f) => f.vista === vista && f.estado === "disponible")
+      .sort(
+        (a, b) => a.fechaToma.localeCompare(b.fechaToma) || a.creadoEn.localeCompare(b.creadoEn),
+      )
+    const antes = deLaVista[0]
+    const ahora = deLaVista.at(-1)
+    if (antes && ahora && antes.fechaToma !== ahora.fechaToma) return { antes, ahora }
   }
-  elegir("medidas", esPeso)
-  elegir("medidas", esCintura)
-  elegir("composicion", (nombre) => /grasa/i.test(nombre))
-  const mejor = [...fuerza]
-    .filter((f) => f.cambio !== null && f.cambio > 0)
-    .sort((a, b) => b.cambio! - a.cambio!)[0]
-  if (mejor)
-    filas.push({
-      clave: `fuerza|${mejor.ejercicioId}`,
-      nombre: mejor.nombre,
-      inicio: conUnidad(mejor.inicio.pesoKg, "kg"),
-      actual: conUnidad(mejor.actual.pesoKg, "kg"),
-      cambio: diferencia(mejor.cambio!, "kg"),
-      sentido: "favorable",
-    })
-  return filas
+  return null
 }
 
 /** «104,2»: hasta dos decimales, con coma y sin ceros de relleno. */
