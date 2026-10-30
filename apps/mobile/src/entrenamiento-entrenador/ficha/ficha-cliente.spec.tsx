@@ -1,5 +1,6 @@
 ﻿import { act, fireEvent, render, screen } from "@testing-library/react-native"
 import { AppState, StyleSheet } from "react-native"
+import { Profiler } from "react"
 import type { FichaDeUsuario, ListadoResultados, Molestia, PlanVigente } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "../../entrenamiento/api"
 import type { ApiNutricion } from "../../nutricion/api"
@@ -239,6 +240,37 @@ it("sondea actividad a 10 s y perfil a 60 s; pausa en segundo plano y al desmont
   await act(async () => jest.advanceTimersByTime(20000))
   expect(datos.api.molestias).toHaveBeenCalledTimes(llamadas)
 })
+it("un sondeo idéntico no repinta la ficha y una sesión nueva aparece al siguiente", async () => {
+  const datos = fuentes()
+  datos.api.resultados.mockImplementation(async () => ({ resultados: [resultado("A")] }))
+  const repintar = jest.fn()
+  await render(
+    <Profiler id="ficha" onRender={repintar}>
+      {vista(datos)}
+    </Profiler>,
+  )
+  // La lista asienta su primer pintado con temporizadores propios; se mide solo el sondeo.
+  await act(async () => jest.advanceTimersByTime(9000))
+  repintar.mockClear()
+  await act(async () => jest.advanceTimersByTime(1000))
+  expect(datos.api.resultados).toHaveBeenCalledTimes(2)
+  expect(repintar).not.toHaveBeenCalled()
+  datos.api.resultados.mockResolvedValue({ resultados: [resultado("A"), resultado("B")] })
+  await pasar(10000)
+  expect(screen.getByText("2 enviadas")).toBeOnTheScreen()
+})
+
+it("el sondeo muestra el fallo y su recuperación aunque los datos no hayan cambiado", async () => {
+  const datos = fuentes()
+  await render(vista(datos))
+  datos.api.molestias.mockRejectedValueOnce(new Error("sin red"))
+  await pasar(10000)
+  expect(screen.getByRole("alert")).toBeOnTheScreen()
+  await pasar(10000)
+  expect(screen.queryByRole("alert")).toBeNull()
+  expect(screen.getByText("Lara García")).toBeOnTheScreen()
+})
+
 it("espera la consulta pendiente antes del siguiente sondeo", async () => {
   const datos = fuentes()
   let resolver!: (valor: { molestias: Molestia[]; total: number }) => void

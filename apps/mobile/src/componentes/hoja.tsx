@@ -41,33 +41,34 @@ export function Hoja({
   useEffect(() => {
     if (visible) contenido.current = children
   }, [children, visible])
-  const anterior = useRef({ visible: false, reducido: true })
+  const anterior = useRef(false)
   const y = useSharedValue(height)
   const opacidad = useSharedValue(0)
   useEffect(() => {
     cancelAnimation(y)
     cancelAnimation(opacidad)
+    const animar = !reducido && visible !== anterior.current
+    anterior.current = visible
     if (visible) fijarMontada(true)
-    if (visible && !reducido && (!anterior.current.visible || anterior.current.reducido)) {
+    if (visible && animar) {
       y.value = height
       opacidad.value = 0
     }
-    anterior.current = { visible, reducido }
-    y.value = reducido
+    y.value = !animar
       ? visible
         ? 0
         : height
       : visible
         ? withSpring(0, HOJA)
         : withTiming(height, { duration: 200, easing: CURVA.salida })
-    opacidad.value = reducido ? (visible ? 1 : 0) : withTiming(visible ? 1 : 0, { duration: 200 })
+    opacidad.value = !animar ? (visible ? 1 : 0) : withTiming(visible ? 1 : 0, { duration: 200 })
     const salida = !visible
       ? setTimeout(
           () => {
             contenido.current = null
             fijarMontada(false)
           },
-          reducido ? 0 : 200,
+          animar ? 200 : 0,
         )
       : undefined
     return () => {

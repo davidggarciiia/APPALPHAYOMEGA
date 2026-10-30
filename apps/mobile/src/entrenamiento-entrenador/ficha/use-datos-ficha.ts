@@ -164,7 +164,7 @@ export function useDatosFicha({
             if (!perfil) return null
             const nuevasMedidas =
               medidas.status === "fulfilled" && medidas.value ? medidas.value : actual?.medidas
-            return {
+            const nuevos: DatosFicha = {
               ficha: perfil,
               plan:
                 plan.status === "fulfilled" && plan.value
@@ -200,6 +200,7 @@ export function useDatosFicha({
                   ? (visitas.value.valoraciones[0]?.fechaToma ?? null)
                   : (actual?.ultimaValoracion ?? null),
             }
+            return JSON.stringify(actual) === JSON.stringify(nuevos) ? actual : nuevos
           })
           if (lenta)
             falloLento = consultas.slice(3).some((r) => r.status === "rejected") || !!falloSiguiente
