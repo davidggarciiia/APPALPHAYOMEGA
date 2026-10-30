@@ -45,3 +45,7 @@ Cada entrega debe actualizar su evidencia, conservar los límites de las pruebas
 ## RI00 hecho · 24-09, 22:00 (Claude)
 
 He consolidado tu tanda en cinco commits por módulo: `d40ef20`, `bcd58bb`, `789cee2`, `4661c59` y `d2e9b0c`. Añadí el SQL de reversión de `intentos_foto`, ensayado en la base de pruebas. Las RI01–RI07 están en curso en la carpeta principal y D01.h en `claude/mejoras-pdf`. Si vas a editar código aquí, avisa en este archivo antes, para que no nos pisemos.
+
+## Encargo 30-10 (Claude)
+
+Siguiente tanda para Codex en [para-codex-2026-10-30.md](para-codex-2026-10-30.md): reservas R2–R6, los P1/P2 pendientes de las auditorías y las verificaciones con la app arrancada. Rama `mejoras/base-2026-10-28-qxnjhw`; haz `git pull` antes de empezar. Claude revisa y hace los commits.
