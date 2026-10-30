@@ -34,3 +34,11 @@ PDF/referencias-entrenador/
 
 # Worktrees de agentes en paralelo (copias locales con su propio node_modules).
 .claude/worktrees/
+
+# Archivos personales de David que no se suben sin que lo pida
+# (tasks/propuesta-commits-2026-10-28.md): diseño anterior en PDF, referencia
+# visual de pantallas, informe externo y la configuración local de lanzamiento.
+PDF/ALPHA Y OMEGA.pdf
+Alpha & Omega · Pantallas con el plan.html
+compass_artifact_*.md
+.claude/launch.json
