@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, it, jest } from "@jest/globals"
-import { AppState, Keyboard, type KeyboardEvent } from "react-native"
+import { AppState, Dimensions, Keyboard, type KeyboardEvent } from "react-native"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native"
 import type {
   Borrador,
@@ -64,6 +64,7 @@ jest.mock("../componentes/iconos", () => ({ Icono: () => null }))
 const CUENTA = "10000000-0000-4000-8000-000000000001"
 const ID = "20000000-0000-4000-8000-000000000001"
 const SERIE = "30000000-0000-4000-8000-000000000001"
+const ventanaOriginal = Dimensions.get("window")
 const sesion: SesionCliente = {
   agenda: {
     id: ID,
@@ -163,6 +164,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     AppState.currentState = "background"
   })
   afterEach(() => {
+    Dimensions.set({ window: ventanaOriginal })
     mockFalloDeDisco = false
     AppState.currentState = "active"
   })
@@ -294,6 +296,51 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
     await waitFor(() => expect(copiaGuardada().edicion.series[0].peso).toBe("50"))
     expect(copiaGuardada().sesion.prescripcion.ejercicios[0].series[0].pesoKg).toBeNull()
+  })
+
+  it("conserva los anteriores por serie desde la API hasta cada fila", async () => {
+    Dimensions.set({ window: { ...ventanaOriginal, width: 390, fontScale: 1 } })
+    const { api, comoApi } = crearApi()
+    const ejercicio = sesion.prescripcion.ejercicios[0]!
+    const segunda = "30000000-0000-4000-8000-000000000002"
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      borrador: null,
+      prescripcion: {
+        ...sesion.prescripcion,
+        ejercicios: [
+          {
+            ...ejercicio,
+            series: [ejercicio.series[0]!, { ...ejercicio.series[0]!, id: segunda }],
+          },
+        ],
+      },
+    })
+    api.anteriores.mockResolvedValue({
+      anteriores: [
+        {
+          ejercicioId: ejercicio.ejercicioId,
+          fecha: "2026-09-07T10:00:00.000Z",
+          valores: { tipoMedicion: "repeticiones", pesoKg: 60, repeticiones: 8 },
+          series: [
+            {
+              numero: 1,
+              valores: { tipoMedicion: "repeticiones", pesoKg: 55, repeticiones: 7, rir: 0 },
+            },
+            {
+              numero: 2,
+              valores: { tipoMedicion: "repeticiones", pesoKg: 50, repeticiones: 6 },
+            },
+          ],
+        },
+      ],
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByLabelText("Anterior: 55×7, RIR 0")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Anterior: 50×6")).toBeOnTheScreen()
+    const filas = screen.getAllByTestId("fila-serie")
+    expect(within(filas[0]!).getByLabelText("Anterior: 55×7, RIR 0")).toBeOnTheScreen()
+    expect(within(filas[1]!).getByLabelText("Anterior: 50×6")).toBeOnTheScreen()
   })
 
   it("el reloj avanza sin repintar la tabla ni interrumpir el ajuste", async () => {

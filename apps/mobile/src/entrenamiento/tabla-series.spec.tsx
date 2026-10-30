@@ -81,6 +81,9 @@ describe("D2 · tabla completa y barra compartida", () => {
   it.each([
     [390, 1, true],
     [360, 1, true],
+    [359, 1, false],
+    [360, 1.3, true],
+    [360, 1.31, false],
     [320, 1, false],
     [390, 1.4, false],
   ])(
@@ -110,6 +113,15 @@ describe("D2 · tabla completa y barra compartida", () => {
           }))}
           bloqueado={false}
           cambiar={jest.fn()}
+          anterior={{
+            valores: { tipoMedicion: "repeticiones", pesoKg: 60, repeticiones: 8 },
+            series: [
+              {
+                numero: 30,
+                valores: { tipoMedicion: "repeticiones", pesoKg: 57.5, repeticiones: 7, rir: 2 },
+              },
+            ],
+          }}
         />,
       )
       const cabecera = screen.getByLabelText("Serie")
@@ -117,7 +129,8 @@ describe("D2 · tabla completa y barra compartida", () => {
       expect(cabecera).toHaveProp("numberOfLines", 1)
       expect(cabecera).toHaveStyle({ width: 22, minWidth: 22 })
       expect(Boolean(screen.queryByText("ANT."))).toBe(conAnterior)
-      expect(screen.queryAllByLabelText("Anterior: —")).toHaveLength(conAnterior ? 30 : 0)
+      expect(screen.queryAllByLabelText("Anterior: —")).toHaveLength(conAnterior ? 29 : 0)
+      expect(Boolean(screen.queryByLabelText("Anterior: 57,5×7, RIR 2"))).toBe(conAnterior)
 
       const fila = screen.getAllByTestId("fila-serie")[29]!
       const numero = within(fila).getByText("30")
@@ -168,7 +181,7 @@ describe("D2 · tabla completa y barra compartida", () => {
         bloqueado={false}
         cambiar={cambiar}
         factorCarga={0.875}
-        anterior={{ tipoMedicion: "tiempo", segundos: 30, pesoKg: 60 }}
+        anterior={{ valores: { tipoMedicion: "tiempo", segundos: 30, pesoKg: 60 } }}
       />,
     )
     expect(screen.getByText("Sugerencia · 52,5 kg (87,5 % de la anterior)")).toBeTruthy()
@@ -182,7 +195,7 @@ describe("D2 · tabla completa y barra compartida", () => {
         bloqueado={false}
         cambiar={cambiar}
         factorCarga={0.875}
-        anterior={{ tipoMedicion: "tiempo", segundos: 30, pesoKg: 60 }}
+        anterior={{ valores: { tipoMedicion: "tiempo", segundos: 30, pesoKg: 60 } }}
       />,
     )
     await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Plancha, serie 1/ }))
@@ -302,7 +315,7 @@ describe("D2 · tabla completa y barra compartida", () => {
     ).toBeNull()
   })
 
-  it("usa una FilaSerie para cada prescrita y repite su referencia anterior", async () => {
+  it("muestra cada anterior por su número aunque llegue desordenado", async () => {
     const segunda = "20000000-0000-4000-8000-000000000001"
     await render(
       <TablaSeries
@@ -316,13 +329,104 @@ describe("D2 · tabla completa y barra compartida", () => {
         ]}
         bloqueado={false}
         cambiar={jest.fn()}
-        anterior={{ tipoMedicion: "tiempo", pesoKg: null, segundos: 25 }}
+        anterior={{
+          valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 30 },
+          series: [
+            { numero: 2, valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 20 } },
+            { numero: 1, valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 25 } },
+          ],
+        }}
       />,
     )
     expect(screen.getAllByTestId("fila-serie")).toHaveLength(2)
-    expect(screen.getAllByLabelText("Anterior: 25 s")).toHaveLength(2)
+    const filas = screen.getAllByTestId("fila-serie")
+    expect(within(filas[0]!).getByLabelText("Anterior: 25 s")).toBeOnTheScreen()
+    expect(within(filas[1]!).getByLabelText("Anterior: 20 s")).toBeOnTheScreen()
     expect(screen.queryByText(/^Anterior /)).toBeNull()
     expect(screen.queryByText("+ Serie")).toBeNull()
+  })
+
+  it("deja — en series omitidas o sin antecedente sin desplazar las siguientes", async () => {
+    const prescritas = Array.from({ length: 4 }, (_, n) => ({
+      ...ejercicio.series[0]!,
+      id: `${serieId}-${n}`,
+    }))
+    await render(
+      <TablaSeries
+        ejercicio={{ ...ejercicio, series: prescritas }}
+        series={prescritas.map(({ id }) => ({ serieId: id, peso: "", valor: "", hecha: false }))}
+        bloqueado={false}
+        cambiar={jest.fn()}
+        anterior={{
+          valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 30 },
+          series: [
+            { numero: 1, valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 25 } },
+            { numero: 3, valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 20 } },
+          ],
+        }}
+      />,
+    )
+    const filas = screen.getAllByTestId("fila-serie")
+    expect(within(filas[0]!).getByLabelText("Anterior: 25 s")).toBeOnTheScreen()
+    expect(within(filas[1]!).getByLabelText("Anterior: —")).toBeOnTheScreen()
+    expect(within(filas[2]!).getByLabelText("Anterior: 20 s")).toBeOnTheScreen()
+    expect(within(filas[3]!).getByLabelText("Anterior: —")).toBeOnTheScreen()
+  })
+
+  it.each([undefined, []])(
+    "sin detalle de series (%s) no repite la mejor marca",
+    async (series) => {
+      await render(
+        <TablaSeries
+          ejercicio={ejercicio}
+          series={[{ serieId, peso: "", valor: "", hecha: false }]}
+          bloqueado={false}
+          cambiar={jest.fn()}
+          anterior={{
+            valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 30 },
+            ...(series && { series }),
+          }}
+        />,
+      )
+      expect(screen.getByLabelText("Anterior: —")).toBeOnTheScreen()
+      expect(screen.queryByLabelText("Anterior: 30 s")).toBeNull()
+    },
+  )
+
+  it("muestra kilos, repeticiones y RIR de cada serie sin usar la mejor marca", async () => {
+    const prescritas: EjercicioPrescrito["series"] = [1, 2].map((numero) => ({
+      id: `${serieId}-${numero}`,
+      tipoMedicion: "repeticiones",
+      repeticiones: 8,
+      pesoKg: 60,
+    }))
+    await render(
+      <TablaSeries
+        ejercicio={{ ...ejercicio, tipoCarga: "conCargaExterna", series: prescritas }}
+        series={prescritas.map(({ id }) => ({ serieId: id, peso: "", valor: "", hecha: false }))}
+        bloqueado={false}
+        cambiar={jest.fn()}
+        anterior={{
+          valores: { tipoMedicion: "repeticiones", pesoKg: 70, repeticiones: 10, rir: 3 },
+          series: [
+            {
+              numero: 1,
+              valores: { tipoMedicion: "repeticiones", pesoKg: 67.5, repeticiones: 8, rir: 0 },
+            },
+            {
+              numero: 2,
+              valores: { tipoMedicion: "repeticiones", pesoKg: 65, repeticiones: 7, rir: 5 },
+            },
+          ],
+        }}
+      />,
+    )
+    const filas = screen.getAllByTestId("fila-serie")
+    expect(within(filas[0]!).getByLabelText("Anterior: 67,5×8, RIR 0")).toHaveTextContent(
+      "67,5×8 RIR 0",
+    )
+    expect(within(filas[1]!).getByLabelText("Anterior: 65×7, RIR 5+")).toBeOnTheScreen()
+    expect(screen.queryByLabelText(/Anterior: 70/)).toBeNull()
   })
 
   it("delegar foco abre una sola barra común sin teclado ni TextInput en la tabla", async () => {
@@ -698,13 +802,20 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
         bloqueado={false}
         cambiar={cambiar}
         enCurso={u(11)}
-        anterior={{ tipoMedicion: "distancia", pesoKg: 30, metros: 18 }}
+        anterior={{
+          valores: { tipoMedicion: "distancia", pesoKg: 30, metros: 18 },
+          series: [
+            { numero: 1, valores: { tipoMedicion: "distancia", pesoKg: 30, metros: 18, rir: 2 } },
+            { numero: 2, valores: { tipoMedicion: "distancia", pesoKg: 28, metros: 16 } },
+          ],
+        }}
       />,
     )
     expect(screen.getByText("2 × 20 m")).toBeOnTheScreen()
     expect(screen.getByText("KG")).toBeOnTheScreen()
     expect(screen.getByText("M")).toBeOnTheScreen()
-    expect(screen.getAllByLabelText("Anterior: 30×18 m")).toHaveLength(2)
+    expect(screen.getByLabelText("Anterior: 30×18 m, RIR 2")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Anterior: 28×16 m")).toBeOnTheScreen()
     const metros = screen.getByLabelText("Metros — Paseo del granjero, serie 1: 20")
     expect(metros).toHaveProp("accessibilityHint", "Abre la barra de ajuste; sugerencia 20")
     expect(screen.getByLabelText("Peso — Paseo del granjero, serie 1: 32")).toBeOnTheScreen()
@@ -733,7 +844,10 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
         bloqueado={false}
         cambiar={cambiar}
         enCurso={u(21)}
-        anterior={{ tipoMedicion: "distancia", pesoKg: null, metros: 30 }}
+        anterior={{
+          valores: { tipoMedicion: "distancia", pesoKg: null, metros: 30 },
+          series: [{ numero: 1, valores: { tipoMedicion: "distancia", pesoKg: null, metros: 30 } }],
+        }}
       />,
     )
     expect(screen.queryByLabelText(/Peso —/)).toBeNull()
@@ -840,11 +954,18 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
         bloqueado={false}
         cambiar={jest.fn()}
         enCurso={u(31)}
-        anterior={{ tipoMedicion: "repeticiones", pesoKg: 55, repeticiones: 6 }}
+        anterior={{
+          valores: { tipoMedicion: "repeticiones", pesoKg: 55, repeticiones: 6 },
+          series: [
+            { numero: 1, valores: { tipoMedicion: "repeticiones", pesoKg: 55, repeticiones: 6 } },
+            { numero: 2, valores: { tipoMedicion: "tiempo", pesoKg: 50, segundos: 25 } },
+          ],
+        }}
       />,
     )
     expect(screen.getByText("REPS / S")).toBeOnTheScreen()
-    expect(screen.getAllByLabelText("Anterior: 55×6")).toHaveLength(2)
+    expect(screen.getByLabelText("Anterior: 55×6")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Anterior: 50×25 s")).toBeOnTheScreen()
     expect(screen.getByLabelText("Peso — Remo, serie 1: 60")).toBeOnTheScreen()
     expect(screen.getByLabelText("Peso — Remo, serie 2: 60")).toBeOnTheScreen()
     expect(screen.getByLabelText("Repeticiones — Remo, serie 1: 8")).toHaveProp(
@@ -862,7 +983,12 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
         series={[{ serieId: u(31), peso: "", valor: "", hecha: false }]}
         bloqueado={false}
         cambiar={jest.fn()}
-        anterior={{ tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 6 }}
+        anterior={{
+          valores: { tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 6 },
+          series: [
+            { numero: 1, valores: { tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 6 } },
+          ],
+        }}
       />,
     )
     expect(screen.getByText("REPS")).toBeOnTheScreen()

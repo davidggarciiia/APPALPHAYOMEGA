@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated"
 import Svg, { Path } from "react-native-svg"
-import type { ValoresEjecutados } from "@alpha-omega/shared"
+import type { Anterior, ValoresEjecutados } from "@alpha-omega/shared"
 
 import type { BarraAjusteProps } from "../componentes/barra-ajuste"
 import { ChipsRir } from "../componentes/chips-rir"
@@ -108,7 +108,8 @@ function anteriorLegible(valores: ValoresEjecutados): string {
       : valores.tipoMedicion === "tiempo"
         ? `${valores.segundos} s`
         : `${valores.metros} m`
-  return valores.pesoKg === null ? cantidad : `${decimal(valores.pesoKg)}×${cantidad}`
+  const marca = valores.pesoKg === null ? cantidad : `${decimal(valores.pesoKg)}×${cantidad}`
+  return valores.rir == null ? marca : `${marca}\nRIR ${valores.rir === 5 ? "5+" : valores.rir}`
 }
 
 /** Todas las series visibles; el contenedor conserva foco, barra y deshacer comunes. */
@@ -139,8 +140,8 @@ export function TablaSeries({
   verTecnica?: () => void
   verMolestia?: () => void
   enCurso?: string | null
-  /** La API entrega la mejor serie anterior: se repite en cada fila. */
-  anterior?: ValoresEjecutados
+  /** La mejor marca sirve para la carga; el detalle numerado, para cada fila. */
+  anterior?: Pick<Anterior, "valores" | "series">
   incrementoSugerido?: number
   factorCarga?: number
   recordPersonal?: RecordPersonal | null
@@ -173,7 +174,7 @@ export function TablaSeries({
     (ejercicio.tipoCarga === "conCargaExterna" ||
       ejercicio.calibrar === true ||
       ejercicio.series.some((serie) => serie.pesoKg !== null))
-  const sugerenciaCarga = cargaSugeridaDeFase(ejercicio, factorCarga, anterior)
+  const sugerenciaCarga = cargaSugeridaDeFase(ejercicio, factorCarga, anterior?.valores)
   const porcentaje =
     factorCarga !== undefined && factorCarga !== 1
       ? decimalDeFase(Number((factorCarga * 100).toFixed(1)))
@@ -270,6 +271,8 @@ export function TablaSeries({
       <Animated.View style={validacion}>
         {ejercicio.series.map((prescrita, n) => {
           const real = series.find((serie) => serie.serieId === prescrita.id)
+          // Sin detalle (servidor antiguo) no atribuimos la mejor marca a todas las filas.
+          const previa = anterior?.series?.find((serie) => serie.numero === n + 1)?.valores
           const pesoSugerido = prescrita.pesoKg ?? sugerenciaCarga
           if (!real)
             return (
@@ -285,7 +288,7 @@ export function TablaSeries({
                 tipoMedicion={prescrita.tipoMedicion}
                 tipoCarga={mostrarPeso ? "conCargaExterna" : "sinCarga"}
                 modoRir={modoRir}
-                anterior={anterior && anteriorLegible(anterior)}
+                anterior={previa && anteriorLegible(previa)}
                 recordPersonal={
                   recordPersonal?.serieId === prescrita.id ? recordPersonal.mejora : undefined
                 }

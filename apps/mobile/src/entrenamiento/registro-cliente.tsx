@@ -4,7 +4,7 @@ import { NavigationContext, usePreventRemove } from "expo-router/react-navigatio
 import { randomUUID } from "expo-crypto"
 import { AppState, Keyboard, ScrollView, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
-import type { EjercicioPrescrito, SesionCliente, ValoresEjecutados } from "@alpha-omega/shared"
+import type { Anterior, EjercicioPrescrito, SesionCliente } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
 import { almacenDispositivo } from "./almacen-dispositivo"
 import { ErrorDeCopiaLocal } from "./almacen-local"
@@ -190,7 +190,7 @@ export function RegistroCliente({
   const [dialogo, setDialogo] = useState<"terminar" | null>(null)
   const [salidaPendiente, setSalidaPendiente] = useState<(() => void) | null>(null)
   const [tecnica, setTecnica] = useState<EjercicioPrescrito | null>(null)
-  const [anteriores, setAnteriores] = useState<Map<string, ValoresEjecutados>>(new Map())
+  const [anteriores, setAnteriores] = useState<Map<string, Anterior>>(new Map())
   const [sugerencias, setSugerencias] = useState<ReadonlyMap<string, number>>(new Map())
   const [recordPersonal, setRecordPersonal] = useState<RecordPersonal | null>(null)
   const recordsCelebrados = useRef(new Set<string>())
@@ -344,8 +344,7 @@ export function RegistroCliente({
     api
       .anteriores(id)
       .then((listado) => {
-        if (vigente)
-          setAnteriores(new Map(listado.anteriores.map((a) => [a.ejercicioId, a.valores])))
+        if (vigente) setAnteriores(new Map(listado.anteriores.map((a) => [a.ejercicioId, a])))
       })
       .catch(() => undefined)
     return () => {
@@ -520,7 +519,7 @@ export function RegistroCliente({
         const registro = registroParaEnviar(prescripcion, nueva)
         const registrada = registro.series.find((s) => s.serieId === serieId)
         if (!anterior?.hecha && !recordsCelebrados.current.has(serieId) && ejercicio && registrada)
-          mejora = mejoraPersonal(registrada, anteriores.get(ejercicio.ejercicioId))
+          mejora = mejoraPersonal(registrada, anteriores.get(ejercicio.ejercicioId)?.valores)
       } catch {
         const prescrita = ejercicio?.series.find((s) => s.id === serieId)
         const sinPeso =
@@ -763,7 +762,7 @@ export function RegistroCliente({
           cargaSugeridaDeFase(
             ejercicioEnFoco,
             prescripcion.fase?.ajustes.factorCarga,
-            anteriores.get(ejercicioEnFoco.ejercicioId),
+            anteriores.get(ejercicioEnFoco.ejercicioId)?.valores,
           ),
         )
       : null

@@ -236,7 +236,7 @@ export function FilaSerie({
           {numero}
         </Text>
         {width >= 360 && fontScale <= 1.3 && (
-          <Text accessibilityLabel={`Anterior: ${anterior}`} style={s.anterior}>
+          <Text accessibilityLabel={`Anterior: ${anterior.replace("\n", ", ")}`} style={s.anterior}>
             {anterior}
           </Text>
         )}
@@ -341,6 +341,7 @@ const s = StyleSheet.create({
     color: tema.textoTenue,
     fontFamily: tema.fuenteTexto,
     fontSize: 13,
+    lineHeight: 16,
     textAlign: "center",
     fontVariant: ["tabular-nums"],
   },
