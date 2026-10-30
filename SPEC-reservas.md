@@ -4,9 +4,16 @@ Estado: aprobado por el dueño en sus respuestas del 30-10-2026. Amplía `SPEC.m
 
 ## Objetivo
 
-El entrenador cobra en efectivo. Los clientes deben poder reservar desde el
-calendario de la app sus entrenos personales y sus sesiones de seguimiento, sin
-pagos dentro de la app: el entrenador carga bonos cuando cobra y la app descuenta.
+El entrenador cobra en efectivo. Sus entrenos personales y sesiones de seguimiento
+se gestionan en la app sin pagos dentro de ella: el entrenador carga bonos cuando
+cobra y la app descuenta.
+
+**Decisión del dueño (30-10, tras probar la app): RESERVA EL ENTRENADOR.** El
+cliente no reserva por sí mismo: el entrenador asigna al cliente un hueco (que
+gasta su crédito o su cupo) y el cliente lo ve en su calendario, con su saldo y
+cupo visibles. Donde los criterios de abajo dicen «el cliente reserva» o «el
+cliente pide cancelar», se entiende que lo hace el entrenador; la pantalla del
+cliente es de consulta.
 
 - **Entreno personal**: va por libre; cada reserva gasta 1 crédito de un bono de
   entrenos personales que el entrenador carga al cobrar (p. ej. 10).

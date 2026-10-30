@@ -10,7 +10,10 @@ import { PrismaService } from "../src/prisma/prisma.service.js"
 import { cifrarContrasena } from "../src/identity/contrasenas.js"
 import { darConsentimiento, limpiarValoraciones } from "./valoraciones-ayuda.js"
 
-export async function entornoEntrenamiento(nombre: string): Promise<{
+export async function entornoEntrenamiento(
+  nombre: string,
+  limpiarAdicional?: (prisma: PrismaService, ids: string[]) => Promise<void>,
+): Promise<{
   app: INestApplication
   prisma: PrismaService
   ids: Record<string, string>
@@ -32,6 +35,7 @@ export async function entornoEntrenamiento(nombre: string): Promise<{
       select: { id: true },
     })
     const ids = usuarios.map((fila) => fila.id)
+    await limpiarAdicional?.(prisma, ids)
     const sesiones = await prisma.sesionProgramada.findMany({
       where: { clienteId: { in: ids } },
       select: { id: true },

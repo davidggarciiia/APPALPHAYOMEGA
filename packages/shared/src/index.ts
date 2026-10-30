@@ -2,6 +2,7 @@ import { z } from "zod"
 
 export * from "./catalogo-ejercicios"
 export * from "./agenda"
+export * from "./bonos"
 export * from "./entrenamiento"
 export * from "./progresion"
 export * from "./resumen-semanal"

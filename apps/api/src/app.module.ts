@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common"
 
+import { BonosModule } from "./bonos/bonos.module.js"
 import { CatalogoEjerciciosModule } from "./catalogo-ejercicios/catalogo-ejercicios.module.js"
 import { EntrenamientoModule } from "./entrenamiento/entrenamiento.module.js"
 import { CorreoModule } from "./correo/correo.module.js"
@@ -24,6 +25,7 @@ import { SeguimientoModule } from "./seguimiento/seguimiento.module.js"
     NutricionModule,
     SeguimientoModule,
     MediosModule,
+    BonosModule,
   ],
 })
 export class AppModule {}

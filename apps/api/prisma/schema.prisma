@@ -108,7 +108,57 @@ model Usuario {
   solicitudesFotosCreadas  SolicitudFotos[]           @relation("SolicitudesFotosAutor")
   consentimientosSalud     ConsentimientoSalud[]
 
+  movimientosBono            MovimientoBono[]   @relation("MovimientosBonoCliente")
+  movimientosBonoCreados     MovimientoBono[]   @relation("MovimientosBonoAutor")
+  seguimientoBonos           SeguimientoBonos?  @relation("SeguimientoBonosCliente")
+  seguimientosBonosCambiados SeguimientoBonos[] @relation("SeguimientoBonosAutor")
+
   @@map("usuarios")
+}
+
+enum ServicioReserva {
+  entrenoPersonal
+  seguimiento
+  quiromasaje
+}
+
+enum TipoMovimientoBono {
+  carga
+  consumo
+  devolucion
+  ajuste
+}
+
+/// El bono es su carga; el saldo siempre se calcula sumando movimientos.
+model MovimientoBono {
+  id          String             @id @default(uuid())
+  clienteId   String
+  autorId     String
+  operacionId String             @default(uuid())
+  servicio    ServicioReserva
+  tipo        TipoMovimientoBono
+  cantidad    Int
+  mes         String?            @db.VarChar(7)
+  nota        String?
+  creadoEn    DateTime           @default(now())
+  cliente     Usuario            @relation("MovimientosBonoCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  autor       Usuario            @relation("MovimientosBonoAutor", fields: [autorId], references: [id], onDelete: Restrict)
+
+  @@unique([autorId, operacionId])
+  @@index([clienteId, servicio, mes])
+  @@index([clienteId, creadoEn, id])
+  @@map("movimientos_bono")
+}
+
+model SeguimientoBonos {
+  clienteId     String   @id
+  activo        Boolean  @default(false)
+  autorId       String
+  actualizadoEn DateTime @updatedAt
+  cliente       Usuario  @relation("SeguimientoBonosCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  autor         Usuario  @relation("SeguimientoBonosAutor", fields: [autorId], references: [id], onDelete: Restrict)
+
+  @@map("seguimiento_bonos")
 }
 
 /// Token de refresco: la pieza que permite que el cliente no vuelva a escribir
