@@ -11,7 +11,7 @@ function GuardaDeRuta({
   preguntar: (salir: () => void) => void
 }): null {
   const navigation = useContext(NavigationContext)!
-  usePreventRemove(activa, ({ data }) => preguntar(() => navigation.dispatch(data.action)))
+  usePreventRemove(activa, ({ data }) => preguntar(() => navigation.dispatchSync(data.action)))
   return null
 }
 
@@ -35,25 +35,27 @@ export function useSalidaProtegida(
 } {
   const navigation = useContext(NavigationContext)
   const [preguntando, setPreguntando] = useState(false)
-  const [autorizada, setAutorizada] = useState(false)
+  const [autorizacion, setAutorizacion] = useState<"ejecutar" | "rearmar" | null>(null)
   const salida = useRef<(() => void) | null>(null)
   const proteger = (accion: () => void): void => {
     if (!sinGuardar) return accion()
     salida.current = accion
-    setAutorizada(false)
+    setAutorizacion(null)
     setPreguntando(true)
   }
   const permitir = (accion: () => void): void => {
     salida.current = accion
-    setAutorizada(true)
+    setAutorizacion("ejecutar")
   }
   useEffect(() => {
-    if (!autorizada) return
-    const accion = salida.current
-    salida.current = null
-    accion?.()
-    setAutorizada(false)
-  }, [autorizada])
+    if (autorizacion === "ejecutar") {
+      const accion = salida.current
+      salida.current = null
+      accion?.()
+      // La cola del SDK 58 necesita un commit con la guarda desactivada antes del rearme.
+      setAutorizacion("rearmar")
+    } else if (autorizacion === "rearmar") setAutorizacion(null)
+  }, [autorizacion])
   useEffect(() => {
     if (Platform.OS !== "web" || !sinGuardar) return
     const impedir = (evento: BeforeUnloadEvent): void => {
@@ -68,7 +70,9 @@ export function useSalidaProtegida(
     permitir,
     proteccion: (
       <>
-        {navigation && <GuardaDeRuta activa={sinGuardar && !autorizada} preguntar={proteger} />}
+        {navigation && (
+          <GuardaDeRuta activa={sinGuardar && autorizacion === null} preguntar={proteger} />
+        )}
         <Dialogo
           visible={preguntando}
           titulo={textos.titulo}
@@ -77,7 +81,7 @@ export function useSalidaProtegida(
           cancelar={textos.cancelar}
           alConfirmar={() => {
             setPreguntando(false)
-            setAutorizada(true)
+            setAutorizacion("ejecutar")
           }}
           alCancelar={() => {
             salida.current = null

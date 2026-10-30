@@ -267,7 +267,7 @@ export default function Cartera(): React.JSX.Element {
                     <Text style={estilos.pie}>
                       {`Mostrando ${String(clientes.length)} de ${String(total)}`}
                     </Text>
-                  ) : null
+                  ) : undefined
                 }
               />
             </EntradaMarca>

@@ -81,7 +81,7 @@ function GuardarAntesDeNavegar({
     solicitar(() => {
       ocupada.current = true
       void guardar()
-        .then(() => setSalida(() => () => navigation.dispatch(data.action)))
+        .then(() => setSalida(() => () => navigation.dispatchSync(data.action)))
         .catch(fallar)
         .finally(() => {
           ocupada.current = false
@@ -90,6 +90,7 @@ function GuardarAntesDeNavegar({
   })
   useEffect(() => {
     if (!salida) return
+    // dispatchSync procesa la salida antes de rearmar la guarda del SDK 58.
     salida()
     setSalida(null)
   }, [salida])

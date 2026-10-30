@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ScrollViewInstance,
+} from "react-native"
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -52,7 +59,7 @@ export function Pestanas<T extends string>({
   variante?: "subrayado" | "pil"
 }): React.JSX.Element {
   const reducido = useMovimientoReducido()
-  const scroll = useRef<ScrollView>(null)
+  const scroll = useRef<ScrollViewInstance>(null)
   const [medidas, fijarMedidas] = useState<Record<string, { x: number; width: number }>>({})
   const [ancho, fijarAncho] = useState(0)
   const x = useSharedValue(0)

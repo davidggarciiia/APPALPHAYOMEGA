@@ -29,7 +29,7 @@ it.each([false, true])(
   "la pila conserva borradores e interacción al enfocar y volver (reducido: %s)",
   async (reducido) => {
     jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(reducido)
-    const vista = renderRouter(
+    const vista = await renderRouter(
       {
         _layout: () => (
           <Stack
@@ -42,7 +42,6 @@ it.each([false, true])(
       },
       { initialUrl: "/" },
     )
-    await vista
     await fireEvent.changeText(await screen.findByLabelText("Borrador"), "Sin perder")
     jest.mocked(Reanimated.withTiming).mockClear()
     await fireEvent.press(screen.getByRole("button", { name: "Abrir detalle" }))

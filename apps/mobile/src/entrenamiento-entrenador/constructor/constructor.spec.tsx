@@ -49,7 +49,7 @@ jest.mock("../../entrenamiento/almacen-dispositivo", () => ({ almacenDispositivo
 const mockDispatch = jest.fn()
 const mockPreventRemove = jest.fn<
   void,
-  [boolean, (evento: { data: { action: NavigationAction } }) => void]
+  [boolean, (evento: { data: { action: NavigationAction }; repeat: () => void }) => void]
 >()
 jest.mock("expo-router", () => ({
   useNavigation: () => ({ dispatch: mockDispatch }),
@@ -707,16 +707,23 @@ it("protege la retirada de la ruta y solo continúa Atrás tras confirmar el des
   await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Mi plan")
   expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(true)
   const accion: NavigationAction = { type: "GO_BACK" }
-  await act(() => mockPreventRemove.mock.calls.at(-1)![1]({ data: { action: accion } }))
+  const repetir = jest.fn(() => mockDispatch(accion))
+  await act(() =>
+    mockPreventRemove.mock.calls.at(-1)![1]({ data: { action: accion }, repeat: repetir }),
+  )
   expect(mockDispatch).not.toHaveBeenCalled()
+  expect(repetir).not.toHaveBeenCalled()
   await fireEvent.press(await screen.findByRole("button", { name: "Seguir editando" }))
   expect(screen.getByDisplayValue("Mi plan")).toBeOnTheScreen()
   expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(true)
-  await act(() => mockPreventRemove.mock.calls.at(-1)![1]({ data: { action: accion } }))
+  await act(() =>
+    mockPreventRemove.mock.calls.at(-1)![1]({ data: { action: accion }, repeat: repetir }),
+  )
   await fireEvent.press(await screen.findByRole("button", { name: "Salir sin guardar" }))
   expect(mockPreventRemove.mock.calls.at(-1)?.[0]).toBe(false)
   expect(mockDispatch).toHaveBeenCalledTimes(1)
   expect(mockDispatch).toHaveBeenCalledWith(accion)
+  expect(repetir).toHaveBeenCalledTimes(1)
 })
 
 it("«Qué buscamos» deja escribir la línea siguiente tras un salto", async () => {

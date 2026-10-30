@@ -6,7 +6,6 @@
     "scheme": "alphaomega",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "plugins": [
       "expo-router",
       "expo-secure-store",
@@ -27,7 +26,10 @@
           "resizeMode": "contain",
           "backgroundColor": "#0E0D0B"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-sqlite",
+      "expo-status-bar"
     ],
     "ios": {
       "bundleIdentifier": "com.alphaomegatraining.app",
@@ -42,8 +44,16 @@
           "autoVerify": true,
           "category": ["BROWSABLE", "DEFAULT"],
           "data": [
-            { "scheme": "https", "host": "alphayomegatraining.com", "pathPrefix": "/activar" },
-            { "scheme": "https", "host": "alphayomegatraining.com", "pathPrefix": "/restablecer" }
+            {
+              "scheme": "https",
+              "host": "alphayomegatraining.com",
+              "pathPrefix": "/activar"
+            },
+            {
+              "scheme": "https",
+              "host": "alphayomegatraining.com",
+              "pathPrefix": "/restablecer"
+            }
           ]
         }
       ]

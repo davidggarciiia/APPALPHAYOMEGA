@@ -4,9 +4,9 @@ import configuracion from "../app.json"
 import { tema } from "./tema"
 
 // El modo web `single` genera el documento con la CLI, fuera del bundle de React Native.
-const { createTemplateHtmlFromExpoConfigAsync } = createRequire(__filename)(
-  "expo/node_modules/@expo/cli/build/src/start/server/webTemplate.js",
-) as {
+const { createTemplateHtmlFromExpoConfigAsync } = createRequire(
+  require.resolve("expo/package.json"),
+)("@expo/cli/build/src/start/server/webTemplate.js") as {
   createTemplateHtmlFromExpoConfigAsync: (
     proyecto: string,
     opciones: { scripts: string[]; exp: typeof configuracion.expo },

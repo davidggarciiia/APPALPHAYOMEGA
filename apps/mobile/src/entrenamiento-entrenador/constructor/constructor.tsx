@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react"
-import { useNavigation } from "expo-router"
 import { usePreventRemove } from "expo-router/react-navigation"
 import {
   Modal,
@@ -308,7 +307,6 @@ export function ConstructorPlan({
   const [saliendo, setSaliendo] = useState(false)
   const [salidaAutorizada, setSalidaAutorizada] = useState(false)
   const salida = useRef<(() => void) | null>(null)
-  const navigation = useNavigation()
   const versionInicial = useRef({ nombre, semanaInicial, semanas, dias, bloque })
   // Las listas se actualizan de forma inmutable: sus referencias detectan cambios sin serializarlas.
   const sinCambios =
@@ -330,8 +328,8 @@ export function ConstructorPlan({
     return () => clearTimeout(id)
   }, [retirada])
 
-  usePreventRemove(sinGuardar, ({ data }) => {
-    salida.current = () => navigation.dispatch(data.action)
+  usePreventRemove(sinGuardar, ({ repeat }) => {
+    salida.current = repeat
     setSaliendo(true)
   })
   useEffect(() => {

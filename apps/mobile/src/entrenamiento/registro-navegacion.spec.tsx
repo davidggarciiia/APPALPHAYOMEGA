@@ -83,7 +83,7 @@ it("Atrás conserva el entrenamiento cuando falla el disco y permite reintentarl
     leerCliente: async () => sesion,
     anteriores: async () => ({ anteriores: [] }),
   } as unknown as ApiEntrenamiento
-  const vista = renderRouter(
+  const montaje = renderRouter(
     {
       _layout: () => <Stack screenOptions={{ headerShown: false, animation: "none" }} />,
       index: () => (
@@ -103,7 +103,7 @@ it("Atrás conserva el entrenamiento cuando falla el disco y permite reintentarl
     { initialUrl: "/" },
   )
   try {
-    await vista
+    const vista = await montaje
     await fireEvent.press(await screen.findByRole("button", { name: "Entrenar" }))
     await screen.findByRole("button", { name: "Terminar" })
     await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia — Press" }))

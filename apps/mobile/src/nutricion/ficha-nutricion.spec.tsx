@@ -102,7 +102,9 @@ describe("FichaNutricion", () => {
 
   it("precarga la última publicación y permite corregir sus datos", async () => {
     const { nutricion, seguimiento } = apis()
-    const consultarValoracion = jest.fn(async () => valoracion)
+    const consultarValoracion = jest
+      .fn<(clienteId: string) => Promise<ValoracionCorporal | null>>()
+      .mockResolvedValue(valoracion)
     await render(
       <FichaNutricion
         clienteId={CLIENTE}

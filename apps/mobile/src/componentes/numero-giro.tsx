@@ -27,7 +27,7 @@ export function NumeroGiro({
   const [saliente, fijarSaliente] = useState<string | null>(null)
   const [direccion, fijarDireccion] = useState(1)
   const avance = useSharedValue(1)
-  const formato = StyleSheet.flatten([estilos.texto, estilo])
+  const formato = StyleSheet.flatten([estilos.texto, estilo]) ?? estilos.texto
   const alto = (formato.lineHeight ?? (formato.fontSize ?? 30) + 4) * fontScale
   const ancho = (formato.fontSize ?? 30) * 0.66 * fontScale
 

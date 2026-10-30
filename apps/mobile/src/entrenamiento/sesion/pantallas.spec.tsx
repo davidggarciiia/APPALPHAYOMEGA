@@ -136,7 +136,9 @@ describe("RegistrarMolestiaPantalla", () => {
 
 describe("CierreDeSesion", () => {
   it("pregunta antes de descartar respuestas parciales y guarda la nota sin inventar energía", async () => {
-    const guardar = jest.fn(async () => undefined)
+    const guardar = jest.fn<(cierre: Cierre | null, notas: string) => Promise<void>>(
+      async () => undefined,
+    )
     const volver = jest.fn()
     await render(
       <CierreDeSesion

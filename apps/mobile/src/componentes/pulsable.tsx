@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react"
 import {
   Pressable,
   StyleSheet,
+  type GestureResponderEvent,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
@@ -53,13 +54,13 @@ export function Pulsable({
       accessibilityRole={accessibilityRole}
       accessibilityState={{ ...accessibilityState, disabled: desactivado }}
       style={[s.area, style, movimiento]}
-      onPressIn={(evento) => {
+      onPressIn={(evento: GestureResponderEvent) => {
         if (desactivado) return
         presionado.current = true
         pulso.value = reducido ? 1 : withSpring(1, ENTRADA)
         onPressIn?.(evento)
       }}
-      onPressOut={(evento) => {
+      onPressOut={(evento: GestureResponderEvent) => {
         presionado.current = false
         pulso.value = reducido || desactivado ? 0 : withSpring(0, SALIDA)
         onPressOut?.(evento)

@@ -1,6 +1,12 @@
 import type { EjercicioPrescrito, SeriePrescrita } from "@alpha-omega/shared"
 import { useCallback, useEffect, useRef } from "react"
-import { Pressable, StyleSheet, Text, useWindowDimensions } from "react-native"
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  type LayoutChangeEvent,
+} from "react-native"
 import Animated, {
   cancelAnimation,
   interpolateColor,
@@ -218,7 +224,7 @@ export function FilaSerie({
     >
       <Animated.View
         testID="fila-serie"
-        onLayout={(evento) => {
+        onLayout={(evento: LayoutChangeEvent) => {
           ancho.value = evento.nativeEvent.layout.width
         }}
         style={[s.fila, filaAnimada, omitida && s.omitida]}

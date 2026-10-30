@@ -27,18 +27,13 @@
   },
   "overrides": {
     "multer": "^2.5.0",
-    "test-renderer": "1.2.0",
-    "react-native": "0.86.3",
-    "@react-native/virtualized-lists": "0.86.3",
-    "@react-native/community-cli-plugin": "0.86.3",
-    "@react-native/metro-config": "0.86.3",
-    "react-native-reanimated": "4.5.1",
-    "react-native-worklets": "0.10.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-reanimated": "4.7.1",
+    "react-native-worklets": "0.13.0",
     "@expo/cli": {
       "zod": "^4.6.7"
-    },
-    "expo-router": {
-      "query-string": "9.5.1"
     }
   },
   "devDependencies": {

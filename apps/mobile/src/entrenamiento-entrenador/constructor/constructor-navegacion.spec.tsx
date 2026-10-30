@@ -12,6 +12,7 @@ import {
 import { ConstructorPlan } from "./constructor"
 import { EditorDieta } from "../../nutricion/editor-dieta"
 import type { ApiNutricion } from "../../nutricion/api"
+import { useSalidaProtegida } from "../../componentes/salida-protegida"
 
 // Las fronteras de dispositivo y API se sustituyen; el router, sus hooks y el
 // navegador de Stack son los reales del SDK instalado.
@@ -38,9 +39,72 @@ const CLIENTE = "20000000-0000-4000-8000-000000000001"
 const RUTA_DEL_PLAN = `/entrenador/cliente/${CLIENTE}/plan`
 afterEach(() => jest.useRealTimers())
 
+it("rearma la salida protegida tras una acción interna y al volver de otra pantalla", async () => {
+  const recargar = jest.fn()
+  function Edicion(): React.JSX.Element {
+    const { proteger, permitir, proteccion } = useSalidaProtegida(true)
+    return (
+      <>
+        <Pressable accessibilityRole="button" onPress={() => proteger(recargar)}>
+          <Text>Recargar</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => permitir(recargar)}>
+          <Text>Guardar</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => proteger(() => router.back())}>
+          <Text>Volver</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => proteger(() => router.push("/detalle" as Href))}
+        >
+          <Text>Ver detalle</Text>
+        </Pressable>
+        {proteccion}
+      </>
+    )
+  }
+  const vista = await renderRouter(
+    {
+      _layout: () => <Stack screenOptions={{ headerShown: false, animation: "none" }} />,
+      index: () => (
+        <Pressable accessibilityRole="button" onPress={() => router.push("/edicion" as Href)}>
+          <Text>Editar</Text>
+        </Pressable>
+      ),
+      edicion: Edicion,
+      detalle: () => <Text>Detalle</Text>,
+    },
+    { initialUrl: "/" },
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Editar" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Recargar" }))
+  expect(recargar).not.toHaveBeenCalled()
+  await fireEvent.press(screen.getByRole("button", { name: "Salir sin guardar" }))
+  expect(recargar).toHaveBeenCalledTimes(1)
+  expect(vista.getPathname()).toBe("/edicion")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+  expect(recargar).toHaveBeenCalledTimes(2)
+  await act(() => router.back())
+  expect(vista.getPathname()).toBe("/edicion")
+  await fireEvent.press(await screen.findByRole("button", { name: "Seguir editando" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Ver detalle" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Salir sin guardar" }))
+  await waitFor(() => expect(vista.getPathname()).toBe("/detalle"))
+  await act(() => router.back())
+  await waitFor(() => expect(vista.getPathname()).toBe("/edicion"))
+  await act(() => router.back())
+  expect(vista.getPathname()).toBe("/edicion")
+  await fireEvent.press(await screen.findByRole("button", { name: "Seguir editando" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+  expect(vista.getPathname()).toBe("/edicion")
+  await fireEvent.press(await screen.findByRole("button", { name: "Salir sin guardar" }))
+  await waitFor(() => expect(vista.getPathname()).toBe("/"))
+})
+
 it("Atrás en el editor de dieta conserva los cambios hasta confirmar el descarte", async () => {
   const api = {} as ApiNutricion
-  const vista = renderRouter(
+  const vista = await renderRouter(
     {
       _layout: () => <Stack screenOptions={{ headerShown: false, animation: "none" }} />,
       index: () => (
@@ -60,7 +124,6 @@ it("Atrás en el editor de dieta conserva los cambios hasta confirmar el descart
     },
     { initialUrl: "/" },
   )
-  await vista
   await fireEvent.press(await screen.findByRole("button", { name: "Editar dieta" }))
   await fireEvent.changeText(await screen.findByLabelText("Nombre de la dieta"), "Dieta sin perder")
   await act(() => router.back())
@@ -72,7 +135,7 @@ it("Atrás en el editor de dieta conserva los cambios hasta confirmar el descart
   await waitFor(() => expect(vista.getPathname()).toBe("/"))
 })
 
-function preparar() {
+async function preparar() {
   const datos = new Map<string, unknown>()
   const almacen: AlmacenLocal = {
     habilitar: () => undefined,
@@ -96,7 +159,7 @@ function preparar() {
   const catalogo = catalogoEnMemoria([
     ejercicioDePrueba("10000000-0000-4000-8000-000000000001", "Press banca con barra", "pecho"),
   ])
-  const vista = renderRouter(
+  const vista = await renderRouter(
     {
       _layout: () => <Stack screenOptions={{ headerShown: false, animation: "none" }} />,
       index: () => (
@@ -133,8 +196,7 @@ function preparar() {
 }
 
 it("Atrás del router conserva la ruta editada; cancelar conserva el texto y confirmar devuelve a la ficha", async () => {
-  const { vista } = preparar()
-  await vista
+  const { vista } = await preparar()
   await fireEvent.press(await screen.findByRole("button", { name: "Crear plan" }))
   await fireEvent.changeText(await screen.findByLabelText("Nombre del bloque"), "Mi plan editado")
   await act(() => router.back())
@@ -151,8 +213,7 @@ it("Atrás del router conserva la ruta editada; cancelar conserva el texto y con
 })
 
 it("publicar correctamente vuelve a la ficha sin pedir descartar el plan confirmado", async () => {
-  const { vista, asignar, datos } = preparar()
-  await vista
+  const { vista, asignar, datos } = await preparar()
   await fireEvent.press(await screen.findByRole("button", { name: "Crear plan" }))
   await fireEvent.changeText(await screen.findByLabelText("Nombre del día"), "Fuerza")
   await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
@@ -168,8 +229,7 @@ it("publicar correctamente vuelve a la ficha sin pedir descartar el plan confirm
 })
 
 it("Atrás de Android cierra la hoja de datos y conserva sus cambios bajo la protección del router", async () => {
-  const { vista } = preparar()
-  await vista
+  const { vista } = await preparar()
   await fireEvent.press(await screen.findByRole("button", { name: "Crear plan" }))
   await fireEvent.press(await screen.findByRole("button", { name: "Editar datos del bloque" }))
   await fireEvent.changeText(await screen.findByLabelText("Número de semanas"), "8")

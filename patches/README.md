@@ -1,25 +1,26 @@
-# Compatibilidad de las dependencias de Expo 57
+# Compatibilidad de las dependencias de Expo 58
 
-`expo-router++query-string+9.5.1.patch` añade las exportaciones con nombre a la misma API
-que el paquete ya exporta por defecto. Expo Router 57 las consume con
-`__importStar(require("query-string"))`; sin esta línea el cambio de la versión
-7 a la 9 rompe la generación de enlaces. El parche no cambia el decodificador.
+Expo Router 58.0.28 utiliza `URLSearchParams` para leer y generar los parámetros
+de consulta y ya no depende de `query-string`. El cambio se incorporó en
+[Expo Router 58.0.13](https://github.com/expo/expo/pull/50725).
+Se retiraron el parche `expo-router++query-string+9.5.1.patch`, su override y
+las excepciones de transformación de Jest para `query-string` y sus dependencias.
+No hace falta adaptar sus exportaciones por defecto ni conservar el decodificador.
 
-La versión 9.5.1 incorpora `decode-uri-component` 0.5, que corrige el aviso
-([GHSA-vcc3-ghjq-m6fr](https://github.com/advisories/GHSA-vcc3-ghjq-m6fr)).
-Se conserva la rama 9 porque la 10 usa expresiones regulares que el compilador
-Hermes de este SDK rechaza.
-El override está limitado a Expo Router. Jest transforma esos módulos ESM;
-Metro ya los transforma al construir la app. Los enlaces de activación y
-recuperación se comprueban con el router real en `rutas-compat.spec.ts`.
+Los enlaces de activación y recuperación siguen comprobándose con el router real
+en `apps/mobile/src/lib/rutas-compat.spec.ts`: tokens con caracteres especiales,
+parámetros repetidos y escapes mal formados.
 
-`npm ci` ejecuta `prepare`, que aplica el parche con `--error-on-fail` antes
-de compilar. Si se instala con `--ignore-scripts`, ejecutar después
-`npm run prepare`. Construir con las dependencias de desarrollo; un despliegue
-que las retire debe conservar los módulos ya preparados, no reinstalarlos sin
-aplicar el parche.
+`npm ci` ejecuta `prepare`, que comprueba los parches con `--error-on-fail` antes
+de compilar los paquetes compartidos y generar Prisma. Actualmente no hay parches
+de Expo que aplicar. Si se instala con `--ignore-scripts`, ejecutar después
+`npm run prepare`.
 
-Al actualizar el SDK, revisar si Expo Router ya acepta la API por defecto y
-retirar juntos el parche, su override y la excepción de transformación de Jest.
-El override de Zod en el CLI evita su versión vulnerable; las dos fuentes del
-CLI que lo consumen y sus esquemas de herramientas se verificaron con Zod 4.
+El override de Zod en el CLI es independiente del parche retirado del router.
+
+Jest utiliza el [resolver oficial de Reanimated](https://docs.swmansion.com/react-native-reanimated/docs/guides/testing/)
+para Reanimated 4.7 y Worklets 0.13. El resolver local también encuentra el core
+desde Expo aunque npm lo anide, comparte el React del móvil con las librerías
+elevadas a la raíz y utiliza el renderer de `jest-expo` 58, compatible con React
+19.3. Se retiraron los overrides de React Native, Reanimated y Worklets del SDK 57
+y el override del renderer 1.2, que solo admite React anterior a 19.3.

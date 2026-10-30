@@ -270,7 +270,7 @@ export function Catalogo({
               <Text style={estilos.pie}>
                 {`Mostrando ${String(ejercicios.length)} de ${String(total)}. Busca por nombre para encontrar el resto.`}
               </Text>
-            ) : null
+            ) : undefined
           }
         />
       )}
