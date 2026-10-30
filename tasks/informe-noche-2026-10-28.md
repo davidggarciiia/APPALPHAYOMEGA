@@ -1,5 +1,33 @@
 # Informe de la noche — 28-10-2026
 
+## Actualización 30-10: remates, demo con David García y perfil de entrenador
+
+Mismo reparto (Codex `gpt-6.1-sol` implementa; esta sesión revisa, verifica y commitea). Ciclo de agent skills para el entrenador: [SPEC-entrenador.md](../SPEC-entrenador.md) → [plan](plan-entrenador.md) → tareas → puntos de control con vídeo → revisión final.
+
+| Commit                        | Qué                                                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `bf15ed4`                     | D7 · enlaces centrados, web sin destello blanco, mover sesión de día (E-06/E-07) y comida con reintento (N-07)                            |
+| `34bf996`                     | D8 · panel del entrenador, transiciones de marca, listas animadas, récord personal, novedades compactas, fuera la pestaña Molestias       |
+| `060eeae`                     | D10 · prescripción por semana: fases con ajustes (estímulo, descarga, vuelta) que cambian series, cargas y RIR al asignar                 |
+| `1676129`                     | D11 · grasa por pliegues (Jackson-Pollock 3/7, Durnin-Womersley, Faulkner), valoración inicial al crear cliente y vídeo lento de arranque |
+| `a73dad6` `daf0f0b`           | D12/D13 · la intro solo en frío, sin botones anidados, kg opcional fuera de la parte principal                                            |
+| `ad5abef`                     | D14 · tabla de series y recorrido Α→Ω sin saltos ni recortes                                                                              |
+| `6d9c24d`                     | D15 · Inicio sin fotos, avisos en Notificaciones (campana con contador), nombre y apellidos                                               |
+| `ef30d32` `f060efb`           | E1/E2 · reglas de progresión compartidas; el cliente recibe «Sube carga la próxima vez»; progreso por ejercicio en la ficha               |
+| `a374e04` `c70acea` `963422b` | E3/E4/E4b/E5 · resumen semanal de cargas (API agregada, 153 ms con 15 clientes) en el Inicio; cartera con filtros y búsqueda              |
+| `95cc0b4`                     | E6 · «Datos del cliente» desde la ficha; migración aditiva `sexo` opcional (solo bases de pruebas y demo)                                 |
+| `f992b68`                     | F · ficha del cliente rediseñada en Claude Design; una sola regla de progresión en toda la app                                            |
+| `1a79c9c`                     | G · fuera el flujo de revisar cada entrenamiento (decisión del dueño)                                                                     |
+| `6bc5385`                     | H · barra del bloque, búsqueda sin tildes, demo coherente y revisión final de toda la rama                                                |
+
+**Verificado:** 44 pruebas del paquete compartido, 1576 del móvil, 509 de la API y 544 e2e contra `alpha_omega_e2e_codex`, typecheck y lint. Vídeos y capturas a 390 px de cliente y entrenador con la cuenta de demo `demo-david@manual-20261027.test` (script idempotente `build/manual-20261027/perfil-demo.mjs`).
+
+**Decisiones del dueño:** el entrenador solo prescribe el RIR y observa (Progresa / Estancado / Baja); el cliente sube la carga. Sin check-in ni cuestionario. Sin revisión de cada entreno. Sin fotos en Inicio. Novedades en la campana.
+
+**Antes de usar la base real `alpha_omega`:** aplicar la migración nueva (`npx prisma migrate deploy` desde `apps/api`).
+
+**No verificado / pendiente:** móvil real (teclado, hápticos, lectores, 60 fps); CI en GitHub (sin push); «+ Serie» y «anterior» por serie (amplían la API); vectorizar el emblema; búsqueda sin tildes en memoria (si la base de usuarios crece, pasar a `unaccent`); decisiones de borrado a petición y login con Google; Codex deja procesos auxiliares abiertos tras cada tarea (se cerraron a mano).
+
 ## Actualización 29-10: rediseño móvil y control de cargas
 
 Reparto: diseño en Claude Design ([Design](https://claude.ai/artifact/4kQQfzvt4R7qkkAQQciNPq), traducido a [ESPEC.md](diseno-movil/ESPEC.md)); implementación y revisión con Codex `gpt-6.1-sol` por el plugin, una tarea cada vez; cada tarea revisada (diff, pruebas borradas y sus sustitutas, supresiones), verificada y commiteada aquí. Codex no puede escribir en `.git` desde su sandbox, por eso los commits son de esta sesión.
