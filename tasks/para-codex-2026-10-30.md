@@ -1,6 +1,6 @@
 # Encargo para Codex · 30-10-2026
 
-Reparto de siempre: **Codex implementa; Claude revisa, verifica y hace los commits.** Rama de trabajo: `mejoras/base-2026-10-28-qxnjhw` (ya en GitHub). Antes de empezar, `git pull` de esa rama: hay dos commits nuevos de Claude (`perf(móvil)…` y el `.gitignore` de los archivos personales).
+Reparto de siempre: **Codex implementa; Claude revisa, verifica y hace los commits.** Rama de trabajo: `mejoras/base-2026-10-28-qxnjhw` (ya en GitHub). Antes de empezar, `git pull` de esa rama. **Ojo:** el commit `6c3e457 perf(móvil)…` de esta rama es K hecho por Claude en la nube sobre una foto a medias del WIP; en el escritorio K ya está commiteado como `afee1c5`. Al integrar, quedarse con `afee1c5` y descartar `6c3e457` (Claude lo resuelve si hay conflicto). K (rendimiento en Android) está hecho.
 
 ## Reglas
 
@@ -13,6 +13,10 @@ Reparto de siempre: **Codex implementa; Claude revisa, verifica y hace los commi
 - No avanzar nada que dependa de una decisión de David (lista al final).
 
 ## Tareas, en orden
+
+### 0. Rediseño del cliente ([ESPEC-rediseno-cliente-2026-10-30.md](diseno-movil/ESPEC-rediseno-cliente-2026-10-30.md)) — primero
+
+Es lo que pidió el dueño tras probar la app en Android: sesión por bloques (calentamiento → principal → final, con «Siguiente»), interfaz sin subtítulos de relleno, Plan sin la pestaña «Bloque» y con tamaños de letra fijos, Nutrición más limpia y Progreso rehecho entero. Va antes que las reservas. Hacerlo en este orden y avisar aquí tras cada punto: 1.1 sesión por bloques, 2 Plan, 4 Progreso, 3 Nutrición, 1.2 Hoy.
 
 ### 1. Reservas R2–R6 ([plan-reservas.md](plan-reservas.md), [SPEC-reservas.md](../SPEC-reservas.md))
 
