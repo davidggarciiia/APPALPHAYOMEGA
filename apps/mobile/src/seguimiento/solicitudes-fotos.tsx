@@ -158,6 +158,7 @@ export function SolicitudesFotos({
   modo,
   nuevoId,
   valoracionAbiertaId = null,
+  ocultarSinPendientes = false,
 }: {
   clienteId: string
   api: Pick<
@@ -173,7 +174,9 @@ export function SolicitudesFotos({
   nuevoId: () => string
   /** Visita con borrador abierto a la que se pueden incorporar fotos recibidas. */
   valoracionAbiertaId?: string | null
-}): React.JSX.Element {
+  /** Cliente: sin solicitudes por atender (ni cargando, ni error, ni foto en curso), no pinta nada. */
+  ocultarSinPendientes?: boolean
+}): React.JSX.Element | null {
   const [solicitudes, setSolicitudes] = useState<SolicitudFotos[] | null>(null)
   const [pidiendo, setPidiendo] = useState(false)
   const [solicitudPendiente, setSolicitudPendiente] = useState<CrearSolicitudFotos | null>(null)
@@ -437,6 +440,16 @@ export function SolicitudesFotos({
     modo === "cliente"
       ? (solicitudes ?? []).filter((x) => x.estado !== "revisada")
       : (solicitudes ?? [])
+
+  if (
+    ocultarSinPendientes &&
+    modo === "cliente" &&
+    error === "" &&
+    !ocupado &&
+    fotoPendiente === null &&
+    visibles.length === 0
+  )
+    return null
 
   return (
     <View style={s.grupo}>

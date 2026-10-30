@@ -145,9 +145,12 @@ type Datos = {
 export function ValoracionesCliente({
   clienteId,
   api,
+  sinAvisoVacio = false,
 }: {
   clienteId: string
   api: ApiValoracionesCliente
+  /** Progreso: sin valoraciones ni revisión programada no explica nada (ya lo dice una vez). */
+  sinAvisoVacio?: boolean
 }): React.JSX.Element {
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
@@ -224,13 +227,13 @@ export function ValoracionesCliente({
         <>
           {datos.ultima ? (
             <Ultima publicacion={datos.ultima} abrir={() => setAbierta(datos.ultima)} />
-          ) : (
+          ) : sinAvisoVacio ? null : (
             <Text style={s.vacio}>
               Aún no tienes valoraciones publicadas. Cuando tu entrenador publique la primera, la
               verás aquí.
             </Text>
           )}
-          <Proxima proxima={datos.proxima} />
+          {!(sinAvisoVacio && !datos.proxima.pauta) && <Proxima proxima={datos.proxima} />}
           {datos.lista.length > 1 && (
             <View style={s.grupo}>
               <Titulo>Historial de valoraciones</Titulo>
