@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react"
+import { useEffect, useRef, type ReactNode } from "react"
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text } from "react-native"
 import Animated, {
   cancelAnimation,
@@ -38,20 +38,22 @@ export function Dialogo({
   const reducido = useMovimientoReducido()
   const apertura = useSharedValue(0)
   const fondo = useSharedValue(0)
+  const anteriorVisible = useRef(false)
   useEffect(() => {
     cancelAnimation(apertura)
     cancelAnimation(fondo)
-    if (visible && !reducido) {
+    const animar = visible && !reducido && !anteriorVisible.current
+    anteriorVisible.current = visible
+    if (animar) {
       apertura.value = 0
       fondo.value = 0
     }
-    apertura.value =
-      reducido || !visible
-        ? visible
-          ? 1
-          : 0
-        : withTiming(1, { duration: 180, easing: CURVA.entrada })
-    fondo.value = reducido || !visible ? (visible ? 1 : 0) : withTiming(1, { duration: 160 })
+    apertura.value = !animar
+      ? visible
+        ? 1
+        : 0
+      : withTiming(1, { duration: 180, easing: CURVA.entrada })
+    fondo.value = !animar ? (visible ? 1 : 0) : withTiming(1, { duration: 160 })
     return () => {
       cancelAnimation(apertura)
       cancelAnimation(fondo)

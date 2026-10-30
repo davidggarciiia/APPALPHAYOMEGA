@@ -10,6 +10,16 @@ import { ErrorDePermiso, ErrorDeSesion } from "../../lib/http"
 import { FichaCliente } from "./ficha-cliente"
 
 const mockDatosDelCliente = jest.fn()
+const mockPintarCargas = jest.fn()
+jest.mock("./cargas-ficha", () => {
+  const { CargasFicha } = jest.requireActual<typeof import("./cargas-ficha")>("./cargas-ficha")
+  return {
+    CargasFicha: (props: React.ComponentProps<typeof CargasFicha>) => {
+      mockPintarCargas()
+      return <CargasFicha {...props} />
+    },
+  }
+})
 jest.mock("../../clientes/datos-del-cliente", () => ({
   DatosDelCliente: (props: { clienteId: string; alCerrar: () => void }) => {
     mockDatosDelCliente(props)
@@ -239,6 +249,30 @@ it("sondea actividad a 10 s y perfil a 60 s; pausa en segundo plano y al desmont
   await act(async () => jest.advanceTimersByTime(20000))
   expect(datos.api.molestias).toHaveBeenCalledTimes(llamadas)
 })
+it("un sondeo idéntico no repinta la ficha y una sesión nueva aparece al siguiente", async () => {
+  const datos = fuentes()
+  datos.api.resultados.mockImplementation(async () => ({ resultados: [resultado("A")] }))
+  await render(vista(datos))
+  mockPintarCargas.mockClear()
+  await pasar(10000)
+  expect(datos.api.resultados).toHaveBeenCalledTimes(2)
+  expect(mockPintarCargas).not.toHaveBeenCalled()
+  datos.api.resultados.mockResolvedValue({ resultados: [resultado("A"), resultado("B")] })
+  await pasar(10000)
+  expect(screen.getByText("2 enviadas")).toBeOnTheScreen()
+})
+
+it("el sondeo muestra el fallo y su recuperación aunque los datos no hayan cambiado", async () => {
+  const datos = fuentes()
+  await render(vista(datos))
+  datos.api.molestias.mockRejectedValueOnce(new Error("sin red"))
+  await pasar(10000)
+  expect(screen.getByRole("alert")).toBeOnTheScreen()
+  await pasar(10000)
+  expect(screen.queryByRole("alert")).toBeNull()
+  expect(screen.getByText("Lara García")).toBeOnTheScreen()
+})
+
 it("espera la consulta pendiente antes del siguiente sondeo", async () => {
   const datos = fuentes()
   let resolver!: (valor: { molestias: Molestia[]; total: number }) => void

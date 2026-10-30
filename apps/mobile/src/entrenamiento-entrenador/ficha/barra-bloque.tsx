@@ -4,8 +4,6 @@ import Animated, {
   cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
-  withRepeat,
   withTiming,
 } from "react-native-reanimated"
 import { faseDeSemana, type PlanVigente } from "@alpha-omega/shared"
@@ -26,7 +24,6 @@ export function BarraDeBloque({
   const reducido = useMovimientoReducido()
   const iniciada = useRef(false)
   const relleno = useSharedValue(1)
-  const pulso = useSharedValue(1)
   const actual = semanaDelBloque(plan, lunes)
   const semanas = Array.from({ length: plan.semanas }, (_, i) => {
     const numero = i + 1
@@ -42,10 +39,8 @@ export function BarraDeBloque({
   })
   useEffect(() => {
     cancelAnimation(relleno)
-    cancelAnimation(pulso)
     if (reducido || pausada) {
       relleno.value = 1
-      pulso.value = 1
       if (pausada) iniciada.current = true
     } else {
       if (!iniciada.current) {
@@ -53,15 +48,12 @@ export function BarraDeBloque({
         relleno.value = withTiming(1, { duration: 400, easing: CURVA.entrada })
         iniciada.current = true
       }
-      pulso.value = withDelay(500, withRepeat(withTiming(0.45, { duration: 1400 }), -1, true))
     }
     return () => {
       cancelAnimation(relleno)
-      cancelAnimation(pulso)
     }
-  }, [reducido, pausada, relleno, pulso])
+  }, [reducido, pausada, relleno])
   const completado = useAnimatedStyle(() => ({ transform: [{ scaleX: relleno.value }] }))
-  const encendido = useAnimatedStyle(() => ({ opacity: pulso.value }))
   const ajustes = semanas.filter((semana) => semana.ajuste)
   const descripcion = ajustes
     .map(
@@ -87,7 +79,7 @@ export function BarraDeBloque({
               {numero < actual && !ajuste && (
                 <Animated.View style={[s.relleno, degradadoOro, completado]} />
               )}
-              {numero === actual && <Animated.View style={[s.relleno, s.actual, encendido]} />}
+              {numero === actual && <View style={[s.relleno, s.actual]} />}
             </View>
             {mostrarEtiqueta && (
               <Text

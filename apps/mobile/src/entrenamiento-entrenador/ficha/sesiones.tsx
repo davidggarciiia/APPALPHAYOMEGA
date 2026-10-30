@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from "react-native"
+import { memo, useCallback, type ReactNode } from "react"
+import { FlatList, StyleSheet, Text, View } from "react-native"
 import type { ListadoResultados, Molestia } from "@alpha-omega/shared"
 
 import { Pulsable } from "../../componentes/pulsable"
@@ -75,57 +76,82 @@ export function SesionesDelCliente({
   resultados,
   molestias,
   abrir,
+  cabecera,
 }: {
   resultados: ListadoResultados["resultados"]
   molestias: Molestia[]
   abrir: (sesionId: string) => void
+  cabecera?: ReactNode
 }): React.JSX.Element {
+  const pintar = useCallback(
+    ({ item }: { item: ListadoResultados["resultados"][number] }) => (
+      <TarjetaSesion sesion={item} molestias={molestias} abrir={abrir} />
+    ),
+    [molestias, abrir],
+  )
   return (
-    <View style={s.contenido}>
-      {resultados.length === 0 ? (
-        <Text style={s.tenue}>El cliente aún no ha enviado ninguna sesión.</Text>
-      ) : (
-        <View style={s.contenido}>
-          {resultados.map(({ agenda, resultado }) => (
-            <Pulsable
-              key={agenda.id}
-              style={s.tarjeta}
-              onPress={() => abrir(agenda.id)}
-              accessibilityLabel={`${resultado.prescripcion.nombre} · ${fechaLegible(agenda.fechaActual)}. ${resumenDeResultado(resultado)}`}
-            >
-              <Text style={s.titulo}>
-                {resultado.prescripcion.nombre} · {fechaLegible(agenda.fechaActual)}
-              </Text>
-              <Text style={s.tenue}>{resumenDeResultado(resultado)}</Text>
-              <EtiquetasDeSesion resultado={resultado} molestias={molestias} />
-              <View style={s.series}>
-                {seriesResumen(resultado).map((serie, n) => (
-                  <View
-                    key={serie.id}
-                    testID={`serie-resumen-${serie.id}`}
-                    accessible
-                    accessibilityLabel={`Serie ${n + 1}, ${serie.estado}`}
-                    style={[
-                      s.serie,
-                      serie.estado === "hecha"
-                        ? s.hecha
-                        : serie.estado === "fuera de objetivo"
-                          ? s.fuera
-                          : s.omitida,
-                    ]}
-                  />
-                ))}
-              </View>
-            </Pulsable>
-          ))}
-        </View>
-      )}
-    </View>
+    <FlatList
+      testID="historial-sesiones"
+      data={resultados}
+      keyExtractor={claveSesion}
+      renderItem={pintar}
+      initialNumToRender={6}
+      maxToRenderPerBatch={6}
+      windowSize={5}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={s.contenido}
+      ListHeaderComponent={cabecera ? <View style={s.cabecera}>{cabecera}</View> : undefined}
+      ListEmptyComponent={<Text style={s.tenue}>El cliente aún no ha enviado ninguna sesión.</Text>}
+    />
   )
 }
 
+const claveSesion = (sesion: ListadoResultados["resultados"][number]) => sesion.agenda.id
+const TarjetaSesion = memo(function TarjetaSesion({
+  sesion: { agenda, resultado },
+  molestias,
+  abrir,
+}: {
+  sesion: ListadoResultados["resultados"][number]
+  molestias: Molestia[]
+  abrir: (sesionId: string) => void
+}): React.JSX.Element {
+  return (
+    <Pulsable
+      style={s.tarjeta}
+      onPress={() => abrir(agenda.id)}
+      accessibilityLabel={`${resultado.prescripcion.nombre} · ${fechaLegible(agenda.fechaActual)}. ${resumenDeResultado(resultado)}`}
+    >
+      <Text style={s.titulo}>
+        {resultado.prescripcion.nombre} · {fechaLegible(agenda.fechaActual)}
+      </Text>
+      <Text style={s.tenue}>{resumenDeResultado(resultado)}</Text>
+      <EtiquetasDeSesion resultado={resultado} molestias={molestias} />
+      <View style={s.series}>
+        {seriesResumen(resultado).map((serie, n) => (
+          <View
+            key={serie.id}
+            testID={`serie-resumen-${serie.id}`}
+            accessible
+            accessibilityLabel={`Serie ${n + 1}, ${serie.estado}`}
+            style={[
+              s.serie,
+              serie.estado === "hecha"
+                ? s.hecha
+                : serie.estado === "fuera de objetivo"
+                  ? s.fuera
+                  : s.omitida,
+            ]}
+          />
+        ))}
+      </View>
+    </Pulsable>
+  )
+})
+
 const s = StyleSheet.create({
   contenido: { gap: espacio[16] },
+  cabecera: { marginBottom: espacio[8] },
   tarjeta: {
     backgroundColor: tema.superficie,
     borderRadius: radio.tarjeta,

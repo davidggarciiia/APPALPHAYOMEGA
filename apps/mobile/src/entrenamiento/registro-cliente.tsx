@@ -1,8 +1,8 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { NavigationContext, usePreventRemove } from "expo-router/react-navigation"
 import { randomUUID } from "expo-crypto"
-import { AppState, Keyboard, ScrollView, StyleSheet, Text, View } from "react-native"
+import { AppState, FlatList, Keyboard, ScrollView, StyleSheet, Text, View } from "react-native"
 import { ZodError } from "zod"
 import type { Anterior, EjercicioPrescrito, SesionCliente } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
@@ -353,6 +353,18 @@ export function RegistroCliente({
   }, [api, id, cuenta])
 
   const documento = control?.documento
+  const prescripcionActual = documento?.sesion.prescripcion
+  const ejercicios = useMemo(
+    () =>
+      prescripcionActual
+        ? ejerciciosOrdenados(prescripcionActual).filter(
+            (ejercicio, indice, ordenados) =>
+              !["calentamiento", "final"].includes(ejercicio.seccion ?? "principal") ||
+              ordenados[indice - 1]?.seccion !== ejercicio.seccion,
+          )
+        : [],
+    [prescripcionActual],
+  )
   const accion = async (operacion: () => Promise<void>): Promise<void> => {
     setOcupado(true)
     setError("")
@@ -846,46 +858,67 @@ export function RegistroCliente({
           />
         )}
       </View>
-      <ScrollView
+      <FlatList
         testID="lista-sesion"
+        data={ejercicios}
+        keyExtractor={(ejercicio) => ejercicio.id}
+        initialNumToRender={4}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        removeClippedSubviews={false}
         contentContainerStyle={[e.contenido, e.lista]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-      >
-        {pausado && !bloqueadoPorEnvio && (
-          <BotonPrincipal
-            texto="Continuar entrenamiento"
-            onPress={() =>
-              void accion(() => control.editar(iniciarTramo(edicion, new Date().toISOString())))
-            }
-          />
-        )}
-        <Text
-          testID="estado-guardado"
-          accessibilityLiveRegion={control.errorLocal ? "polite" : "none"}
-          style={e.estadoOculto}
-        >
-          {control.errorLocal
-            ? "Error de guardado"
-            : control.guardando > 0
-              ? "Guardando…"
-              : "Guardado"}
-        </Text>
-        {avisos}
-        {ejerciciosOrdenados(prescripcion).map((ejercicio, indice, ordenados) => {
+        ListHeaderComponent={
+          <View
+            style={[
+              e.bloques,
+              (pausado ||
+                control.errorLocal ||
+                control.sinRed ||
+                control.sinConsentimiento ||
+                control.conflicto ||
+                documento.respaldo) &&
+                e.finBloque,
+            ]}
+          >
+            {pausado && !bloqueadoPorEnvio && (
+              <BotonPrincipal
+                texto="Continuar entrenamiento"
+                onPress={() =>
+                  void accion(() => control.editar(iniciarTramo(edicion, new Date().toISOString())))
+                }
+              />
+            )}
+            <Text
+              testID="estado-guardado"
+              accessibilityLiveRegion={control.errorLocal ? "polite" : "none"}
+              style={e.estadoOculto}
+            >
+              {control.errorLocal
+                ? "Error de guardado"
+                : control.guardando > 0
+                  ? "Guardando…"
+                  : "Guardado"}
+            </Text>
+            {avisos}
+          </View>
+        }
+        renderItem={({ item: ejercicio }) => {
           const enCurso =
             ejercicio.series.find((s) => {
               const real = edicion.series.find((r) => r.serieId === s.id)
               return !real?.hecha && !real?.omitida
             })?.id ?? null
           const deLista = ejercicio.seccion === "calentamiento" || ejercicio.seccion === "final"
-          if (deLista && ordenados[indice - 1]?.seccion === ejercicio.seccion) return null
           return (
-            <View key={ejercicio.id} testID="series-del-ejercicio">
+            <View key={ejercicio.id} testID="series-del-ejercicio" style={e.finBloque}>
               {deLista ? (
                 <ListaMarcable
                   titulo={TITULOS_DE_SECCION[ejercicio.seccion as "calentamiento" | "final"]}
-                  ejercicios={ordenados.filter((e) => e.seccion === ejercicio.seccion)}
+                  ejercicios={prescripcion.ejercicios.filter(
+                    (e) => e.seccion === ejercicio.seccion,
+                  )}
                   series={edicion.series}
                   bloqueado={seriesBloqueadas}
                   marcar={marcarLista}
@@ -918,19 +951,23 @@ export function RegistroCliente({
               )}
             </View>
           )
-        })}
-        <Enlace texto="Añadir nota" onPress={() => setNota(!nota)} />
-        {(nota || edicion.notas !== "") && (
-          <Campo
-            etiqueta="Nota para tu entrenador"
-            value={edicion.notas}
-            editable={!bloqueado}
-            onChangeText={(notas) => cambiar({ ...control.documento!.edicion, notas })}
-            multiline
-            maxLength={2000}
-          />
-        )}
-      </ScrollView>
+        }}
+        ListFooterComponent={
+          <View style={e.bloques}>
+            <Enlace texto="Añadir nota" onPress={() => setNota(!nota)} />
+            {(nota || edicion.notas !== "") && (
+              <Campo
+                etiqueta="Nota para tu entrenador"
+                value={edicion.notas}
+                editable={!bloqueado}
+                onChangeText={(notas) => cambiar({ ...control.documento!.edicion, notas })}
+                multiline
+                maxLength={2000}
+              />
+            )}
+          </View>
+        }
+      />
       {avisoDeshacer && !ajuste && <View style={e.deshacer}>{avisoDeshacer}</View>}
       {ajuste && foco && (
         <BarraAjuste
@@ -981,7 +1018,9 @@ const e = StyleSheet.create({
   pantalla: { flex: 1 },
   cabecera: { paddingHorizontal: 20 },
   contenido: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 24 },
-  lista: { paddingBottom: 230, gap: 26 },
+  lista: { paddingBottom: 230, gap: 0 },
+  bloques: { gap: 26 },
+  finBloque: { marginBottom: 26 },
   esqueleto: { gap: 8, marginBottom: 26 },
   estadoOculto: { height: 0, opacity: 0, position: "absolute" },
   deshacer: { marginHorizontal: 20, marginBottom: 20 },
