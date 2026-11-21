@@ -12,7 +12,6 @@ import { Pestanas } from "../../src/componentes/piezas"
 const VISTAS = [
   { valor: "semana", texto: "Semana" },
   { valor: "rutina", texto: "Rutina" },
-  { valor: "bloque", texto: "Bloque" },
   { valor: "guia", texto: "Guía" },
 ] as const
 
@@ -20,7 +19,7 @@ export default function MiEntrenamiento(): React.JSX.Element {
   const { estado, salir, reintentar } = useSesion()
   const api = useEntrenamiento()
   const router = useRouter()
-  const [vista, setVista] = useState<"semana" | "rutina" | "bloque" | "guia">("semana")
+  const [vista, setVista] = useState<"semana" | "rutina" | "guia">("semana")
   const abrir = (id: string): void =>
     router.push({ pathname: "/entrenamiento/[id]", params: { id } })
   return (

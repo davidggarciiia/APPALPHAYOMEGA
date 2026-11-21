@@ -1,9 +1,9 @@
 import { describe, it, jest } from "@jest/globals"
+import { StyleSheet } from "react-native"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import { PrescripcionSchema, type EjercicioPrescrito, type PlanVigente } from "@alpha-omega/shared"
 
 import { objetivoDeSerie } from "../sesion/modelo"
-import { BloqueDelPlan } from "./bloque"
 import { Guia } from "./guia"
 import { RutinaDeLaSemana, type DiaDelPlan } from "./rutina"
 import { PlanCliente } from "./plan-cliente"
@@ -26,6 +26,18 @@ jest.mock("../../catalogo-ejercicios/use-catalogo", () => ({
 jest.mock("../../catalogo-ejercicios/figura-ejercicio", () => ({
   useAccesoAFiguras: () => ({ base: "http://api", token: "t", renovar: jest.fn() }),
 }))
+jest.mock("../ver-tecnica", () => {
+  const React = jest.requireActual<typeof import("react")>("react")
+  const { Modal, Text } = jest.requireActual<typeof import("react-native")>("react-native")
+  return {
+    VerTecnica: () =>
+      React.createElement(
+        Modal,
+        { visible: true },
+        React.createElement(Text, null, "Técnica abierta"),
+      ),
+  }
+})
 
 const u = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
 
@@ -86,6 +98,36 @@ function dia(id: number, fecha: string, nombre: string, enviado = false): DiaDel
   }
 }
 
+it("en Rutina conserva el objetivo y la nota del entrenador del plan vigente", async () => {
+  const sesion = dia(2, lunesDeSemana(), "Empuje")
+  const plan: PlanVigente = {
+    id: u(50),
+    nombre: "Bloque 1",
+    semanaInicial: lunesDeSemana(),
+    semanas: 6,
+    version: 1,
+    bloque: {
+      objetivos: ["Ganar fuerza en banca"],
+      fases: [],
+      deportes: [],
+      notas: ["No entrenes con dolor"],
+    },
+  }
+  const api = {
+    semana: jest.fn(async () => ({ sesiones: [sesion.resumen], total: 1 })),
+    plan: jest.fn(async () => ({ plan })),
+    leerCliente: jest.fn(async () => ({ agenda: sesion.resumen.agenda, prescripcion: empuje })),
+  } as unknown as ApiEntrenamiento
+  await render(<PlanCliente clienteId={u(99)} api={api} abrir={jest.fn()} pestana="rutina" />)
+  expect(
+    await screen.findByRole("button", { name: "Indicaciones del entrenador" }),
+  ).toBeOnTheScreen()
+  expect(screen.queryByText("Ganar fuerza en banca")).toBeNull()
+  await fireEvent.press(screen.getByRole("button", { name: "Indicaciones del entrenador" }))
+  expect(await screen.findByText("Ganar fuerza en banca")).toBeOnTheScreen()
+  expect(screen.getByText("No entrenes con dolor")).toBeOnTheScreen()
+})
+
 it("el plan abre una sola sesión por foco y deja volver a abrirla", async () => {
   const sesion = dia(2, lunesDeSemana(), "Empuje")
   const api = {
@@ -95,12 +137,14 @@ it("el plan abre una sola sesión por foco y deja volver a abrirla", async () =>
   } as unknown as ApiEntrenamiento
   const abrir = jest.fn()
   const vista = await render(<PlanCliente clienteId={u(99)} api={api} abrir={abrir} />)
+  await fireEvent.press(await screen.findByRole("button", { name: /: Empuje/ }))
   const boton = await screen.findByRole("button", { name: "Abrir sesión" })
   await fireEvent.press(boton)
   await fireEvent.press(boton)
   expect(abrir).toHaveBeenCalledTimes(1)
 
   await vista.rerender(<PlanCliente clienteId={u(99)} api={{ ...api }} abrir={abrir} />)
+  await fireEvent.press(await screen.findByRole("button", { name: /: Empuje/ }))
   await fireEvent.press(await screen.findByRole("button", { name: "Abrir sesión" }))
   expect(abrir).toHaveBeenCalledTimes(1)
 
@@ -108,6 +152,42 @@ it("el plan abre una sola sesión por foco y deja volver a abrirla", async () =>
   await vista.rerender(<PlanCliente clienteId={u(99)} api={api} abrir={abrir} />)
   await fireEvent.press(await screen.findByRole("button", { name: "Abrir sesión" }))
   expect(abrir).toHaveBeenCalledTimes(2)
+})
+
+it("muestra el detalle de una sesión solo después de tocar su fila", async () => {
+  const sesion = dia(2, lunesDeSemana(), "Empuje")
+  const api = {
+    semana: jest.fn(async () => ({ sesiones: [sesion.resumen], total: 1 })),
+    plan: jest.fn(async () => ({ plan: null })),
+    leerCliente: jest.fn(async () => ({ agenda: sesion.resumen.agenda, prescripcion: empuje })),
+  } as unknown as ApiEntrenamiento
+  await render(<PlanCliente clienteId={u(99)} api={api} abrir={jest.fn()} />)
+  const fila = await screen.findByRole("button", { name: /: Empuje/ })
+  expect(screen.queryByRole("button", { name: "Abrir sesión" })).toBeNull()
+  await fireEvent.press(fila)
+  expect(screen.getByRole("button", { name: "Cerrar detalle" })).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: "Abrir sesión" })).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Abrir sesión" }))
+  expect(screen.queryByRole("button", { name: "Cerrar detalle" })).toBeNull()
+})
+
+it("abre la técnica dentro del modal de detalle de la sesión", async () => {
+  const sesion = dia(2, lunesDeSemana(), "Empuje")
+  const api = {
+    semana: jest.fn(async () => ({ sesiones: [sesion.resumen], total: 1 })),
+    plan: jest.fn(async () => ({ plan: null })),
+    leerCliente: jest.fn(async () => ({ agenda: sesion.resumen.agenda, prescripcion: empuje })),
+  } as unknown as ApiEntrenamiento
+  await render(<PlanCliente clienteId={u(99)} api={api} abrir={jest.fn()} />)
+  await fireEvent.press(await screen.findByRole("button", { name: /: Empuje/ }))
+  await fireEvent.press(screen.getByRole("button", { name: /Press banca con barra, 4×6/ }))
+  let nodo = screen.getByText("Técnica abierta").parent
+  const ancestros: string[] = []
+  while (nodo) {
+    ancestros.push(nodo.type)
+    nodo = nodo.parent
+  }
+  expect(ancestros.filter((tipo) => tipo === "Modal")).toHaveLength(2)
 })
 
 it.each([new ErrorDeSesion(), new ErrorDePermiso()])(
@@ -129,6 +209,7 @@ it.each([new ErrorDeSesion(), new ErrorDePermiso()])(
     } as unknown as ApiEntrenamiento
     const abrir = jest.fn()
     const vista = await render(<PlanCliente clienteId={u(99)} api={api} abrir={abrir} />)
+    await fireEvent.press(await screen.findByRole("button", { name: /: Empuje/ }))
     await screen.findByRole("button", { name: "Abrir sesión" })
 
     jest.mocked(api.semana).mockRejectedValue(error)
@@ -149,6 +230,63 @@ it.each([new ErrorDeSesion(), new ErrorDePermiso()])(
 )
 
 describe("RutinaDeLaSemana", () => {
+  it("agrupa las sesiones por día con una fila seleccionable para cada una", async () => {
+    const elegir = jest.fn<(id: string) => void>()
+    await render(
+      <RutinaDeLaSemana
+        dias={[
+          dia(1, "2026-09-21", "Tirón"),
+          dia(2, "2026-09-24", "Empuje"),
+          dia(3, "2026-09-24", "Pierna"),
+        ]}
+        elegido={u(1)}
+        elegir={elegir}
+        hoy="2026-09-24"
+        verTecnica={() => undefined}
+        abrir={() => undefined}
+      />,
+    )
+    expect(screen.getAllByRole("header", { name: "jueves" })).toHaveLength(1)
+    await fireEvent.press(screen.getByRole("button", { name: "jueves: Pierna" }))
+    expect(elegir).toHaveBeenCalledWith(u(3))
+  })
+
+  it("mantiene el mismo tamaño fijo con nombres de sesión cortos y largos", async () => {
+    const corto = dia(1, "2026-09-21", "Empuje")
+    const largo = dia(2, "2026-09-22", "Torso completo y core final")
+    const vista = await render(
+      <RutinaDeLaSemana
+        dias={[corto]}
+        elegido={u(1)}
+        elegir={() => undefined}
+        hoy="2026-09-21"
+        verTecnica={() => undefined}
+        abrir={() => undefined}
+      />,
+    )
+    const tituloCorto = screen.getByRole("header", { name: "Empuje" })
+    const estiloCorto = StyleSheet.flatten(tituloCorto.props.style)
+    expect(tituloCorto.props.adjustsFontSizeToFit).not.toBe(true)
+    expect(tituloCorto.props.minimumFontScale).toBeUndefined()
+
+    await vista.rerender(
+      <RutinaDeLaSemana
+        dias={[largo]}
+        elegido={u(2)}
+        elegir={() => undefined}
+        hoy="2026-09-22"
+        verTecnica={() => undefined}
+        abrir={() => undefined}
+      />,
+    )
+    const tituloLargo = screen.getByRole("header", { name: "Torso completo y core final" })
+    const estiloLargo = StyleSheet.flatten(tituloLargo.props.style)
+    expect(tituloLargo.props.adjustsFontSizeToFit).not.toBe(true)
+    expect(tituloLargo.props.minimumFontScale).toBeUndefined()
+    expect(estiloLargo.fontSize).toBe(estiloCorto.fontSize)
+    expect(estiloLargo.lineHeight).toBe(estiloCorto.lineHeight)
+  })
+
   it("enseña el día elegido por partes, con dosis, RIR y descanso", async () => {
     const verTecnica = jest.fn<(e: EjercicioPrescrito) => void>()
     await render(
@@ -168,6 +306,7 @@ describe("RutinaDeLaSemana", () => {
     expect(screen.getByText("2 vueltas")).toBeTruthy()
     expect(screen.getByText("4×6")).toBeTruthy()
     expect(screen.getByText("RIR 3 · 2–3 min")).toBeTruthy()
+    expect(screen.getByRole("button", { name: "lunes: Tirón, hecha" })).toBeOnTheScreen()
 
     await fireEvent.press(screen.getByRole("button", { name: /Press banca con barra, 4×6/ }))
     expect(verTecnica).toHaveBeenCalledWith(
@@ -188,81 +327,10 @@ describe("RutinaDeLaSemana", () => {
         abrir={abrir}
       />,
     )
-    await fireEvent.press(screen.getByRole("tab", { name: "jueves: Empuje" }))
+    await fireEvent.press(screen.getByRole("button", { name: "jueves: Empuje" }))
     expect(elegir).toHaveBeenCalledWith(u(2))
     await fireEvent.press(screen.getByRole("button", { name: "Ver lo que hiciste" }))
     expect(abrir).toHaveBeenCalledWith(u(1))
-  })
-})
-
-describe("BloqueDelPlan", () => {
-  const plan: PlanVigente = {
-    id: u(50),
-    nombre: "Bloque 1",
-    semanaInicial: "2026-09-21",
-    semanas: 6,
-    version: 1,
-    bloque: {
-      objetivos: ["Compatible con el K-1"],
-      fases: [
-        { desde: 1, hasta: 2, nombre: "Calibrar", detalle: "RIR 3 · accesorios 2–3" },
-        { desde: 3, hasta: 4, nombre: "Progresar", detalle: null },
-      ],
-      deportes: [{ nombre: "K-1", dias: [4, 7], minutos: 60 }],
-      notas: ["Nada de K-1 los miércoles"],
-    },
-  }
-
-  it("sitúa la semana, marca la fase de ahora y enseña deportes y notas", async () => {
-    await render(
-      <BloqueDelPlan
-        plan={plan}
-        lunes="2026-09-28"
-        dias={[dia(2, "2026-10-01", "Empuje")]}
-        hoy="2026-10-01"
-      />,
-    )
-    expect(screen.getByText("Bloque 1 · semana 2 de 6")).toBeTruthy()
-    expect(screen.getByText("21 sep – 1 nov")).toBeTruthy()
-    expect(screen.getByText("Ahora")).toBeTruthy()
-    expect(screen.getByText("K-1: jueves y domingo, 60 min")).toBeTruthy()
-    expect(screen.getByText("Nada de K-1 los miércoles")).toBeTruthy()
-    expect(screen.getByText("70–85")).toBeTruthy()
-  })
-
-  it("sin plan explica que aún no hay bloque", async () => {
-    await render(<BloqueDelPlan plan={null} lunes="2026-09-28" dias={[]} hoy="2026-10-01" />)
-    expect(screen.getByText(/no forma parte de ningún bloque/)).toBeTruthy()
-  })
-
-  it("D10: enseña los cambios de prescripción de la fase actual", async () => {
-    await render(
-      <BloqueDelPlan
-        plan={{
-          ...plan,
-          bloque: {
-            ...plan.bloque!,
-            fases: [
-              {
-                desde: 1,
-                hasta: 6,
-                nombre: "Descarga",
-                detalle: null,
-                ajustes: { factorSeries: 0.5, factorCarga: 0.875 },
-              },
-            ],
-          },
-        }}
-        lunes="2026-09-28"
-        dias={[]}
-        hoy="2026-10-01"
-      />,
-    )
-    expect(screen.getByText("Descarga")).toBeTruthy()
-    expect(
-      screen.getByText("−50 % series accesorios (compuestos igual) · 87,5 % de carga"),
-    ).toBeTruthy()
-    expect(screen.getByText("Ahora")).toBeTruthy()
   })
 })
 

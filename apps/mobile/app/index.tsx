@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect, useRouter, type Href } from "expo-router"
 import type { Bloque } from "@alpha-omega/shared"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../src/componentes/formulario"
 import { Icono } from "../src/componentes/iconos"
 import { SemanaEntrenamiento } from "../src/entrenamiento/semana"
@@ -12,7 +12,7 @@ import { useNutricion } from "../src/nutricion/api"
 import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
 import { InicioEntrenador } from "../src/inicio-entrenador/inicio-entrenador"
 import { useSesion } from "../src/sesion"
-import { tema } from "../src/tema"
+import { fondoDeMarca, tema } from "../src/tema"
 
 export default function Inicio(): React.JSX.Element {
   const { estado, salir, pedir } = useSesion()
@@ -39,7 +39,16 @@ export default function Inicio(): React.JSX.Element {
       }
     }, [api, clienteId]),
   )
-  if (estado.fase !== "dentro") return <View />
+  if (estado.fase !== "dentro")
+    return (
+      <View style={s.espera}>
+        <ActivityIndicator
+          color={tema.acento}
+          size="large"
+          accessibilityLabel="Abriendo pantalla"
+        />
+      </View>
+    )
   const { usuario } = estado
   const acceso = (
     titulo: string,
@@ -105,6 +114,7 @@ export default function Inicio(): React.JSX.Element {
   )
 }
 const s = StyleSheet.create({
+  espera: { flex: 1, alignItems: "center", justifyContent: "center", ...fondoDeMarca },
   cliente: { gap: 28 },
   contenido: { gap: 12 },
   leyenda: { color: tema.textoTenue, fontFamily: tema.fuenteSemi, fontSize: 13, marginBottom: 4 },

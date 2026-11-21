@@ -1,7 +1,7 @@
 import { Text } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { PantallaDeFormulario } from "../src/componentes/formulario"
-import { useEntrenamiento } from "../src/entrenamiento/use-entrenamiento"
-import { ProgresoCliente } from "../src/seguimiento/progreso"
+import { ProgresoRedisenado } from "../src/seguimiento/progreso-redisenado"
 import { useSeguimiento } from "../src/seguimiento/use-seguimiento"
 import { useMedios } from "../src/seguimiento/use-medios"
 import { useValoraciones } from "../src/seguimiento/use-valoraciones"
@@ -11,24 +11,24 @@ import { tema } from "../src/tema"
 export default function Progreso(): React.JSX.Element {
   const { estado } = useSesion()
   const seguimiento = useSeguimiento()
-  const entrenamiento = useEntrenamiento()
   const valoraciones = useValoraciones()
   const medios = useMedios()
-  return (
-    <PantallaDeFormulario sinTarjeta>
-      {"usuario" in estado && estado.usuario.rol === "cliente" ? (
-        <ProgresoCliente
+  if ("usuario" in estado && estado.usuario.rol === "cliente")
+    return (
+      <SafeAreaView edges={["left", "right"]} style={{ flex: 1 }}>
+        <ProgresoRedisenado
           clienteId={estado.usuario.id}
           seguimiento={seguimiento}
-          entrenamiento={entrenamiento}
           valoraciones={valoraciones}
           medios={medios}
         />
-      ) : (
-        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
-          Esta pantalla es para clientes.
-        </Text>
-      )}
+      </SafeAreaView>
+    )
+  return (
+    <PantallaDeFormulario sinTarjeta>
+      <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>
+        Esta pantalla es para clientes.
+      </Text>
     </PantallaDeFormulario>
   )
 }

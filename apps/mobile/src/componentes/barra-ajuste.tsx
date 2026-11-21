@@ -25,6 +25,7 @@ import { CURVA, HOJA, useMovimientoReducido } from "./movimiento"
 import { NumeroGiro } from "./numero-giro"
 
 export type UnidadAjuste = "kg" | "reps" | "seg" | "m" | "series" | "rir"
+export type BorradorManual = { texto: string; invalido: boolean }
 export type BarraAjusteProps = {
   unidad: UnidadAjuste
   valor: number | null
@@ -34,6 +35,10 @@ export type BarraAjusteProps = {
   alListo: () => void
   /** Impide confirmar la sesión mientras la entrada manual tiene texto sin aceptar. */
   alCambiarValidez?: (valida: boolean) => void
+  /** Se usa al montar para recuperar una entrada manual aún sin confirmar. */
+  borradorInicial?: BorradorManual | null
+  /** Comunica el texto manual; null indica que se confirmó con «Listo». */
+  alCambiarBorrador?: (borrador: BorradorManual | null) => void
   subidaKg?: number | null
   objetivo?: number | null
   minimo?: number
@@ -61,6 +66,8 @@ export function BarraAjuste({
   alVaciar,
   alListo,
   alCambiarValidez,
+  borradorInicial,
+  alCambiarBorrador,
   subidaKg,
   objetivo,
   minimo = 0,
@@ -75,9 +82,10 @@ export function BarraAjuste({
   const reducido = useMovimientoReducido()
   const { height: altoVentana, fontScale } = useWindowDimensions()
   const [tecladoY, setTecladoY] = useState<number | null>(null)
-  const [manual, setManual] = useState(false)
+  const [manual, setManual] = useState(borradorInicial != null)
   const [montada, setMontada] = useState(visible)
-  const [texto, setTexto] = useState("")
+  const [texto, setTexto] = useState(borradorInicial?.texto ?? "")
+  const primeraConfiguracion = useRef(true)
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null)
   const repitio = useRef(false)
   const presionActiva = useRef(false)
@@ -86,6 +94,8 @@ export function BarraAjuste({
   const actual = useRef(valor)
   const avisarValidez = useRef(alCambiarValidez)
   avisarValidez.current = alCambiarValidez
+  const avisarBorrador = useRef(alCambiarBorrador)
+  avisarBorrador.current = alCambiarBorrador
   const paso =
     pasoExplicito !== undefined && Number.isFinite(pasoExplicito) && pasoExplicito > 0
       ? pasoExplicito
@@ -137,7 +147,8 @@ export function BarraAjuste({
   }, [])
   useEffect(() => {
     abandonar()
-    setManual(false)
+    if (!primeraConfiguracion.current || !borradorInicial) setManual(false)
+    primeraConfiguracion.current = false
     repitio.current = false
     if (!visible || deshabilitado) Keyboard.dismiss()
     return abandonar
@@ -236,6 +247,9 @@ export function BarraAjuste({
   }
   const invalido = manual && !(texto === "" && alVaciar) && leer(texto) === null
   useEffect(() => {
+    if (manual) avisarBorrador.current?.({ texto, invalido })
+  }, [manual, texto, invalido])
+  useEffect(() => {
     alCambiarValidez?.(!invalido)
   }, [alCambiarValidez, invalido])
   useEffect(() => () => avisarValidez.current?.(true), [])
@@ -244,6 +258,7 @@ export function BarraAjuste({
     cancelar()
     Keyboard.dismiss()
     setManual(false)
+    avisarBorrador.current?.(null)
     alListo()
   }
   if (!montada) return null
@@ -356,8 +371,6 @@ export function BarraAjuste({
                       <Text
                         testID="ajuste-cifra-adaptable"
                         numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.1}
                         style={[s.numero, s.anchoCompleto]}
                       >
                         {valorLegible}

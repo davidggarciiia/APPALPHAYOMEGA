@@ -124,11 +124,13 @@ export function EvolucionValoraciones({
   api,
   fotos,
   modo,
+  bloques,
 }: {
   clienteId: string
   api: Pick<ApiEvolucionAvisos, "evolucion">
   fotos?: FotosDeEvolucion
   modo: Modo
+  bloques?: readonly BloqueValoracion[]
 }): React.JSX.Element {
   const [series, setSeries] = useState<SerieEvolucion[] | null>(null)
   const [falta, setFalta] = useState<Falta | null>(null)
@@ -153,21 +155,28 @@ export function EvolucionValoraciones({
     }, [api, clienteId, intento]),
   )
 
+  const seriesVisibles = useMemo(
+    () =>
+      (series ?? []).filter(
+        (serie) => !bloques || (serie.bloque !== null && bloques.includes(serie.bloque)),
+      ),
+    [series, bloques],
+  )
   const grupos = useMemo(() => {
-    const lista = series ?? []
+    const lista = seriesVisibles
     return [...BLOQUES, null]
       .map((bloque) => ({ bloque, series: lista.filter((s_) => s_.bloque === bloque) }))
       .filter((g) => g.series.length > 0)
-  }, [series])
+  }, [seriesVisibles])
   const repetidos = useMemo(() => {
     const veces = new Map<string, number>()
-    for (const s_ of series ?? []) {
+    for (const s_ of seriesVisibles) {
       const nombre = s_.nombre.trim().toLocaleLowerCase("es")
       veces.set(nombre, (veces.get(nombre) ?? 0) + 1)
     }
     return new Set([...veces].filter(([, n]) => n > 1).map(([nombre]) => nombre))
-  }, [series])
-  const reciente = useMemo(() => visitaMasReciente(series ?? []), [series])
+  }, [seriesVisibles])
+  const reciente = useMemo(() => visitaMasReciente(seriesVisibles), [seriesVisibles])
 
   return (
     <View style={s.contenido}>
@@ -189,7 +198,7 @@ export function EvolucionValoraciones({
       )}
       {series === null
         ? !falta && <Text style={s.tenue}>Cargando la evolución…</Text>
-        : series.length === 0 && (
+        : seriesVisibles.length === 0 && (
             <Text style={s.vacio}>
               {`Aún no hay valoraciones publicadas ni registros. ${
                 modo === "cliente"

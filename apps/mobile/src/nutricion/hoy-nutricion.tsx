@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import type {
   Comida,
@@ -53,22 +54,22 @@ export function HoyNutricion({
   tomarSuplemento: (suplemento: Suplemento, tomado: boolean) => void
   verSemana: () => void
 }): React.JSX.Element {
+  const [objetivoAbierto, setObjetivoAbierto] = useState(false)
   const tipo = tipoDelDia(documento, hoy)
   const comidas = tipo?.comidas ?? []
   const porComida = new Map((registradas ?? []).map((r) => [r.comidaId, r]))
   const hechas = new Set(comidas.filter((c) => porComida.has(c.id)).map((c) => c.id))
   const ahora = registradas === null ? null : comidaDeAhora(comidas, hechas, hora)
+  const ordenadas = ahora
+    ? [
+        ...comidas.filter((comida) => comida.id === ahora),
+        ...comidas.filter((comida) => comida.id !== ahora),
+      ]
+    : comidas
   const suplementos = documento.suplementos ?? []
 
   return (
     <View style={s.contenido}>
-      <View>
-        {tipo?.objetivo && tieneAlgunNumero(tipo.objetivo) && (
-          <View style={s.objetivo}>
-            <Objetivo macros={tipo.objetivo} margenKcal={tipo.margenKcal} />
-          </View>
-        )}
-      </View>
       <View style={s.contenido}>
         {comidas.length > 0 && (
           <View style={s.grupo}>
@@ -92,16 +93,17 @@ export function HoyNutricion({
               </View>
             )}
             <View style={s.lista}>
-              {comidas.map((comida, n) => {
+              {ordenadas.map((comida, n) => {
                 const hecha = hechas.has(comida.id)
                 const esAhora = comida.id === ahora
+                const momento = comida.hora !== null && comida.hora > hora ? "siguiente" : "ahora"
                 const subtitulo = subtituloDeComida(comida, porComida.get(comida.id))
                 return (
                   <Pressable
                     key={comida.id}
                     style={[s.fila, n > 0 && s.separada, esAhora && s.filaAhora]}
                     accessibilityRole="button"
-                    accessibilityLabel={`${comida.nombre}${esAhora ? ", ahora" : ""}: ${subtitulo}`}
+                    accessibilityLabel={`${comida.nombre}${esAhora ? `, ${momento}` : ""}: ${subtitulo}`}
                     onPress={() => abrirComida(comida)}
                   >
                     {registradas !== null && <Check hecho={hecha} />}
@@ -111,7 +113,9 @@ export function HoyNutricion({
                           <Text style={[s.nombre, esAhora && s.nombreAhora]}>{comida.nombre}</Text>
                           {esAhora && (
                             <View style={s.ahora}>
-                              <Text style={s.textoAhora}>Ahora</Text>
+                              <Text style={s.textoAhora}>
+                                {momento === "ahora" ? "Ahora" : "Siguiente"}
+                              </Text>
                             </View>
                           )}
                         </View>
@@ -125,6 +129,26 @@ export function HoyNutricion({
                 )
               })}
             </View>
+          </View>
+        )}
+
+        {tipo?.objetivo && tieneAlgunNumero(tipo.objetivo) && (
+          <View style={s.grupo}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ver objetivo nutricional"
+              accessibilityState={{ expanded: objetivoAbierto }}
+              onPress={() => setObjetivoAbierto((abierto) => !abierto)}
+              style={s.botonObjetivo}
+            >
+              <Text style={s.nombre}>Objetivo nutricional</Text>
+              <Icono nombre="adelante" color={tema.textoTenue} tamano={18} />
+            </Pressable>
+            {objetivoAbierto && (
+              <View style={s.objetivo}>
+                <Objetivo macros={tipo.objetivo} margenKcal={tipo.margenKcal} />
+              </View>
+            )}
           </View>
         )}
 
@@ -160,9 +184,9 @@ export function HoyNutricion({
                         {suplemento.nombre}
                         {diaCargado ? " tomada" : ""}
                       </Text>
+                      {suplemento.dosis && <Text style={s.tenue}>{suplemento.dosis}</Text>}
                       {!diaCargado && <Text style={s.tenue}>Registro no disponible</Text>}
                     </View>
-                    {suplemento.dosis && <Text style={s.tenue}>{suplemento.dosis}</Text>}
                   </Pressable>
                 )
               })}
@@ -247,6 +271,15 @@ const s = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: tema.bordeDestacado,
+  },
+  botonObjetivo: {
+    minHeight: 48,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    backgroundColor: tema.superficie,
+    borderRadius: radio.tarjeta,
   },
   pautas: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   pauta: {

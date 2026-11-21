@@ -94,3 +94,5 @@ cliente es de consulta.
 - El cupo de seguimiento son 120 min por mes natural, sin acumular.
 - La duración por defecto de un hueco es 60 min.
 - Los bonos no caducan.
+- Las fechas y horas de agenda son de Europe/Madrid; repetir semanalmente conserva la hora local.
+- El seguimiento se descuenta del mes de la cita. Una devolución vuelve a ese mismo mes, sin trasladar minutos al mes actual.

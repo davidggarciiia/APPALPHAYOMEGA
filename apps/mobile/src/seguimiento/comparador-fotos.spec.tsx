@@ -735,6 +735,27 @@ describe("sin caché corporal persistente en Android", () => {
 })
 
 describe("eliminar", () => {
+  it("avisa al contenedor solo cuando el servidor confirma la retirada", async () => {
+    const api = apiFalsa()
+    const retirada = { ...frenteSeptiembre, estado: "eliminado" as const }
+    api.borrar.mockResolvedValueOnce(retirada)
+    const confirmada = jest.fn()
+    await render(
+      <ComparadorFotos
+        fotos={[frenteSeptiembre]}
+        api={api}
+        puedeBorrar={() => true}
+        alConfirmarBorrado={confirmada}
+      />,
+    )
+    await screen.findByLabelText("Frente, 24 sep 2026")
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Eliminar la foto de Frente, 24 sep 2026" }),
+    )
+    expect(confirmada).not.toHaveBeenCalled()
+    await fireEvent.press(screen.getByRole("button", { name: "Eliminar" }))
+    await waitFor(() => expect(confirmada).toHaveBeenCalledWith(retirada))
+  })
   it("pide confirmación y refleja el estado que confirma el servidor", async () => {
     const api = apiFalsa()
     let responder: (medio: MedioFoto) => void = () => undefined

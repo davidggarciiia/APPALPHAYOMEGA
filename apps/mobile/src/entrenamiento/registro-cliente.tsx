@@ -2,7 +2,16 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "r
 import { useFocusEffect } from "expo-router"
 import { NavigationContext, usePreventRemove } from "expo-router/react-navigation"
 import { randomUUID } from "expo-crypto"
-import { AppState, FlatList, Keyboard, ScrollView, StyleSheet, Text, View } from "react-native"
+import {
+  AccessibilityInfo,
+  AppState,
+  FlatList,
+  Keyboard,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native"
 import { ZodError } from "zod"
 import type { Anterior, EjercicioPrescrito, SesionCliente } from "@alpha-omega/shared"
 import type { ApiEntrenamiento } from "./api"
@@ -13,7 +22,6 @@ import {
   mejoraPersonal,
   registroParaEnviar,
   type EdicionRegistro,
-  type EjercicioConDistancia,
   type PrescripcionConDistancia,
 } from "./registro-modelo"
 import {
@@ -28,22 +36,22 @@ import { VerTecnica } from "./ver-tecnica"
 import { Dialogo, Enlace } from "./sesion/controles"
 import {
   ejercicioParaRirFinal,
-  ejerciciosOrdenados,
+  porSecciones,
   segundosDeDescanso,
   seriesDeTrabajo,
 } from "./sesion/modelo"
 import { RegistrarMolestiaPantalla, type LugarDeMolestia } from "./sesion/molestia"
-import { CabeceraSesion, Descanso, ListaMarcable, seriesMarcadas } from "./sesion/partes"
+import { CabeceraSesion, Descanso } from "./sesion/partes"
 import { duracionDeSesion, iniciarTramo } from "./sesion/tiempo"
 import { RespuestasDelEntrenador } from "./sesion/respuestas"
 import { useAccesoAFiguras } from "../catalogo-ejercicios/figura-ejercicio"
 import { useCatalogo } from "../catalogo-ejercicios/use-catalogo"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
-import { tema } from "../tema"
+import { tema, tipo } from "../tema"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { Aviso } from "../componentes/aviso"
 import { AvisoDeshacer } from "../componentes/aviso-deshacer"
-import { BarraAjuste } from "../componentes/barra-ajuste"
+import { BarraAjuste, type BorradorManual } from "../componentes/barra-ajuste"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { useMovimientoReducido } from "../componentes/movimiento"
 import { cargaSugeridaDeFase, textoDeAjustes } from "./plan/ajustes-fase"
@@ -54,9 +62,9 @@ type Fase = "sesion" | "molestia"
 
 const TITULOS_DE_SECCION = {
   calentamiento: "Calentamiento",
-  principal: "Parte principal",
+  principal: "Principal",
   circuito: "Circuito",
-  final: "Vuelta a la calma",
+  final: "Final",
 } as const
 
 const MENSAJES_DE_COPIA_LOCAL = {
@@ -175,6 +183,9 @@ export function RegistroCliente({
   listo?: () => void
 }): React.JSX.Element {
   const [control, setControl] = useState<RegistroControl | null>(null)
+  const [bloque, setBloque] = useState<number | null>(null)
+  const lista = useRef<FlatList<EjercicioPrescrito>>(null)
+  const interaccionBloques = useRef(false)
   const [, repintar] = useState(0)
   const [error, setError] = useState("")
   // Al marcar «Hecha» sin lo necesario el motivo sale junto a las series: el aviso
@@ -205,6 +216,8 @@ export function RegistroCliente({
   }, [recordPersonal])
   const [nota, setNota] = useState(false)
   const [ajusteValido, setAjusteValido] = useState(true)
+  const [borradoresManuales, setBorradoresManuales] = useState<Record<string, BorradorManual>>({})
+  useEffect(() => setBorradoresManuales({}), [cuenta, id])
   const [lugarMolestia, setLugarMolestia] = useState<LugarDeMolestia>({
     ejercicioPrescritoId: null,
     ejercicio: null,
@@ -262,9 +275,28 @@ export function RegistroCliente({
       let vigente = true,
         comprobando = false,
         recuperando = true
+      interaccionBloques.current = false
       let sesionDeRecords: SesionCliente | undefined
+      let sesionDeBloque: SesionCliente | undefined
       const c = new RegistroControl(cuenta, id, api, almacenDispositivo, randomUUID, () => {
         if (!vigente) return
+        if (
+          recuperando &&
+          c.documento &&
+          !interaccionBloques.current &&
+          sesionDeBloque !== c.documento.sesion
+        ) {
+          const local = c.documento
+          const grupos = porSecciones(local.sesion.prescripcion)
+          const cerradas = new Set(
+            local.edicion.series.filter((s) => s.hecha || s.omitida).map((s) => s.serieId),
+          )
+          const pendiente = grupos.findIndex((grupo) =>
+            grupo.ejercicios.some((ejercicio) => ejercicio.series.some((s) => !cerradas.has(s.id))),
+          )
+          sesionDeBloque = local.sesion
+          setBloque(pendiente < 0 ? Math.max(0, grupos.length - 1) : pendiente)
+        }
         if (recuperando && c.documento && sesionDeRecords !== c.documento.sesion) {
           // Recuperar cambia la sesión; editar conserva su identidad, incluso con disco lento.
           for (const serie of c.documento.edicion.series)
@@ -274,6 +306,7 @@ export function RegistroCliente({
         repintar((n) => n + 1)
       })
       setControl(c)
+      setBloque(null)
       setError("")
       void c
         .abrir()
@@ -354,15 +387,8 @@ export function RegistroCliente({
 
   const documento = control?.documento
   const prescripcionActual = documento?.sesion.prescripcion
-  const ejercicios = useMemo(
-    () =>
-      prescripcionActual
-        ? ejerciciosOrdenados(prescripcionActual).filter(
-            (ejercicio, indice, ordenados) =>
-              !["calentamiento", "final"].includes(ejercicio.seccion ?? "principal") ||
-              ordenados[indice - 1]?.seccion !== ejercicio.seccion,
-          )
-        : [],
+  const grupos = useMemo(
+    () => (prescripcionActual ? porSecciones(prescripcionActual) : []),
     [prescripcionActual],
   )
   const accion = async (operacion: () => Promise<void>): Promise<void> => {
@@ -383,7 +409,7 @@ export function RegistroCliente({
     }
   }
 
-  if (!documento || !control)
+  if (!documento || !control || (bloque === null && !error))
     return (
       <SafeAreaView edges={["bottom"]} style={e.pantalla}>
         <View style={e.contenido}>
@@ -413,13 +439,11 @@ export function RegistroCliente({
         <ScrollView contentContainerStyle={e.contenido} keyboardShouldPersistTaps="handled">
           <ConfirmacionSesion
             estado="enviado"
-            hechas={
-              documento.resultado.series.filter(
-                (s) =>
-                  s.hecha && seriesDeTrabajo(documento.resultado!.prescripcion).includes(s.serieId),
-              ).length
-            }
-            total={seriesDeTrabajo(documento.resultado.prescripcion).length}
+            hechas={documento.resultado.series.filter((s) => s.hecha).length}
+            total={documento.resultado.prescripcion.ejercicios.reduce(
+              (total, ejercicio) => total + ejercicio.series.length,
+              0,
+            )}
             duracion={documento.resultado.tiempoActivoSegundos ?? null}
             salir={listo ?? salir}
           />
@@ -466,10 +490,14 @@ export function RegistroCliente({
     )
 
   const { prescripcion } = documento.sesion
+  const hayBorradoresInvalidos = Object.values(borradoresManuales).some(
+    (borrador) => borrador.invalido,
+  )
   const pausaDeNavegacion = (
     <PausaDeNavegacion
       solicitar={(seguir) => {
-        if (antesDeSalir.current) antesDeSalir.current(seguir)
+        if (hayBorradoresInvalidos) setError("Corrige el valor incompleto antes de salir.")
+        else if (antesDeSalir.current) antesDeSalir.current(seguir)
         else if (documento.intencionEnvio || documento.envioPendiente)
           setSalidaPendiente(() => seguir)
         else seguir()
@@ -504,6 +532,7 @@ export function RegistroCliente({
       ejercicioElegidoId?: string | null
     } = {},
   ): void => {
+    interaccionBloques.current = true
     setError("")
     // Una copia antigua sin inicio también arranca al anotar.
     const conInicio = nueva.inicio ? nueva : iniciarTramo(nueva, new Date().toISOString())
@@ -583,11 +612,7 @@ export function RegistroCliente({
     }
     return true
   }
-  const marcarLista = (ejercicio: EjercicioConDistancia, hecho: boolean): void =>
-    cambiar({ ...edicion, series: seriesMarcadas(ejercicio, edicion.series, hecho) })
-
   const trabajo = seriesDeTrabajo(prescripcion)
-  const hechasTrabajo = edicion.series.filter((s) => s.hecha && trabajo.includes(s.serieId)).length
   if (fase === "molestia") {
     return (
       <SafeAreaView edges={["bottom"]} style={e.pantalla}>
@@ -619,7 +644,7 @@ export function RegistroCliente({
   }
   const pendientes = edicion.series.filter((s) => !s.hecha && !s.omitida).length
   const terminar = (): void => {
-    if (!ajusteValido) return
+    if (!ajusteValido || hayBorradoresInvalidos) return
     if (!edicion.series.some((s) => s.hecha)) {
       setError("Marca al menos una serie")
       return
@@ -634,6 +659,10 @@ export function RegistroCliente({
     }
   }
   const guardarYSalir = (destino: (() => void) | undefined): void => {
+    if (hayBorradoresInvalidos) {
+      setError("Corrige el valor incompleto antes de salir.")
+      return
+    }
     if (salidaEnCurso.current) return
     salidaEnCurso.current = true
     void accion(async () => {
@@ -733,10 +762,11 @@ export function RegistroCliente({
           ) : (
             <ConfirmacionSesion
               estado="guardado"
-              hechas={
-                comprometido.series.filter((s) => s.hecha && trabajo.includes(s.serieId)).length
-              }
-              total={trabajo.length}
+              hechas={comprometido.series.filter((s) => s.hecha).length}
+              total={prescripcion.ejercicios.reduce(
+                (total, ejercicio) => total + ejercicio.series.length,
+                0,
+              )}
               duracion={comprometido.tiempoActivoSegundos ?? null}
               salir={() => guardarYSalir(listo ?? salir)}
               reintentar={() => void accion(() => control.enviar())}
@@ -764,7 +794,21 @@ export function RegistroCliente({
     )
   const ejercicioEnFoco = foco && prescripcion.ejercicios.find((e) => e.id === foco.ejercicioId)
   const realEnFoco = foco && edicion.series.find((s) => s.serieId === foco.serieId)
-  const resumenDeFase = textoDeAjustes(prescripcion.fase?.ajustes)
+  const indiceBloque = Math.min(bloque ?? 0, Math.max(0, grupos.length - 1))
+  const grupo = grupos[indiceBloque]
+  const cambiarBloque = (indice: number): void => {
+    interaccionBloques.current = true
+    Keyboard.dismiss()
+    setFoco(null)
+    setErrorSerie(null)
+    setBloque(indice)
+    lista.current?.scrollToOffset({ offset: 0, animated: false })
+    const destino = grupos[indice]
+    if (destino)
+      AccessibilityInfo.announceForAccessibility(
+        `Bloque ${indice + 1} de ${grupos.length}, ${TITULOS_DE_SECCION[destino.seccion]}`,
+      )
+  }
   const ajuste =
     ejercicioEnFoco && realEnFoco && foco
       ? ajusteDeSerie(
@@ -814,22 +858,32 @@ export function RegistroCliente({
         <RelojDeSesion edicion={edicion}>
           {({ segundos }) => (
             <CabeceraSesion
-              hechas={hechasTrabajo}
+              hechas={0}
               total={trabajo.length}
               segundos={segundos}
               salir={salir && salirGuardando}
               terminar={terminar}
               ocupado={ocupado}
-              deshabilitado={seriesBloqueadas}
+              deshabilitado={seriesBloqueadas || hayBorradoresInvalidos}
               demoraProgreso={420}
+              mostrarProgreso={false}
             />
           )}
         </RelojDeSesion>
-        {prescripcion.fase && (
-          <Text style={e.nota}>
-            {prescripcion.fase.nombre}
-            {resumenDeFase ? ` · ${resumenDeFase}` : ""}
-          </Text>
+        {grupo && (
+          <View
+            accessible
+            accessibilityRole="header"
+            accessibilityLabel={`Bloque ${indiceBloque + 1} de ${grupos.length}, ${TITULOS_DE_SECCION[grupo.seccion]}`}
+            style={e.tituloBloque}
+          >
+            <Text style={e.nombreBloque}>{TITULOS_DE_SECCION[grupo.seccion]}</Text>
+            <View style={e.pasos}>
+              {grupos.map((g, i) => (
+                <View key={g.seccion} style={[e.paso, i === indiceBloque && e.pasoActual]} />
+              ))}
+            </View>
+          </View>
         )}
         {error !== "" && <AvisoDeError mensaje={error} />}
         {documento.descansoHasta && (
@@ -859,8 +913,9 @@ export function RegistroCliente({
         )}
       </View>
       <FlatList
+        ref={lista}
         testID="lista-sesion"
-        data={ejercicios}
+        data={grupo?.ejercicios ?? []}
         keyExtractor={(ejercicio) => ejercicio.id}
         initialNumToRender={4}
         maxToRenderPerBatch={3}
@@ -902,6 +957,11 @@ export function RegistroCliente({
                   : "Guardado"}
             </Text>
             {avisos}
+            {prescripcion.fase && textoDeAjustes(prescripcion.fase.ajustes) && (
+              <Text style={e.nota}>
+                {prescripcion.fase.nombre} · {textoDeAjustes(prescripcion.fase.ajustes)}
+              </Text>
+            )}
           </View>
         }
         renderItem={({ item: ejercicio }) => {
@@ -910,45 +970,32 @@ export function RegistroCliente({
               const real = edicion.series.find((r) => r.serieId === s.id)
               return !real?.hecha && !real?.omitida
             })?.id ?? null
-          const deLista = ejercicio.seccion === "calentamiento" || ejercicio.seccion === "final"
           return (
             <View key={ejercicio.id} testID="series-del-ejercicio" style={e.finBloque}>
-              {deLista ? (
-                <ListaMarcable
-                  titulo={TITULOS_DE_SECCION[ejercicio.seccion as "calentamiento" | "final"]}
-                  ejercicios={prescripcion.ejercicios.filter(
-                    (e) => e.seccion === ejercicio.seccion,
-                  )}
-                  series={edicion.series}
-                  bloqueado={seriesBloqueadas}
-                  marcar={marcarLista}
-                  cambiarPeso={(serieId, peso) => serie(serieId, { peso })}
-                />
-              ) : (
-                <TablaSeries
-                  ejercicio={ejercicio}
-                  series={edicion.series}
-                  bloqueado={seriesBloqueadas}
-                  cambiar={serie}
-                  enCurso={enCurso}
-                  anterior={anteriores.get(ejercicio.ejercicioId)}
-                  incrementoSugerido={sugerencias.get(ejercicio.id)}
-                  factorCarga={prescripcion.fase?.ajustes.factorCarga}
-                  recordPersonal={recordPersonal}
-                  recordsCelebrados={recordsCelebrados.current}
-                  verTecnica={() => setTecnica(ejercicio)}
-                  verMolestia={() => abrirMolestia(ejercicio)}
-                  enfocada={foco?.ejercicioId === ejercicio.id ? foco : null}
-                  enfocar={(serieId, celda) =>
-                    setFoco({ ejercicioId: ejercicio.id, serieId, celda })
-                  }
-                  avisarDeshacer={(aviso) =>
-                    setDeshacer({ ...aviso, id: ++avisoId.current, iniciadoEn: Date.now() })
-                  }
-                  error={errorSerie?.ejercicioId === ejercicio.id ? errorSerie.mensaje : undefined}
-                  intentoError={errorSerie?.intento}
-                />
-              )}
+              <TablaSeries
+                ejercicio={ejercicio}
+                series={edicion.series}
+                bloqueado={seriesBloqueadas}
+                cambiar={serie}
+                enCurso={enCurso}
+                anterior={anteriores.get(ejercicio.ejercicioId)}
+                incrementoSugerido={sugerencias.get(ejercicio.id)}
+                factorCarga={prescripcion.fase?.ajustes.factorCarga}
+                recordPersonal={recordPersonal}
+                recordsCelebrados={recordsCelebrados.current}
+                verTecnica={() => setTecnica(ejercicio)}
+                verMolestia={() => abrirMolestia(ejercicio)}
+                enfocada={foco?.ejercicioId === ejercicio.id ? foco : null}
+                enfocar={(serieId, celda) => {
+                  interaccionBloques.current = true
+                  setFoco({ ejercicioId: ejercicio.id, serieId, celda })
+                }}
+                avisarDeshacer={(aviso) =>
+                  setDeshacer({ ...aviso, id: ++avisoId.current, iniciadoEn: Date.now() })
+                }
+                error={errorSerie?.ejercicioId === ejercicio.id ? errorSerie.mensaje : undefined}
+                intentoError={errorSerie?.intento}
+              />
             </View>
           )
         }}
@@ -968,6 +1015,25 @@ export function RegistroCliente({
           </View>
         }
       />
+      <View style={e.pie}>
+        {indiceBloque > 0 && (
+          <Enlace texto="Anterior" onPress={() => cambiarBloque(indiceBloque - 1)} />
+        )}
+        <View style={e.accionPie}>
+          <BotonPrincipal
+            texto={indiceBloque < grupos.length - 1 ? "Siguiente" : "Terminar"}
+            etiquetaAccesible={indiceBloque < grupos.length - 1 ? "Siguiente" : "Finalizar sesión"}
+            onPress={() =>
+              indiceBloque < grupos.length - 1 ? cambiarBloque(indiceBloque + 1) : terminar()
+            }
+            deshabilitado={
+              indiceBloque === grupos.length - 1 && (seriesBloqueadas || hayBorradoresInvalidos)
+            }
+            ocupado={ocupado}
+            sinMargen
+          />
+        </View>
+      </View>
       {avisoDeshacer && !ajuste && <View style={e.deshacer}>{avisoDeshacer}</View>}
       {ajuste && foco && (
         <BarraAjuste
@@ -976,6 +1042,24 @@ export function RegistroCliente({
           encima={avisoDeshacer}
           deshabilitado={bloqueado}
           alCambiarValidez={setAjusteValido}
+          borradorInicial={borradoresManuales[`${foco.serieId}-${foco.celda}`]}
+          alCambiarBorrador={(borrador) => {
+            interaccionBloques.current = true
+            const clave = `${foco.serieId}-${foco.celda}`
+            setBorradoresManuales((anteriores) => {
+              if (
+                borrador &&
+                anteriores[clave]?.texto === borrador.texto &&
+                anteriores[clave]?.invalido === borrador.invalido
+              )
+                return anteriores
+              if (!borrador && !anteriores[clave]) return anteriores
+              const nuevos = { ...anteriores }
+              if (borrador) nuevos[clave] = borrador
+              else delete nuevos[clave]
+              return nuevos
+            })
+          }}
           alListo={() => setFoco(null)}
           cambiar={(valor) =>
             serie(
@@ -1017,6 +1101,19 @@ export function RegistroCliente({
 const e = StyleSheet.create({
   pantalla: { flex: 1 },
   cabecera: { paddingHorizontal: 20 },
+  tituloBloque: { gap: 8, paddingVertical: 12 },
+  nombreBloque: { ...tipo.titulo, color: tema.texto },
+  pasos: { flexDirection: "row", gap: 6 },
+  paso: { width: 24, height: 3, backgroundColor: tema.bordeFuerte },
+  pasoActual: { backgroundColor: tema.acento },
+  pie: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  accionPie: { flex: 1 },
   contenido: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 24 },
   lista: { paddingBottom: 230, gap: 0 },
   bloques: { gap: 26 },

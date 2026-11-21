@@ -2,8 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react-native"
 import type { ResumenSesion } from "@alpha-omega/shared"
 
 import { fechaLegible } from "./fechas"
-import { TarjetaHoy, tamanoDelNombre } from "./hoy-toca"
-import { tema } from "../tema"
+import { TarjetaHoy } from "./hoy-toca"
+import { tipo } from "../tema"
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
@@ -24,32 +24,54 @@ const agenda = {
 }
 const resumen: ResumenSesion = { agenda, nombre: "Empuje y pierna", enviadoEn: null }
 describe("Hoy toca", () => {
-  it("ajusta el tamaño del nombre a su largo", () => {
-    expect(tamanoDelNombre("Empuje")).toBe(52)
-    expect(tamanoDelNombre("Empuje y pierna")).toBe(40)
-    expect(tamanoDelNombre("Torso completo y core final")).toBe(26)
+  it("usa el mismo tamaño para nombres cortos y largos", async () => {
+    const vista = await render(
+      <TarjetaHoy
+        sesion={{ ...resumen, nombre: "Empuje" }}
+        sinSesion="Descanso"
+        hoy={HOY}
+        abrir={jest.fn()}
+      />,
+    )
+    expect(screen.getByText("Empuje")).toHaveStyle({
+      fontSize: tipo.tituloPantalla.fontSize,
+      lineHeight: tipo.tituloPantalla.lineHeight,
+    })
+    await vista.rerender(
+      <TarjetaHoy
+        sesion={{ ...resumen, nombre: "Torso completo y core final" }}
+        sinSesion="Descanso"
+        hoy={HOY}
+        abrir={jest.fn()}
+      />,
+    )
+    expect(screen.getByText("Torso completo y core final")).toHaveStyle({
+      fontSize: tipo.tituloPantalla.fontSize,
+      lineHeight: tipo.tituloPantalla.lineHeight,
+    })
   })
 
-  it("destaca el nombre, con una etiqueta discreta y sin duración estimada ni medios", async () => {
+  it("presenta solo el nombre y empezar, sin subtítulos ni medios", async () => {
     const abrir = jest.fn()
     await render(<TarjetaHoy sesion={resumen} sinSesion="Descanso" hoy={HOY} abrir={abrir} />)
 
-    expect(screen.getByText(fechaLegible(HOY))).toBeOnTheScreen()
+    expect(screen.queryByText(fechaLegible(HOY))).toBeNull()
     expect(screen.queryByText(/100–115 min/)).toBeNull()
     expect(screen.queryAllByRole("image")).toHaveLength(0)
     expect(screen.container.queryAll((nodo) => nodo.type === "Image")).toHaveLength(0)
     expect(screen.getByText(resumen.nombre)).toBeTruthy()
-    expect(screen.getByRole("header", { name: "Hoy toca:" })).toBeTruthy()
-    expect(screen.getByText("Hoy toca:")).toHaveStyle({ fontSize: 11, color: tema.textoTenue })
+    expect(screen.queryByText("Hoy toca:")).toBeNull()
+    expect(screen.getByRole("header", { name: resumen.nombre })).toHaveStyle(tipo.tituloPantalla)
+    expect(screen.getByText("Empezar")).toBeOnTheScreen()
     await fireEvent.press(screen.getByRole("button", { name: "Empezar Empuje y pierna" }))
     expect(abrir).toHaveBeenCalledWith(agenda.id)
   })
 
-  it("sin detalle conserva la fecha y la acción sin mostrar una foto de sustitución", async () => {
+  it("conserva la acción sin repetir la fecha ni mostrar una foto de sustitución", async () => {
     await render(<TarjetaHoy sesion={resumen} sinSesion="Descanso" hoy={HOY} abrir={jest.fn()} />)
 
     expect(screen.container.queryAll((nodo) => nodo.type === "Image")).toHaveLength(0)
-    expect(screen.getByText(fechaLegible(HOY))).toBeTruthy()
+    expect(screen.queryByText(fechaLegible(HOY))).toBeNull()
     expect(screen.getByRole("button", { name: "Empezar Empuje y pierna" })).toBeTruthy()
   })
 
@@ -74,6 +96,23 @@ describe("Hoy toca", () => {
       />,
     )
     expect(screen.getByRole("button", { name: "Ver resumen Empuje y pierna" })).toBeTruthy()
-    expect(screen.getByRole("header", { name: "Completado:" })).toBeTruthy()
+    expect(screen.getByRole("header", { name: resumen.nombre })).toBeTruthy()
+  })
+
+  it("permite continuar sin repetir estado ni reprogramación como subtítulos", async () => {
+    const abrir = jest.fn()
+    await render(
+      <TarjetaHoy
+        sesion={{ ...resumen, agenda: { ...agenda, fechaOriginal: "2026-09-23" } }}
+        empezada
+        sinSesion="Descanso"
+        hoy={HOY}
+        abrir={abrir}
+      />,
+    )
+    expect(screen.queryByText("En curso:")).toBeNull()
+    expect(screen.queryByText(/Movido desde/)).toBeNull()
+    await fireEvent.press(screen.getByRole("button", { name: "Continuar Empuje y pierna" }))
+    expect(abrir).toHaveBeenCalledWith(agenda.id)
   })
 })

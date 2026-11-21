@@ -1308,6 +1308,7 @@ export function ConstructorPlan({
                     dias={vista}
                     elegido={diaVista}
                     elegir={setDiaVista}
+                    vistaPrevia
                     hoy=""
                     verTecnica={() => undefined}
                     abrir={() => undefined}

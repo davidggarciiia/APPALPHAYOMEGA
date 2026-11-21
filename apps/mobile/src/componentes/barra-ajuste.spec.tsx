@@ -225,6 +225,32 @@ it("notifica la validez manual y la libera al desmontarse", async () => {
   expect(alCambiarValidez).toHaveBeenLastCalledWith(true)
 })
 
+it("recupera un borrador manual inválido al volver a montar y lo libera al confirmar", async () => {
+  let borrador: { texto: string; invalido: boolean } | null = null
+  const guardar = jest.fn((valor: { texto: string; invalido: boolean } | null) => {
+    borrador = valor
+  })
+  const props = {
+    unidad: "kg" as const,
+    valor: 10,
+    cambiar: jest.fn(),
+    alListo: jest.fn(),
+    alCambiarBorrador: guardar,
+  }
+  const vista = await render(<BarraAjuste {...props} />)
+  await fireEvent.press(screen.getByRole("button", { name: "Escribir KG: 10" }))
+  await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "1,2,3")
+  expect(borrador).toEqual({ texto: "1,2,3", invalido: true })
+  await vista.unmount()
+  await render(<BarraAjuste {...props} borradorInicial={borrador} />)
+  expect(screen.getByLabelText("Valor manual KG").props.value).toBe("1,2,3")
+  expect(screen.getByRole("button", { name: "Listo" })).toBeDisabled()
+  await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "12,5")
+  expect(borrador).toEqual({ texto: "12,5", invalido: false })
+  await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+  expect(borrador).toBeNull()
+})
+
 it("mantiene salida 160 ms sin controles accesibles y cancela al desmontar", async () => {
   jest.useFakeTimers()
   const props = { unidad: "kg" as const, valor: 10, cambiar: jest.fn(), alListo: jest.fn() }
@@ -301,27 +327,31 @@ it.each([
   [999.75, 1],
   [12.5, 1.8],
   [999.75, 1.8],
-])("adapta %s con fuente %s al ancho de 360 sin truncar el valor", async (valor, fontScale) => {
-  const window = Dimensions.get("window")
-  const screenSize = Dimensions.get("screen")
-  try {
-    await act(() => Dimensions.set({ window: { ...window, width: 360, fontScale } }))
-    await render(<Controlada valor={valor} />)
-    const completo = String(valor).replace(".", ",")
-    const cifra = screen.getByText(completo)
-    expect(cifra.props).toMatchObject({ numberOfLines: 1, adjustsFontSizeToFit: true })
-    expect(cifra.props.minimumFontScale).toBeGreaterThan(0)
-    expect(cifra.props.minimumFontScale).toBeLessThan(1)
-    expect(cifra).toHaveStyle({ width: "100%" })
-    const escribir = screen.getByRole("button", { name: `Escribir KG: ${completo}` })
-    expect(escribir).toHaveStyle({ width: "100%" })
-    await fireEvent.press(escribir)
-    expect(screen.getByLabelText("Valor manual KG")).toHaveStyle({ width: "100%" })
-    expect(screen.getByLabelText("Valor manual KG").props.value).toBe(completo)
-  } finally {
-    await act(() => Dimensions.set({ window, screen: screenSize }))
-  }
-})
+])(
+  "presenta %s con fuente fija y conserva el valor accesible al ancho de 360 (escala %s)",
+  async (valor, fontScale) => {
+    const window = Dimensions.get("window")
+    const screenSize = Dimensions.get("screen")
+    try {
+      await act(() => Dimensions.set({ window: { ...window, width: 360, fontScale } }))
+      await render(<Controlada valor={valor} />)
+      const completo = String(valor).replace(".", ",")
+      const cifra = screen.getByText(completo)
+      expect(cifra.props).toMatchObject({ numberOfLines: 1 })
+      expect(cifra.props.adjustsFontSizeToFit).toBeUndefined()
+      expect(cifra.props.minimumFontScale).toBeUndefined()
+      expect(cifra).toHaveStyle({ fontSize: 30 })
+      expect(cifra).toHaveStyle({ width: "100%" })
+      const escribir = screen.getByRole("button", { name: `Escribir KG: ${completo}` })
+      expect(escribir).toHaveStyle({ width: "100%" })
+      await fireEvent.press(escribir)
+      expect(screen.getByLabelText("Valor manual KG")).toHaveStyle({ width: "100%" })
+      expect(screen.getByLabelText("Valor manual KG").props.value).toBe(completo)
+    } finally {
+      await act(() => Dimensions.set({ window, screen: screenSize }))
+    }
+  },
+)
 
 it("mantiene el marcador habitual para cifras cortas con fuente normal", async () => {
   const window = Dimensions.get("window")

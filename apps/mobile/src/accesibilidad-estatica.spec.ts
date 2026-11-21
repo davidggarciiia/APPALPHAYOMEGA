@@ -89,6 +89,46 @@ function archivosTsx(directorio: string): string[] {
 }
 
 describe("revisión estática de accesibilidad", () => {
+  it("impide las propiedades de autoescalado de texto en src y app", () => {
+    const raiz = join(__dirname, "..")
+    const archivosFuente = (directorio: string): string[] =>
+      readdirSync(directorio, { withFileTypes: true }).flatMap((entrada) => {
+        const ruta = join(directorio, entrada.name)
+        if (entrada.isDirectory())
+          return entrada.name === "node_modules" ? [] : archivosFuente(ruta)
+        return /\.tsx?$/.test(ruta) && !/\.spec\.tsx?$/.test(ruta) ? [ruta] : []
+      })
+    const archivos = [join(raiz, "src"), join(raiz, "app")].flatMap(archivosFuente)
+    const prohibidas = new Set(["adjustsFontSizeToFit", "minimumFontScale"])
+    const hallazgos: Hallazgo[] = []
+    for (const ruta of archivos) {
+      const archivo = relative(raiz, ruta).split(sep).join("/")
+      const fuente = ts.createSourceFile(
+        archivo,
+        readFileSync(ruta, "utf8"),
+        ts.ScriptTarget.Latest,
+        true,
+        ruta.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+      )
+      const visitar = (nodo: ts.Node): void => {
+        if (
+          (ts.isJsxAttribute(nodo) || ts.isPropertyAssignment(nodo)) &&
+          prohibidas.has(nodo.name.getText().replace(/^['"]|['"]$/g, ""))
+        ) {
+          hallazgos.push({
+            tipo: nodo.name.getText(),
+            archivo,
+            linea: fuente.getLineAndCharacterOfPosition(nodo.getStart()).line + 1,
+          })
+        }
+        ts.forEachChild(nodo, visitar)
+      }
+      visitar(fuente)
+    }
+    expect(archivos.length).toBeGreaterThan(100)
+    expect(hallazgos).toEqual([])
+  })
+
   it("detecta un pulsable sin rol, un solo-icono, un campo sin etiqueta y una imagen sin nombre", () => {
     const { total, hallazgos } = revisar(
       `export const X = () => (

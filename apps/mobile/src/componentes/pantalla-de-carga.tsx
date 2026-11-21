@@ -9,11 +9,10 @@ import {
   StyleSheet,
   View,
 } from "react-native"
-import { useVideoPlayer, VideoView } from "expo-video"
 
 import logo from "../../assets/video/logo-carga.png"
-import video from "../../assets/video/logo-carga-lenta.mp4"
 import { tema } from "../tema"
+import { ReproductorIntroduccion } from "./reproductor-introduccion"
 
 /** Lo que dura el clip. Pasado un margen sin aviso de fin se da por terminado. */
 const DURACION_MS = 8400
@@ -118,7 +117,7 @@ export function PantallaDeCarga({ lista }: { lista: boolean }): React.JSX.Elemen
       >
         <Image source={logo} style={estilos.llena} resizeMode="contain" accessible={false} />
         {reducir === false && !terminada && (
-          <Reproductor alEmpezar={alEmpezar} alTerminar={terminar} />
+          <ReproductorIntroduccion alEmpezar={alEmpezar} alTerminar={terminar} />
         )}
         {terminada && !lista && (
           <ActivityIndicator
@@ -137,42 +136,6 @@ export function PantallaDeCarga({ lista }: { lista: boolean }): React.JSX.Elemen
         />
       )}
     </Animated.View>
-  )
-}
-
-/** Vive aparte para que con «reducir movimiento» ni se cargue el vídeo. */
-function Reproductor({
-  alEmpezar,
-  alTerminar,
-}: {
-  alEmpezar: () => void
-  alTerminar: () => void
-}): React.JSX.Element {
-  const jugador = useVideoPlayer(video, (nuevo) => {
-    nuevo.muted = true
-    nuevo.loop = false
-  })
-
-  useEffect(() => {
-    if (jugador.status === "error") alTerminar()
-    const suscripciones = [
-      jugador.addListener("playingChange", ({ isPlaying }) => {
-        if (isPlaying) alEmpezar()
-      }),
-      jugador.addListener("playToEnd", alTerminar),
-      jugador.addListener("statusChange", ({ status }) => {
-        if (status === "error") alTerminar()
-      }),
-    ]
-    // En web `play()` solo llega a los vídeos ya montados: va aquí, tras montarse VideoView.
-    jugador.play()
-    return () => {
-      for (const suscripcion of suscripciones) suscripcion.remove()
-    }
-  }, [jugador, alEmpezar, alTerminar])
-
-  return (
-    <VideoView player={jugador} nativeControls={false} contentFit="contain" style={estilos.llena} />
   )
 }
 

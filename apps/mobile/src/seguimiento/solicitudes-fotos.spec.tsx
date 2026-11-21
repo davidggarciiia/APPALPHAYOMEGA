@@ -903,4 +903,50 @@ describe("salir con una foto sin confirmar (S-01)", () => {
     await screen.findByRole("alert")
     expect(protegida()).toBe(true)
   })
+
+  it("protege también el cierre solicitado por una pantalla contenedora", async () => {
+    jest.mocked(obtenerFoto).mockResolvedValueOnce({ tipo: "lista", foto })
+    const falsa = api([solicitud()])
+    falsa.solicitarSubida.mockResolvedValue({
+      medio: { ...medio, estado: "pendiente" },
+      subida: {
+        url: "https://storage.example/foto-sin-confirmar",
+        metodo: "PUT",
+        cabeceras: { "Content-Type": "image/jpeg" },
+        caducaEn: "2026-09-24T12:15:00.000Z",
+      },
+    })
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url) =>
+        url === foto.uri
+          ? ({ blob: async () => new Blob(["foto"]) } as Response)
+          : ({ ok: false, status: 503 } as Response),
+      )
+    let solicitar!: (accion: () => void) => void
+    const cerrado = jest.fn()
+    await render(
+      <SolicitudesFotos
+        clienteId={CLIENTE}
+        api={falsa}
+        modo="cliente"
+        nuevoId={nuevoId}
+        registrarCierre={(proteger) => {
+          if (proteger) solicitar = proteger
+        }}
+      />,
+    )
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Elegir foto de Frente desde la galería" }),
+    )
+    await screen.findByRole("alert")
+    await act(() => solicitar(cerrado))
+    expect(cerrado).not.toHaveBeenCalled()
+    expect(screen.getByText(/Si sales ahora/)).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Quedarme" }))
+    expect(cerrado).not.toHaveBeenCalled()
+    await act(() => solicitar(cerrado))
+    await fireEvent.press(screen.getByRole("button", { name: "Salir y perder la foto" }))
+    await waitFor(() => expect(cerrado).toHaveBeenCalledTimes(1))
+  })
 })

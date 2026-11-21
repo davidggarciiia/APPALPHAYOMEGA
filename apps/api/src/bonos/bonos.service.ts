@@ -114,6 +114,18 @@ export class BonosService {
     })
   }
 
+  /** La reserva ya tiene bloqueado su hueco; saldo y concesión usan el candado del cliente. */
+  async prepararReserva(
+    tx: Prisma.TransactionClient,
+    actor: IdentidadVerificada,
+    clienteId: string,
+    mes: string,
+  ): Promise<SaldoBonos> {
+    if (actor.rol !== "entrenador") throw new ForbiddenException()
+    await this.cliente(tx, actor, clienteId, true)
+    return this.saldoActual(tx, clienteId, mes)
+  }
+
   cargar(
     actor: IdentidadVerificada,
     clienteId: string,
