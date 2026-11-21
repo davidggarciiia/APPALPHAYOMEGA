@@ -29,6 +29,7 @@ export function CabeceraSesion({
   ocupado = false,
   deshabilitado = false,
   demoraProgreso = 0,
+  mostrarProgreso = true,
 }: {
   nombre?: string
   hechas: number
@@ -40,6 +41,7 @@ export function CabeceraSesion({
   ocupado?: boolean
   deshabilitado?: boolean
   demoraProgreso?: number
+  mostrarProgreso?: boolean
 }): React.JSX.Element {
   const minutos = segundos === null ? 0 : Math.floor(segundos / 60)
   return (
@@ -70,7 +72,7 @@ export function CabeceraSesion({
           )}
         </View>
       </View>
-      <RecorridoSesion hechas={hechas} total={total} demora={demoraProgreso} />
+      {mostrarProgreso && <RecorridoSesion hechas={hechas} total={total} demora={demoraProgreso} />}
     </View>
   )
 }

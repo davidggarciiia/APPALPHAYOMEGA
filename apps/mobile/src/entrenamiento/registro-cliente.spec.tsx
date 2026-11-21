@@ -156,6 +156,48 @@ function copiaGuardada() {
   return JSON.parse(mockFilas.get(claveSesion(ID))!).datos
 }
 
+function sesionPorBloques(): SesionCliente {
+  const ejercicio = sesion.prescripcion.ejercicios[0]!
+  return {
+    ...sesion,
+    borrador: null,
+    prescripcion: {
+      ...sesion.prescripcion,
+      ejercicios: [
+        {
+          ...ejercicio,
+          id: "40000000-0000-4000-8000-000000000002",
+          nombre: "Movilidad",
+          seccion: "calentamiento",
+          series: [
+            {
+              id: "30000000-0000-4000-8000-000000000002",
+              tipoMedicion: "repeticiones",
+              pesoKg: null,
+              repeticiones: 8,
+            },
+          ],
+        },
+        ejercicio,
+        {
+          ...ejercicio,
+          id: "40000000-0000-4000-8000-000000000003",
+          nombre: "Estiramientos",
+          seccion: "final",
+          series: [
+            {
+              id: "30000000-0000-4000-8000-000000000003",
+              tipoMedicion: "repeticiones",
+              pesoKg: null,
+              repeticiones: 8,
+            },
+          ],
+        },
+      ],
+    },
+  }
+}
+
 describe("RegistroCliente · sesión y envío en un toque", () => {
   beforeEach(async () => {
     mockFalloDeDisco = false
@@ -167,6 +209,251 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await act(() => Dimensions.set({ window: ventanaOriginal }))
     mockFalloDeDisco = false
     AppState.currentState = "active"
+  })
+
+  it("navega por los bloques no vacíos y conserva las series marcadas sin enviar", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue(sesionPorBloques())
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+
+    const movilidad = await screen.findByRole("checkbox", { name: "Hecha — Movilidad, serie 1" })
+    expect(screen.queryByRole("checkbox", { name: "Hecha — Press banca, serie 1" })).toBeNull()
+    await fireEvent.press(movilidad)
+    await fireEvent.press(screen.getByRole("button", { name: "Siguiente" }))
+    expect(screen.getByLabelText("Bloque 2 de 3, Principal")).toBeOnTheScreen()
+    expect(screen.getByRole("checkbox", { name: "Hecha — Press banca, serie 1" })).toBeOnTheScreen()
+    expect(screen.queryByRole("checkbox", { name: "Hecha — Movilidad, serie 1" })).toBeNull()
+    await fireEvent.press(screen.getByRole("button", { name: "Siguiente" }))
+    expect(screen.getByLabelText("Bloque 3 de 3, Final")).toBeOnTheScreen()
+    expect(
+      screen.getByRole("checkbox", { name: "Hecha — Estiramientos, serie 1" }),
+    ).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Anterior" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Anterior" }))
+    expect(screen.getByRole("checkbox", { name: "Hecha — Movilidad, serie 1" })).toBeChecked()
+    expect(api.enviar).not.toHaveBeenCalled()
+  })
+
+  it("conserva una entrada manual incompleta al navegar y evita enviar el valor anterior", async () => {
+    const pauta = sesionPorBloques()
+    const calentamiento = pauta.prescripcion.ejercicios[0]!
+    calentamiento.tipoCarga = "conCargaExterna"
+    calentamiento.series[0]!.pesoKg = 10
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue(pauta)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Peso — Movilidad/ }))
+    await fireEvent.press(screen.getByRole("button", { name: /^Escribir KG:/ }))
+    await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "1,2,3")
+    await fireEvent.press(screen.getByRole("button", { name: "Siguiente" }))
+    expect(screen.getByRole("button", { name: "Terminar" })).toBeDisabled()
+    expect(api.enviar).not.toHaveBeenCalled()
+    await fireEvent.press(screen.getByRole("button", { name: "Anterior" }))
+    await fireEvent.press(screen.getByRole("button", { name: /^Peso — Movilidad/ }))
+    expect(screen.getByLabelText("Valor manual KG")).toHaveProp("value", "1,2,3")
+    await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "12,5")
+    await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+    expect(screen.getByRole("button", { name: "Terminar" })).toBeEnabled()
+  })
+
+  it("conserva el bloque y el texto manual inválido al llegar un borrador remoto tardío", async () => {
+    const pauta = sesionPorBloques()
+    pauta.prescripcion.ejercicios[0]!.tipoCarga = "conCargaExterna"
+    pauta.prescripcion.ejercicios[0]!.series[0]!.pesoKg = 10
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), nuevoDocumento(pauta))
+    const { api, comoApi } = crearApi()
+    let resolver!: (remota: SesionCliente) => void
+    api.leerCliente.mockReturnValue(
+      new Promise<SesionCliente>((r) => {
+        resolver = r
+      }),
+    )
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Peso — Movilidad/ }))
+    await fireEvent.press(screen.getByRole("button", { name: /^Escribir KG:/ }))
+    await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "1,2,3")
+    await act(() =>
+      resolver({
+        ...pauta,
+        borrador: {
+          ...sesion.borrador!,
+          revision: 2,
+          registro: {
+            ...sesion.borrador!.registro,
+            series: [
+              {
+                serieId: "30000000-0000-4000-8000-000000000002",
+                tipoMedicion: "repeticiones",
+                pesoKg: 10,
+                repeticiones: 8,
+                hecha: true,
+              },
+            ],
+          },
+        },
+      }),
+    )
+    await waitFor(() => expect(copiaGuardada().revisionBorrador).toBe(2))
+    expect(screen.getByLabelText("Bloque 1 de 3, Calentamiento")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Valor manual KG")).toHaveProp("value", "1,2,3")
+  })
+
+  it("pide corregir el borrador manual inválido antes de salir de la sesión", async () => {
+    const { comoApi } = crearApi()
+    const salir = jest.fn()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
+    await fireEvent.press(await screen.findByRole("button", { name: /^Peso — Press banca/ }))
+    await fireEvent.press(screen.getByRole("button", { name: "Escribir KG: 40" }))
+    await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "1,2,3")
+    await fireEvent.press(screen.getByRole("button", { name: "Salir de la sesión" }))
+    expect(await screen.findByText("Corrige el valor incompleto antes de salir.")).toBeOnTheScreen()
+    expect(salir).not.toHaveBeenCalled()
+    expect(screen.getByLabelText("Valor manual KG")).toHaveProp("value", "1,2,3")
+  })
+
+  it("termina desde el primer bloque contando las series pendientes de todos", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue(sesionPorBloques())
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(
+      await screen.findByRole("checkbox", { name: "Hecha — Movilidad, serie 1" }),
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    expect(screen.getByText("Quedan 2 series sin hacer.")).toBeOnTheScreen()
+    expect(api.enviar).not.toHaveBeenCalled()
+  })
+
+  it.each(["enviado", "guardado"] as const)(
+    "la confirmación %s resume las series de los cuatro bloques",
+    async (estado) => {
+      const base = sesion.prescripcion.ejercicios[0]!
+      const pauta: SesionCliente = {
+        ...sesion,
+        borrador: null,
+        prescripcion: {
+          ...sesion.prescripcion,
+          circuito: { vueltas: 1 },
+          ejercicios: (["calentamiento", "principal", "circuito", "final"] as const).map(
+            (seccion, indice) => ({
+              ...base,
+              id: `40000000-0000-4000-8000-00000000000${indice + 1}`,
+              nombre: seccion,
+              seccion,
+              series: [0, 1].map((n) => ({
+                id: `30000000-0000-4000-8000-00000000000${indice * 2 + n + 1}`,
+                tipoMedicion: "repeticiones" as const,
+                pesoKg: 10,
+                repeticiones: 10,
+              })),
+            }),
+          ),
+        },
+      }
+      const { api, comoApi } = crearApi()
+      api.leerCliente.mockResolvedValue(pauta)
+      if (estado === "guardado") api.guardar.mockRejectedValue(new ErrorDeRed("Sin conexión"))
+      else api.guardar.mockImplementation(borradorGuardado)
+      api.enviar.mockImplementation(async (_id, envio) => ({
+        ...resultado(envio),
+        prescripcion: pauta.prescripcion,
+        series: envio.registro.series.map((serie) =>
+          serie.hecha
+            ? {
+                serieId: serie.serieId,
+                hecha: true as const,
+                valores: { tipoMedicion: "repeticiones" as const, pesoKg: 10, repeticiones: 10 },
+              }
+            : { serieId: serie.serieId, hecha: false as const },
+        ),
+      }))
+      await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await fireEvent.press(
+        await screen.findByRole("checkbox", { name: "Hecha — calentamiento, serie 1" }),
+      )
+      await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+      expect(screen.getByText("Quedan 7 series sin hacer.")).toBeOnTheScreen()
+      await fireEvent.press(screen.getByRole("button", { name: "Terminar y enviar" }))
+      expect(await screen.findByText(estado.toUpperCase())).toBeOnTheScreen()
+      expect(screen.getByLabelText(/^1 de 8 series/)).toBeOnTheScreen()
+      expect(api.enviar).toHaveBeenCalledTimes(estado === "enviado" ? 1 : 0)
+    },
+  )
+
+  it("reabre en el primer bloque que tiene series pendientes", async () => {
+    const pauta = sesionPorBloques()
+    const copia = nuevoDocumento(pauta)
+    copia.edicion.series[0]!.hecha = true
+    copia.secuencia = 1
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue(pauta)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByLabelText("Bloque 2 de 3, Principal")).toBeOnTheScreen()
+    expect(screen.getByRole("checkbox", { name: "Hecha — Press banca, serie 1" })).toBeOnTheScreen()
+    expect(screen.queryByRole("checkbox", { name: "Hecha — Movilidad, serie 1" })).toBeNull()
+  })
+
+  it("al recuperar un borrador remoto más reciente abre el primer bloque pendiente actualizado", async () => {
+    const pauta = sesionPorBloques()
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), nuevoDocumento(pauta))
+    const { api, comoApi } = crearApi()
+    let resolver!: (remota: SesionCliente) => void
+    api.leerCliente.mockReturnValue(
+      new Promise<SesionCliente>((r) => {
+        resolver = r
+      }),
+    )
+
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByLabelText("Bloque 1 de 3, Calentamiento")).toBeOnTheScreen()
+    await act(() =>
+      resolver({
+        ...pauta,
+        borrador: {
+          ...sesion.borrador!,
+          revision: 2,
+          registro: {
+            ...sesion.borrador!.registro,
+            series: [
+              {
+                serieId: "30000000-0000-4000-8000-000000000002",
+                tipoMedicion: "repeticiones",
+                pesoKg: null,
+                repeticiones: 8,
+                hecha: true,
+              },
+            ],
+          },
+        },
+      }),
+    )
+    expect(await screen.findByLabelText("Bloque 2 de 3, Principal")).toBeOnTheScreen()
+    expect(screen.getByRole("checkbox", { name: "Hecha — Press banca, serie 1" })).not.toBeChecked()
+  })
+
+  it("conserva el bloque y la edición si se navega antes de que llegue el borrador remoto", async () => {
+    const pauta = sesionPorBloques()
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), nuevoDocumento(pauta))
+    const { api, comoApi } = crearApi()
+    let resolver!: (remota: SesionCliente) => void
+    api.leerCliente.mockReturnValue(
+      new Promise<SesionCliente>((r) => {
+        resolver = r
+      }),
+    )
+
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(
+      await screen.findByRole("checkbox", { name: "Hecha — Movilidad, serie 1" }),
+    )
+    await fireEvent.press(screen.getByRole("button", { name: "Siguiente" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Siguiente" }))
+    await act(() => resolver({ ...pauta, borrador: { ...sesion.borrador!, revision: 2 } }))
+    await waitFor(() => expect(screen.getByLabelText("Bloque 3 de 3, Final")).toBeOnTheScreen())
+    await fireEvent.press(screen.getByRole("button", { name: "Anterior" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Anterior" }))
+    expect(screen.getByRole("checkbox", { name: "Hecha — Movilidad, serie 1" })).toBeChecked()
+    await waitFor(() => expect(copiaGuardada().edicion.series[0].hecha).toBe(true))
   })
 
   it("abre directamente la sesión e inicia el reloj sin inventar check-in ni cierre", async () => {
@@ -703,7 +990,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     })
   })
 
-  it("cuenta solo las series de trabajo en progreso y confirmación", async () => {
+  it("muestra el bloque actual y cuenta todas las series en la confirmación", async () => {
     const { api, comoApi } = crearApi()
     const calentamiento = "30000000-0000-4000-8000-000000000002"
     const pauta = {
@@ -745,11 +1032,20 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     api.enviar.mockImplementation(async (_id, envio) => ({
       ...resultado(envio),
       prescripcion: pauta,
+      series: [
+        {
+          serieId: calentamiento,
+          hecha: true,
+          valores: { tipoMedicion: "tiempo", pesoKg: null, segundos: 60 },
+        },
+        ...resultado(envio).series,
+      ],
     }))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    expect(await screen.findByRole("progressbar", { value: { now: 1, max: 1 } })).toBeTruthy()
+    expect(await screen.findByLabelText("Bloque 2 de 2, Principal")).toBeTruthy()
+    expect(screen.queryByRole("progressbar")).toBeNull()
     await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
-    expect(await screen.findByLabelText(/1 de 1 series/)).toBeTruthy()
+    expect(await screen.findByLabelText(/2 de 2 series/)).toBeTruthy()
   })
 
   it("la copia no enviada identifica cada ejercicio y conserva sus unidades", async () => {

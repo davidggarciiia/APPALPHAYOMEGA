@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native"
+import { AppState, StyleSheet } from "react-native"
 import type {
   CambiarDia,
   DiaDeSeguimiento,
@@ -160,6 +161,131 @@ afterEach(() => {
   jest.useRealTimers()
 })
 
+it("prioriza las comidas y muestra los macros completos al abrir su detalle", async () => {
+  jest.useFakeTimers()
+  jest.setSystemTime(new Date("2026-09-21T08:30:00Z"))
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={api(async () => ({ dieta: publicada(), deNutricionista: true }))}
+      almacen={almacenEnMemoria()}
+    />,
+  )
+  const detalle = await screen.findByRole("button", { name: "Ver objetivo nutricional" })
+  expect(screen.getByRole("button", { name: /^Desayuno, ahora:/ })).toBeOnTheScreen()
+  expect(screen.queryByText("kcal al día")).toBeNull()
+  await fireEvent.press(detalle)
+  expect(screen.getByText("2.300")).toBeOnTheScreen()
+  expect(screen.getByText("160 g")).toBeOnTheScreen()
+  expect(screen.getByText("kcal al día")).toBeOnTheScreen()
+})
+
+it("la tira de los siete días cabe en una pantalla de 360 px", async () => {
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={api(async () => ({ dieta: publicada(), deNutricionista: true }))}
+      almacen={almacenEnMemoria()}
+    />,
+  )
+  await screen.findByRole("tab", { name: "Lunes: Entreno" })
+  const dias = screen.getAllByRole("tab")
+  expect(dias).toHaveLength(7)
+  const anchoMinimo = dias.reduce(
+    (ancho, dia) => ancho + (StyleSheet.flatten(dia.props.style).minWidth ?? 0),
+    0,
+  )
+  let contenedor = dias[0]!.parent
+  while (contenedor && !contenedor.props.contentContainerStyle) contenedor = contenedor.parent
+  expect(contenedor).not.toBeNull()
+  const separacion = StyleSheet.flatten(contenedor!.props.contentContainerStyle).gap ?? 0
+  expect(anchoMinimo + 6 * separacion).toBeLessThanOrEqual(360 - 2 * 20)
+})
+
+it("sitúa la comida actual primero y distingue la siguiente antes de su hora", async () => {
+  jest.useFakeTimers()
+  const dieta = publicada()
+  dieta.documento.tiposDeDia[0]!.comidas[1]!.hora = "12:00"
+  const nutricion = api(async () => ({ dieta, deNutricionista: true }))
+  const almacen = almacenEnMemoria()
+  jest.setSystemTime(new Date("2026-09-21T11:00:00Z")) // 13:00 en Madrid
+  const vista = await render(
+    <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={nutricion} almacen={almacen} />,
+  )
+  await screen.findByRole("button", { name: /^Comida, ahora:/ })
+  const comidas = screen
+    .getAllByRole("button")
+    .filter((b) => /^(Desayuno|Comida)/.test(b.props.accessibilityLabel ?? ""))
+  expect(comidas.map((b) => b.props.accessibilityLabel)).toEqual([
+    expect.stringMatching(/^Comida, ahora:/),
+    expect.stringMatching(/^Desayuno:/),
+  ])
+  await vista.unmount()
+  jest.setSystemTime(new Date("2026-09-21T04:00:00Z")) // 06:00 en Madrid
+  await render(<VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={nutricion} almacen={almacen} />)
+  expect(await screen.findByRole("button", { name: /^Desayuno, siguiente:/ })).toBeOnTheScreen()
+})
+
+it("la respuesta de una recarga anterior no sustituye la más reciente", async () => {
+  let actividad: ((estado: string) => void) | undefined
+  const suscripcion = jest.mocked(AppState.addEventListener)
+  const anterior = suscripcion.getMockImplementation()!
+  suscripcion.mockImplementation(((_evento: string, listener: (estado: string) => void) => {
+    actividad = listener
+    return { remove: () => undefined }
+  }) as typeof AppState.addEventListener)
+  let resolverPrimera!: (valor: { dieta: DietaPublicada; deNutricionista: boolean }) => void
+  const antigua = new Promise<{ dieta: DietaPublicada; deNutricionista: boolean }>((resolver) => {
+    resolverPrimera = resolver
+  })
+  const vieja = publicada()
+  vieja.documento.suplementos = [{ nombre: "Antiguo", dosis: null }]
+  const nueva = publicada()
+  nueva.documento.suplementos = [{ nombre: "Actual", dosis: null }]
+  const vigente = jest
+    .fn()
+    .mockReturnValueOnce(antigua)
+    .mockResolvedValueOnce({ dieta: nueva, deNutricionista: true })
+  try {
+    await render(
+      <VistaDieta
+        clienteId={CUENTA}
+        cuenta={CUENTA}
+        api={api(vigente)}
+        almacen={almacenEnMemoria()}
+      />,
+    )
+    await act(async () => actividad?.("active"))
+    expect(await screen.findByText("Actual")).toBeOnTheScreen()
+    await act(async () => resolverPrimera({ dieta: vieja, deNutricionista: true }))
+    expect(screen.getByText("Actual")).toBeOnTheScreen()
+    expect(screen.queryByText("Antiguo")).toBeNull()
+  } finally {
+    suscripcion.mockImplementation(anterior)
+  }
+})
+
+it("al cambiar de cuenta no enseña la dieta anterior mientras carga la nueva", async () => {
+  const almacen = almacenEnMemoria()
+  const nutricion = api(
+    jest
+      .fn()
+      .mockResolvedValueOnce({ dieta: publicada(), deNutricionista: true })
+      .mockImplementationOnce(() => new Promise(() => undefined)),
+  )
+  const vista = await render(
+    <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={nutricion} almacen={almacen} />,
+  )
+  expect(await screen.findByText("Dieta de tu nutricionista")).toBeOnTheScreen()
+  await vista.rerender(
+    <VistaDieta clienteId="otra" cuenta="otra" api={nutricion} almacen={almacen} />,
+  )
+  expect(screen.getByLabelText("Cargando dieta")).toBeOnTheScreen()
+  expect(screen.queryByText("Dieta de tu nutricionista")).toBeNull()
+})
+
 it("«Hoy» sigue el día de Madrid al pasar de domingo a lunes", async () => {
   jest.useFakeTimers()
   const almacen = almacenEnMemoria()
@@ -169,6 +295,7 @@ it("«Hoy» sigue el día de Madrid al pasar de domingo a lunes", async () => {
     <VistaDieta clienteId={CUENTA} cuenta={CUENTA} api={api(vigente)} almacen={almacen} />,
   )
   // Un día sin comidas enseña el objetivo, como «Nutrición sin nutricionista».
+  await fireEvent.press(await screen.findByRole("button", { name: "Ver objetivo nutricional" }))
   expect(await screen.findByText("2.100")).toBeOnTheScreen()
   expect(screen.getByText("kcal al día")).toBeOnTheScreen()
   expect(screen.queryByText(/Proteína/)).toBeNull()
@@ -251,6 +378,7 @@ it("enseña el objetivo junto a las comidas y permite consultar otro día sin re
       almacen={almacenEnMemoria()}
     />,
   )
+  await fireEvent.press(await screen.findByRole("button", { name: "Ver objetivo nutricional" }))
   expect(await screen.findByText("2.300")).toBeOnTheScreen()
   expect(screen.getByText("kcal al día · entre 2.200 y 2.400")).toBeOnTheScreen()
   expect(screen.getByText("Carbohidratos")).toBeOnTheScreen()
@@ -404,6 +532,38 @@ it("bloquea todos los suplementos hasta confirmar y conserva las dos tomas suces
   expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
   expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CUENTA, expect.any(String), {
     suplementos: ["Vitamina D", "Omega 3"],
+  })
+})
+
+it("mantiene el nombre y la dosis larga del suplemento en el mismo ancho disponible", async () => {
+  const seguimiento = seguimientoEnMemoria()
+  const dieta = publicada()
+  const dosis = "3–5 g diarios; también en descanso"
+  dieta.documento.suplementos = [{ nombre: "Creatina monohidrato", dosis }]
+  await render(
+    <VistaDieta
+      clienteId={CUENTA}
+      cuenta={CUENTA}
+      api={api(async () => ({ dieta, deNutricionista: false }))}
+      almacen={almacenEnMemoria()}
+      seguimiento={seguimiento}
+    />,
+  )
+  const fila = await screen.findByRole("checkbox", { name: "Creatina monohidrato tomada" })
+  const nombre = screen.getByText("Creatina monohidrato tomada")
+  const detalle = screen.getByText(dosis)
+  // La dosis continúa debajo del nombre: no le roba el ancho como otra columna.
+  expect(detalle.parent === nombre.parent).toBe(true)
+  expect(StyleSheet.flatten(detalle.parent!.props.style)).toMatchObject({ flex: 1, minWidth: 0 })
+  expect(StyleSheet.flatten(detalle.parent!.props.style).flexDirection ?? "column").toBe("column")
+  expect(nombre).toHaveStyle({ fontSize: 16 })
+  expect(detalle).toHaveStyle({ fontSize: 13 })
+  expect(detalle.props.numberOfLines).toBeUndefined()
+  expect(StyleSheet.flatten(fila.props.style).minHeight).toBeGreaterThanOrEqual(44)
+  await fireEvent.press(detalle)
+  expect(screen.getByRole("checkbox", { name: "Creatina monohidrato tomada" })).toBeChecked()
+  expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CUENTA, expect.any(String), {
+    creatina: true,
   })
 })
 

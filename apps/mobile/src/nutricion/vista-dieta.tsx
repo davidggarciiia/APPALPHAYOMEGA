@@ -138,15 +138,7 @@ export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): 
   )
 }
 
-/** La dieta vigente del cliente, con copia cifrada para leerla sin conexión. */
-export function VistaDieta({
-  clienteId,
-  cuenta,
-  api,
-  almacen,
-  seguimiento,
-  abrirComida,
-}: {
+type PropsVistaDieta = {
   clienteId: string
   cuenta: string
   api: ApiNutricion
@@ -154,7 +146,21 @@ export function VistaDieta({
   /** Para los suplementos del día. Sin él, la vista es de solo lectura. */
   seguimiento?: ApiSeguimiento
   abrirComida?: (comida: Comida) => void
-}): React.JSX.Element {
+}
+
+/** La dieta vigente del cliente, con copia cifrada para leerla sin conexión. */
+export function VistaDieta(props: PropsVistaDieta): React.JSX.Element {
+  return <VistaDietaDeCuenta key={JSON.stringify([props.cuenta, props.clienteId])} {...props} />
+}
+
+function VistaDietaDeCuenta({
+  clienteId,
+  cuenta,
+  api,
+  almacen,
+  seguimiento,
+  abrirComida,
+}: PropsVistaDieta): React.JSX.Element {
   const [estado, setEstado] = useState<Estado>({ fase: "cargando" })
   const [intento, setIntento] = useState(0)
   const [semana, setSemana] = useState(false)
@@ -165,6 +171,7 @@ export function VistaDieta({
   const [guardandoSuplemento, setGuardandoSuplemento] = useState(false)
   const guardando = useRef(false)
   const versionDia = useRef(0)
+  const colaCopia = useRef<Promise<void>>(Promise.resolve())
   const hoy = hoyAgenda()
   const [diaElegido, setDiaElegido] = useState<number | null>(null)
   const diaActual = diaDeLaSemana(hoy)
@@ -173,41 +180,49 @@ export function VistaDieta({
   useFocusEffect(
     useCallback(() => {
       let vigente = true
+      let versionCarga = 0
       const cancelacion = new AbortController()
       const cargar = async (): Promise<void> => {
+        const version = ++versionCarga
+        const actual = (): boolean => vigente && version === versionCarga
         // Sin vaciar lo ya mostrado: al recargar (foco, volver de segundo plano) las marcas
         // y los suplementos no pasan a «registro no disponible» mientras llega la respuesta.
         setAviso("")
         try {
           const { dieta, deNutricionista } = await api.vigente(clienteId, cancelacion.signal)
-          if (!vigente) return
+          if (!actual()) return
           setEstado({ fase: "lista", dieta, deNutricionista, copiaDel: null })
           const lecturaDia = versionDia.current
           // Lo marcado hoy. Sin ello, la dieta se ve igual pero no se marca.
           void api
             .comidas(clienteId, hoy, hoy)
-            .then(({ comidas }) => vigente && setRegistradas(comidas))
-            .catch(() => vigente && setRegistradas(null))
+            .then(({ comidas }) => actual() && setRegistradas(comidas))
+            .catch(() => actual() && setRegistradas(null))
           void seguimiento
             ?.dias(clienteId, hoy, hoy)
             .then(({ dias }) => {
-              if (vigente && lecturaDia === versionDia.current && !guardando.current) {
+              if (actual() && lecturaDia === versionDia.current && !guardando.current) {
                 setDia(dias[0] ?? null)
                 setDiaCargado(true)
               }
             })
             .catch(() => {
-              if (vigente && lecturaDia === versionDia.current && !guardando.current)
+              if (actual() && lecturaDia === versionDia.current && !guardando.current)
                 setAviso("No se pudieron cargar los registros de hoy. Revisa la conexión.")
             })
           // Si falla el guardado local, la dieta se sigue viendo: solo se pierde la copia.
-          await guardarCopia(almacen, cuenta, dieta, deNutricionista).catch(() => undefined)
+          colaCopia.current = colaCopia.current
+            .then(async () => {
+              if (actual()) await guardarCopia(almacen, cuenta, dieta, deNutricionista)
+            })
+            .catch(() => undefined)
+          await colaCopia.current
         } catch (error) {
-          if (!vigente) return
+          if (!actual()) return
           // Una sesión caducada o un permiso retirado no son «sin conexión»: la copia no vale.
           if (!(error instanceof ErrorDeSesion) && !(error instanceof ErrorDePermiso)) {
             const copia = await leerCopia(almacen, cuenta).catch(() => null)
-            if (!vigente) return
+            if (!actual()) return
             setEstado(
               copia
                 ? {
@@ -363,7 +378,7 @@ export function VistaDieta({
 
 const s = StyleSheet.create({
   contenido: { gap: 20 },
-  semana: { flexDirection: "row", flexGrow: 1, gap: 4 },
+  semana: { flexDirection: "row", flexGrow: 1 },
   dia: {
     flex: 1,
     minWidth: 44,

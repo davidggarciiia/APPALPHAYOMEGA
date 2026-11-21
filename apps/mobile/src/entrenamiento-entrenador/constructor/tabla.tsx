@@ -222,8 +222,6 @@ export function TablaPrincipal({
                 >
                   <Text
                     numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.65}
                     style={[
                       s.valorCelda,
                       campo === "carga" &&

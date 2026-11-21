@@ -1,17 +1,12 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
+import type { ReactNode } from "react"
 import type { EjercicioPrescrito, Prescripcion, ResumenSesion } from "@alpha-omega/shared"
 
-import { tema } from "../../tema"
-import { tamanoDelNombre } from "../hoy-toca"
+import { tema, tipo } from "../../tema"
 import { porSecciones } from "../sesion/modelo"
-import {
-  INICIALES_DE_DIA,
-  NOMBRES_DE_DIA,
-  detalleDeEjercicio,
-  dosisDeEjercicio,
-  minutosDeFinal,
-} from "./modelo"
-import { Fila, Tarjeta, Titulo } from "./piezas"
+import { NOMBRES_DE_DIA, detalleDeEjercicio, dosisDeEjercicio, minutosDeFinal } from "./modelo"
+import { Fila, Titulo } from "./piezas"
 
 export type DiaDelPlan = { resumen: ResumenSesion; prescripcion: Prescripcion | null }
 
@@ -35,6 +30,9 @@ export function RutinaDeLaSemana({
   hoy,
   verTecnica,
   abrir,
+  cerrar,
+  contenidoTecnica,
+  vistaPrevia = false,
 }: {
   dias: DiaDelPlan[]
   elegido: string | null
@@ -42,58 +40,103 @@ export function RutinaDeLaSemana({
   hoy: string
   verTecnica: (ejercicio: EjercicioPrescrito) => void
   abrir: (id: string) => void
+  cerrar?: () => void
+  contenidoTecnica?: ReactNode
+  vistaPrevia?: boolean
 }): React.JSX.Element {
-  const dia = dias.find((d) => d.resumen.agenda.id === elegido) ?? dias[0]
-  if (!dia) return <Text style={s.vacio}>No tienes sesiones esta semana.</Text>
+  const dia =
+    dias.find((d) => d.resumen.agenda.id === elegido) ?? (vistaPrevia ? dias[0] : undefined)
+  if (dias.length === 0) return <Text style={s.vacio}>No tienes sesiones esta semana.</Text>
+  const diasPorFecha = new Map<string, DiaDelPlan[]>()
+  for (const sesion of dias) {
+    const fecha = sesion.resumen.agenda.fechaActual
+    diasPorFecha.set(fecha, [...(diasPorFecha.get(fecha) ?? []), sesion])
+  }
+  return (
+    <View style={s.contenido}>
+      <View style={s.dias} accessibilityLabel="Días de la semana">
+        {[...diasPorFecha].map(([fecha, sesiones]) => (
+          <View key={fecha} style={s.grupoDia}>
+            <Text accessibilityRole="header" style={s.tituloDia}>
+              {NOMBRES_DE_DIA[diaDeLaSemana(fecha) - 1]}
+            </Text>
+            {sesiones.map((d) => {
+              const activo = d === dia
+              return (
+                <View key={d.resumen.agenda.id}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: activo }}
+                    accessibilityLabel={`${NOMBRES_DE_DIA[diaDeLaSemana(fecha) - 1]}: ${d.resumen.nombre}${d.resumen.enviadoEn !== null ? ", hecha" : ""}`}
+                    onPress={() => elegir(d.resumen.agenda.id)}
+                    style={[s.dia, activo && s.diaActivo]}
+                  >
+                    <Text numberOfLines={1} style={[s.textoDia, activo && s.textoDiaActivo]}>
+                      {d.resumen.nombre}
+                    </Text>
+                    {d.resumen.enviadoEn !== null && <View style={s.hecho} />}
+                  </Pressable>
+                  {activo && (
+                    <DetalleSesion
+                      dia={d}
+                      hoy={hoy}
+                      verTecnica={verTecnica}
+                      abrir={abrir}
+                      cerrar={cerrar}
+                      contenidoTecnica={contenidoTecnica}
+                      vistaPrevia={vistaPrevia}
+                    />
+                  )}
+                </View>
+              )
+            })}
+          </View>
+        ))}
+      </View>
+    </View>
+  )
+}
+
+function DetalleSesion({
+  dia,
+  hoy,
+  verTecnica,
+  abrir,
+  cerrar,
+  contenidoTecnica,
+  vistaPrevia,
+}: {
+  dia: DiaDelPlan
+  hoy: string
+  verTecnica: (ejercicio: EjercicioPrescrito) => void
+  abrir: (id: string) => void
+  cerrar?: () => void
+  contenidoTecnica?: ReactNode
+  vistaPrevia: boolean
+}): React.JSX.Element {
   const { resumen, prescripcion } = dia
   const numero = diaDeLaSemana(resumen.agenda.fechaActual)
   const partes = prescripcion?.partes
   const minutos = (clave: (typeof PARTES)[number]["clave"]): string | undefined => partes?.[clave]
-  return (
-    <View style={s.contenido}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.dias}
-        accessibilityRole="tablist"
-        accessibilityLabel="Días de la semana"
-      >
-        {dias.map((d) => {
-          const activo = d === dia
-          const n = diaDeLaSemana(d.resumen.agenda.fechaActual)
-          return (
-            <Pressable
-              key={d.resumen.agenda.id}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: activo }}
-              accessibilityLabel={`${NOMBRES_DE_DIA[n - 1]}: ${d.resumen.nombre}`}
-              onPress={() => elegir(d.resumen.agenda.id)}
-              style={[s.dia, activo && s.diaActivo]}
-            >
-              <Text style={[s.textoDia, activo && s.textoDiaActivo]}>
-                {INICIALES_DE_DIA[n - 1]}
-              </Text>
-              {d.resumen.enviadoEn !== null && <View style={[s.hecho, activo && s.hechoActivo]} />}
-            </Pressable>
-          )
-        })}
-      </ScrollView>
+  const contenido = (
+    <View style={s.contenidoDetalle}>
+      {!vistaPrevia && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar detalle"
+          onPress={cerrar}
+          style={s.cerrarDetalle}
+        >
+          <Text style={s.textoDia}>Cerrar</Text>
+        </Pressable>
+      )}
       <View style={s.cabecera}>
         <Text style={s.nombreDia}>
           {NOMBRES_DE_DIA[numero - 1]}
           {resumen.agenda.fechaActual === hoy ? " · hoy" : ""}
           {resumen.enviadoEn !== null ? " · hecha" : ""}
         </Text>
-        <Text
-          style={[
-            s.nombre,
-            {
-              fontSize: tamanoDelNombre(resumen.nombre),
-              lineHeight: tamanoDelNombre(resumen.nombre) * 1.1,
-            },
-          ]}
-          accessibilityRole="header"
-        >
+        <Text style={s.nombre} accessibilityRole="header">
           {resumen.nombre}
         </Text>
       </View>
@@ -152,7 +195,7 @@ export function RutinaDeLaSemana({
               >
                 {titulo}
               </Titulo>
-              <Tarjeta>
+              <View>
                 {grupo.ejercicios.map((ejercicio, n) => {
                   const detalle = detalleDeEjercicio(ejercicio)
                   return (
@@ -173,7 +216,7 @@ export function RutinaDeLaSemana({
                     </Pressable>
                   )
                 })}
-              </Tarjeta>
+              </View>
             </View>
           )
         })
@@ -189,36 +232,43 @@ export function RutinaDeLaSemana({
       </Pressable>
     </View>
   )
+  if (vistaPrevia) return contenido
+  return (
+    <Modal visible animationType="none" onRequestClose={cerrar}>
+      <SafeAreaView style={s.pantallaDetalle}>
+        <ScrollView>{contenido}</ScrollView>
+      </SafeAreaView>
+      {contenidoTecnica}
+    </Modal>
+  )
 }
 
 const s = StyleSheet.create({
   contenido: { gap: 24 },
+  pantallaDetalle: { flex: 1, backgroundColor: tema.fondo },
+  contenidoDetalle: { gap: 24, padding: 20 },
+  cerrarDetalle: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
   vacio: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 22 },
-  dias: { flexDirection: "row", flexGrow: 1, gap: 8 },
+  dias: { gap: 20 },
+  grupoDia: { gap: 4 },
+  tituloDia: { ...tipo.titulo, color: tema.texto },
   dia: {
-    flex: 1,
-    minWidth: 44,
-    height: 46,
-    maxWidth: 80,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: tema.bordeFuerte,
-    backgroundColor: tema.superficie,
+    height: 52,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: tema.borde,
   },
-  diaActivo: { borderColor: tema.acento, backgroundColor: tema.acentoSuave },
-  textoDia: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15 },
+  diaActivo: { borderBottomColor: tema.acento },
+  textoDia: { ...tipo.fila, color: tema.texto, flex: 1 },
   textoDiaActivo: { color: tema.acento },
   hecho: {
-    position: "absolute",
-    bottom: 6,
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: tema.exito,
   },
-  hechoActivo: { backgroundColor: tema.exito },
   cabecera: { gap: 2 },
   nombreDia: {
     color: tema.textoTenue,
@@ -227,12 +277,10 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
-  nombre: { color: tema.acento, fontFamily: tema.fuenteTitulo, textTransform: "uppercase" },
+  nombre: { ...tipo.titulo, color: tema.acento },
   partes: { flexDirection: "row", gap: 8 },
   parte: {
     flex: 1,
-    backgroundColor: tema.superficie,
-    borderRadius: 14,
     paddingVertical: 10,
     alignItems: "center",
     gap: 2,

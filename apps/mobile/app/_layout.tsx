@@ -22,9 +22,9 @@ import { ProveedorNotificaciones } from "../src/notificaciones/contexto"
 import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
 import { crearApiConsentimiento, PuertaConsentimiento } from "../src/consentimiento"
 
-/** Rutas a las que se llega sin sesion. Activar y recuperar estan aqui porque,
- *  por definicion, quien activa o rescata su cuenta todavia no tiene ninguna. */
-const RUTAS_PUBLICAS = ["login", "activar", "recuperar", "restablecer"]
+/** Un enlace de cuenta también puede abrirse mientras otra cuenta sigue iniciada. */
+const RUTAS_DE_CUENTA = ["activar", "recuperar", "restablecer"]
+const RUTAS_PUBLICAS = ["login", ...RUTAS_DE_CUENTA]
 
 /**
  * Manda al login a quien no tiene sesion y saca del login a quien si la tiene.
@@ -48,10 +48,11 @@ function RedireccionDeSesion(): null {
 
       if (estado.fase === "fuera" && !enRutaPublica) {
         router.replace("/login")
-      } else if (estado.fase === "dentro" && enRutaPublica) {
+      } else if (estado.fase === "dentro" && segmentos[0] === "login") {
         router.replace("/")
       } else if (
         estado.fase === "local" &&
+        !RUTAS_DE_CUENTA.includes(segmentos[0] ?? "") &&
         segmentos[0] !== "entrenamiento" &&
         segmentos[0] !== "nutricion"
       ) {
@@ -74,6 +75,8 @@ function PantallaConSesion({ children }: { children: ReactNode }): React.JSX.Ele
 
 function Enrutador(): React.JSX.Element {
   const { estado, sinConexion, reintentar, pedir, salir } = useSesion()
+  const segmentos = useSegments()
+  const enlaceDeCuenta = RUTAS_DE_CUENTA.includes(segmentos[0] ?? "")
   const consentimiento = useMemo(() => crearApiConsentimiento(pedir), [pedir])
 
   if (estado.fase === "comprobando") {
@@ -90,7 +93,7 @@ function Enrutador(): React.JSX.Element {
 
   // Se conserva el token guardado: el problema es la red, no la credencial. Por
   // eso se ofrece reintentar en vez de mandar directamente al login.
-  if (estado.fase === "fuera" && sinConexion) {
+  if (estado.fase === "fuera" && sinConexion && !enlaceDeCuenta) {
     return (
       <View style={estilos.centrado}>
         <Text style={estilos.marca}>ALPHA &amp; OMEGA</Text>
@@ -108,29 +111,30 @@ function Enrutador(): React.JSX.Element {
   }
 
   const contenido = (
-    <Armazon>
-      <Stack
-        screenLayout={PantallaConSesion}
-        screenOptions={{
-          headerShown: false,
-          animation: "none",
-          contentStyle: { backgroundColor: "transparent" },
-        }}
-      />
-    </Armazon>
+    <Stack
+      screenLayout={PantallaConSesion}
+      screenOptions={{
+        headerShown: false,
+        animation: "none",
+        contentStyle: { backgroundColor: "transparent" },
+      }}
+    />
   )
+  const pantalla = enlaceDeCuenta ? contenido : <Armazon>{contenido}</Armazon>
   const pila =
-    estado.fase === "dentro" && ["cliente", "entrenador"].includes(estado.usuario.rol) ? (
+    !enlaceDeCuenta &&
+    estado.fase === "dentro" &&
+    ["cliente", "entrenador"].includes(estado.usuario.rol) ? (
       <ProveedorNotificaciones key={`${estado.usuario.id}:${estado.usuario.rol}`}>
-        {contenido}
+        {pantalla}
       </ProveedorNotificaciones>
     ) : (
-      contenido
+      pantalla
     )
   // Un cliente da su consentimiento de datos de salud antes de usar la app.
   return (
     <ThemeProvider value={TEMA_DE_NAVEGACION}>
-      {estado.fase === "dentro" && estado.usuario.rol === "cliente" ? (
+      {!enlaceDeCuenta && estado.fase === "dentro" && estado.usuario.rol === "cliente" ? (
         <PuertaConsentimiento
           key={estado.usuario.id}
           api={consentimiento}

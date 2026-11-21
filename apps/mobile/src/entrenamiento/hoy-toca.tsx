@@ -1,22 +1,11 @@
 import { StyleSheet, Text, View } from "react-native"
 import type { ResumenSesion } from "@alpha-omega/shared"
 
-import { tema } from "../tema"
+import { tema, tipo } from "../tema"
 import { BotonPrincipal } from "../componentes/botones"
 import { fechaLegible } from "./fechas"
 
-/**
- * El tamaño del nombre depende de su largo: «Empuje» cabe a 52 px como en el
- * diseño; «Empuje y pierna» baja para no partirse en tres renglones.
- */
-export function tamanoDelNombre(nombre: string): number {
-  if (nombre.length <= 10) return 52
-  if (nombre.length <= 16) return 40
-  if (nombre.length <= 24) return 32
-  return 26
-}
-
-/** «Hoy toca»: nombre, estado y acción de la sesión. */
+/** La sesión de hoy y su acción principal. */
 export function TarjetaHoy({
   sesion,
   sinSesion,
@@ -38,34 +27,15 @@ export function TarjetaHoy({
     <View style={s.destacado}>
       <View style={s.cuerpo}>
         <View style={s.bloque}>
-          {sesion && (
-            <Text accessibilityRole="header" style={s.hoyToca}>
-              {empezada ? "En curso:" : sesion?.enviadoEn ? "Completado:" : "Hoy toca:"}
-            </Text>
-          )}
-          <Text
-            style={[
-              s.nombre,
-              { fontSize: tamanoDelNombre(nombre), lineHeight: tamanoDelNombre(nombre) * 1.1 },
-            ]}
-          >
+          <Text accessibilityRole="header" style={s.nombre}>
             {nombre}
           </Text>
-          <Text style={s.detalle}>
-            {sesion ? fechaLegible(hoy) : (siguiente ?? fechaLegible(hoy))}
-          </Text>
-          {sesion && sesion.agenda.fechaActual !== sesion.agenda.fechaOriginal && (
-            <Text style={s.detalle}>
-              Movido desde {fechaLegible(sesion.agenda.fechaOriginal)}. Tu entrenador ve el cambio.
-            </Text>
-          )}
+          {!sesion && <Text style={s.detalle}>{siguiente ?? fechaLegible(hoy)}</Text>}
         </View>
         {sesion && (
           <BotonPrincipal
             etiquetaAccesible={`${sesion.enviadoEn ? "Ver resumen" : empezada ? "Continuar" : "Empezar"} ${sesion.nombre}`}
-            texto={
-              sesion.enviadoEn ? "Ver resumen" : empezada ? "Continuar entreno" : "Empezar entreno"
-            }
+            texto={sesion.enviadoEn ? "Ver resumen" : empezada ? "Continuar entreno" : "Empezar"}
             onPress={() => abrir(sesion.agenda.id)}
             sinMargen
           />
@@ -86,14 +56,6 @@ const s = StyleSheet.create({
   },
   cuerpo: { paddingHorizontal: 8, paddingBottom: 8, gap: 20 },
   bloque: { gap: 6 },
-  hoyToca: {
-    color: tema.textoTenue,
-    fontFamily: tema.fuenteSemi,
-    fontSize: 11,
-    lineHeight: 18,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  nombre: { color: tema.acento, fontFamily: tema.fuenteTitulo, textTransform: "uppercase" },
+  nombre: { ...tipo.tituloPantalla, color: tema.acento },
   detalle: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 16 },
 })

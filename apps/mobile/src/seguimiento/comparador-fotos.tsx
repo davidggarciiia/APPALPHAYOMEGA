@@ -176,10 +176,12 @@ export function ComparadorFotos({
   fotos,
   api,
   puedeBorrar,
+  alConfirmarBorrado,
 }: {
   fotos: MedioFoto[]
   api: Api
   puedeBorrar: (foto: MedioFoto) => boolean
+  alConfirmarBorrado?: (foto: MedioFoto) => void
 }): React.JSX.Element {
   const [confirmadas, setConfirmadas] = useState<Record<string, MedioFoto>>({})
   const [retiros, setRetiros] = useState<Record<string, Retiro>>({})
@@ -262,6 +264,7 @@ export function ComparadorFotos({
       (medio) => {
         // Solo cambia lo que el servidor confirma, no lo que se pidió.
         setConfirmadas((antes) => ({ ...antes, [medio.id]: medio }))
+        alConfirmarBorrado?.(medio)
         setRetiros((antes) => {
           const resto = { ...antes }
           delete resto[foto.id]
@@ -552,7 +555,7 @@ function comoDatos(blob: Blob): Promise<string> {
  * adelantado): la renovación se intenta cargar siempre y decide la carga.
  * Ni el enlace ni la foto se guardan en ningún almacenamiento.
  */
-function ImagenPrivada({
+export function ImagenPrivada({
   medioId,
   etiqueta,
   acceso,

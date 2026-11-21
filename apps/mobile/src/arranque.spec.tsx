@@ -4,13 +4,15 @@ import type { EstadoConsentimiento } from "@alpha-omega/shared"
 
 import DisposicionRaiz from "../app/_layout"
 import videoLento from "../assets/video/logo-carga-lenta.mp4"
-import { iniciarSesion, refrescarSesion } from "./lib/api"
+import { ErrorDeRed, iniciarSesion, refrescarSesion } from "./lib/api"
 import { leerTokenRefresco } from "./lib/almacen-seguro"
+import { leerIdentidadLocal } from "./lib/sesion-local"
 import { crearApiConsentimiento } from "./consentimiento"
 
 const mockReplace = jest.fn()
 const mockTocarInicio = jest.fn()
 let mockEnfoqueListo = true
+let mockSegmentos = ["login"]
 const mockCrearJugador = jest.fn((fuente: unknown) => {
   const oyentes = new Map<string, () => void>()
   return {
@@ -43,7 +45,7 @@ jest.mock("expo-router", () => {
     ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
     useRouter: () => ({ replace: mockReplace }),
     usePathname: () => "/",
-    useSegments: () => ["login"],
+    useSegments: () => mockSegmentos,
     useFocusEffect: (efecto: () => void) =>
       React.useEffect(() => {
         if (mockEnfoqueListo) return efecto()
@@ -55,8 +57,9 @@ jest.mock("expo-router", () => {
     }) => {
       const { useSesion } = jest.requireActual<typeof import("./sesion")>("./sesion")
       const { estado, entrar, salir } = useSesion()
-      const children =
-        estado.fase === "dentro"
+      const children = ["activar", "recuperar", "restablecer"].includes(mockSegmentos[0] ?? "")
+        ? React.createElement(Text, {}, `Enlace de cuenta: ${mockSegmentos[0]}`)
+        : estado.fase === "dentro"
           ? React.createElement(
               View,
               {},
@@ -105,6 +108,7 @@ jest.mock("./lib/almacen-seguro", () => ({
 jest.mock("./lib/sesion-local", () => ({
   leerLimpieza: jest.fn(async () => null),
   leerCuentaLocal: jest.fn(async () => null),
+  leerIdentidadLocal: jest.fn(async () => null),
   guardarIdentidadLocal: jest.fn(async () => undefined),
   borrarIdentidadLocal: jest.fn(async () => undefined),
   marcarLimpieza: jest.fn(async () => undefined),
@@ -138,9 +142,12 @@ async function avanzar(ms: number): Promise<void> {
 
 beforeEach(() => {
   mockEnfoqueListo = true
+  mockSegmentos = ["login"]
   jest.useFakeTimers()
   jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
   jest.mocked(leerTokenRefresco).mockResolvedValue(null)
+  jest.mocked(leerIdentidadLocal).mockResolvedValue(null)
+  jest.mocked(refrescarSesion).mockResolvedValue(sesion)
   jest.mocked(iniciarSesion).mockResolvedValue(sesion)
 })
 
@@ -248,4 +255,57 @@ it("una nueva apertura vuelve a reproducir la intro de arranque en frío", async
   await render(<DisposicionRaiz />)
   expect(screen.getByTestId("video-arranque")).toBeOnTheScreen()
   expect(mockCrearJugador).toHaveBeenCalledTimes(2)
+})
+
+describe.each(["activar", "recuperar", "restablecer"])("enlace público %s", (ruta) => {
+  it("conserva el enlace al restaurar una sesión abierta", async () => {
+    mockSegmentos = [ruta]
+    jest.mocked(leerTokenRefresco).mockResolvedValue("refresco")
+    await render(<DisposicionRaiz />)
+    expect(screen.getByText(`Enlace de cuenta: ${ruta}`)).toBeOnTheScreen()
+    expect(mockReplace).not.toHaveBeenCalled()
+  })
+
+  it("permite usar el enlace aunque el cliente aún no haya dado consentimiento", async () => {
+    mockSegmentos = [ruta]
+    jest.mocked(leerTokenRefresco).mockResolvedValue("refresco")
+    jest.mocked(refrescarSesion).mockResolvedValue({
+      ...sesion,
+      usuario: { ...sesion.usuario, rol: "cliente" },
+    })
+    const estadoConsentimiento = jest.fn(() => new Promise<EstadoConsentimiento>(() => undefined))
+    jest.mocked(crearApiConsentimiento).mockReturnValue({
+      estado: estadoConsentimiento,
+      aceptar: jest.fn(),
+      retirar: jest.fn(),
+    })
+    await render(<DisposicionRaiz />)
+    expect(screen.getByText(`Enlace de cuenta: ${ruta}`)).toBeOnTheScreen()
+    expect(estadoConsentimiento).not.toHaveBeenCalled()
+    expect(mockReplace).not.toHaveBeenCalled()
+  })
+
+  it("no sustituye el enlace por el plan al restaurar una copia local", async () => {
+    mockSegmentos = [ruta]
+    jest.mocked(leerTokenRefresco).mockResolvedValue("refresco")
+    jest.mocked(refrescarSesion).mockRejectedValue(new ErrorDeRed("Sin red"))
+    jest.mocked(leerIdentidadLocal).mockResolvedValue({
+      id: sesion.usuario.id,
+      nombre: "Cliente",
+      rol: "cliente",
+    })
+    await render(<DisposicionRaiz />)
+    expect(screen.getByText(`Enlace de cuenta: ${ruta}`)).toBeOnTheScreen()
+    expect(mockReplace).not.toHaveBeenCalled()
+  })
+
+  it("mantiene el formulario público si falla la renovación y no hay copia local", async () => {
+    mockSegmentos = [ruta]
+    jest.mocked(leerTokenRefresco).mockResolvedValue("refresco")
+    jest.mocked(refrescarSesion).mockRejectedValue(new ErrorDeRed("Sin red"))
+    await render(<DisposicionRaiz />)
+    expect(screen.getByText(`Enlace de cuenta: ${ruta}`)).toBeOnTheScreen()
+    expect(screen.queryByText("No hemos podido conectar con el servidor.")).toBeNull()
+    expect(mockReplace).not.toHaveBeenCalled()
+  })
 })

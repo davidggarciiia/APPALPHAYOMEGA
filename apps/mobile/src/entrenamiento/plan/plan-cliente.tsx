@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { StyleSheet, Text, View } from "react-native"
+import { Pressable, StyleSheet, Text, View } from "react-native"
 import { z } from "zod"
 import {
   ListadoSesionesSchema,
@@ -20,17 +20,15 @@ import type { ApiEntrenamiento } from "../api"
 import { hoyAgenda, lunesDeSemana, sumarDias } from "../fechas"
 import { Enlace } from "../sesion/controles"
 import { VerTecnica } from "../ver-tecnica"
-import { BloqueDelPlan } from "./bloque"
 import { fechaCorta } from "./modelo"
 import { Guia } from "./guia"
 import { Pestanas } from "./piezas"
 import { RutinaDeLaSemana, type DiaDelPlan } from "./rutina"
 import { EsqueletoEntrenamiento } from "../esqueleto-entrenamiento"
 
-type Pestana = "rutina" | "bloque" | "guia"
+type Pestana = "rutina" | "guia"
 const PESTANAS = [
   { valor: "rutina", texto: "Rutina" },
-  { valor: "bloque", texto: "Bloque" },
   { valor: "guia", texto: "Guía" },
 ] as const
 
@@ -41,7 +39,7 @@ const CopiaDelPlanSchema = z.object({
 })
 type CopiaDelPlan = z.infer<typeof CopiaDelPlanSchema>
 
-/** «Tu plan»: Rutina, Bloque y Guía, como en el diseño. */
+/** «Tu plan»: Rutina y Guía. */
 export function PlanCliente({
   clienteId,
   api,
@@ -58,6 +56,7 @@ export function PlanCliente({
   const [semana, setSemana] = useState(lunesDeSemana)
   const [datos, setDatos] = useState<CopiaDelPlan | null>(null)
   const [elegido, setElegido] = useState<string | null>(null)
+  const [indicacionesAbiertas, setIndicacionesAbiertas] = useState(false)
   const [error, setError] = useState("")
   const [reintentable, setReintentable] = useState(true)
   const [intento, setIntento] = useState(0)
@@ -129,11 +128,6 @@ export function PlanCliente({
       resumen,
       prescripcion: datos.prescripciones[resumen.agenda.id] ?? null,
     })) ?? []
-  // Por defecto, la sesión de hoy o la siguiente sin hacer.
-  const porDefecto =
-    dias.find((d) => d.resumen.agenda.fechaActual === hoy) ??
-    dias.find((d) => d.resumen.agenda.fechaActual >= hoy && d.resumen.enviadoEn === null) ??
-    dias[0]
   const cambiarSemana = (dias_: number): void => {
     setDatos(null)
     setElegido(null)
@@ -142,6 +136,7 @@ export function PlanCliente({
   const abrirSesion = (id: string): void => {
     if (abriendo.current) return
     abriendo.current = true
+    setElegido(null)
     abrir(id)
   }
 
@@ -165,20 +160,55 @@ export function PlanCliente({
           </View>
         ) : datos === null ? (
           error === "" && <EsqueletoEntrenamiento />
-        ) : pestana === "rutina" ? (
+        ) : (
           <View>
+            {datos.plan?.bloque &&
+              (datos.plan.bloque.objetivos.length > 0 || datos.plan.bloque.notas.length > 0) && (
+                <View style={s.indicaciones}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Indicaciones del entrenador"
+                    accessibilityState={{ expanded: indicacionesAbiertas }}
+                    onPress={() => setIndicacionesAbiertas(!indicacionesAbiertas)}
+                    style={s.filaIndicaciones}
+                  >
+                    <Text style={s.indicacion}>Indicaciones del entrenador</Text>
+                  </Pressable>
+                  {indicacionesAbiertas &&
+                    [...datos.plan.bloque.objetivos, ...datos.plan.bloque.notas].map(
+                      (texto, indice) => (
+                        <Text key={`${indice}-${texto}`} style={s.indicacion}>
+                          {texto}
+                        </Text>
+                      ),
+                    )}
+                </View>
+              )}
             <RutinaDeLaSemana
               dias={dias}
-              elegido={elegido ?? porDefecto?.resumen.agenda.id ?? null}
-              elegir={setElegido}
+              elegido={elegido}
+              elegir={(id) => setElegido((actual) => (actual === id ? null : id))}
+              cerrar={() => {
+                setElegido(null)
+                setTecnica(null)
+              }}
               hoy={hoy}
               verTecnica={setTecnica}
               abrir={abrirSesion}
+              contenidoTecnica={
+                tecnica && (
+                  <VerTecnica
+                    cuenta={clienteId}
+                    ejercicioId={tecnica.ejercicioId}
+                    nombre={tecnica.nombre}
+                    leer={catalogo.leer}
+                    almacen={almacenDispositivo}
+                    acceso={acceso}
+                    cerrar={() => setTecnica(null)}
+                  />
+                )
+              }
             />
-          </View>
-        ) : (
-          <View>
-            <BloqueDelPlan plan={datos.plan} lunes={semana} dias={dias} hoy={hoy} />
           </View>
         )}
       </View>
@@ -191,17 +221,6 @@ export function PlanCliente({
           <Enlace texto="Siguiente ›" onPress={() => cambiarSemana(7)} />
         </View>
       )}
-      {tecnica && (
-        <VerTecnica
-          cuenta={clienteId}
-          ejercicioId={tecnica.ejercicioId}
-          nombre={tecnica.nombre}
-          leer={catalogo.leer}
-          almacen={almacenDispositivo}
-          acceso={acceso}
-          cerrar={() => setTecnica(null)}
-        />
-      )}
     </View>
   )
 }
@@ -210,5 +229,13 @@ const s = StyleSheet.create({
   contenido: { gap: 24 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   error: { gap: 8 },
+  indicaciones: { gap: 4, marginBottom: 24 },
+  filaIndicaciones: {
+    minHeight: 52,
+    justifyContent: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: tema.borde,
+  },
+  indicacion: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
   semanas: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 })

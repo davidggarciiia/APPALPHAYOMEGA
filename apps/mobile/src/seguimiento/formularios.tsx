@@ -80,10 +80,12 @@ export function AnadirMedida({
   visible,
   cerrar,
   registrar,
+  indicadores,
 }: {
   visible: boolean
   cerrar: () => void
   registrar: (datos: RegistrarMedida) => Promise<unknown>
+  indicadores?: ConfiguracionSeguimiento["indicadores"]
 }): React.JSX.Element {
   const [textos, setTextos] = useState(SIN_MEDIDAS)
   const { enviando, error, libre, guardar } = useGuardadoProtegido<
@@ -97,8 +99,12 @@ export function AnadirMedida({
 
   const preparar = (): Omit<RegistrarMedida, "operacionId"> | string => {
     const leidos = [
-      valor(textos.peso, { min: 30, max: 400 }, "Peso"),
-      valor(textos.cintura, { min: 30, max: 300 }, "Cintura"),
+      !indicadores || indicadores.includes("peso")
+        ? valor(textos.peso, { min: 30, max: 400 }, "Peso")
+        : null,
+      !indicadores || indicadores.includes("cintura")
+        ? valor(textos.cintura, { min: 30, max: 300 }, "Cintura")
+        : null,
       valor(textos.grasa, { min: 2, max: 70 }, "Grasa"),
       valor(textos.altura, { min: 100, max: 250, entero: true }, "Altura"),
     ]
@@ -133,22 +139,26 @@ export function AnadirMedida({
       alCancelar={cerrar}
     >
       <View style={s.campos}>
-        <Campo
-          etiqueta="Peso (kg)"
-          value={textos.peso}
-          onChangeText={cambiar("peso")}
-          keyboardType="decimal-pad"
-          maxLength={6}
-          {...bloqueo}
-        />
-        <Campo
-          etiqueta="Cintura (cm)"
-          value={textos.cintura}
-          onChangeText={cambiar("cintura")}
-          keyboardType="decimal-pad"
-          maxLength={6}
-          {...bloqueo}
-        />
+        {(!indicadores || indicadores.includes("peso")) && (
+          <Campo
+            etiqueta="Peso (kg)"
+            value={textos.peso}
+            onChangeText={cambiar("peso")}
+            keyboardType="decimal-pad"
+            maxLength={6}
+            {...bloqueo}
+          />
+        )}
+        {(!indicadores || indicadores.includes("cintura")) && (
+          <Campo
+            etiqueta="Cintura (cm)"
+            value={textos.cintura}
+            onChangeText={cambiar("cintura")}
+            keyboardType="decimal-pad"
+            maxLength={6}
+            {...bloqueo}
+          />
+        )}
         <Campo
           etiqueta="Grasa corporal (%)"
           value={textos.grasa}

@@ -112,6 +112,10 @@ model Usuario {
   movimientosBonoCreados     MovimientoBono[]   @relation("MovimientosBonoAutor")
   seguimientoBonos           SeguimientoBonos?  @relation("SeguimientoBonosCliente")
   seguimientosBonosCambiados SeguimientoBonos[] @relation("SeguimientoBonosAutor")
+  aperturasDisponibilidad AperturaDisponibilidad[]
+  huecosDisponibilidad HuecoDisponibilidad[]
+  reservasCliente Reserva[] @relation("ReservasCliente")
+  reservasAsignadas Reserva[] @relation("ReservasEntrenador")
 
   @@map("usuarios")
 }
@@ -120,6 +124,47 @@ enum ServicioReserva {
   entrenoPersonal
   seguimiento
   quiromasaje
+}
+
+enum EstadoHuecoDisponibilidad {
+  libre
+  reservado
+  cerrado
+}
+
+model AperturaDisponibilidad {
+  id String @id @default(uuid())
+  entrenadorId String
+  operacionId String
+  peticion Json
+  creadoEn DateTime @default(now())
+  entrenador Usuario @relation(fields: [entrenadorId], references: [id], onDelete: Restrict)
+  huecos HuecoDisponibilidad[]
+
+  @@unique([entrenadorId, operacionId])
+  @@map("aperturas_disponibilidad")
+}
+
+model HuecoDisponibilidad {
+  id String @id @default(uuid())
+  entrenadorId String
+  aperturaId String
+  fecha DateTime @db.Date
+  horaInicio String @db.VarChar(5)
+  inicioEn DateTime @db.Timestamptz(3)
+  finEn DateTime @db.Timestamptz(3)
+  duracionMinutos Int @default(60)
+  servicios ServicioReserva[]
+  estado EstadoHuecoDisponibilidad @default(libre)
+  creadoEn DateTime @default(now())
+  cerradoEn DateTime?
+  entrenador Usuario @relation(fields: [entrenadorId], references: [id], onDelete: Restrict)
+  apertura AperturaDisponibilidad @relation(fields: [aperturaId], references: [id], onDelete: Restrict)
+  reservas Reserva[]
+
+  @@index([entrenadorId, fecha, inicioEn, id])
+  @@index([entrenadorId, estado, inicioEn, finEn])
+  @@map("huecos_disponibilidad")
 }
 
 enum TipoMovimientoBono {
@@ -143,6 +188,8 @@ model MovimientoBono {
   creadoEn    DateTime           @default(now())
   cliente     Usuario            @relation("MovimientosBonoCliente", fields: [clienteId], references: [id], onDelete: Restrict)
   autor       Usuario            @relation("MovimientosBonoAutor", fields: [autorId], references: [id], onDelete: Restrict)
+  consumoReserva Reserva? @relation("ConsumoReserva")
+  devolucionReserva Reserva? @relation("DevolucionReserva")
 
   @@unique([autorId, operacionId])
   @@index([clienteId, servicio, mes])
@@ -159,6 +206,56 @@ model SeguimientoBonos {
   autor         Usuario  @relation("SeguimientoBonosAutor", fields: [autorId], references: [id], onDelete: Restrict)
 
   @@map("seguimiento_bonos")
+}
+
+enum EstadoReserva {
+  confirmada
+  cancelada
+}
+
+/// Consumo y posible devolución se conservan como movimientos independientes.
+model Reserva {
+  id String @id @default(uuid())
+  huecoId String
+  clienteId String
+  entrenadorId String
+  operacionId String
+  servicio ServicioReserva
+  cantidadConsumida Int
+  mesCupo String? @db.VarChar(7)
+  estado EstadoReserva @default(confirmada)
+  creadaEn DateTime @default(now())
+  canceladaEn DateTime?
+  devuelto Boolean @default(false)
+  asistio Boolean?
+  asistenciaEn DateTime?
+  consumoId String @unique
+  devolucionId String? @unique
+  hueco HuecoDisponibilidad @relation(fields: [huecoId], references: [id], onDelete: Restrict)
+  cliente Usuario @relation("ReservasCliente", fields: [clienteId], references: [id], onDelete: Restrict)
+  entrenador Usuario @relation("ReservasEntrenador", fields: [entrenadorId], references: [id], onDelete: Restrict)
+  consumo MovimientoBono @relation("ConsumoReserva", fields: [consumoId], references: [id], onDelete: Restrict)
+  devolucion MovimientoBono? @relation("DevolucionReserva", fields: [devolucionId], references: [id], onDelete: Restrict)
+  avisos AvisoReserva[]
+
+  @@unique([entrenadorId, operacionId])
+  @@index([clienteId, creadaEn, id])
+  @@index([entrenadorId, creadaEn, id])
+  @@index([huecoId])
+  @@map("reservas")
+}
+
+model AvisoReserva {
+  id String @id @default(uuid())
+  reservaId String
+  tipo String @db.VarChar(20)
+  creadaEn DateTime @default(now())
+  leidaEn DateTime?
+  reserva Reserva @relation(fields: [reservaId], references: [id], onDelete: Restrict)
+
+  @@unique([reservaId, tipo])
+  @@index([creadaEn, id])
+  @@map("avisos_reserva")
 }
 
 /// Token de refresco: la pieza que permite que el cliente no vuelva a escribir

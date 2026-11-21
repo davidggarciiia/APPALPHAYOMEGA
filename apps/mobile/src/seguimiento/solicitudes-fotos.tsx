@@ -158,6 +158,7 @@ export function SolicitudesFotos({
   modo,
   nuevoId,
   valoracionAbiertaId = null,
+  registrarCierre,
 }: {
   clienteId: string
   api: Pick<
@@ -173,6 +174,7 @@ export function SolicitudesFotos({
   nuevoId: () => string
   /** Visita con borrador abierto a la que se pueden incorporar fotos recibidas. */
   valoracionAbiertaId?: string | null
+  registrarCierre?: (proteger: ((salir: () => void) => void) | null) => void
 }): React.JSX.Element {
   const [solicitudes, setSolicitudes] = useState<SolicitudFotos[] | null>(null)
   const [pidiendo, setPidiendo] = useState(false)
@@ -189,7 +191,13 @@ export function SolicitudesFotos({
   const fotoPendienteRef = useRef<FotoPendiente | null>(null)
   // Cambiar de pestaña o volver atrás desmonta Progreso y aborta la subida: se pregunta
   // antes, porque la foto solo existe en el móvil hasta que el servidor la confirma.
-  const { proteccion } = useSalidaProtegida(fotoPendiente !== null, TEXTOS_FOTO)
+  const { proteccion, proteger } = useSalidaProtegida(fotoPendiente !== null, TEXTOS_FOTO)
+  const protegerActual = useRef(proteger)
+  protegerActual.current = proteger
+  useEffect(() => {
+    registrarCierre?.((salir) => protegerActual.current(salir))
+    return () => registrarCierre?.(null)
+  }, [registrarCierre])
   const montado = useRef(true)
   // Síncrono: dos toques antes de repintar no arrancan dos envíos de la misma copia.
   const enviandoFoto = useRef(false)
