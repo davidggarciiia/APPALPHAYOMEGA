@@ -60,6 +60,8 @@ import { SelectorEjercicios } from "../selector-ejercicios"
 import {
   aSesionEnRutina,
   desdeSesionEnRutina,
+  duplicarDia,
+  duplicarEjercicio,
   faltaEnDia,
   nuevoDia,
   nuevoEjercicio,
@@ -68,6 +70,7 @@ import {
   type EjercicioDelConstructor,
 } from "./modelo"
 import { EditorDeBloque, ListaDeSeccion } from "./partes"
+import { SelectorDeLunes } from "./selector-lunes"
 import { PanelEjercicio, pautaDeFila, TablaPrincipal } from "./tabla"
 import { errorDeValidacion } from "./validacion"
 import { AjustePrescripcion, type CampoPrescripcion } from "./ajuste-prescripcion"
@@ -112,6 +115,8 @@ type Retirada =
   | { tipo: "ejercicio"; indice: number; elemento: EjercicioDelConstructor; diaId: string }
   | { tipo: "fase"; indice: number; elemento: FaseDeBloque }
   | { tipo: "deporte"; indice: number; elemento: DeporteDelPlan }
+  /** Una copia recién hecha: deshacer la quita (si no hay ejercicio, quita el día entero). */
+  | { tipo: "copia"; mensaje: string; diaId: string; ejercicioId?: string }
 
 type LugarDelMensaje = "cabecera" | "plantilla" | "pie"
 
@@ -460,6 +465,48 @@ export function ConstructorPlan({
     if (elegido === id) setElegido(null)
     setAjustando(null)
   }
+  const duplicarElegido = (id: string): void => {
+    const indice = dia.ejercicios.findIndex((e) => e.id === id)
+    const original = dia.ejercicios[indice]
+    if (!original) return
+    const copia = duplicarEjercicio(original, nuevoId)
+    retiradaId.current++
+    retiradaInicio.current = Date.now()
+    setRetirada({
+      tipo: "copia",
+      mensaje: `Copia de ${original.nombre} añadida`,
+      diaId: dia.id,
+      ejercicioId: copia.id,
+    })
+    cambiarDia({
+      ejercicios: [
+        ...dia.ejercicios.slice(0, indice + 1),
+        copia,
+        ...dia.ejercicios.slice(indice + 1),
+      ],
+    })
+    setAjustando(null)
+    setHojaEjercicio(false)
+    setElegido(copia.id)
+  }
+  const duplicarDelDia = (): void => {
+    const libre = [1, 2, 3, 4, 5, 6, 7].find((n) => !dias.some((d) => d.diaSemana === n))
+    if (libre === undefined) return
+    const copia = duplicarDia(dia, nuevoId, libre)
+    retiradaId.current++
+    retiradaInicio.current = Date.now()
+    setRetirada({
+      tipo: "copia",
+      mensaje: `Día «${dia.nombre || "sin nombre"}» duplicado`,
+      diaId: copia.id,
+    })
+    setDias((todos) => [...todos, copia])
+    setActivo(copia.id)
+    setElegido(null)
+    setAnadiendo(null)
+    setAjustando(null)
+    setHojaEjercicio(false)
+  }
   const quitarFase = (indice: number): void => {
     retiradaId.current++
     retiradaInicio.current = Date.now()
@@ -481,6 +528,27 @@ export function ConstructorPlan({
   const deshacer = (): void => {
     if (!retirada || retiradaDeshecha.current === retirada) return
     retiradaDeshecha.current = retirada
+    if (retirada.tipo === "copia") {
+      const { diaId, ejercicioId } = retirada
+      if (ejercicioId !== undefined) {
+        setDias((actuales) =>
+          actuales.map((d) =>
+            d.id === diaId
+              ? { ...d, ejercicios: d.ejercicios.filter((e) => e.id !== ejercicioId) }
+              : d,
+          ),
+        )
+        if (elegido === ejercicioId) setElegido(null)
+        setAjustando(null)
+      } else if (dias.some((d) => d.id === diaId) && dias.length > 1) {
+        const resto = dias.filter((d) => d.id !== diaId)
+        setDias(resto)
+        if (activo === diaId) setActivo(resto[0]!.id)
+        setAjustando(null)
+      }
+      setRetirada(null)
+      return
+    }
     const { indice } = retirada
     // Insertar en el estado actual conserva lo editado desde la retirada.
     if (retirada.tipo === "ejercicio") {
@@ -520,7 +588,9 @@ export function ConstructorPlan({
       mensaje={
         retirada.tipo === "fase"
           ? `Fase «${retirada.elemento.nombre || "Sin nombre"}» quitada`
-          : `${retirada.elemento.nombre} quitado`
+          : retirada.tipo === "copia"
+            ? retirada.mensaje
+            : `${retirada.elemento.nombre} quitado`
       }
       alDeshacer={deshacer}
       id={retiradaId.current}
@@ -740,6 +810,7 @@ export function ConstructorPlan({
         setHojaEjercicio(false)
         setTecnica(ejercicioElegido)
       }}
+      duplicar={() => duplicarElegido(ejercicioElegido.id)}
       alListo={() => setHojaEjercicio(false)}
       alCambiarValidez={setAjusteValido}
     />
@@ -877,18 +948,9 @@ export function ConstructorPlan({
         >
           <View style={s.datosHoja}>
             <View style={s.datos}>
-              <View style={s.dato}>
+              <View style={[s.dato, s.datoAncho]}>
                 <Text style={s.tenue}>Lunes de inicio</Text>
-                <TextInput
-                  accessibilityLabel="Lunes de inicio (AAAA-MM-DD)"
-                  value={semanaInicial}
-                  onChangeText={setSemanaInicial}
-                  placeholder="2026-09-28"
-                  placeholderTextColor={tema.marcador}
-                  maxLength={10}
-                  keyboardType="numbers-and-punctuation"
-                  style={s.campo}
-                />
+                <SelectorDeLunes valor={semanaInicial} cambiar={setSemanaInicial} />
               </View>
               <View style={s.dato}>
                 <Text style={s.tenue}>Semanas</Text>
@@ -1057,6 +1119,7 @@ export function ConstructorPlan({
               deshabilitado={!ajusteValido}
               onPress={guardarPlantilla}
             />
+            {libres.length > 0 && <Enlace texto="Duplicar día" onPress={duplicarDelDia} />}
             {dias.length > 1 && (
               <Enlace
                 texto="Quitar día"
@@ -1153,7 +1216,7 @@ export function ConstructorPlan({
                   )}
                   <Enlace
                     texto="+ Ejercicio"
-                    etiqueta="Añadir desde la biblioteca"
+                    etiqueta="Añadir ejercicio"
                     onPress={() => {
                       setAjustando(null)
                       setAnadiendo(seccion)
@@ -1195,7 +1258,9 @@ export function ConstructorPlan({
           </Defs>
           <Rect width="100%" height={20} fill="url(#fondo-plan)" />
         </Svg>
-        {retirada?.tipo === "ejercicio" && ajustando === null && barraDeshacer}
+        {(retirada?.tipo === "ejercicio" || retirada?.tipo === "copia") &&
+          ajustando === null &&
+          barraDeshacer}
         {lugarDelMensaje !== "plantilla" && mensaje}
         <View style={s.botones}>
           <View style={s.boton}>
@@ -1227,7 +1292,9 @@ export function ConstructorPlan({
           cerrar={() => setAjustando(null)}
           alCambiarValidez={setAjusteValido}
           margenInferior={96}
-          aviso={retirada?.tipo === "ejercicio" ? barraDeshacer : null}
+          aviso={
+            retirada?.tipo === "ejercicio" || retirada?.tipo === "copia" ? barraDeshacer : null
+          }
         />
       )}
       <Hoja
@@ -1242,12 +1309,17 @@ export function ConstructorPlan({
           <View style={s.biblioteca}>
             <SelectorEjercicios
               api={catalogo}
+              // Varios seguidos sin cerrar la hoja: cada uno se suma al estado actual.
               elegir={(e) => {
-                cambiarDia({
-                  ejercicios: [...dia.ejercicios, nuevoEjercicio(e, anadiendo, nuevoId)],
-                })
-                setAnadiendo(null)
+                const nuevo = nuevoEjercicio(e, anadiendo, nuevoId)
+                const diaId = dia.id
+                setDias((todos) =>
+                  todos.map((d) =>
+                    d.id === diaId ? { ...d, ejercicios: [...d.ejercicios, nuevo] } : d,
+                  ),
+                )
               }}
+              alTerminar={() => setAnadiendo(null)}
             />
           </View>
         )}
@@ -1433,6 +1505,7 @@ const s = StyleSheet.create({
   },
   datos: { flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12 },
   dato: { gap: 4 },
+  datoAncho: { width: "100%" },
   campo: {
     minHeight: 52,
     borderRadius: 12,

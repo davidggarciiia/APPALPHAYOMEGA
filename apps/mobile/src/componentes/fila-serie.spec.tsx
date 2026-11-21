@@ -206,8 +206,13 @@ it.each([false, true])(
     jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(reducido)
     await render(<FilaSerie {...props} />)
     await screen.rerender(<FilaSerie {...props} hecha recordPersonal="+2,5 kg" />)
-    expect(screen.getByLabelText("Récord personal: +2,5 kg")).toHaveStyle({ color: tema.acento })
-    expect(screen.getByText("+2,5 kg")).toHaveProp("accessibilityLiveRegion", "polite")
+    expect(screen.getByLabelText("Mejor que la última vez: +2,5 kg")).toHaveStyle({
+      color: tema.acento,
+    })
+    expect(screen.getByText("Mejor que la última vez · +2,5 kg")).toHaveProp(
+      "accessibilityLiveRegion",
+      "polite",
+    )
     if (reducido) expect(withTiming).not.toHaveBeenCalled()
   },
 )
@@ -219,8 +224,23 @@ it("permite deshacer y remarcar sin repetir el destello del récord", async () =
   expect(withTiming).toHaveBeenCalledWith(1, expect.objectContaining({ duration: 420 }))
   jest.mocked(withTiming).mockClear()
   await screen.rerender(<FilaSerie {...props} destelloAlCompletar={false} />)
-  expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+  expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
   await screen.rerender(<FilaSerie {...props} hecha destelloAlCompletar={false} />)
   expect(withTiming).not.toHaveBeenCalledWith(1, expect.objectContaining({ duration: 420 }))
   expect(screen.getByRole("checkbox")).toBeChecked()
+})
+
+it("en pausa se ve apagada y sus controles avisan de que tocarlos continúa", async () => {
+  const alEnfocar = jest.fn()
+  await render(<FilaSerie {...props} pausada alEnfocar={alEnfocar} />)
+  expect(screen.getByTestId("fila-serie")).toHaveStyle({ opacity: 0.55 })
+  expect(screen.getByRole("checkbox")).toHaveProp(
+    "accessibilityHint",
+    "Entrenamiento en pausa. Toca para continuar",
+  )
+  const celda = screen.getByRole("button", { name: /^Peso — Sentadilla/ })
+  expect(celda).toBeEnabled()
+  expect(celda).toHaveProp("accessibilityHint", "Entrenamiento en pausa. Toca para continuar")
+  await fireEvent.press(celda)
+  expect(alEnfocar).toHaveBeenCalledWith("peso")
 })

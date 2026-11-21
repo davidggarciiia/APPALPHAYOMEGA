@@ -181,7 +181,7 @@ export function FormularioDeEjercicio({
             <AvisoDeError mensaje={carga.fallo.texto} />
             {carga.fallo.reintentable && (
               <BotonPrincipal
-                texto="REINTENTAR"
+                texto="Reintentar"
                 onPress={() => {
                   setCarga({ fase: "cargando" })
                   setIntento((n) => n + 1)
@@ -190,7 +190,7 @@ export function FormularioDeEjercicio({
             )}
           </>
         )}
-        <BotonSecundario texto="VOLVER" onPress={onCancelar} />
+        <BotonSecundario texto="Volver" onPress={onCancelar} />
       </PantallaDeFormulario>
     )
   }
@@ -341,12 +341,12 @@ export function FormularioDeEjercicio({
 
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
-      <BotonPrincipal texto="GUARDAR" onPress={() => void enviar()} ocupado={isSubmitting} />
-      <BotonSecundario texto="CANCELAR" onPress={() => proteger(onCancelar)} />
+      <BotonPrincipal texto="Guardar" onPress={() => void enviar()} ocupado={isSubmitting} />
+      <BotonSecundario texto="Cancelar" onPress={() => proteger(onCancelar)} />
 
       {estado === "retirado" ? (
         <BotonSecundario
-          texto="REPONER"
+          texto="Reponer"
           ocupado={cambiandoEstado}
           onPress={() => void cambiarEstado("reponer")}
         />
@@ -357,11 +357,11 @@ export function FormularioDeEjercicio({
             reponerlo cuando quieras.
           </Text>
           <BotonDestructivo
-            texto="CONFIRMAR RETIRADA"
+            texto="Confirmar retirada"
             onPress={() => void cambiarEstado("retirar")}
           />
           <BotonSecundario
-            texto="NO RETIRAR"
+            texto="No retirar"
             onPress={() => {
               setConfirmandoRetirada(false)
             }}
@@ -371,7 +371,7 @@ export function FormularioDeEjercicio({
         // Lejos de GUARDAR y en rojo: no es la acción de todos los días.
         <View style={estilos.zonaRetirada}>
           <BotonDestructivo
-            texto="RETIRAR"
+            texto="Retirar"
             ocupado={cambiandoEstado}
             onPress={() => {
               setConfirmandoRetirada(true)

@@ -48,7 +48,7 @@ describe("Alta de un ejercicio", () => {
 
     await escribirFondos()
     await fireEvent.press(screen.getByRole("checkbox", { name: "Pecho" }))
-    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
 
     await waitFor(() => {
       expect(onGuardado).toHaveBeenCalledTimes(1)
@@ -71,7 +71,7 @@ describe("Alta de un ejercicio", () => {
     const { onGuardado } = await pintar(api)
     await screen.findByLabelText("Nombre")
 
-    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
 
     await screen.findByText("Escribe el nombre del ejercicio")
     expect(screen.getByText("Elige el grupo principal")).toBeOnTheScreen()
@@ -101,7 +101,7 @@ describe("Alta de un ejercicio", () => {
 
     await escribirFondos()
     await fireEvent.changeText(screen.getByLabelText("Nombre"), "  press   DE banca ")
-    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
 
     await screen.findByText("Ya existe un ejercicio con ese nombre")
     expect(screen.getByLabelText("Instrucciones")).toHaveDisplayValue("Baja hasta noventa grados.")
@@ -119,11 +119,11 @@ describe("Alta de un ejercicio", () => {
     await screen.findByLabelText("Nombre")
 
     await escribirFondos()
-    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
     await screen.findByText(/No hemos podido conectar/)
     expect(screen.getByLabelText("Nombre")).toHaveDisplayValue("Fondos en paralelas")
 
-    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
 
     await waitFor(() => {
       expect(onGuardado).toHaveBeenCalledTimes(1)
@@ -137,7 +137,7 @@ describe("Alta de un ejercicio", () => {
     await screen.findByLabelText("Nombre")
 
     await escribirFondos()
-    await fireEvent.press(screen.getByRole("button", { name: "CANCELAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Cancelar" }))
     expect(onCancelar).not.toHaveBeenCalled()
     expect(screen.getByDisplayValue("Fondos en paralelas")).toBeTruthy()
     await fireEvent.press(screen.getByRole("button", { name: "Salir sin guardar" }))
@@ -158,7 +158,7 @@ describe("Edición de un ejercicio", () => {
     expect(screen.getByRole("checkbox", { name: "Tríceps" })).toBeChecked()
 
     await fireEvent.changeText(screen.getByLabelText("Nombre"), "Press de banca con barra")
-    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
 
     await waitFor(() => {
       expect(onGuardado).toHaveBeenCalledTimes(1)
@@ -177,7 +177,7 @@ describe("Edición de un ejercicio", () => {
     })
 
     await fireEvent.changeText(screen.getByLabelText("Instrucciones"), "Retrae las escápulas.")
-    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
 
     await waitFor(() => {
       expect(onGuardado).toHaveBeenCalledTimes(1)
@@ -195,7 +195,7 @@ describe("Edición de un ejercicio", () => {
     await screen.findByText(/No hemos podido conectar/)
     expect(screen.queryByLabelText("Nombre")).toBeNull()
 
-    await fireEvent.press(screen.getByRole("button", { name: "REINTENTAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
 
     await waitFor(() => {
       expect(screen.getByLabelText("Nombre")).toHaveDisplayValue("Press de banca")
@@ -208,19 +208,19 @@ describe("Retirar y reponer un ejercicio", () => {
     await pintar(catalogoEnMemoria())
     await screen.findByLabelText("Nombre")
 
-    expect(screen.queryByRole("button", { name: "RETIRAR" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Retirar" })).toBeNull()
   })
 
   it("retirar pide confirmación y deja el ejercicio retirado, con la salida a la vista", async () => {
     const api = catalogoEnMemoria([PRESS])
     await pintar(api, { id: PRESS.id })
-    await screen.findByRole("button", { name: "RETIRAR" })
+    await screen.findByRole("button", { name: "Retirar" })
 
-    await fireEvent.press(screen.getByRole("button", { name: "RETIRAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Retirar" }))
     expect((await api.leer(PRESS.id)).estado).toBe("publicado")
-    await fireEvent.press(screen.getByRole("button", { name: "CONFIRMAR RETIRADA" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Confirmar retirada" }))
 
-    await screen.findByRole("button", { name: "REPONER" })
+    await screen.findByRole("button", { name: "Reponer" })
     expect(screen.getByText(/Este ejercicio está retirado/)).toBeOnTheScreen()
     expect((await api.leer(PRESS.id)).estado).toBe("retirado")
   })
@@ -228,12 +228,12 @@ describe("Retirar y reponer un ejercicio", () => {
   it("cancelar la confirmación no retira nada", async () => {
     const api = catalogoEnMemoria([PRESS])
     await pintar(api, { id: PRESS.id })
-    await screen.findByRole("button", { name: "RETIRAR" })
+    await screen.findByRole("button", { name: "Retirar" })
 
-    await fireEvent.press(screen.getByRole("button", { name: "RETIRAR" }))
-    await fireEvent.press(screen.getByRole("button", { name: "NO RETIRAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Retirar" }))
+    await fireEvent.press(screen.getByRole("button", { name: "No retirar" }))
 
-    expect(screen.getByRole("button", { name: "RETIRAR" })).toBeOnTheScreen()
+    expect(screen.getByRole("button", { name: "Retirar" })).toBeOnTheScreen()
     expect((await api.leer(PRESS.id)).estado).toBe("publicado")
   })
 
@@ -242,9 +242,9 @@ describe("Retirar y reponer un ejercicio", () => {
     await pintar(api, { id: REMO.id })
 
     await screen.findByText(/Este ejercicio está retirado/)
-    await fireEvent.press(screen.getByRole("button", { name: "REPONER" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Reponer" }))
 
-    await screen.findByRole("button", { name: "RETIRAR" })
+    await screen.findByRole("button", { name: "Retirar" })
     expect(screen.queryByText(/Este ejercicio está retirado/)).toBeNull()
     expect((await api.leer(REMO.id)).estado).toBe("publicado")
   })
@@ -253,13 +253,13 @@ describe("Retirar y reponer un ejercicio", () => {
     const api = catalogoEnMemoria([PRESS])
     api.retirar = () => Promise.reject(new ErrorDeRed("sin cobertura"))
     await pintar(api, { id: PRESS.id })
-    await screen.findByRole("button", { name: "RETIRAR" })
+    await screen.findByRole("button", { name: "Retirar" })
 
-    await fireEvent.press(screen.getByRole("button", { name: "RETIRAR" }))
-    await fireEvent.press(screen.getByRole("button", { name: "CONFIRMAR RETIRADA" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Retirar" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Confirmar retirada" }))
 
     await screen.findByText(/No hemos podido conectar/)
-    expect(screen.getByRole("button", { name: "RETIRAR" })).toBeOnTheScreen()
+    expect(screen.getByRole("button", { name: "Retirar" })).toBeOnTheScreen()
     expect((await api.leer(PRESS.id)).estado).toBe("publicado")
   })
 
@@ -269,7 +269,7 @@ describe("Retirar y reponer un ejercicio", () => {
     await screen.findByText(/Este ejercicio está retirado/)
 
     await fireEvent.changeText(screen.getByLabelText("Instrucciones"), "Espalda recta.")
-    await fireEvent.press(screen.getByRole("button", { name: "GUARDAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
 
     await waitFor(() => {
       expect(onGuardado).toHaveBeenCalledTimes(1)

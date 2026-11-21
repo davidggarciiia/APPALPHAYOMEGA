@@ -176,7 +176,7 @@ describe("ComidaDelDia", () => {
     expect(screen.getAllByText("Tortitas de avena")).toHaveLength(2)
     await fireEvent.press(screen.getByRole("tab", { name: "Saladas" }))
     await fireEvent.press(screen.getByRole("radio", { name: /^Tostada con pavo/ }))
-    await fireEvent.press(screen.getByRole("button", { name: "Registrar comida" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Actualizar registro" }))
     await waitFor(() =>
       expect(registrar).toHaveBeenCalledWith({ tipo: "alternativa", alternativaId: u(12) }),
     )
@@ -389,5 +389,112 @@ describe.each(formatos)("ComidaDelDia · $nombre", ({ comida: plato, opcion, ele
     await act(async () => responder())
     expect(await screen.findByText("Comida registrada")).toBeTruthy()
     expect(screen.getByRole("button", { name: "Quitar de hechas" })).toBeTruthy()
+  })
+})
+
+describe("ComidaDelDia · confirmación junto a la acción (N2, N6, N8)", () => {
+  it("al registrar sustituye el botón por «Comida registrada», con quitar al lado", async () => {
+    await render(
+      <ComidaDelDia
+        comida={unico}
+        registrar={async () => undefined}
+        quitar={async () => undefined}
+        volver={() => undefined}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("radio", { name: /^Tortilla francesa/ }))
+    await fireEvent.press(screen.getByRole("button", { name: "Registrar comida" }))
+    expect(await screen.findByText("Comida registrada")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Registrar comida" })).toBeNull()
+    expect(screen.getByRole("button", { name: "Quitar de hechas" })).toBeTruthy()
+    // Si cambia la elección, el botón vuelve con otro texto: ya hay un registro que actualizar.
+    await fireEvent.press(screen.getByRole("radio", { name: /^Tortilla francesa/ }))
+    expect(screen.queryByRole("button", { name: "Actualizar registro" })).toBeNull()
+  })
+
+  it("el error de guardado aparece junto al botón y la elección sigue marcada", async () => {
+    await render(
+      <ComidaDelDia
+        comida={unico}
+        registrar={async () => {
+          throw new Error("Sin red")
+        }}
+        quitar={async () => undefined}
+        volver={() => undefined}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("radio", { name: /^Tortilla francesa/ }))
+    await fireEvent.press(screen.getByRole("button", { name: "Registrar comida" }))
+    expect(await screen.findByText("No se pudo guardar la comida.")).toBeTruthy()
+    expect(screen.queryByText("Comida registrada")).toBeNull()
+    expect(screen.getByRole("button", { name: "Registrar comida" })).toBeTruthy()
+  })
+
+  it("una comida marcada como hecha desde la lista dice que falta el plato y deja elegirlo", async () => {
+    const registrar = jest.fn<(e: EleccionDeComida) => Promise<void>>(async () => undefined)
+    await render(
+      <ComidaDelDia
+        comida={unico}
+        registrada={registrada({ tipo: "hecha" }, unico.id)}
+        registrar={registrar}
+        quitar={async () => undefined}
+        volver={() => undefined}
+      />,
+    )
+    expect(screen.getByText("Marcada como hecha, sin plato elegido")).toBeTruthy()
+    expect(screen.queryByText("Comida registrada")).toBeNull()
+    await fireEvent.press(screen.getByRole("radio", { name: /^Tortilla francesa/ }))
+    await fireEvent.press(screen.getByRole("button", { name: "Registrar comida" }))
+    await waitFor(() =>
+      expect(registrar).toHaveBeenCalledWith({ tipo: "alternativa", alternativaId: u(31) }),
+    )
+    expect(await screen.findByText("Comida registrada")).toBeTruthy()
+  })
+
+  it("muestra los macros de cada plato al elegir y los incluye en su nombre accesible", async () => {
+    const conMacros = ComidaSchema.parse({
+      ...unico,
+      grupos: [
+        {
+          nombre: null,
+          alternativas: [
+            {
+              ...(unico.forma === "alternativas" ? unico.grupos[0]!.alternativas[0]! : {}),
+              macros: { kcal: 420, proteinaG: 30, hidratosG: null, grasaG: null },
+            },
+          ],
+        },
+      ],
+    })
+    await render(
+      <ComidaDelDia
+        comida={conMacros}
+        registrar={async () => undefined}
+        quitar={async () => undefined}
+        volver={() => undefined}
+      />,
+    )
+    expect(screen.getByText("420 kcal · Proteínas 30 g")).toBeTruthy()
+    expect(
+      screen.getByRole("radio", {
+        name: "Tortilla francesa: Huevo 2 ud. 420 kcal · Proteínas 30 g",
+      }),
+    ).toBeTruthy()
+  })
+
+  it("sin conexión no promete una cola: explica lo que hace la app", async () => {
+    await render(
+      <ComidaDelDia
+        comida={unico}
+        registrar={async () => undefined}
+        quitar={async () => undefined}
+        volver={() => undefined}
+        reintentar={async () => undefined}
+        motivoSoloLectura="sinConexion"
+      />,
+    )
+    expect(screen.getByText(/ahora no se puede registrar/)).toBeTruthy()
+    expect(screen.getByText(/Si no sales de esta pantalla, tu elección se mantiene/)).toBeTruthy()
+    expect(screen.queryByText(/podrás registrarla cuando vuelvas/)).toBeNull()
   })
 })

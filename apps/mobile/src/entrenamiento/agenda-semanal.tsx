@@ -9,7 +9,8 @@ import { Pulsable } from "../componentes/pulsable"
 import { tema } from "../tema"
 import { fechaLegible, hoyAgenda, lunesDeSemana, sumarDias } from "./fechas"
 import { fechaCorta } from "./plan/modelo"
-import { TarjetaHoy } from "./hoy-toca"
+import { SesionAtrasada, TarjetaHoy } from "./hoy-toca"
+import { SelectorDeSemana } from "./plan/selector-semana"
 import { CalendarioHoy, type CargarMes } from "./calendario-hoy"
 import { FechaSesion } from "./fecha-sesion"
 import type { ApiEntrenamiento } from "./api"
@@ -27,6 +28,7 @@ export function AgendaSemanal({
   api,
   actualizado,
   cargando = false,
+  tienePlan,
 }: {
   semana: string
   listado: ListadoSesiones | null
@@ -39,6 +41,8 @@ export function AgendaSemanal({
   api?: Pick<ApiEntrenamiento, "mover" | "cambios">
   actualizado?: (agenda?: SesionProgramada) => Promise<void>
   cargando?: boolean
+  /** Si el cliente tiene plan vigente; sin saberlo (undefined) no se afirma nada. */
+  tienePlan?: boolean
 }): React.JSX.Element {
   const [moviendoId, setMoviendoId] = useState<string | null>(null)
   const abriendo = useRef(false)
@@ -58,15 +62,36 @@ export function AgendaSemanal({
   const empezada = sesiones
     .filter((sesion) => sesion.enviadoEn === null && empezadas[sesion.agenda.id])
     .sort((a, b) => (empezadas[b.agenda.id] ?? "").localeCompare(empezadas[a.agenda.id] ?? ""))[0]
+  const atrasadas = sesiones
+    .filter(
+      (sesion) =>
+        sesion.enviadoEn === null &&
+        sesion.agenda.estado === "abierta" &&
+        sesion.agenda.fechaActual < hoy,
+    )
+    .sort((a, b) => a.agenda.fechaActual.localeCompare(b.agenda.fechaActual))
   const sesionHoy =
     resumenHoy && estaSemana
       ? (empezada ??
         sesiones.find((s) => s.agenda.fechaActual === hoy && s.enviadoEn === null) ??
-        sesiones.find((s) => s.agenda.fechaActual === hoy && s.enviadoEn !== null))
+        sesiones.find((s) => s.agenda.fechaActual === hoy && s.enviadoEn !== null) ??
+        atrasadas[0])
       : undefined
+  const otraAtrasada = sesionHoy
+    ? atrasadas.find((sesion) => sesion.agenda.id !== sesionHoy.agenda.id)
+    : undefined
   const siguiente = sesiones
     .filter((sesion) => sesion.agenda.fechaActual > hoy && sesion.enviadoEn === null)
     .sort((a, b) => a.agenda.fechaActual.localeCompare(b.agenda.fechaActual))[0]
+  // Sin sesión que ofrecer hay tres casos distintos: sin plan, sin saberlo
+  // todavía y descanso de verdad.
+  const semanaVacia = listado?.total === 0
+  const vacio =
+    semanaVacia && tienePlan === false
+      ? { titulo: "Aún no tienes plan", detalle: "Tu entrenador aún no te ha asignado uno." }
+      : semanaVacia && tienePlan === undefined
+        ? { titulo: "Sin sesiones esta semana", detalle: undefined }
+        : { titulo: "Descanso", detalle: undefined }
   const moviendo = sesiones.find((sesion) => sesion.agenda.id === moviendoId)
 
   if (resumenHoy && estaSemana)
@@ -77,16 +102,23 @@ export function AgendaSemanal({
           <>
             <TarjetaHoy
               sesion={sesionHoy}
-              sinSesion="Descanso"
-              hoy={sesionHoy?.agenda.fechaActual ?? hoy}
+              sinSesion={vacio.titulo}
+              hoy={hoy}
               abrir={abrirSesion}
               empezada={sesionHoy?.agenda.id === empezada?.agenda.id}
-              siguiente={
-                siguiente
-                  ? `${siguiente.agenda.fechaActual === sumarDias(hoy, 1) ? "Mañana" : fechaCorta(siguiente.agenda.fechaActual)} · ${siguiente.nombre}`
+              pendienteDesde={
+                sesionHoy && sesionHoy.enviadoEn === null && sesionHoy.agenda.fechaActual < hoy
+                  ? sesionHoy.agenda.fechaActual
                   : undefined
               }
+              siguiente={
+                vacio.detalle ??
+                (siguiente
+                  ? `${siguiente.agenda.fechaActual === sumarDias(hoy, 1) ? "Mañana" : fechaCorta(siguiente.agenda.fechaActual)} · ${siguiente.nombre}`
+                  : undefined)
+              }
             />
+            {otraAtrasada && <SesionAtrasada sesion={otraAtrasada} abrir={abrirSesion} />}
             <CalendarioHoy
               semana={semana}
               hoy={hoy}
@@ -103,27 +135,7 @@ export function AgendaSemanal({
 
   return (
     <View style={s.contenedor}>
-      <View style={s.fila}>
-        <Text style={s.intervalo}>
-          {fechaCorta(semana)} — {fechaCorta(sumarDias(semana, 6))}
-        </Text>
-        <Pressable
-          style={s.flecha}
-          accessibilityRole="button"
-          accessibilityLabel="Semana anterior"
-          onPress={() => cambiarSemana(-7)}
-        >
-          <Icono nombre="atras" color={tema.texto} tamano={20} />
-        </Pressable>
-        <Pressable
-          style={s.flecha}
-          accessibilityRole="button"
-          accessibilityLabel="Semana siguiente"
-          onPress={() => cambiarSemana(7)}
-        >
-          <Icono nombre="adelante" color={tema.texto} tamano={20} />
-        </Pressable>
-      </View>
+      <SelectorDeSemana semana={semana} cambiarSemana={cambiarSemana} />
       <View>
         {cargando && <EsqueletoEntrenamiento />}
         {listado?.total === 0 && <Text style={s.vacio}>Sin entrenamientos esta semana</Text>}
@@ -206,7 +218,6 @@ export function AgendaSemanal({
 const s = StyleSheet.create({
   contenedor: { gap: 24 },
   fila: { flexDirection: "row", alignItems: "center", gap: 8 },
-  intervalo: { flex: 1, color: tema.texto, fontFamily: tema.fuenteSemi, fontSize: 16 },
   secundario: { color: tema.textoTenue, fontSize: 13, fontFamily: tema.fuenteTexto },
   movido: { color: tema.aviso, fontSize: 13, fontFamily: tema.fuenteTexto },
   flecha: {

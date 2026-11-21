@@ -32,6 +32,7 @@ export function RutinaDeLaSemana({
   abrir,
   cerrar,
   contenidoTecnica,
+  empezadas = {},
   vistaPrevia = false,
 }: {
   dias: DiaDelPlan[]
@@ -42,6 +43,8 @@ export function RutinaDeLaSemana({
   abrir: (id: string) => void
   cerrar?: () => void
   contenidoTecnica?: ReactNode
+  /** Sesiones sin enviar que ya tienen algo hecho: se ofrece continuar, no empezar. */
+  empezadas?: Record<string, boolean>
   vistaPrevia?: boolean
 }): React.JSX.Element {
   const dia =
@@ -84,6 +87,7 @@ export function RutinaDeLaSemana({
                       abrir={abrir}
                       cerrar={cerrar}
                       contenidoTecnica={contenidoTecnica}
+                      empezada={empezadas[d.resumen.agenda.id] === true}
                       vistaPrevia={vistaPrevia}
                     />
                   )}
@@ -104,6 +108,7 @@ function DetalleSesion({
   abrir,
   cerrar,
   contenidoTecnica,
+  empezada,
   vistaPrevia,
 }: {
   dia: DiaDelPlan
@@ -112,9 +117,11 @@ function DetalleSesion({
   abrir: (id: string) => void
   cerrar?: () => void
   contenidoTecnica?: ReactNode
+  empezada: boolean
   vistaPrevia: boolean
 }): React.JSX.Element {
   const { resumen, prescripcion } = dia
+  const accion = resumen.enviadoEn !== null ? "Ver resumen" : empezada ? "Continuar" : "Empezar"
   const numero = diaDeLaSemana(resumen.agenda.fechaActual)
   const partes = prescripcion?.partes
   const minutos = (clave: (typeof PARTES)[number]["clave"]): string | undefined => partes?.[clave]
@@ -198,16 +205,25 @@ function DetalleSesion({
               <View>
                 {grupo.ejercicios.map((ejercicio, n) => {
                   const detalle = detalleDeEjercicio(ejercicio)
+                  const alternativas = ejercicio.alternativas ?? []
+                  const textoAlternativas =
+                    alternativas.length > 0 ? `Alternativas: ${alternativas.join(", ")}` : null
                   return (
                     <Pressable
                       key={ejercicio.id}
                       accessibilityRole="button"
-                      accessibilityLabel={`${ejercicio.nombre}, ${dosisDeEjercicio(ejercicio)}${detalle ? `, ${detalle}` : ""}. Ver técnica`}
+                      accessibilityLabel={`${ejercicio.nombre}, ${dosisDeEjercicio(ejercicio)}${detalle ? `, ${detalle}` : ""}${ejercicio.nota ? `. ${ejercicio.nota}` : ""}${textoAlternativas ? `. ${textoAlternativas}` : ""}. Ver técnica`}
                       onPress={() => verTecnica(ejercicio)}
                     >
                       <Fila primera={n === 0}>
                         <Text style={s.numero}>{n + 1}</Text>
-                        <Text style={s.ejercicio}>{ejercicio.nombre}</Text>
+                        <View style={s.textosEjercicio}>
+                          <Text style={s.ejercicio}>{ejercicio.nombre}</Text>
+                          {ejercicio.nota && <Text style={s.notaEjercicio}>{ejercicio.nota}</Text>}
+                          {textoAlternativas && (
+                            <Text style={s.notaEjercicio}>{textoAlternativas}</Text>
+                          )}
+                        </View>
                         <View style={s.dosis}>
                           <Text style={s.textoDosis}>{dosisDeEjercicio(ejercicio)}</Text>
                           {detalle && <Text style={s.detalle}>{detalle}</Text>}
@@ -223,12 +239,11 @@ function DetalleSesion({
       )}
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={`${accion} ${resumen.nombre}`}
         onPress={() => abrir(resumen.agenda.id)}
         style={({ pressed }) => [s.abrir, pressed && s.pulsado]}
       >
-        <Text style={s.textoAbrir}>
-          {resumen.enviadoEn !== null ? "Ver lo que hiciste" : "Abrir sesión"}
-        </Text>
+        <Text style={s.textoAbrir}>{accion}</Text>
       </Pressable>
     </View>
   )
@@ -297,12 +312,18 @@ const s = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
+  textosEjercicio: { flex: 1, gap: 2 },
   ejercicio: {
-    flex: 1,
     color: tema.texto,
     fontFamily: tema.fuenteTexto,
     fontSize: 15,
     lineHeight: 21,
+  },
+  notaEjercicio: {
+    color: tema.textoTenue,
+    fontFamily: tema.fuenteTexto,
+    fontSize: 13,
+    lineHeight: 18,
   },
   dosis: { alignItems: "flex-end", gap: 2, maxWidth: "45%" },
   textoDosis: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 15, textAlign: "right" },

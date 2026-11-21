@@ -22,7 +22,7 @@ import { faltaDe } from "../lib/errores"
 import { ErrorDePermiso, ErrorDeSesion } from "../lib/http"
 import { espacio, radio, tema, tipo } from "../tema"
 import type { ApiSeguimiento } from "../seguimiento/api"
-import { leerDecimal, leerSueno, miles, pesoLegible, suenoLegible } from "../seguimiento/modelo"
+import { leerDecimal, miles, pesoLegible, suenoLegible } from "../seguimiento/modelo"
 import type { ApiNutricion } from "./api"
 import { leerCopia } from "./copia-local"
 import { cambioDeSuplemento, suplementoTomado } from "./hoy-modelo"
@@ -48,9 +48,9 @@ const EDICION: Record<
   },
   suenoMin: {
     titulo: "Sueño",
-    texto: "Lo que dormiste anoche. Por ejemplo, 7:40.",
+    texto: "Lo que dormiste anoche, en horas y minutos. Por ejemplo, 7 horas y 40 minutos.",
     etiqueta: "Horas dormidas",
-    teclado: "decimal-pad",
+    teclado: "number-pad",
   },
   cinturaCm: {
     titulo: "Cintura",
@@ -84,11 +84,21 @@ function cmLegible(cm: number): string {
 function textoInicial(dato: Dato, valor: number | null): string {
   if (valor === null) return ""
   if (dato === "pesoKg" || dato === "cinturaCm") return String(valor).replace(".", ",")
-  if (dato === "suenoMin") return `${Math.floor(valor / 60)}:${String(valor % 60).padStart(2, "0")}`
+  // El sueño tiene dos campos: aquí van las horas; los minutos, en `minutosIniciales`.
+  if (dato === "suenoMin") return String(Math.floor(valor / 60))
   return String(valor)
 }
 
-function leer(dato: Dato, texto: string): CambiarDia | { cinturaCm: number } | string {
+/** Los minutos del sueño guardado, para su segundo campo. */
+function minutosIniciales(valor: number | null): string {
+  return valor === null ? "" : String(valor % 60)
+}
+
+function leer(
+  dato: Dato,
+  texto: string,
+  minutosTexto: string,
+): CambiarDia | { cinturaCm: number } | string {
   if (dato === "cinturaCm") {
     const cm = leerDecimal(texto)
     return cm !== null && !Number.isNaN(cm) && cm >= 30 && cm <= 300
@@ -109,11 +119,21 @@ function leer(dato: Dato, texto: string): CambiarDia | { cinturaCm: number } | s
       ? { pesoKg: Math.round(peso * 10) / 10 }
       : "Escribe un peso entre 30 y 400 kg."
   }
-  const minutos = leerSueno(texto)
-  if (minutos === null) return { suenoMin: null }
-  return !Number.isNaN(minutos) && minutos <= 1440
-    ? { suenoMin: minutos }
-    : "Escribe las horas como 7:40 o 7,5."
+  return leerHorasYMinutos(texto, minutosTexto)
+}
+
+/** Horas y minutos en dos campos de cifras: sin signos que el teclado no tenga. */
+export function leerHorasYMinutos(
+  horas: string,
+  minutos: string,
+): { suenoMin: number | null } | string {
+  const h = horas.trim()
+  const m = minutos.trim()
+  if (h === "" && m === "") return { suenoMin: null }
+  const error = "Escribe las horas (0 a 24) y los minutos (0 a 59) con cifras. Por ejemplo, 7 y 40."
+  if (!/^\d{0,2}$/.test(h) || !/^\d{0,2}$/.test(m)) return error
+  const total = Number(h || "0") * 60 + Number(m || "0")
+  return Number(m || "0") < 60 && total <= 1440 ? { suenoMin: total } : error
 }
 
 /** «Hoy» de Inicio: datos diarios, cintura pautada y suplementos de la dieta publicada. */
@@ -142,6 +162,7 @@ export function HoyInicio({
   const [suplementosDeCopia, setSuplementosDeCopia] = useState(false)
   const [editando, setEditando] = useState<Dato | null>(null)
   const [texto, setTexto] = useState("")
+  const [minutosTexto, setMinutosTexto] = useState("")
   const [error, setError] = useState("")
   const [ocupado, setOcupado] = useState(false)
   const guardando = useRef(false)
@@ -267,6 +288,7 @@ export function HoyInicio({
     })
   const abrir = (dato: Dato): void => {
     setTexto(textoInicial(dato, dato === "cinturaCm" ? (cintura ?? null) : (dia?.[dato] ?? null)))
+    setMinutosTexto(dato === "suenoMin" ? minutosIniciales(dia?.suenoMin ?? null) : "")
     setError("")
     setEditando(dato)
   }
@@ -370,7 +392,7 @@ export function HoyInicio({
                   ]}
                   accessibilityRole="checkbox"
                   aria-checked={tomado}
-                  accessibilityLabel={`${suplemento.nombre} tomada`}
+                  accessibilityLabel={suplemento.nombre}
                   accessibilityState={{
                     checked: tomado,
                     disabled: ocupado || !diaCargado || suplementosDeCopia,
@@ -417,7 +439,7 @@ export function HoyInicio({
         alCancelar={() => setEditando(null)}
         alConfirmar={() => {
           if (!editando) return
-          const cambio = leer(editando, texto)
+          const cambio = leer(editando, texto, minutosTexto)
           if (typeof cambio === "string") {
             setError(cambio)
             return
@@ -429,7 +451,36 @@ export function HoyInicio({
           )
         }}
       >
-        {edicion && (
+        {edicion && editando === "suenoMin" && (
+          <View style={s.dosCampos}>
+            <View style={s.campoCorto}>
+              <Campo
+                etiqueta="Horas"
+                value={texto}
+                editable={!ocupado}
+                onChangeText={(nuevo) => {
+                  if (!guardando.current) setTexto(nuevo)
+                }}
+                keyboardType="number-pad"
+                autoFocus
+                maxLength={2}
+              />
+            </View>
+            <View style={s.campoCorto}>
+              <Campo
+                etiqueta="Minutos"
+                value={minutosTexto}
+                editable={!ocupado}
+                onChangeText={(nuevo) => {
+                  if (!guardando.current) setMinutosTexto(nuevo)
+                }}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+            </View>
+          </View>
+        )}
+        {edicion && editando !== "suenoMin" && (
           <Campo
             etiqueta={edicion.etiqueta}
             value={texto}
@@ -487,6 +538,8 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   apuntar: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 15 },
+  dosCampos: { flexDirection: "row", gap: espacio[12] },
+  campoCorto: { flex: 1, gap: espacio[8] },
   casilla: {
     width: 28,
     height: 28,

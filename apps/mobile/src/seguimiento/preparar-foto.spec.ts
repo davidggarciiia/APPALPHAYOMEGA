@@ -159,6 +159,7 @@ describe("elegir la foto", () => {
 
     expect(resultado).toEqual({
       tipo: "sinPermiso",
+      ajustes: true,
       mensaje: expect.stringContaining("ajustes") as unknown as string,
     })
     expect(camara).not.toHaveBeenCalled()
@@ -171,6 +172,8 @@ describe("elegir la foto", () => {
 
     expect(resultado.tipo).toBe("sinPermiso")
     expect(resultado.tipo === "sinPermiso" && resultado.mensaje).toMatch(/galería/)
+    // Aún se puede pedir el permiso en la app: no hace falta ir a los ajustes.
+    expect(resultado.tipo === "sinPermiso" && resultado.ajustes).toBe(false)
   })
 
   it("con permiso abre la cámara solo para imágenes y sin pedir EXIF", async () => {

@@ -120,3 +120,71 @@ it.each([
   expect(screen.queryByRole("button", { name: "Reintentar mes" })).toBeNull()
   expect(screen.queryByLabelText(/descanso/)).toBeNull()
 })
+
+describe("estado de cada día sin depender del color", () => {
+  const agenda = {
+    clienteId: "cliente",
+    fechaOriginal: hoy,
+    fechaActual: hoy,
+    estado: "abierta" as const,
+    revision: 0,
+  }
+
+  it("la vista de semana anuncia pendiente, en curso y hecha", async () => {
+    await render(
+      <CalendarioHoy
+        {...propiedades}
+        empezadas={{ activa: "2028-02-15T12:00:00Z" }}
+        sesiones={[
+          { agenda: { ...agenda, id: "pendiente" }, nombre: "Empuje", enviadoEn: null },
+          { agenda: { ...agenda, id: "activa" }, nombre: "Tracción", enviadoEn: null },
+          {
+            agenda: { ...agenda, id: "hecha" },
+            nombre: "Pierna",
+            enviadoEn: "2028-02-15T10:00:00Z",
+          },
+        ]}
+      />,
+    )
+    expect(
+      screen.getByRole("button", {
+        name: `${fechaLegible(hoy)}, hoy: Empuje, pendiente, Tracción, en curso, Pierna, hecha`,
+      }),
+    ).toBeOnTheScreen()
+  })
+
+  it("cada estado lleva su propia forma además del color", async () => {
+    await render(
+      <CalendarioHoy
+        {...propiedades}
+        empezadas={{ activa: "2028-02-15T12:00:00Z" }}
+        sesiones={[
+          { agenda: { ...agenda, id: "pendiente" }, nombre: "Empuje", enviadoEn: null },
+          { agenda: { ...agenda, id: "activa" }, nombre: "Tracción", enviadoEn: null },
+        ]}
+      />,
+    )
+    const oculto = { includeHiddenElements: true }
+    // Pendiente: círculo vacío; en curso: triángulo (el icono de reproducir).
+    expect(screen.getAllByTestId("marca-pendiente", oculto)).toHaveLength(1)
+    expect(screen.getAllByTestId("marca-en-curso", oculto)).toHaveLength(1)
+    expect(screen.queryAllByTestId("marca-hecha", oculto)).toHaveLength(0)
+  })
+})
+
+it("pinta un mes parcial: las semanas sin datos no son descanso y se puede reintentar", async () => {
+  const cargarMes = jest.fn(async () => ({ sesiones: [], sinDatos: [lunesDeSemana("2028-02-15")] }))
+  await render(<CalendarioHoy {...propiedades} cargarMes={cargarMes} />)
+  await fireEvent.press(screen.getByRole("button", { name: "Ver mes" }))
+  expect(
+    await screen.findByText("No se han podido cargar todas las semanas del mes."),
+  ).toBeOnTheScreen()
+  expect(
+    screen.getByRole("button", { name: `${fechaLegible("2028-02-15")}, hoy: sin cargar` }),
+  ).toBeOnTheScreen()
+  expect(
+    screen.getByRole("button", { name: `${fechaLegible("2028-02-10")}: descanso` }),
+  ).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar mes" }))
+  expect(cargarMes).toHaveBeenCalledTimes(2)
+})

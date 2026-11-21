@@ -5,6 +5,7 @@ import { withTiming } from "react-native-reanimated"
 
 import { ErrorDePermiso } from "../lib/http"
 import { cargarTrabajo, type TrabajoEntrenador } from "./cargar-trabajo"
+import { REFRESCO_RESUMEN_MS } from "./use-resumen-semanal"
 import { InicioEntrenador } from "./inicio-entrenador"
 
 let mockEnfocada = true
@@ -17,7 +18,6 @@ jest.mock("expo-router", () => ({
 }))
 jest.mock("./cargar-trabajo", () => ({
   cargarTrabajo: jest.fn(),
-  ACTIVOS_POR_PAGINA: 4,
   ACTIVACIONES_POR_PAGINA: 8,
 }))
 jest.mock("react-native-reanimated", () => ({
@@ -65,9 +65,7 @@ const cliente: Cliente = {
   molestiasAbiertas: [],
 }
 const vacio: TrabajoEntrenador = {
-  activos: { usuarios: [], total: 0 },
   pendientes: { usuarios: [], total: 0 },
-  clientes: [],
 }
 const resumen = (clientes: Cliente[] = []): ResumenSemanal => ({ semana: "2026-10-26", clientes })
 const pedir = jest.fn()
@@ -113,7 +111,7 @@ it("muestra serie, RIR desconocido, diferencia, estado y récord y abre la ficha
   await render(vista())
   expect(await screen.findByText("Ana López")).toBeOnTheScreen()
   for (const texto of [
-    "2 de 3 sesiones enviadas",
+    "2 de 3 sesiones enviadas · 67 %",
     "62,5 kg × 10 @ RIR —",
     "Sube · +2,5 kg · +1 rep",
     "Progresa",
@@ -131,7 +129,7 @@ it("muestra serie, RIR desconocido, diferencia, estado y récord y abre la ficha
   })
 })
 
-it("ordena los 15 activos por atención y nombre sin paginar ni duplicar molestias", async () => {
+it("ordena los 15 activos por atención y nombre, pinta por tramos y no duplica molestias", async () => {
   const sinEnvios = {
     ...cliente,
     clienteId: "b",
@@ -176,7 +174,8 @@ it("ordena los 15 activos por atención y nombre sin paginar ni duplicar molesti
   pedir.mockResolvedValue(resumen([cliente, ...resto, molestia, baja, sinEnvios]))
   await render(vista())
   const tarjetas = await screen.findAllByRole("button", { name: /^Ver ficha de/ })
-  expect(tarjetas).toHaveLength(15)
+  expect(tarjetas).toHaveLength(12)
+  expect(screen.getByText("Mostrando 12 de 15")).toBeOnTheScreen()
   expect(tarjetas.slice(0, 4).map((t) => t.props.accessibilityLabel.split(". ")[0])).toEqual([
     "Ver ficha de Berta López",
     "Ver ficha de Carlos López",
@@ -191,9 +190,12 @@ it("ordena los 15 activos por atención y nombre sin paginar ni duplicar molesti
     pathname: "/entrenador/cliente/[id]",
     params: { id: "z" },
   })
+  await fireEvent.press(screen.getByRole("button", { name: "Mostrar más clientes, quedan 3" }))
+  expect(screen.getAllByRole("button", { name: /^Ver ficha de/ })).toHaveLength(15)
+  expect(screen.queryByText(/^Mostrando/)).toBeNull()
 })
 
-it("no considera atención una bajada aislada, el martes sin envíos o una semana sin sesiones", async () => {
+it("no considera atención una bajada aislada ni el martes sin envíos, pero sí un activo sin sesiones esta semana", async () => {
   jest.setSystemTime(new Date("2026-10-27T10:00:00Z"))
   pedir.mockResolvedValue(
     resumen([
@@ -215,7 +217,14 @@ it("no considera atención una bajada aislada, el martes sin envíos o una seman
           },
         ],
       },
-      { ...cliente, clienteId: "c", nombre: "Ana", sesionesPrevistas: 0, sesionesEnviadas: 0 },
+      {
+        ...cliente,
+        clienteId: "c",
+        nombre: "Ana",
+        sesionesPrevistas: 0,
+        sesionesEnviadas: 0,
+        ejercicios: [],
+      },
     ]),
   )
   await render(vista())
@@ -225,7 +234,7 @@ it("no considera atención una bajada aislada, el martes sin envíos o una seman
     ),
   ).toEqual(["Ver ficha de Ana López", "Ver ficha de Berta López", "Ver ficha de Zoe López"])
   expect(screen.queryByText("Sin envíos desde el lunes")).toBeNull()
-  expect(screen.queryByText("Sin plan esta semana")).toBeNull()
+  expect(screen.getAllByText("Sin plan esta semana")).toHaveLength(1)
   expect(screen.getByText("Baja · −2,5 kg · −1 rep")).toBeOnTheScreen()
 })
 
@@ -272,24 +281,23 @@ it("distingue igualdad, falta de marca y primera marca sin inventar comparación
     expect(await screen.findByText(texto)).toBeOnTheScreen()
 })
 
-it("muestra plan sin acciones de revisión en la tarjeta y conserva activación y paginación con alcance", async () => {
-  pedir.mockResolvedValue(resumen([cliente]))
-  const usuario = { id: "a", nombre: "Ana", apellidos: "López" } as never
+it("ofrece crear el plan de quien no tiene sesiones esta semana y conserva activación y paginación", async () => {
+  pedir.mockResolvedValue(
+    resumen([{ ...cliente, sesionesPrevistas: 0, sesionesEnviadas: 0, ejercicios: [] }]),
+  )
   jest.mocked(cargarTrabajo).mockResolvedValue({
-    activos: { usuarios: [usuario], total: 12 },
     pendientes: { usuarios: [{ id: "p", nombre: "Paz", apellidos: "López" } as never], total: 9 },
-    clientes: [
-      {
-        cliente: usuario,
-        sinPlan: true,
-      },
-    ],
   })
   await render(vista())
-  expect(await screen.findByText("Planes · 1–1 de 12")).toBeOnTheScreen()
-  expect(screen.getAllByText("Ana López")).toHaveLength(1)
+  expect(await screen.findByText("Sin plan esta semana")).toBeOnTheScreen()
+  expect(screen.queryByText(/sesiones enviadas/)).toBeNull()
+  expect(screen.queryByText(/Planes · /)).toBeNull()
   expect(screen.queryByRole("button", { name: /revisar/i })).toBeNull()
   expect(screen.queryByText(/sin revisar|revisada|por revisar/i)).toBeNull()
+  expect(screen.getByRole("button", { name: /^Ver ficha de Ana López/ })).toHaveProp(
+    "accessibilityLabel",
+    expect.stringContaining("Sin plan esta semana"),
+  )
   for (const [nombre, ruta] of [
     [
       "Crear plan para Ana López",
@@ -300,13 +308,101 @@ it("muestra plan sin acciones de revisión en la tarjeta y conserva activación 
     await fireEvent.press(await screen.findByRole("button", { name: nombre }))
     expect(abrir).toHaveBeenLastCalledWith(ruta)
   }
-  await fireEvent.press(screen.getByRole("button", { name: "Siguientes clientes activos" }))
-  expect(cargarTrabajo).toHaveBeenLastCalledWith(pedir, 4, 0)
+  expect(screen.getByText("Pendientes de activar · 1–1 de 9")).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: "Siguientes pendientes de activar" }))
-  expect(cargarTrabajo).toHaveBeenLastCalledWith(pedir, 4, 8)
-  await fireEvent.press(screen.getByRole("button", { name: "Clientes activos anteriores" }))
-  expect(cargarTrabajo).toHaveBeenLastCalledWith(pedir, 0, 8)
+  expect(cargarTrabajo).toHaveBeenLastCalledWith(pedir, 8)
+  await fireEvent.press(screen.getByRole("button", { name: "Pendientes de activar anteriores" }))
+  expect(cargarTrabajo).toHaveBeenLastCalledWith(pedir, 0)
   expect(pedir).toHaveBeenCalledTimes(1)
+})
+
+it("solo marca sin plan la semana en curso: una anterior sin sesiones no es un hueco", async () => {
+  const sinSesiones = { ...cliente, sesionesPrevistas: 0, sesionesEnviadas: 0, ejercicios: [] }
+  pedir.mockResolvedValue(resumen([sinSesiones]))
+  await render(vista())
+  expect(await screen.findByText("Sin plan esta semana")).toBeOnTheScreen()
+  pedir.mockResolvedValue({ ...resumen([sinSesiones]), semana: "2026-10-19" })
+  await fireEvent.press(screen.getByRole("button", { name: "Semana anterior" }))
+  expect(await screen.findByText("Sin envíos esta semana")).toBeOnTheScreen()
+  expect(screen.queryByText("Sin plan esta semana")).toBeNull()
+  expect(screen.queryByRole("button", { name: /Crear plan/ })).toBeNull()
+})
+
+describe("cartera numerosa", () => {
+  const ana = (n: number): Cliente => ({
+    ...cliente,
+    clienteId: `c${n}`,
+    nombre: n === 3 ? "Ángela" : `Cliente ${n.toString().padStart(2, "0")}`,
+    apellidos: n === 3 ? "Núñez" : null,
+  })
+  const cartera = Array.from({ length: 30 }, (_, n) => ana(n))
+  const conMolestia: Cliente = {
+    ...ana(7),
+    molestiasAbiertas: [
+      {
+        id: "m",
+        sesionId: "s",
+        zona: "hombro",
+        intensidad: 5,
+        nivel: "ambar",
+        creadaEn: "2026-10-28T10:00:00Z",
+      },
+    ],
+  }
+
+  it("busca por nombre sin distinguir tildes ni mayúsculas y vuelve a empezar los tramos", async () => {
+    pedir.mockResolvedValue(resumen(cartera))
+    await render(vista())
+    expect(await screen.findAllByRole("button", { name: /^Ver ficha de/ })).toHaveLength(12)
+    await fireEvent.press(screen.getByRole("button", { name: /^Mostrar más clientes/ }))
+    expect(screen.getAllByRole("button", { name: /^Ver ficha de/ })).toHaveLength(24)
+    await fireEvent.changeText(screen.getByLabelText("Buscar cliente por nombre"), "angela NUNEZ")
+    const tarjetas = screen.getAllByRole("button", { name: /^Ver ficha de/ })
+    expect(tarjetas).toHaveLength(1)
+    expect(tarjetas[0]).toHaveProp(
+      "accessibilityLabel",
+      expect.stringContaining("Ver ficha de Ángela Núñez"),
+    )
+    await fireEvent.changeText(screen.getByLabelText("Buscar cliente por nombre"), "zzz")
+    expect(screen.getByText("Nadie coincide con la búsqueda")).toBeOnTheScreen()
+    await fireEvent.changeText(screen.getByLabelText("Buscar cliente por nombre"), "")
+    expect(screen.getAllByRole("button", { name: /^Ver ficha de/ })).toHaveLength(12)
+  })
+
+  it("cuenta y filtra a quienes requieren atención, con los de atención primero", async () => {
+    pedir.mockResolvedValue(resumen([...cartera.slice(0, 7), conMolestia, ...cartera.slice(8)]))
+    await render(vista())
+    const todos = await screen.findByRole("button", { name: "Todos · 30" })
+    expect(todos).toBeSelected()
+    const atencion = screen.getByRole("button", { name: "Requieren atención · 1" })
+    expect(atencion).not.toBeSelected()
+    expect(screen.getAllByRole("button", { name: /^Ver ficha de/ })[0]).toHaveProp(
+      "accessibilityLabel",
+      expect.stringContaining("Ver ficha de Cliente 07"),
+    )
+    await fireEvent.press(atencion)
+    expect(atencion).toBeSelected()
+    expect(screen.getAllByRole("button", { name: /^Ver ficha de/ })).toHaveLength(1)
+    await fireEvent.changeText(screen.getByLabelText("Buscar cliente por nombre"), "Cliente 01")
+    expect(screen.getByText("Nadie coincide con la búsqueda")).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Todos · 30" }))
+    expect(screen.getAllByRole("button", { name: /^Ver ficha de/ })).toHaveLength(1)
+  })
+
+  it("avisa de que nadie requiere atención cuando el filtro queda vacío", async () => {
+    pedir.mockResolvedValue(resumen(cartera))
+    await render(vista())
+    await fireEvent.press(await screen.findByRole("button", { name: "Requieren atención · 0" }))
+    expect(screen.getByText("Ahora mismo nadie requiere atención")).toBeOnTheScreen()
+  })
+
+  it("no ofrece búsqueda ni filtros a una cartera pequeña", async () => {
+    pedir.mockResolvedValue(resumen(cartera.slice(0, 5)))
+    await render(vista())
+    await screen.findAllByRole("button", { name: /^Ver ficha de/ })
+    expect(screen.queryByLabelText("Buscar cliente por nombre")).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Requieren atención/ })).toBeNull()
+  })
 })
 
 it("resume una semana sin marcas en una línea con la última sesión enviada", async () => {
@@ -436,7 +532,7 @@ it("reintenta un fallo y conserva marcas ante un error de actualización", async
   expect(await screen.findByText("Ana López")).toBeOnTheScreen()
   pedir.mockRejectedValueOnce(new Error("Sin red"))
   await act(async () => {
-    jest.advanceTimersByTime(10000)
+    jest.advanceTimersByTime(REFRESCO_RESUMEN_MS)
   })
   expect(screen.getByRole("alert")).toBeOnTheScreen()
   expect(screen.getByText("Ana López")).toBeOnTheScreen()
@@ -447,21 +543,21 @@ it("oculta datos si se revoca el permiso y detiene reintentos automáticos", asy
   await render(vista())
   pedir.mockRejectedValueOnce(new ErrorDePermiso())
   await act(async () => {
-    jest.advanceTimersByTime(10000)
+    jest.advanceTimersByTime(REFRESCO_RESUMEN_MS)
   })
   expect(screen.getByRole("alert")).toHaveTextContent(/No tienes permiso/)
   expect(screen.queryByText("Ana López")).toBeNull()
   expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull()
   await act(async () => {
-    jest.advanceTimersByTime(30000)
+    jest.advanceTimersByTime(3 * REFRESCO_RESUMEN_MS)
   })
   expect(pedir).toHaveBeenCalledTimes(2)
 })
 
-it("refresca cada 10 s sin recargar tareas ni solapar consultas", async () => {
+it("refresca cada minuto, no cada pocos segundos, sin recargar tareas ni solapar consultas", async () => {
   await render(vista())
   await act(async () => {
-    jest.advanceTimersByTime(9999)
+    jest.advanceTimersByTime(REFRESCO_RESUMEN_MS - 1)
   })
   expect(pedir).toHaveBeenCalledTimes(1)
   let resolver!: (datos: ResumenSemanal) => void
@@ -475,12 +571,12 @@ it("refresca cada 10 s sin recargar tareas ni solapar consultas", async () => {
   })
   expect(pedir).toHaveBeenCalledTimes(2)
   await act(async () => {
-    jest.advanceTimersByTime(30000)
+    jest.advanceTimersByTime(3 * REFRESCO_RESUMEN_MS)
   })
   expect(pedir).toHaveBeenCalledTimes(2)
   await act(() => resolver(resumen()))
   await act(async () => {
-    jest.advanceTimersByTime(10000)
+    jest.advanceTimersByTime(REFRESCO_RESUMEN_MS)
   })
   expect(pedir).toHaveBeenCalledTimes(3)
   expect(cargarTrabajo).toHaveBeenCalledTimes(1)
@@ -490,7 +586,7 @@ it("pausa en segundo plano y al perder foco y refresca al volver", async () => {
   await render(vista())
   await act(() => actividad("background"))
   await act(async () => {
-    jest.advanceTimersByTime(30000)
+    jest.advanceTimersByTime(3 * REFRESCO_RESUMEN_MS)
   })
   expect(pedir).toHaveBeenCalledTimes(1)
   await act(() => actividad("active"))
@@ -498,7 +594,7 @@ it("pausa en segundo plano y al perder foco y refresca al volver", async () => {
   mockEnfocada = false
   await screen.rerender(vista())
   await act(async () => {
-    jest.advanceTimersByTime(30000)
+    jest.advanceTimersByTime(3 * REFRESCO_RESUMEN_MS)
     actividad("active")
   })
   expect(pedir).toHaveBeenCalledTimes(2)
@@ -517,7 +613,7 @@ it("no consulta inactiva y cancela al desmontar", async () => {
   await screen.unmount()
   expect(signal.aborted).toBe(true)
   await act(async () => {
-    jest.advanceTimersByTime(30000)
+    jest.advanceTimersByTime(3 * REFRESCO_RESUMEN_MS)
   })
   expect(pedir).toHaveBeenCalledTimes(1)
 })
@@ -570,20 +666,32 @@ it("anuncia las cargas en el nombre accesible aunque el lector omita las indicac
   expect(tarjeta.props.accessibilityLabel).toContain("Sube · +2,5 kg · +1 rep")
 })
 
-it("conserva plan sin revisión si falla solo el agregado y no inventa las cifras semanales", async () => {
+it("si falla solo el agregado no inventa cifras semanales y conserva los pendientes", async () => {
   pedir.mockRejectedValueOnce(new Error("Sin red"))
   jest.mocked(cargarTrabajo).mockResolvedValue({
-    ...vacio,
-    clientes: [
-      {
-        cliente: { id: "a", nombre: "Ana", apellidos: "López" } as never,
-        sinPlan: true,
-      },
-    ],
+    pendientes: { usuarios: [{ id: "p", nombre: "Paz", apellidos: "López" } as never], total: 1 },
   })
   await render(vista())
-  expect(await screen.findByRole("button", { name: "Crear plan para Ana López" })).toBeOnTheScreen()
-  expect(screen.queryByRole("button", { name: /revisar/i })).toBeNull()
+  expect(await screen.findByRole("button", { name: "Activar a Paz López" })).toBeOnTheScreen()
   expect(screen.queryByText(/sesiones enviadas/)).toBeNull()
-  expect(screen.getAllByText("Ana López")).toHaveLength(1)
+  expect(screen.queryByRole("button", { name: /Crear plan/ })).toBeNull()
+})
+
+it("actualiza a mano sin vaciar lo que se ve y muestra que está ocupado", async () => {
+  pedir.mockResolvedValue(resumen([cliente]))
+  await render(vista())
+  expect(await screen.findByText("Ana López")).toBeOnTheScreen()
+  let resolver!: (datos: ResumenSemanal) => void
+  pedir.mockReturnValueOnce(
+    new Promise((r) => {
+      resolver = r
+    }),
+  )
+  await fireEvent.press(screen.getByRole("button", { name: "Actualizar el resumen semanal" }))
+  expect(pedir).toHaveBeenCalledTimes(2)
+  expect(screen.getByText("Ana López")).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: "Actualizar el resumen semanal" })).toBeDisabled()
+  await act(() => resolver(resumen([{ ...cliente, nombre: "Berta" }])))
+  expect(await screen.findByText("Berta López")).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: "Actualizar el resumen semanal" })).toBeEnabled()
 })

@@ -9,6 +9,8 @@ import type { SesionConDistancia } from "../editor-modelo"
 import {
   aSesionEnRutina,
   desdeSesionEnRutina,
+  duplicarDia,
+  duplicarEjercicio,
   faltaEnDia,
   leerRango,
   nuevoDia,
@@ -21,6 +23,56 @@ let n = 0
 const nuevoId = (): string => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`
 const BANCA = { id: "10000000-0000-4000-8000-000000000001", nombre: "Press banca con barra" }
 const TIJERAS = { id: "10000000-0000-4000-8000-000000000002", nombre: "Tijeras" }
+
+describe("duplicar en el constructor", () => {
+  const original = {
+    ...nuevoEjercicio(BANCA, "principal", nuevoId),
+    series: "4",
+    carga: "60",
+    nota: "Pausa abajo",
+    idsSeries: ["a", "b", "c", "d"],
+  }
+
+  it("la copia de un ejercicio conserva la pauta pero no los ids de series ni el id", () => {
+    const copia = duplicarEjercicio(original, nuevoId)
+    expect(copia).toEqual({ ...original, id: copia.id, idsSeries: [] })
+    expect(copia.id).not.toBe(original.id)
+    expect(original.idsSeries).toEqual(["a", "b", "c", "d"])
+  })
+
+  it("la copia de un día va a otro día de la semana, se llama «(copia)» y no comparte nada", () => {
+    const dia = {
+      ...nuevoDia(nuevoId, 1),
+      nombre: "Empuje",
+      nota: "Calienta bien",
+      partes: { calentamiento: "8", fuerza: "40", cardio: "", calma: "5" },
+      circuito: { nombre: "Core", vueltas: "2", descanso: "30 s" },
+      ejercicios: [original, nuevoEjercicio(TIJERAS, "calentamiento", nuevoId)],
+    }
+    const copia = duplicarDia(dia, nuevoId, 3)
+    expect(copia.id).not.toBe(dia.id)
+    expect(copia.nombre).toBe("Empuje (copia)")
+    expect(copia.diaSemana).toBe(3)
+    expect(copia.nota).toBe("Calienta bien")
+    expect(copia.partes).toEqual(dia.partes)
+    expect(copia.partes).not.toBe(dia.partes)
+    expect(copia.circuito).toEqual(dia.circuito)
+    expect(copia.circuito).not.toBe(dia.circuito)
+    expect(copia.ejercicios.map((e) => e.nombre)).toEqual(dia.ejercicios.map((e) => e.nombre))
+    const ids = new Set([...dia.ejercicios, ...copia.ejercicios].map((e) => e.id))
+    expect(ids.size).toBe(4)
+    expect(copia.ejercicios.every((e) => e.idsSeries.length === 0)).toBe(true)
+    expect(dia.ejercicios[0]!.idsSeries).toEqual(["a", "b", "c", "d"])
+  })
+
+  it("un día sin nombre se copia sin nombre y uno muy largo sigue cabiendo", () => {
+    expect(duplicarDia(nuevoDia(nuevoId, 1), nuevoId, 2).nombre).toBe("")
+    const largo = { ...nuevoDia(nuevoId, 1), nombre: "x".repeat(120) }
+    const copia = duplicarDia(largo, nuevoId, 2)
+    expect(copia.nombre).toHaveLength(120)
+    expect(copia.nombre.endsWith(" (copia)")).toBe(true)
+  })
+})
 
 describe("constructor de planes", () => {
   it("no aplana series con distinta carga y objetivo dentro de la misma unidad", () => {

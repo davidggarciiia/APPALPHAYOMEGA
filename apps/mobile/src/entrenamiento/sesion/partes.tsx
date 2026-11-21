@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native"
+import { AccessibilityInfo, Pressable, StyleSheet, Text, TextInput, View } from "react-native"
 import Animated, {
   cancelAnimation,
   Easing,
@@ -108,7 +108,11 @@ export function Descanso({
     const cambio = previo.current !== restante
     const termino = previo.current > 0 && restante <= 0
     previo.current = restante
-    if (termino) vibrar("aviso")
+    if (termino) {
+      vibrar("aviso")
+      // La franja desaparece al llegar a cero: sin aviso, el lector no se entera.
+      AccessibilityInfo.announceForAccessibility("Descanso terminado")
+    }
     if (cambio && restante > 0 && restante <= 3) vibrar("suave")
     cancelAnimation(pulso)
     pulso.value = 1

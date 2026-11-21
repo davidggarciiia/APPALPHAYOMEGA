@@ -196,6 +196,26 @@ export class SeguimientoService {
     }
   }
 
+  /**
+   * Borra una medida propia. Lo ajeno (de otro cliente o tomado por su equipo)
+   * y lo que ya no existe responden igual: 404. Borrar no exige consentimiento
+   * vigente: quitar un dato propio siempre debe poder hacerse.
+   */
+  async borrarMedida(
+    identidad: IdentidadVerificada,
+    clienteId: string,
+    id: string,
+  ): Promise<Medida> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.cliente(clienteId, tx)
+      const donde = { id, clienteId, autorId: identidad.sub }
+      const fila = await tx.medidaCorporal.findFirst({ where: donde })
+      if (!fila || (await tx.medidaCorporal.deleteMany({ where: donde })).count === 0)
+        throw new NotFoundException("Medida no disponible")
+      return medida(fila)
+    })
+  }
+
   /** Ruta anterior: las 500 más recientes, en el orden ascendente que esperaba. */
   async medidas(clienteId: string): Promise<ListadoMedidas> {
     const cliente = await this.cliente(clienteId)
@@ -312,6 +332,22 @@ export class SeguimientoService {
     }
   }
 
+  /** Igual que `borrarMedida`: solo la prueba que anotó el propio cliente. */
+  async borrarPrueba(
+    identidad: IdentidadVerificada,
+    clienteId: string,
+    id: string,
+  ): Promise<PruebaFisica> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.cliente(clienteId, tx)
+      const donde = { id, clienteId, autorId: identidad.sub }
+      const fila = await tx.pruebaFisica.findFirst({ where: donde })
+      if (!fila || (await tx.pruebaFisica.deleteMany({ where: donde })).count === 0)
+        throw new NotFoundException("Prueba no disponible")
+      return prueba(fila)
+    })
+  }
+
   /** Ruta anterior: las 500 más recientes, agrupadas por nombre como esperaba. */
   async pruebas(clienteId: string): Promise<ListadoPruebas> {
     await this.cliente(clienteId)
@@ -364,6 +400,7 @@ function diaPublico(fila: DiaSeguimiento): DiaDeSeguimiento {
 function medida(fila: MedidaCorporal): Medida {
   return {
     id: fila.id,
+    autorId: fila.autorId,
     fecha: fecha(fila.fecha),
     pesoKg: numero(fila.pesoKg),
     cinturaCm: numero(fila.cinturaCm),
@@ -376,6 +413,7 @@ function medida(fila: MedidaCorporal): Medida {
 function prueba(fila: FilaPrueba): PruebaFisica {
   return {
     id: fila.id,
+    autorId: fila.autorId,
     pruebaId: fila.pruebaId,
     fecha: fecha(fila.fecha),
     nombre: fila.nombre,

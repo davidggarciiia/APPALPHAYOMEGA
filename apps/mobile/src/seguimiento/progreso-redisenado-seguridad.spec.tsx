@@ -65,7 +65,7 @@ it("permite terminar una solicitud recibida mientras falte una de sus vistas", a
   await render(
     <ProgresoRedisenado clienteId={clienteA} seguimiento={seguimiento} medios={medios} />,
   )
-  await fireEvent.press(await screen.findByRole("button", { name: "Fotos pendientes" }))
+  await fireEvent.press(await screen.findByRole("button", { name: /^Fotos pendientes/ }))
   expect(await screen.findByText("Recibida · faltan 1 vista")).toBeOnTheScreen()
   expect(
     screen.getByRole("button", { name: "Elegir foto de Espalda desde la galería" }),
@@ -82,7 +82,7 @@ it("oculta la solicitud y el contenido del cliente anterior al cambiar de client
   const vista = await render(
     <ProgresoRedisenado clienteId={clienteA} seguimiento={seguimiento} medios={medios} />,
   )
-  await fireEvent.press(await screen.findByRole("button", { name: "Fotos pendientes" }))
+  await fireEvent.press(await screen.findByRole("button", { name: /^Fotos pendientes/ }))
   expect(await screen.findByText("Información privada del cliente A")).toBeOnTheScreen()
   await vista.rerender(
     <ProgresoRedisenado clienteId={clienteB} seguimiento={seguimiento} medios={medios} />,
@@ -166,8 +166,8 @@ it("actualiza la galería cuando el comparador confirma el borrado de una foto",
   )
   await fireEvent.press(screen.getByRole("button", { name: "Eliminar" }))
   await screen.findByLabelText("Frente, 1 oct 2026: foto retirada")
-  expect(screen.queryByRole("header", { name: "2026-10-01" })).toBeNull()
-  expect(await screen.findByRole("header", { name: "2026-10-20" })).toBeOnTheScreen()
+  expect(screen.queryByRole("header", { name: "1 oct 2026" })).toBeNull()
+  expect(await screen.findByRole("header", { name: "20 oct 2026" })).toBeOnTheScreen()
 })
 
 it.each(["eliminando", "eliminado"] as const)(
@@ -254,12 +254,16 @@ it("abre la galería en orden cronológico y solo carga inicialmente unas pocas 
     <ProgresoRedisenado clienteId={clienteA} seguimiento={seguimiento} medios={medios} />,
   )
   await fireEvent.press(await screen.findByRole("button", { name: "Ver galería de fotos" }))
-  expect(await screen.findByRole("header", { name: "2026-10-01" })).toBeOnTheScreen()
-  const fechas = screen
+  expect(await screen.findByRole("header", { name: "1 oct 2026" })).toBeOnTheScreen()
+  const dias = screen
     .getAllByRole("header")
     .map((h) => h.props.children)
-    .filter((texto) => typeof texto === "string" && /^2026-10-\d\d$/.test(texto))
-  expect(fechas).toEqual([...fechas].sort())
+    .flatMap((texto) => {
+      const dia = typeof texto === "string" ? /^(\d{1,2}) oct 2026$/.exec(texto)?.[1] : undefined
+      return dia ? [Number(dia)] : []
+    })
+  const fechas = dias
+  expect(dias).toEqual([...dias].sort((a, b) => a - b))
   expect(fechas.length).toBeLessThan(25)
   expect(acceso.mock.calls.length).toBeLessThanOrEqual(8)
 })

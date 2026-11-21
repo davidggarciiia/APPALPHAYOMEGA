@@ -15,7 +15,7 @@ import type { EstadoUsuario, ResumenUsuario } from "@alpha-omega/shared"
 import Svg, { Circle, Path } from "react-native-svg"
 
 import { Aviso } from "../src/componentes/aviso"
-import { BotonPrincipal, BotonSecundario } from "../src/componentes/botones"
+import { BotonEnlace, BotonPrincipal, BotonSecundario } from "../src/componentes/botones"
 import { Esqueleto, GrupoEsqueletos } from "../src/componentes/esqueleto"
 import { Icono } from "../src/componentes/iconos"
 import { ETIQUETA_DE_ESTADO, InsigniaDeEstado } from "../src/componentes/insignia-estado"
@@ -28,9 +28,9 @@ import { alto, espacio, radio, tema, tipo } from "../src/tema"
 /**
  * Cuantos clientes se piden de una vez.
  *
- * Con la cartera actual sobra de largo. Si algun dia no sobra, la pantalla lo
- * dice en voz alta en lugar de cortar la lista en silencio: ver "mostrando 100
- * de 130" es lo que evita que alguien de por perdido a un cliente que si estaba.
+ * Si la cartera pasa de esa cifra, la pantalla lo dice en voz alta ("mostrando
+ * 100 de 130") y ofrece cargar el siguiente tramo: es lo que evita que alguien
+ * de por perdido a un cliente que si estaba.
  */
 const LIMITE = 100
 
@@ -68,6 +68,11 @@ export default function Cartera(): React.JSX.Element {
   const [refrescando, setRefrescando] = useState(false)
   const [clientes, setClientes] = useState<ResumenUsuario[]>([])
   const [total, setTotal] = useState(0)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const [falloMas, setFalloMas] = useState(false)
+  // Cada carga completa abre una generacion nueva: un "cargar mas" que sale de una
+  // lista anterior (otro filtro, otra busqueda) no puede colgarse de la actual.
+  const generacion = useRef(0)
   const [fallo, setFallo] = useState<Falta>({
     texto: "",
     reintentable: true,
@@ -97,6 +102,9 @@ export default function Cartera(): React.JSX.Element {
     // una respuesta lenta de una busqueda anterior llega con `vigente` en falso
     // y no pisa a la busqueda actual.
     let vigente = true
+    generacion.current += 1
+    setCargandoMas(false)
+    setFalloMas(false)
     setActualizando(true)
 
     listarUsuarios(pedir, {
@@ -109,6 +117,7 @@ export default function Cartera(): React.JSX.Element {
       .then((listado) => {
         if (!vigente) return
 
+        generacion.current += 1
         setClientes(listado.usuarios)
         setTotal(listado.total)
         setFase("listo")
@@ -145,6 +154,36 @@ export default function Cartera(): React.JSX.Element {
     }, []),
   )
 
+  const cargarMas = (): void => {
+    const mia = generacion.current
+    setCargandoMas(true)
+    setFalloMas(false)
+    listarUsuarios(pedir, {
+      rol: "cliente",
+      buscar: busqueda === "" ? undefined : busqueda,
+      estado: filtro ?? undefined,
+      limite: LIMITE,
+      desde: clientes.length,
+    })
+      .then((listado) => {
+        if (mia !== generacion.current) return
+
+        // Si alguien se da de alta mientras tanto, la pagina siguiente repite filas.
+        setClientes((previos) => [
+          ...previos,
+          ...listado.usuarios.filter((nuevo) => !previos.some(({ id }) => id === nuevo.id)),
+        ])
+        setTotal(listado.total)
+        setCargandoMas(false)
+      })
+      .catch(() => {
+        if (mia !== generacion.current) return
+
+        setFalloMas(true)
+        setCargandoMas(false)
+      })
+  }
+
   const hayFiltroPuesto = busqueda !== "" || filtro !== null
   const recortada = clientes.length < total
 
@@ -164,7 +203,7 @@ export default function Cartera(): React.JSX.Element {
             onChangeText={setTexto}
             onFocus={() => setEnfocado(true)}
             onBlur={() => setEnfocado(false)}
-            placeholder="Buscar por nombre y apellidos"
+            placeholder="Buscar por nombre o correo"
             placeholderTextColor={tema.textoTenue}
             selectionColor={tema.acento}
             accessibilityLabel="Buscar cliente"
@@ -263,9 +302,20 @@ export default function Cartera(): React.JSX.Element {
                 }
                 ListFooterComponent={
                   recortada ? (
-                    <Text style={estilos.pie}>
-                      {`Mostrando ${String(clientes.length)} de ${String(total)}`}
-                    </Text>
+                    <View style={estilos.piePagina}>
+                      <Text style={estilos.pie}>
+                        {`Mostrando ${String(clientes.length)} de ${String(total)}`}
+                      </Text>
+                      {falloMas && (
+                        <Aviso mensaje="No hemos podido cargar más clientes." tipo="error" />
+                      )}
+                      <BotonEnlace
+                        texto="Cargar más"
+                        etiquetaAccesible={`Cargar más clientes, quedan ${String(total - clientes.length)}`}
+                        ocupado={cargandoMas || actualizando}
+                        onPress={cargarMas}
+                      />
+                    </View>
                   ) : undefined
                 }
               />
@@ -428,10 +478,10 @@ const estilos = StyleSheet.create({
   error: { paddingHorizontal: espacio[20] },
   vacio: { alignItems: "center", gap: espacio[20], paddingVertical: 64 },
   textoVacio: { ...tipo.titulo, color: tema.texto, textAlign: "center" },
+  piePagina: { gap: espacio[8], marginTop: espacio[12] },
   pie: {
     ...tipo.secundario,
     textAlign: "center",
-    marginTop: espacio[12],
   },
   nuevo: { position: "absolute", right: espacio[20], bottom: espacio[20], minWidth: 124 },
 })

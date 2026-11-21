@@ -207,11 +207,11 @@ it("muestra el peso diario separado de las medidas y con fecha", async () => {
   await render(<ProgresoRedisenado clienteId="cliente" seguimiento={seguimiento} />)
   expect(
     await screen.findByRole("button", {
-      name: "Peso en ayunas, 75,5 kg, registro diario, 2026-10-28",
+      name: "Peso en ayunas, 75,5 kg, registro diario, 28 oct 2026",
     }),
   ).toBeOnTheScreen()
   expect(
-    screen.getByRole("button", { name: "Peso, 80 a 76 kg, −4 kg, medida del 2026-09-15" }),
+    screen.getByRole("button", { name: "Peso, 80 a 76 kg, −4 kg, medida del 15 sep 2026" }),
   ).toBeOnTheScreen()
 })
 
@@ -318,11 +318,15 @@ it("la gráfica de fuerza muestra la carga real en kg y la identifica", async ()
           { fecha: "2026-01-01", valor: 60 },
           { fecha: "2026-02-01", valor: 80 },
         ],
-        descripcion: "Evolución de Press inclinado: carga en kg",
+        unidad: "kg",
+        descripcion:
+          "Evolución de Press inclinado: carga en kg. Primero: 60 kg el 1 ene 2026. Último: 80 kg el 1 feb 2026. Cambio: +20 kg.",
       }),
     )
     expect(
-      screen.getByRole("image", { name: "Evolución de Press inclinado: carga en kg" }),
+      screen.getByRole("image", {
+        name: "Evolución de Press inclinado: carga en kg. Primero: 60 kg el 1 ene 2026. Último: 80 kg el 1 feb 2026. Cambio: +20 kg.",
+      }),
     ).toBeOnTheScreen()
   } finally {
     grafica.mockRestore()

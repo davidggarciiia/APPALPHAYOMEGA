@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
-import { Pressable, StyleSheet, Text, View } from "react-native"
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native"
 import type { CrearSolicitudFotos, MedioFoto, SolicitudFotos, VistaFoto } from "@alpha-omega/shared"
 
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
@@ -31,6 +31,14 @@ const NOMBRE_DE_ESTADO: Record<SolicitudFotos["estado"], string> = {
   pendiente: "Pendiente",
   recibida: "Recibida, sin revisar",
   revisada: "Revisada",
+}
+
+/** Foto elegida que aún no se ha enviado: la persona decide si la usa o la repite. */
+type VistaPrevia = {
+  solicitudId: string
+  vista: VistaPedible
+  origen: OrigenFoto
+  foto: FotoPreparada
 }
 
 type FotoPendiente = {
@@ -189,9 +197,16 @@ export function SolicitudesFotos({
   // suelta al confirmarse, al descartarla o al salir (RI07b).
   const [fotoPendiente, setFotoPendiente] = useState<FotoPendiente | null>(null)
   const fotoPendienteRef = useRef<FotoPendiente | null>(null)
+  const [vistaPrevia, setVistaPrevia] = useState<VistaPrevia | null>(null)
+  const vistaPreviaRef = useRef<VistaPrevia | null>(null)
+  // Con el permiso de la cámara bloqueado, el error ofrece abrir los ajustes.
+  const [ofrecerAjustes, setOfrecerAjustes] = useState(false)
   // Cambiar de pestaña o volver atrás desmonta Progreso y aborta la subida: se pregunta
   // antes, porque la foto solo existe en el móvil hasta que el servidor la confirma.
-  const { proteccion, proteger } = useSalidaProtegida(fotoPendiente !== null, TEXTOS_FOTO)
+  const { proteccion, proteger } = useSalidaProtegida(
+    fotoPendiente !== null || vistaPrevia !== null,
+    TEXTOS_FOTO,
+  )
   const protegerActual = useRef(proteger)
   protegerActual.current = proteger
   useEffect(() => {
@@ -208,6 +223,20 @@ export function SolicitudesFotos({
   const guardarFotoPendiente = (pendiente: FotoPendiente | null): void => {
     fotoPendienteRef.current = pendiente
     if (montado.current) setFotoPendiente(pendiente)
+  }
+  const guardarVistaPrevia = (previa: VistaPrevia | null): void => {
+    vistaPreviaRef.current = previa
+    if (montado.current) setVistaPrevia(previa)
+  }
+  /** Suelta la vista previa si su solicitud ya no admite esa foto; devuelve el motivo. */
+  const soltarPreviaSiNoSirve = (lista: SolicitudFotos[]): string | null => {
+    const previa = vistaPreviaRef.current
+    if (!previa) return null
+    const destino = lista.find((solicitud) => solicitud.id === previa.solicitudId)
+    if (destino && destino.estado !== "revisada" && !enviadaPara(destino, previa.vista)) return null
+    guardarVistaPrevia(null)
+    soltarCopia(previa.foto.uri, porLiberar.current)
+    return `Esa solicitud ya no necesita la foto de ${NOMBRE_DE_VISTA[previa.vista]}; la vista previa se ha descartado.`
   }
   /**
    * Una foto en fallo cuya solicitud ya no la admite (revisada, desaparecida o
@@ -232,6 +261,12 @@ export function SolicitudesFotos({
       montado.current = false
       subidaActiva.current?.abort()
       for (const uri of [...copias]) soltarCopia(uri, copias)
+      // La foto que esperaba una decisión ya no la tomará nadie.
+      const previa = vistaPreviaRef.current
+      if (previa) {
+        vistaPreviaRef.current = null
+        soltarCopia(previa.foto.uri, copias)
+      }
       // Un envío en curso usa su copia y la suelta al terminar; aquí solo se
       // suelta la que esperaba un reintento que ya nadie puede pedir.
       const pendiente = fotoPendienteRef.current
@@ -258,7 +293,7 @@ export function SolicitudesFotos({
           if (!vigente) return
           listaServidor.current = lista
           setSolicitudes(lista)
-          const motivo = soltarSiNoSeReintenta(lista)
+          const motivo = soltarSiNoSeReintenta(lista) ?? soltarPreviaSiNoSirve(lista)
           // Una foto que sigue esperando reintento conserva su explicación.
           setError(motivo ?? (fotoPendienteRef.current?.fase === "fallo" ? NO_SE_ENVIO : ""))
         })
@@ -375,16 +410,21 @@ export function SolicitudesFotos({
     vista: VistaPedible,
     origen: OrigenFoto,
   ): Promise<void> => {
-    if (ocupado || enviandoFoto.current || fotoPendienteRef.current) return
+    if (ocupado || enviandoFoto.current || fotoPendienteRef.current || vistaPreviaRef.current)
+      return
     enviandoFoto.current = true
     const clave = `${solicitud.id}:${vista}`
     setOcupado(true)
     setFotoEnPreparacion(clave)
     setError("")
+    setOfrecerAjustes(false)
     try {
       const obtenida = await obtenerFoto(origen)
       if (obtenida.tipo !== "lista") {
-        if (obtenida.tipo !== "cancelada" && montado.current) setError(obtenida.mensaje)
+        if (obtenida.tipo !== "cancelada" && montado.current) {
+          setError(obtenida.mensaje)
+          setOfrecerAjustes(obtenida.tipo === "sinPermiso" && obtenida.ajustes)
+        }
         return
       }
       if (!montado.current) {
@@ -392,16 +432,8 @@ export function SolicitudesFotos({
         soltarCopia(obtenida.foto.uri, porLiberar.current)
         return
       }
-      const pendiente: FotoPendiente = {
-        solicitudId: solicitud.id,
-        vista,
-        fechaToma: hoyAgenda(),
-        operacionId: nuevoId(),
-        foto: obtenida.foto,
-        fase: "subiendo",
-      }
-      guardarFotoPendiente(pendiente)
-      await transmitirFoto(pendiente)
+      // No se envía nada todavía: primero se ve la foto y se decide.
+      guardarVistaPrevia({ solicitudId: solicitud.id, vista, origen, foto: obtenida.foto })
     } catch {
       if (montado.current)
         setError("No se pudo preparar la foto. Elige otra o inténtalo con la cámara.")
@@ -412,6 +444,40 @@ export function SolicitudesFotos({
         setFotoEnPreparacion(null)
       }
     }
+  }
+
+  /** «Usar esta»: ahora sí se envía, con una operación nueva para esta foto. */
+  const usarFoto = async (): Promise<void> => {
+    const previa = vistaPreviaRef.current
+    if (!previa || ocupado || enviandoFoto.current || fotoPendienteRef.current) return
+    enviandoFoto.current = true
+    setOcupado(true)
+    try {
+      const pendiente: FotoPendiente = {
+        solicitudId: previa.solicitudId,
+        vista: previa.vista,
+        fechaToma: hoyAgenda(),
+        operacionId: nuevoId(),
+        foto: previa.foto,
+        fase: "subiendo",
+      }
+      guardarVistaPrevia(null)
+      guardarFotoPendiente(pendiente)
+      await transmitirFoto(pendiente)
+    } finally {
+      enviandoFoto.current = false
+      if (montado.current) setOcupado(false)
+    }
+  }
+
+  /** «Repetir»: se suelta esta copia y se vuelve a abrir la cámara o la galería. */
+  const repetirFoto = async (): Promise<void> => {
+    const previa = vistaPreviaRef.current
+    if (!previa || ocupado || enviandoFoto.current) return
+    const solicitud = listaServidor.current?.find((x) => x.id === previa.solicitudId)
+    guardarVistaPrevia(null)
+    soltarCopia(previa.foto.uri, porLiberar.current)
+    if (solicitud) await aportar(solicitud, previa.vista, previa.origen)
   }
 
   /** Mismo contenido, misma operación: el reintento no crea otra foto. */
@@ -453,6 +519,13 @@ export function SolicitudesFotos({
         {modo === "cliente" ? "Fotos que te pide tu entrenador" : "Fotos del cliente"}
       </Titulo>
       {error !== "" && <AvisoDeError mensaje={error} />}
+      {ofrecerAjustes && error !== "" && (
+        <BotonSecundario
+          texto="Abrir ajustes"
+          etiquetaAccesible="Abrir los ajustes del móvil para dar permiso a la cámara"
+          onPress={() => void Linking.openSettings().catch(() => undefined)}
+        />
+      )}
       {solicitudes === null ? (
         error === "" && <Text style={s.tenue}>Cargando solicitudes…</Text>
       ) : visibles.length === 0 ? (
@@ -501,6 +574,10 @@ export function SolicitudesFotos({
                     fotoPendiente?.solicitudId === solicitud.id && fotoPendiente.vista === vista
                       ? fotoPendiente
                       : null
+                  const previa =
+                    vistaPrevia?.solicitudId === solicitud.id && vistaPrevia.vista === vista
+                      ? vistaPrevia
+                      : null
                   return (
                     <View key={vista} style={s.vistaSolicitada}>
                       <Text style={s.texto}>
@@ -528,13 +605,44 @@ export function SolicitudesFotos({
                             ? "Confirmando foto…"
                             : "Subiendo foto…"}
                         </Text>
+                      ) : previa ? (
+                        <View style={s.accionesFoto}>
+                          <Image
+                            accessible
+                            accessibilityRole="image"
+                            accessibilityLabel={`Vista previa de la foto de ${NOMBRE_DE_VISTA[vista]}`}
+                            source={{ uri: previa.foto.uri }}
+                            resizeMode="contain"
+                            style={[
+                              s.previa,
+                              {
+                                aspectRatio:
+                                  previa.foto.alto > 0
+                                    ? previa.foto.ancho / previa.foto.alto
+                                    : 0.75,
+                              },
+                            ]}
+                          />
+                          <BotonPrincipal
+                            texto="Usar esta"
+                            etiquetaAccesible={`Usar esta foto de ${NOMBRE_DE_VISTA[vista]} y enviarla`}
+                            ocupado={ocupado}
+                            onPress={() => void usarFoto()}
+                          />
+                          <BotonSecundario
+                            texto="Repetir"
+                            etiquetaAccesible={`Repetir la foto de ${NOMBRE_DE_VISTA[vista]}`}
+                            deshabilitado={ocupado}
+                            onPress={() => void repetirFoto()}
+                          />
+                        </View>
                       ) : !medio && solicitud.estado !== "revisada" ? (
                         <View style={s.accionesFoto}>
                           <BotonSecundario
                             texto={fotoEnPreparacion === clave ? "Abriendo cámara…" : "Hacer foto"}
                             etiquetaAccesible={`Hacer foto de ${NOMBRE_DE_VISTA[vista]} con la cámara`}
                             ocupado={ocupado}
-                            deshabilitado={fotoPendiente !== null}
+                            deshabilitado={fotoPendiente !== null || vistaPrevia !== null}
                             onPress={() => void aportar(solicitud, vista, "camara")}
                           />
                           <BotonSecundario
@@ -545,7 +653,7 @@ export function SolicitudesFotos({
                             }
                             etiquetaAccesible={`Elegir foto de ${NOMBRE_DE_VISTA[vista]} desde la galería`}
                             ocupado={ocupado}
-                            deshabilitado={fotoPendiente !== null}
+                            deshabilitado={fotoPendiente !== null || vistaPrevia !== null}
                             onPress={() => void aportar(solicitud, vista, "galeria")}
                           />
                         </View>
@@ -669,6 +777,12 @@ const s = StyleSheet.create({
   accion: { minHeight: 44, justifyContent: "center" },
   vistaSolicitada: { gap: 8 },
   accionesFoto: { gap: 8 },
+  previa: {
+    width: "100%",
+    maxHeight: 360,
+    borderRadius: 14,
+    backgroundColor: tema.hundido,
+  },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     minHeight: 44,

@@ -33,20 +33,36 @@ async function darDeAlta(): Promise<void> {
   await fireEvent.changeText(screen.getByLabelText("Nombre"), "Lara")
   await fireEvent.changeText(screen.getByLabelText("Apellidos"), "Demo")
   await fireEvent.changeText(screen.getByLabelText("Correo"), "lara@prueba.local")
-  await fireEvent.press(screen.getByRole("button", { name: "DAR DE ALTA" }))
+  await fireEvent.press(screen.getByRole("button", { name: "Dar de alta" }))
 }
 
 it("tras crear un cliente ofrece su valoración inicial sin volver a crearlo", async () => {
   await darDeAlta()
   const valorar = await screen.findByRole("button", { name: "Valoración inicial" })
   expect(mockReplace).not.toHaveBeenCalled()
-  expect(screen.queryByRole("button", { name: "DAR DE ALTA" })).toBeNull()
+  expect(screen.queryByRole("button", { name: "Dar de alta" })).toBeNull()
   await fireEvent.press(valorar)
   expect(mockReplace).toHaveBeenCalledWith({
     pathname: "/entrenador/cliente/[id]",
     params: { id: CLIENTE, valoracionInicial: "1" },
   })
   expect(crearUsuario).toHaveBeenCalledTimes(1)
+})
+
+it("tras crear un cliente también ofrece crear su plan", async () => {
+  await darDeAlta()
+  await fireEvent.press(await screen.findByRole("button", { name: "Crear plan" }))
+  expect(mockReplace).toHaveBeenCalledWith({
+    pathname: "/entrenador/cliente/[id]/plan",
+    params: { id: CLIENTE },
+  })
+  expect(crearUsuario).toHaveBeenCalledTimes(1)
+})
+
+it("el formulario no usa botones en mayúsculas escritas", async () => {
+  await render(<NuevoCliente />)
+  expect(screen.getByRole("button", { name: "Dar de alta" })).toBeOnTheScreen()
+  expect(screen.getByRole("button", { name: "Cancelar" })).toBeOnTheScreen()
 })
 
 it("un correo no enviado conserva el acceso para reenviar la activación", async () => {

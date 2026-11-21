@@ -13,7 +13,7 @@ import {
   type PrescripcionConDistancia,
 } from "./registro-modelo"
 import { PrescripcionVisible, type ResultadoConDistancia } from "./resultado"
-import { ajusteDeSerie, TablaSeries, type FocoSerie } from "./tabla-series"
+import { ajusteDeSerie, cargaDePartida, TablaSeries, type FocoSerie } from "./tabla-series"
 import { BarraAjuste } from "../componentes/barra-ajuste"
 
 const ventanaOriginal = Dimensions.get("window")
@@ -263,13 +263,13 @@ describe("D2 · tabla completa y barra compartida", () => {
     await screen.rerender(
       <TablaSeries {...props} recordPersonal={{ serieId, mejora: "+2 reps" }} />,
     )
-    expect(screen.getByLabelText("Récord personal: +2 reps")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Mejor que la última vez: +2 reps")).toBeOnTheScreen()
     const durante = screen.getByTestId(`serie-lista-${serieId}`)
     expect(durante.props.layout).toBeUndefined()
     expect(durante.props.entering).toBeUndefined()
     expect(durante.props.exiting).toBeUndefined()
     await screen.rerender(<TablaSeries {...props} />)
-    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
     expect(screen.getByTestId(`serie-lista-${serieId}`).props.layout).toBeUndefined()
   })
   it.each([
@@ -1057,5 +1057,118 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
     expect(
       screen.getByLabelText("Serie 1. Hecho: 30 s. Objetivo: 30 s. RIR sin registrar"),
     ).toBeOnTheScreen()
+  })
+})
+
+describe("Lo que escribió el entrenador y la carga de partida", () => {
+  const A = "20000000-0000-4000-8000-0000000000a1"
+  const B = "20000000-0000-4000-8000-0000000000a2"
+  const C = "20000000-0000-4000-8000-0000000000a3"
+  const conCarga: EjercicioPrescrito = {
+    ...ejercicio,
+    nombre: "Press banca",
+    tipoCarga: "conCargaExterna",
+    modoRir: "desactivado",
+    series: [A, B, C].map((id) => ({
+      id,
+      tipoMedicion: "repeticiones" as const,
+      repeticiones: 8,
+      pesoKg: null,
+    })),
+  }
+  const real = (serieId: string, peso: string) => ({ serieId, peso, valor: "", hecha: false })
+  const ultima = {
+    valores: { tipoMedicion: "repeticiones" as const, pesoKg: 50, repeticiones: 8 },
+    series: [
+      {
+        numero: 2,
+        valores: { tipoMedicion: "repeticiones" as const, pesoKg: 52.5, repeticiones: 8 },
+      },
+    ],
+  }
+
+  it("parte de la pauta; si no, de la serie anterior de esta sesión", () => {
+    const series = [real(A, "60"), real(B, ""), real(C, "")]
+    expect(cargaDePartida(conCarga, series, B)).toBe(60)
+    expect(cargaDePartida(conCarga, series, C, null, ultima)).toBe(60)
+    const pautada = { ...conCarga, series: conCarga.series.map((s) => ({ ...s, pesoKg: 80 })) }
+    expect(cargaDePartida(pautada, series, B, null, ultima)).toBe(80)
+  })
+
+  it("salta las series sin kilos y acepta la coma decimal", () => {
+    const series = [real(A, "62,5"), real(B, ""), real(C, "")]
+    expect(cargaDePartida(conCarga, series, C)).toBe(62.5)
+    expect(cargaDePartida(conCarga, [real(A, "abc"), real(B, ""), real(C, "")], C)).toBeNull()
+  })
+
+  it("sin nada escrito usa la fase y, después, la última vez (por número de serie)", () => {
+    const vacias = [real(A, ""), real(B, ""), real(C, "")]
+    expect(cargaDePartida(conCarga, vacias, A, 45, ultima)).toBe(45)
+    expect(cargaDePartida(conCarga, vacias, B, null, ultima)).toBe(52.5)
+    expect(cargaDePartida(conCarga, vacias, A, null, ultima)).toBe(50)
+    expect(cargaDePartida(conCarga, vacias, A)).toBeNull()
+    expect(cargaDePartida(conCarga, vacias, "otra")).toBeNull()
+  })
+
+  it("muestra la carga propuesta en la celda y como valor de la barra sin registrarla", async () => {
+    const series = [real(A, "60"), real(B, ""), real(C, "")]
+    const cambiar = jest.fn()
+    await render(
+      <TablaSeries ejercicio={conCarga} series={series} bloqueado={false} cambiar={cambiar} />,
+    )
+    expect(
+      screen.getByRole("button", { name: "Peso — Press banca, serie 2: 60" }),
+    ).toBeOnTheScreen()
+    expect(cambiar).not.toHaveBeenCalled()
+    expect(
+      ajusteDeSerie(conCarga, series[1]!, "peso", cargaDePartida(conCarga, series, B)),
+    ).toMatchObject({ unidad: "kg", valor: 60 })
+  })
+
+  it("enseña nota, alternativas, dosis y calibrado del ejercicio", async () => {
+    await render(
+      <TablaSeries
+        ejercicio={{
+          ...conCarga,
+          nota: "Pausa de un segundo abajo",
+          alternativas: ["Press mancuernas", "Flexiones lastradas"],
+          dosis: "3×8 por lado",
+          calibrar: true,
+        }}
+        series={[real(A, ""), real(B, ""), real(C, "")]}
+        bloqueado={false}
+        cambiar={jest.fn()}
+      />,
+    )
+    expect(
+      screen.getByLabelText("Nota del entrenador: Pausa de un segundo abajo"),
+    ).toBeOnTheScreen()
+    expect(
+      screen.getByText("Alternativas · Press mancuernas, Flexiones lastradas"),
+    ).toBeOnTheScreen()
+    expect(screen.getByText("Dosis · 3×8 por lado")).toBeOnTheScreen()
+    expect(screen.getByText(/Carga por calibrar/)).toBeOnTheScreen()
+  })
+
+  it("en pausa, tocar una serie la reanuda sin anotar ni enfocar nada", async () => {
+    const cambiar = jest.fn()
+    const reanudar = jest.fn()
+    const enfocar = jest.fn()
+    await render(
+      <TablaSeries
+        ejercicio={conCarga}
+        series={[real(A, "60"), real(B, ""), real(C, "")]}
+        bloqueado={false}
+        pausado
+        reanudar={reanudar}
+        cambiar={cambiar}
+        enfocar={enfocar}
+      />,
+    )
+    await fireEvent.press(screen.getByRole("checkbox", { name: "Hecha — Press banca, serie 1" }))
+    await fireEvent.press(screen.getByRole("button", { name: /^Peso — Press banca, serie 2/ }))
+    expect(reanudar).toHaveBeenCalledTimes(2)
+    expect(cambiar).not.toHaveBeenCalled()
+    expect(enfocar).not.toHaveBeenCalled()
   })
 })

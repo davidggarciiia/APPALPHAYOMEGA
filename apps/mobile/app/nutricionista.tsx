@@ -31,6 +31,12 @@ export default function Nutricionista(): React.JSX.Element {
   const { estado: sesion, pedir } = useSesion()
   const router = useRouter()
 
+  // Si se llegó por un enlace no hay historial al que volver: se va al inicio.
+  const volver = (): void => {
+    if (router.canGoBack()) router.back()
+    else router.replace("/")
+  }
+
   const [fase, setFase] = useState<Fase>("cargando")
   const [nutri, setNutri] = useState<ResumenUsuario | null>(null)
   const [clientes, setClientes] = useState<ResumenUsuario[]>([])
@@ -169,7 +175,7 @@ export default function Nutricionista(): React.JSX.Element {
         <BotonSecundario
           texto="VOLVER"
           onPress={() => {
-            router.back()
+            volver()
           }}
         />
       </View>
@@ -193,7 +199,7 @@ export default function Nutricionista(): React.JSX.Element {
         <BotonSecundario
           texto="VOLVER"
           onPress={() => {
-            router.back()
+            volver()
           }}
         />
       </View>
@@ -206,7 +212,7 @@ export default function Nutricionista(): React.JSX.Element {
     <SafeAreaView style={estilos.pantalla}>
       <View style={estilos.cabecera}>
         <Text style={estilos.titulo}>NUTRICIONISTA</Text>
-        <BotonEnlace texto="VOLVER" onPress={() => router.back()} />
+        <BotonEnlace texto="VOLVER" onPress={volver} />
       </View>
 
       <View style={estilos.ficha}>

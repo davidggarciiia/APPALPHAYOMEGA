@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react"
-import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text } from "react-native"
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text } from "react-native"
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -11,7 +11,11 @@ import { espacio, radio, tema, tipo } from "../tema"
 import { BotonDestructivo, BotonPrincipal, BotonSecundario } from "./botones"
 import { CURVA, useMovimientoReducido } from "./movimiento"
 
-/** La operación ocupada también bloquea la salida por Android. */
+/**
+ * La operación ocupada también bloquea la salida por Android. El contenido se
+ * desplaza si no cabe (teclado abierto, letra grande o muchos campos); si cabe,
+ * el diálogo se ve igual que antes.
+ */
 export function Dialogo({
   visible,
   titulo,
@@ -80,18 +84,25 @@ export function Dialogo({
         style={s.velo}
       >
         <Animated.View accessibilityViewIsModal style={[s.dialogo, cuerpo]}>
-          <Text accessibilityRole="header" style={s.titulo}>
-            {titulo}
-          </Text>
-          <Text style={s.texto}>{texto}</Text>
-          {children}
-          <Confirmar texto={confirmar} onPress={alConfirmar} ocupado={ocupado} sinMargen />
-          <BotonSecundario
-            texto={cancelar}
-            onPress={alCancelar}
-            deshabilitado={ocupado}
-            sinMargen
-          />
+          <ScrollView
+            testID="dialogo-desplazable"
+            style={s.desplazable}
+            contentContainerStyle={s.contenido}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text accessibilityRole="header" style={s.titulo}>
+              {titulo}
+            </Text>
+            <Text style={s.texto}>{texto}</Text>
+            {children}
+            <Confirmar texto={confirmar} onPress={alConfirmar} ocupado={ocupado} sinMargen />
+            <BotonSecundario
+              texto={cancelar}
+              onPress={alCancelar}
+              deshabilitado={ocupado}
+              sinMargen
+            />
+          </ScrollView>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -107,11 +118,13 @@ const s = StyleSheet.create({
     paddingTop: 22,
     paddingHorizontal: espacio[20],
     paddingBottom: espacio[16],
-    gap: espacio[12],
     width: "100%",
     maxWidth: 520,
+    maxHeight: "100%",
     alignSelf: "center",
   },
+  desplazable: { flexGrow: 0 },
+  contenido: { gap: espacio[12] },
   titulo: {
     color: tema.texto,
     fontFamily: tema.fuenteTitulo,

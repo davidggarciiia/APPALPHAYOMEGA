@@ -1,13 +1,13 @@
 import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { ResumenUsuario } from "@alpha-omega/shared"
 
-import { BotonEnlace, BotonSecundario } from "../src/componentes/formulario"
-import { InsigniaDeEstado } from "../src/componentes/insignia-estado"
+import { BotonSecundario } from "../src/componentes/formulario"
 import { listarMisClientes } from "../src/lib/api"
 import { faltaDe, type Falta } from "../src/lib/errores"
+import { ListaClientes, nombreCompleto } from "../src/nutricion/lista-clientes"
 import { useSesion } from "../src/sesion"
 import { tema } from "../src/tema"
 
@@ -84,59 +84,19 @@ export default function MisClientes(): React.JSX.Element {
             }}
           />
         )}
-        <BotonSecundario
-          texto="VOLVER"
-          onPress={() => {
-            router.back()
-          }}
-        />
       </View>
     )
   }
 
   return (
     <SafeAreaView style={estilos.pantalla}>
-      <View style={estilos.cabecera}>
-        <Text style={estilos.titulo}>MIS CLIENTES</Text>
-        <BotonEnlace texto="VOLVER" onPress={() => router.back()} />
-      </View>
-
-      <FlatList
-        data={clientes}
-        keyExtractor={(cliente) => cliente.id}
-        contentContainerStyle={estilos.lista}
-        renderItem={({ item }) => {
-          const nombre = [item.nombre, item.apellidos].filter(Boolean).join(" ")
-
-          return (
-            <Pressable
-              style={({ pressed }) => [estilos.fila, pressed && estilos.filaPulsada]}
-              accessibilityRole="button"
-              accessibilityLabel={`${nombre}. ${item.email}`}
-              accessibilityHint="Abre su dieta"
-              onPress={() =>
-                router.push({
-                  pathname: "/nutricion/cliente/[id]",
-                  params: { id: item.id, nombre },
-                })
-              }
-            >
-              <View style={estilos.datos}>
-                <Text style={estilos.nombre} numberOfLines={1}>
-                  {nombre}
-                </Text>
-                <Text style={estilos.correo} numberOfLines={1}>
-                  {item.email}
-                </Text>
-              </View>
-              <InsigniaDeEstado estado={item.estado} />
-            </Pressable>
-          )
-        }}
-        ListEmptyComponent={
-          <Text style={estilos.vacio}>
-            El entrenador todavía no te ha asignado ningún cliente. Cuando lo haga aparecerán aquí.
-          </Text>
+      <ListaClientes
+        clientes={clientes}
+        abrir={(cliente) =>
+          router.push({
+            pathname: "/nutricion/cliente/[id]",
+            params: { id: cliente.id, nombre: nombreCompleto(cliente) },
+          })
         }
       />
     </SafeAreaView>
@@ -152,38 +112,5 @@ const estilos = StyleSheet.create({
     backgroundColor: tema.fondo,
     padding: 24,
   },
-  cabecera: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  titulo: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 16, letterSpacing: 3 },
   aviso: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 15, textAlign: "center" },
-  lista: { padding: 20, gap: 10 },
-  fila: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: tema.superficie,
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 14,
-    gap: 12,
-  },
-  filaPulsada: { borderColor: tema.acento },
-  datos: { flex: 1, gap: 3 },
-  nombre: { fontFamily: tema.fuenteTexto, color: tema.texto, fontSize: 16 },
-  correo: { fontFamily: tema.fuenteTexto, color: tema.textoTenue, fontSize: 12 },
-  vacio: {
-    fontFamily: tema.fuenteTexto,
-    color: tema.textoTenue,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
-    marginTop: 40,
-  },
 })

@@ -11,6 +11,7 @@ import {
   ListadoPruebasSchema,
   MedidaSchema,
   PlanAsignadoSchema,
+  PruebaFisicaSchema,
   ProgresionFuerzaSchema,
   ZONA_AGENDA,
   VERSION_CONSENTIMIENTO,
@@ -293,6 +294,88 @@ describe("Seguimiento del cliente", () => {
         }),
       ]),
     )
+  })
+
+  it("el cliente borra solo lo que anotó él; lo de su equipo, lo ajeno y lo ya borrado dan 404", async () => {
+    const { app, como, ids, prisma } = entorno
+    const http = app.getHttpServer()
+    const nueva = async (rol: "cliente" | "entrenador", fecha: string) =>
+      MedidaSchema.parse(
+        (
+          await request(http)
+            .post(ruta(ids.cliente!, "medidas"))
+            .set(como(rol))
+            .send({
+              operacionId: randomUUID(),
+              fecha,
+              pesoKg: 90.5,
+              cinturaCm: null,
+              grasaPct: null,
+              alturaCm: null,
+            })
+            .expect(201)
+        ).body,
+      )
+    const propia = await nueva("cliente", dia(-20))
+    const delEquipo = await nueva("entrenador", dia(-19))
+    expect(propia.autorId).toBe(ids.cliente)
+    expect(delEquipo.autorId).toBe(ids.entrenador)
+
+    const borrar = (
+      rol: "cliente" | "entrenador" | "nutricionista",
+      id: string,
+      cliente = ids.cliente!,
+    ) =>
+      request(http)
+        .delete(ruta(cliente, `medidas/${id}`))
+        .set(como(rol))
+    // Solo el cliente borra, y solo lo suyo.
+    await borrar("entrenador", propia.id).expect(403)
+    await borrar("nutricionista", propia.id).expect(403)
+    await borrar("cliente", delEquipo.id).expect(404)
+    await borrar("cliente", propia.id, ids.otro!).expect(403)
+    await request(http)
+      .delete(ruta(ids.cliente!, "medidas/no-es-un-uuid"))
+      .set(como("cliente"))
+      .expect(400)
+
+    expect(MedidaSchema.parse((await borrar("cliente", propia.id).expect(200)).body).id).toBe(
+      propia.id,
+    )
+    await borrar("cliente", propia.id).expect(404)
+    const ids_ = ListadoMedidasSchema.parse(
+      (await request(http).get(ruta(ids.cliente!, "medidas")).set(como("cliente")).expect(200))
+        .body,
+    ).medidas.map((m) => m.id)
+    expect(ids_).not.toContain(propia.id)
+    expect(ids_).toContain(delEquipo.id)
+    await prisma.medidaCorporal.delete({ where: { id: delEquipo.id } })
+
+    // Con las pruebas ocurre lo mismo.
+    const anotada = PruebaFisicaSchema.parse(
+      (
+        await request(http)
+          .post(ruta(ids.cliente!, "pruebas"))
+          .set(como("entrenador"))
+          .send({
+            operacionId: randomUUID(),
+            fecha: dia(-18),
+            nombre: "Plancha borrable",
+            valor: 45,
+            unidad: "s",
+          })
+          .expect(201)
+      ).body,
+    )
+    await request(http)
+      .delete(ruta(ids.cliente!, `pruebas/${anotada.id}`))
+      .set(como("cliente"))
+      .expect(404)
+    await prisma.pruebaFisica.delete({ where: { id: anotada.id } })
+    await request(http)
+      .delete(ruta(ids.cliente!, `pruebas/${anotada.id}`))
+      .set(como("cliente"))
+      .expect(404)
   })
 
   it("dos medidas simultáneas del mismo UUID devuelven la misma fila", async () => {

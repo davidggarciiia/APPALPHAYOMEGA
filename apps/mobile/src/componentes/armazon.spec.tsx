@@ -173,3 +173,28 @@ it.each([430, 1440])(
     expect(mockRouter.replace).toHaveBeenCalledWith("/cartera")
   },
 )
+
+it.each([
+  ["/entrenador/cliente/abc", "Ficha de cliente"],
+  ["/entrenador/cliente/abc/plan", "Plan de entrenamiento"],
+  ["/entrenador/cliente/abc/sesiones", "Sesiones"],
+  ["/entrenador/cliente/abc/progreso", "Progreso"],
+  ["/entrenador/cliente/abc/valoraciones", "Valoraciones"],
+  ["/entrenador/cliente/abc/molestias", "Molestias"],
+  ["/entrenador/cliente/abc/ejercicio/press", "Ejercicio"],
+  ["/entrenador/sesion/abc/ajustar", "Ajustar sesión"],
+  ["/catalogo", "Ejercicios"],
+])("en escritorio %s se titula «%s», no con un título fijo", async (ruta, titulo) => {
+  mockAncho = 1440
+  jest.mocked(usePathname).mockReturnValue(ruta)
+  await render(<Pantalla />)
+  expect(screen.getByRole("header", { name: titulo })).toBeOnTheScreen()
+})
+
+it("la barra lateral del entrenador llama Ejercicios a la pestaña del catálogo", async () => {
+  mockAncho = 1440
+  jest.mocked(usePathname).mockReturnValue("/")
+  await render(<Pantalla />)
+  expect(screen.getByRole("tab", { name: "Ejercicios" })).toBeOnTheScreen()
+  expect(screen.queryByText(/catálogo/i)).toBeNull()
+})

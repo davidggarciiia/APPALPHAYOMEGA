@@ -127,7 +127,7 @@ it("muestra Cadera y Brazo publicados con cambio neutro y conserva Peso legacy",
   expect(screen.queryByText("Histórico sin método")).toBeNull()
   await fireEvent.press(screen.getByRole("button", { name: /^Cadera,/ }))
   expect(screen.getByRole("header", { name: "Cadera · Cinta métrica" })).toBeOnTheScreen()
-  expect(screen.getByText("2026-04-10: 98 cm")).toBeOnTheScreen()
+  expect(screen.getByText("10 abr 2026: 98 cm")).toBeOnTheScreen()
 })
 
 it("no muestra medidas publicadas en cm cuando cintura está desactivada", async () => {
@@ -202,6 +202,6 @@ it("mantiene versiones y métodos distintos separados y visibles, sin inventar u
   expect(segunda.props.accessibilityLabel).not.toMatch(/−30|110 a 80/)
   await fireEvent.press(segunda)
   expect(screen.getByRole("header", { name: "Cadera · Cinta B" })).toBeOnTheScreen()
-  expect(screen.getByText("2026-04-10: 80 cm")).toBeOnTheScreen()
-  expect(screen.queryByText("2026-01-10: 110 cm")).toBeNull()
+  expect(screen.getByText("10 abr 2026: 80 cm")).toBeOnTheScreen()
+  expect(screen.queryByText("10 ene 2026: 110 cm")).toBeNull()
 })

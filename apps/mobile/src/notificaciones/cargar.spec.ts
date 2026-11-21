@@ -126,3 +126,35 @@ it("deja de recorrer la cartera al abandonar la consulta, antes de abrir el sigu
   ).rejects.toThrow("Consulta cancelada")
   expect(api.novedades).toHaveBeenCalledTimes(4)
 })
+
+it("el entrenador no consulta a los clientes dados de baja pero sigue paginando la cartera", async () => {
+  const clientes = Array.from({ length: 103 }, (_, i) => ({
+    id: String(i),
+    nombre: "Lucía",
+    apellidos: `Pérez ${i}`,
+    rol: "cliente" as const,
+    email: `${i}@prueba.local`,
+    estado: i % 2 === 0 ? ("desactivado" as const) : ("activo" as const),
+  }))
+  jest.mocked(listarUsuarios).mockImplementation(async (_pedir, filtros) => ({
+    usuarios: clientes.slice(filtros.desde, filtros.desde + filtros.limite),
+    total: clientes.length,
+  }))
+  const api = { novedades: jest.fn(async () => ({ novedades: [], total: 0, sinLeer: 0 })) }
+  const avisos = { avisos: jest.fn(async () => ({ avisos: [], sinLeer: 0 })) }
+  const buzones = await cargarNotificaciones(
+    { rol: "entrenador" } as UsuarioPublico,
+    pedir,
+    api,
+    avisos,
+  )
+  expect(listarUsuarios).toHaveBeenLastCalledWith(pedir, {
+    rol: "cliente",
+    limite: 100,
+    desde: 100,
+  })
+  expect(buzones).toHaveLength(51)
+  expect(buzones.every((buzon) => Number(buzon.id) % 2 === 1)).toBe(true)
+  expect(api.novedades).toHaveBeenCalledTimes(51)
+  expect(avisos.avisos).toHaveBeenCalledTimes(51)
+})

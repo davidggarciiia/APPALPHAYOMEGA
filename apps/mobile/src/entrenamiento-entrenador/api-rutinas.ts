@@ -38,6 +38,21 @@ export function crearApiRutinas(pedir: PeticionAutenticada): ApiRutinas {
       }),
   }
 }
+
+const MARCA_DE_COPIA = " (copia)"
+
+/**
+ * Duplica una rutina con las llamadas que ya hay: lee la original y crea otra con
+ * «(copia)» en el nombre. El servidor no tiene un «duplicar» propio; la copia es una
+ * rutina nueva (revisión 0) y la original no se toca.
+ */
+export async function duplicarRutina(api: ApiRutinas, id: string): Promise<RutinaGuardada> {
+  const original = await api.leer(id)
+  // El nombre admite 120 caracteres: la marca no debe empujarlo fuera.
+  const nombre = `${original.nombre.slice(0, 120 - MARCA_DE_COPIA.length).trimEnd()}${MARCA_DE_COPIA}`
+  return api.crear({ nombre, patron: original.patron })
+}
+
 export function useRutinas(): ApiRutinas {
   const { pedir } = useSesion()
   return useMemo(() => crearApiRutinas(pedir), [pedir])

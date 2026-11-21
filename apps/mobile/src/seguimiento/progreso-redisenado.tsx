@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { randomUUID } from "expo-crypto"
 import { useFocusEffect } from "expo-router"
 import {
@@ -17,15 +17,21 @@ import type {
   DiaDeSeguimiento,
   Evolucion,
   ListadoMedidas,
+  Medida,
   MedioFoto,
   ProgresionFuerza,
+  ProximaRevision,
   PruebaFisica,
   SolicitudFotos,
 } from "@alpha-omega/shared"
+import { Dialogo } from "../componentes/dialogo"
+import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { hoyAgenda, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
+import { fechaCorta } from "../entrenamiento/plan/modelo"
 import { tema, tipo } from "../tema"
 import { faltaDe } from "../lib/errores"
+import { ErrorDelServidor } from "../lib/http"
 import type { ApiSeguimiento } from "./api"
 import type { ApiMedios } from "./medios-api"
 import type { ApiEvolucionAvisos, ApiValoracionesCliente } from "./valoraciones-api"
@@ -34,7 +40,7 @@ import { resumenDeSemana, miles, suenoLegible } from "./modelo"
 import { Grafica } from "./grafica"
 import { EvolucionValoraciones } from "./evolucion-valoraciones"
 import { ComparadorFotos, ImagenPrivada } from "./comparador-fotos"
-import { FotosProgreso } from "./fotos-progreso"
+import { FotosProgreso, nombreDePose } from "./fotos-progreso"
 import { FilaComparativa, TarjetaPeso, type Comparativa } from "./tarjetas-progreso"
 import { SolicitudesFotos } from "./solicitudes-fotos"
 import { AnadirMedida, AnadirPrueba } from "./formularios"
@@ -47,11 +53,16 @@ type Datos = {
   fuerza: ProgresionFuerza["ejercicios"]
   pruebas: PruebaFisica[]
 }
+/** Un registro que el propio cliente puede borrar desde el historial. */
+type RegistroBorrable = { tipo: "medida" | "prueba"; id: string; resumen: string }
+type LineaHistorial = { texto: string; borrar?: RegistroBorrable }
 type Detalle = {
   titulo: string
   descripcionGrafica?: string
   puntos?: { fecha: string; valor: number }[]
-  historial?: string[]
+  /** Unidad de los puntos: rotula el eje y la descripción accesible de la gráfica. */
+  unidad?: string
+  historial?: LineaHistorial[]
   evolucion?: boolean
   fotos?: boolean
   solicitudes?: boolean
@@ -70,6 +81,8 @@ type Fila = {
   fechaActual?: string
 }
 type Seccion = { titulo: string; data: Fila[] }
+/** Qué detalle está abierto: una fila (se relee de los datos vivos) o una pantalla propia. */
+type Abierto = { clave: string } | { especial: Detalle }
 
 function posicionEnTarjeta(
   filas: Fila[],
@@ -90,11 +103,65 @@ const fechaOrden = (
 ): number =>
   a.fecha.localeCompare(b.fecha) || a.creadoEn.localeCompare(b.creadoEn) || a.id.localeCompare(b.id)
 
+/** «30 oct 2026»: entre registros pasan meses, así que el año cuenta. */
+const fechaLarga = (fecha: string): string => `${fechaCorta(fecha)} ${fecha.slice(0, 4)}`
+
+const cambioLegible = (n: number, unidad: string): string =>
+  `${n > 0 ? "+" : n < 0 ? "−" : ""}${numero(Math.abs(n))} ${unidad}`
+
+/** La gráfica es una imagen para el lector de pantalla: se lee con sus cifras. */
+function etiquetaGrafica(
+  base: string,
+  puntos: { fecha: string; valor: number }[],
+  unidad: string,
+): string {
+  const primero = puntos[0]!
+  const ultimo = puntos[puntos.length - 1]!
+  return `${base}. Primero: ${numero(primero.valor)} ${unidad} el ${fechaLarga(primero.fecha)}. Último: ${numero(ultimo.valor)} ${unidad} el ${fechaLarga(ultimo.fecha)}. Cambio: ${cambioLegible(Number((ultimo.valor - primero.valor).toPrecision(12)), unidad)}.`
+}
+
+/** Todo lo que lleva una medida: borrarla quita todos sus datos, no solo el que se ve. */
+function resumenMedida(m: Medida): string {
+  const partes = [
+    m.pesoKg !== null && `peso ${numero(m.pesoKg)} kg`,
+    m.cinturaCm !== null && `cintura ${numero(m.cinturaCm)} cm`,
+    m.grasaPct !== null && `grasa ${numero(m.grasaPct)} %`,
+    m.alturaCm !== null && `altura ${m.alturaCm} cm`,
+  ].filter((parte) => parte !== false)
+  return `Medida del ${fechaLarga(m.fecha)}: ${partes.join(", ")}`
+}
+
+const textoObjetivo = (objetivo: NonNullable<ConfiguracionSeguimiento["objetivoPeso"]>): string => {
+  const base =
+    objetivo.direccion === "bajar"
+      ? "Bajar de peso"
+      : objetivo.direccion === "subir"
+        ? "Subir de peso"
+        : "Mantener tu peso"
+  return objetivo.rangoKg
+    ? `${base} · entre ${numero(objetivo.rangoKg.minimo)} y ${numero(objetivo.rangoKg.maximo)} kg`
+    : base
+}
+
 type Propiedades = {
   clienteId: string
   seguimiento: ApiSeguimiento
   valoraciones?: ApiValoracionesCliente & Pick<ApiEvolucionAvisos, "evolucion">
   medios?: ApiMedios
+  /** Abre directamente las solicitudes de fotos o las valoraciones (enlace de una notificación). */
+  abrir?: "fotos" | "valoraciones"
+  /** Se avisa al abrir, para que la ruta olvide el parámetro y un enlace igual pueda repetirse. */
+  alAbrir?: () => void
+}
+
+function Confirmacion({ texto }: { texto: string }): React.JSX.Element {
+  return (
+    <View style={s.confirmacion}>
+      <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={s.textoConfirmacion}>
+        {texto}
+      </Text>
+    </View>
+  )
 }
 
 export function ProgresoRedisenado(props: Propiedades): React.JSX.Element {
@@ -106,8 +173,11 @@ function ProgresoPorCuenta({
   seguimiento,
   valoraciones,
   medios,
+  abrir,
+  alAbrir,
 }: Propiedades): React.JSX.Element {
   const [datos, setDatos] = useState<Datos | null>(null)
+  const [proxima, setProxima] = useState<ProximaRevision | null>(null)
   const [evolucion, setEvolucion] = useState<Evolucion | null>(null)
   const [fotos, setFotos] = useState<MedioFoto[]>([])
   const [solicitudes, setSolicitudes] = useState<SolicitudFotos[]>([])
@@ -116,8 +186,24 @@ function ProgresoPorCuenta({
   const [erroresAdicionales, setErroresAdicionales] = useState<string[]>([])
   const [cargasAdicionales, setCargasAdicionales] = useState(0)
   const [intento, setIntento] = useState(0)
-  const [detalle, setDetalle] = useState<Detalle | null>(null)
+  const [abierto, setAbierto] = useState<Abierto | null>(null)
+  const [aBorrar, setABorrar] = useState<RegistroBorrable | null>(null)
+  const [borrando, setBorrando] = useState(false)
+  const [errorBorrado, setErrorBorrado] = useState("")
+  const [confirmacion, setConfirmacion] = useState<{ texto: string; id: number } | null>(null)
+  const confirmar = (texto: string): void =>
+    setConfirmacion((anterior) => ({ texto, id: (anterior?.id ?? 0) + 1 }))
+  const consumido = useRef<string | undefined>(undefined)
   const [solicitudesMontadas, setSolicitudesMontadas] = useState(false)
+  // Tras la primera carga, volver a la pantalla recarga en silencio: sin vaciar nada.
+  const cargado = useRef(false)
+  const borrandoAhora = useRef(false)
+  const atrasValoraciones = useRef<(() => boolean) | null>(null)
+  const registrarAtras = useCallback((atras: (() => boolean) | null) => {
+    atrasValoraciones.current = atras
+  }, [])
+  const alAbrirActual = useRef(alAbrir)
+  alAbrirActual.current = alAbrir
   const cierreProtegido = useRef<((salir: () => void) => void) | null>(null)
   const registrarCierre = useCallback((proteger: ((salir: () => void) => void) | null) => {
     cierreProtegido.current = proteger
@@ -129,56 +215,75 @@ function ProgresoPorCuenta({
   useFocusEffect(
     useCallback(() => {
       let vigente = true
-      setDatos(null)
-      setEvolucion(null)
-      setFotos([])
-      setSolicitudes([])
-      setError("")
-      setReintentable(true)
-      setErroresAdicionales([])
-      setDetalle(null)
-      setCargasAdicionales((valoraciones ? 1 : 0) + (medios ? 2 : 0))
+      // Primera carga: esqueleto. Después, lo que ya se ve se queda y se renueva al llegar.
+      const inicial = !cargado.current
+      if (inicial) {
+        setDatos(null)
+        setEvolucion(null)
+        setProxima(null)
+        setFotos([])
+        setSolicitudes([])
+        setError("")
+        setReintentable(true)
+        setErroresAdicionales([])
+        setCargasAdicionales((valoraciones ? 1 : 0) + (medios ? 2 : 0))
+      } else setCargasAdicionales(0)
       const terminarAdicional = (): void => {
-        if (vigente) setCargasAdicionales((n) => n - 1)
+        if (vigente && inicial) setCargasAdicionales((n) => n - 1)
       }
-      if (valoraciones)
+      // Un fallo al renovar no borra lo ya cargado; un acierto retira su aviso.
+      const fallo = (texto: string): void => {
+        if (vigente && inicial) setErroresAdicionales((e) => [...e, texto])
+      }
+      const acierto = (texto: string): void => {
+        if (vigente) setErroresAdicionales((e) => e.filter((aviso) => aviso !== texto))
+      }
+      const AVISO_COMPOSICION = "No se pudo cargar la composición corporal."
+      const AVISO_FOTOS = "No se pudieron cargar tus fotos."
+      const AVISO_SOLICITUDES = "No se pudieron cargar las solicitudes de fotos."
+      if (valoraciones) {
         void valoraciones
           .evolucion(clienteId)
           .then(
             (valor) => {
-              if (vigente) setEvolucion(valor)
+              if (!vigente) return
+              setEvolucion(valor)
+              acierto(AVISO_COMPOSICION)
             },
-            () => {
-              if (vigente)
-                setErroresAdicionales((e) => [...e, "No se pudo cargar la composición corporal."])
-            },
+            () => fallo(AVISO_COMPOSICION),
           )
           .finally(terminarAdicional)
+        // No es imprescindible: si falla, simplemente no se enseña la próxima revisión.
+        void Promise.resolve()
+          .then(() => valoraciones.proximaRevision(clienteId))
+          .then(
+            (valor) => {
+              if (vigente) setProxima(valor)
+            },
+            () => undefined,
+          )
+      }
       if (medios) {
         void medios
           .fotosDeCliente(clienteId)
           .then(
             (valor) => {
-              if (vigente) setFotos(valor.fotos)
+              if (!vigente) return
+              setFotos(valor.fotos)
+              acierto(AVISO_FOTOS)
             },
-            () => {
-              if (vigente) setErroresAdicionales((e) => [...e, "No se pudieron cargar tus fotos."])
-            },
+            () => fallo(AVISO_FOTOS),
           )
           .finally(terminarAdicional)
         void medios
           .solicitudes(clienteId)
           .then(
             (valor) => {
-              if (vigente) setSolicitudes(valor.solicitudes)
+              if (!vigente) return
+              setSolicitudes(valor.solicitudes)
+              acierto(AVISO_SOLICITUDES)
             },
-            () => {
-              if (vigente)
-                setErroresAdicionales((e) => [
-                  ...e,
-                  "No se pudieron cargar las solicitudes de fotos.",
-                ])
-            },
+            () => fallo(AVISO_SOLICITUDES),
           )
           .finally(terminarAdicional)
       }
@@ -192,6 +297,8 @@ function ProgresoPorCuenta({
             seguimiento.pruebas(clienteId),
           ])
           if (!vigente) return
+          cargado.current = true
+          setError("")
           setDatos({
             configuracion,
             dias: dias.dias,
@@ -200,7 +307,8 @@ function ProgresoPorCuenta({
             pruebas: pruebas.pruebas,
           })
         } catch (causa) {
-          if (vigente) {
+          // Con datos en pantalla, un fallo al renovar no los sustituye por un error.
+          if (vigente && inicial) {
             const falta = faltaDe(causa, "No se pudo cargar tu progreso. Revisa la conexión.")
             setError(falta.texto)
             setReintentable(falta.reintentable)
@@ -256,47 +364,79 @@ function ProgresoPorCuenta({
               detalle: {
                 titulo: e.nombre,
                 puntos: puntos.map((p) => ({ fecha: p.fecha, valor: p.pesoKg })),
+                unidad: "kg",
                 descripcionGrafica: `Evolución de ${e.nombre}: carga en kg`,
-                historial: puntos.map(
-                  (p) => `${p.fecha}: ${numero(p.pesoKg)} kg × ${p.repeticiones}`,
-                ),
+                historial: puntos.map((p) => ({
+                  texto: `${fechaLarga(p.fecha)}: ${numero(p.pesoKg)} kg × ${p.repeticiones}`,
+                })),
               },
             },
           ]
         })
       : []
     const medidas: Fila[] = []
-    for (const [indicador, campo, nombre, unidad] of [
-      ["peso", "pesoKg", "Peso", "kg"],
-      ["cintura", "cinturaCm", "Cintura", "cm"],
+    const tomas = [...datos.medidas.medidas].sort(fechaOrden)
+    // Cada línea del historial lleva su medida: si la tomó el propio cliente, se puede borrar.
+    const lineaDeMedida = (m: Medida, texto: string): LineaHistorial => ({
+      texto,
+      borrar:
+        m.autorId === clienteId
+          ? { tipo: "medida", id: m.id, resumen: resumenMedida(m) }
+          : undefined,
+    })
+    // Grasa y altura las anota el cliente al añadir una medida: se enseñan aunque la
+    // configuración no las nombre, para no pedir un dato que luego no se ve.
+    for (const [clave, indicador, campo, nombre, unidad] of [
+      ["peso", "peso", "pesoKg", "Peso", "kg"],
+      ["cintura", "cintura", "cinturaCm", "Cintura", "cm"],
+      ["grasa", null, "grasaPct", "Grasa corporal anotada", "%"],
     ] as const) {
-      if (!activos.has(indicador)) continue
-      const puntos = [...datos.medidas.medidas]
-        .sort(fechaOrden)
-        .flatMap((m) => (m[campo] === null ? [] : [{ fecha: m.fecha, valor: m[campo]! }]))
+      if (indicador !== null && !activos.has(indicador)) continue
+      const conValor = tomas.flatMap((m) =>
+        m[campo] === null ? [] : [{ m, fecha: m.fecha, valor: m[campo]! }],
+      )
+      const puntos = conValor.map(({ fecha, valor }) => ({ fecha, valor }))
       const primero = puntos[0],
         ultimo = puntos.at(-1)
       if (!primero || !ultimo) continue
       medidas.push({
-        clave: indicador,
+        clave,
         nombre,
         fechaActual: ultimo.fecha,
         texto: `${numero(ultimo.valor)} ${unidad}${puntos.length > 1 ? delta(ultimo.valor - primero.valor, unidad) : ""}`,
         comparativa: {
-          id: indicador,
+          id: clave,
           nombre,
           inicial: puntos.length > 1 ? primero.valor : null,
           actual: ultimo.valor,
           unidad,
-          descripcion: `medida del ${ultimo.fecha}`,
+          descripcion: `medida del ${fechaLarga(ultimo.fecha)}`,
         },
         detalle: {
           titulo: nombre,
           puntos,
-          historial: puntos.map((p) => `${p.fecha}: ${numero(p.valor)} ${unidad}`),
+          unidad,
+          historial: conValor.map(({ m, fecha, valor }) =>
+            lineaDeMedida(m, `${fechaLarga(fecha)}: ${numero(valor)} ${unidad}`),
+          ),
         },
       })
     }
+    const conAltura = tomas.filter((m) => m.alturaCm !== null)
+    const ultimaAltura = conAltura.at(-1)
+    if (ultimaAltura)
+      medidas.push({
+        clave: "altura",
+        nombre: "Altura",
+        fechaActual: ultimaAltura.fecha,
+        texto: `${ultimaAltura.alturaCm} cm · ${fechaLarga(ultimaAltura.fecha)}`,
+        detalle: {
+          titulo: "Altura",
+          historial: conAltura.map((m) =>
+            lineaDeMedida(m, `${fechaLarga(m.fecha)}: ${m.alturaCm} cm`),
+          ),
+        },
+      })
     // El contrato no distingue otros perímetros en la configuración: las medidas
     // publicadas en cm siguen el mismo control conservador que cintura.
     const publicadas = activos.has("cintura")
@@ -348,15 +488,16 @@ function ProgresoPorCuenta({
           actual: ultimo.valor,
           unidad: serie.unidad,
           sentido: "neutral",
-          descripcion: `Valoración publicada del ${ultimo.fecha}${repetido ? "" : ` · ${metodo}`}`,
+          descripcion: `Valoración publicada del ${fechaLarga(ultimo.fecha)}${repetido ? "" : ` · ${metodo}`}`,
         },
         detalle: {
           titulo: `${serie.nombre} · ${metodo}`,
           puntos: puntos.map(({ fecha, valor }) => ({ fecha, valor })),
+          unidad: serie.unidad,
           descripcionGrafica: `Evolución de ${serie.nombre}: ${serie.unidad}, ${metodo}`,
-          historial: puntos.map(
-            (punto) => `${punto.fecha}: ${numero(punto.valor)} ${serie.unidad}`,
-          ),
+          historial: puntos.map((punto) => ({
+            texto: `${fechaLarga(punto.fecha)}: ${numero(punto.valor)} ${serie.unidad}`,
+          })),
         },
       })
     }
@@ -376,19 +517,22 @@ function ProgresoPorCuenta({
         clave: "peso-diario",
         nombre: "Peso diario",
         fechaActual: ultimoPesoDiario.fecha,
-        texto: `${numero(ultimoPesoDiario.valor)} kg · ${ultimoPesoDiario.fecha}`,
+        texto: `${numero(ultimoPesoDiario.valor)} kg · ${fechaLarga(ultimoPesoDiario.fecha)}`,
         comparativa: {
           id: "peso-diario",
           nombre: "Peso diario",
           inicial: serieDiaria && puntosDiarios.length > 1 ? puntosDiarios[0]!.valor : null,
           actual: ultimoPesoDiario.valor,
           unidad: "kg",
-          descripcion: `registro diario, ${ultimoPesoDiario.fecha}`,
+          descripcion: `registro diario, ${fechaLarga(ultimoPesoDiario.fecha)}`,
         },
         detalle: {
           titulo: "Peso diario",
           puntos: puntosDiarios,
-          historial: puntosDiarios.map((p) => `${p.fecha}: ${numero(p.valor)} kg`),
+          unidad: "kg",
+          historial: puntosDiarios.map((p) => ({
+            texto: `${fechaLarga(p.fecha)}: ${numero(p.valor)} kg`,
+          })),
         },
       })
     const semana = resumenDeSemana(datos.dias, lunes)
@@ -494,19 +638,29 @@ function ProgresoPorCuenta({
         pruebas.push({
           clave,
           nombre: ultimo.nombre,
-          texto: `${numero(ultimo.valor)} ${ultimo.unidad}${grupo.length > 1 ? delta(ultimo.valor - primero.valor, ultimo.unidad) : ""} · ${ultimo.fecha}`,
+          texto: `${numero(ultimo.valor)} ${ultimo.unidad}${grupo.length > 1 ? delta(ultimo.valor - primero.valor, ultimo.unidad) : ""} · ${fechaLarga(ultimo.fecha)}`,
           comparativa: {
             id: clave,
             nombre: ultimo.nombre,
             inicial: grupo.length > 1 ? primero.valor : null,
             actual: ultimo.valor,
             unidad: ultimo.unidad,
-            descripcion: ultimo.fecha,
+            descripcion: fechaLarga(ultimo.fecha),
             representacion: "tramo",
           },
           detalle: {
             titulo: ultimo.nombre,
-            historial: grupo.map((p) => `${p.fecha}: ${numero(p.valor)} ${p.unidad}`),
+            historial: grupo.map((p) => ({
+              texto: `${fechaLarga(p.fecha)}: ${numero(p.valor)} ${p.unidad}`,
+              borrar:
+                p.autorId === clienteId
+                  ? {
+                      tipo: "prueba" as const,
+                      id: p.id,
+                      resumen: `Prueba ${p.nombre} del ${fechaLarga(p.fecha)}: ${numero(p.valor)} ${p.unidad}`,
+                    }
+                  : undefined,
+            })),
           },
         })
       }
@@ -522,12 +676,113 @@ function ProgresoPorCuenta({
       ),
   )
   const recargar = (): void => setIntento((n) => n + 1)
+  const fotosQueFaltan = pendientes.reduce(
+    (total, solicitud) =>
+      total +
+      solicitud.vistas.filter(
+        (vista) =>
+          !solicitud.medios.some((foto) => foto.vista === vista && foto.estado === "disponible"),
+      ).length,
+    0,
+  )
+  const fechaLimite = pendientes
+    .flatMap((solicitud) => (solicitud.fechaLimite === null ? [] : [solicitud.fechaLimite]))
+    .sort()[0]
+  const textoPendientes =
+    fotosQueFaltan > 0
+      ? `${fotosQueFaltan} ${fotosQueFaltan === 1 ? "foto" : "fotos"}${fechaLimite ? ` · antes del ${fechaLarga(fechaLimite)}` : ""}`
+      : ""
+  // El detalle se relee de los datos vivos: si se renuevan o se borra su último registro, se actualiza.
+  const detalle: Detalle | null =
+    abierto === null
+      ? null
+      : "especial" in abierto
+        ? abierto.especial
+        : (secciones.flatMap((seccion) => seccion.data).find((fila) => fila.clave === abierto.clave)
+            ?.detalle ?? null)
+  const objetivo = datos?.configuracion.indicadores.includes("peso")
+    ? datos.configuracion.objetivoPeso
+    : null
+  const pautaProxima = proxima && !proxima.cumplidaPorId ? proxima.pauta : null
+  const cuandoProxima = pautaProxima
+    ? pautaProxima.fecha
+      ? fechaLarga(pautaProxima.fecha)
+      : `Cada ${pautaProxima.intervaloSemanas === 1 ? "semana" : `${pautaProxima.intervaloSemanas} semanas`}`
+    : ""
+  const abrirValoraciones = (): void =>
+    setAbierto({ especial: { titulo: "Valoraciones", valoraciones: true } })
   const cerrarSolicitudes = (): void => {
     cierreProtegido.current?.(() => {
       setSolicitudesMontadas(false)
       recargar()
     })
   }
+  // El botón atrás de Android sube un nivel: dentro de una valoración vuelve a su lista.
+  const atras = (): void => {
+    if (atrasValoraciones.current?.()) return
+    setAbierto(null)
+  }
+  const quitarRegistro = (registro: RegistroBorrable): void =>
+    setDatos((actual) =>
+      actual === null
+        ? actual
+        : registro.tipo === "medida"
+          ? {
+              ...actual,
+              medidas: {
+                ...actual.medidas,
+                medidas: actual.medidas.medidas.filter((m) => m.id !== registro.id),
+              },
+            }
+          : { ...actual, pruebas: actual.pruebas.filter((prueba) => prueba.id !== registro.id) },
+    )
+  const borrarRegistro = async (): Promise<void> => {
+    const registro = aBorrar
+    if (!registro || borrandoAhora.current) return
+    borrandoAhora.current = true
+    setBorrando(true)
+    setErrorBorrado("")
+    try {
+      try {
+        if (registro.tipo === "medida") await seguimiento.borrarMedida(clienteId, registro.id)
+        else await seguimiento.borrarPrueba(clienteId, registro.id)
+      } catch (causa) {
+        // 404: ya no existe (otro dispositivo o una respuesta perdida). El resultado es el buscado.
+        if (!(causa instanceof ErrorDelServidor && causa.codigo === 404)) throw causa
+      }
+      quitarRegistro(registro)
+      setABorrar(null)
+      confirmar("Registro eliminado.")
+      recargar()
+    } catch (causa) {
+      setErrorBorrado(faltaDe(causa, "No se pudo eliminar el registro.").texto)
+    } finally {
+      borrandoAhora.current = false
+      setBorrando(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!abrir) {
+      consumido.current = undefined
+      return
+    }
+    if (consumido.current === abrir) return
+    if (abrir === "fotos" && medios) setSolicitudesMontadas(true)
+    else if (abrir === "valoraciones" && valoraciones)
+      setAbierto({ especial: { titulo: "Valoraciones", valoraciones: true } })
+    else return
+    consumido.current = abrir
+    alAbrirActual.current?.()
+  }, [abrir, medios, valoraciones])
+  useEffect(() => {
+    if (confirmacion === null) return
+    const plazo = setTimeout(() => setConfirmacion(null), 5000)
+    return () => clearTimeout(plazo)
+  }, [confirmacion])
+
+  const hayCabecera =
+    Boolean(objetivo) || pautaProxima !== null || pendientes.length > 0 || solicitudesMontadas
   return (
     <View style={s.pantalla}>
       {error !== "" && (
@@ -544,10 +799,23 @@ function ProgresoPorCuenta({
           <BotonSecundario texto="Reintentar" onPress={recargar} />
         </View>
       )}
+      {!detalle && confirmacion && <Confirmacion texto={confirmacion.texto} />}
       {!datos && !error && (
-        <Text accessibilityRole="progressbar" accessibilityLabel="Cargando progreso">
-          Cargando…
-        </Text>
+        <View
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel="Cargando progreso"
+          accessibilityState={{ busy: true }}
+          style={s.esqueleto}
+        >
+          <GrupoEsqueletos>
+            <Esqueleto alto={168} radio={20} />
+            <Esqueleto ancho={120} alto={20} estilo={s.esqueletoTitulo} />
+            <Esqueleto alto={76} radio={20} />
+            <Esqueleto alto={76} radio={20} />
+            <Esqueleto alto={76} radio={20} />
+          </GrupoEsqueletos>
+        </View>
       )}
       {datos && (
         <SectionList
@@ -556,17 +824,57 @@ function ProgresoPorCuenta({
           keyExtractor={(fila) => fila.clave}
           contentContainerStyle={s.listaPrincipal}
           ListHeaderComponent={
-            pendientes.length > 0 || solicitudesMontadas ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Fotos pendientes"
-                onPress={() => {
-                  setSolicitudesMontadas(true)
-                }}
-                style={s.fila}
-              >
-                <Text style={s.nombre}>Fotos pendientes</Text>
-              </Pressable>
+            hayCabecera ? (
+              <View>
+                {objetivo && (
+                  <View
+                    accessible
+                    accessibilityLabel={`Objetivo de peso: ${textoObjetivo(objetivo)}`}
+                    style={s.fila}
+                  >
+                    <Text style={s.etiquetaDato}>Objetivo de peso</Text>
+                    <Text style={s.nombre}>{textoObjetivo(objetivo)}</Text>
+                  </View>
+                )}
+                {pautaProxima &&
+                  (valoraciones ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Próxima revisión: ${cuandoProxima}. Ver valoraciones`}
+                      onPress={abrirValoraciones}
+                      style={s.fila}
+                    >
+                      <Text style={s.etiquetaDato}>Próxima revisión</Text>
+                      <Text style={s.nombre}>{cuandoProxima}</Text>
+                    </Pressable>
+                  ) : (
+                    <View
+                      accessible
+                      accessibilityLabel={`Próxima revisión: ${cuandoProxima}`}
+                      style={s.fila}
+                    >
+                      <Text style={s.etiquetaDato}>Próxima revisión</Text>
+                      <Text style={s.nombre}>{cuandoProxima}</Text>
+                    </View>
+                  ))}
+                {(pendientes.length > 0 || solicitudesMontadas) && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      textoPendientes
+                        ? `Fotos pendientes: ${textoPendientes.replace(" · ", ", ")}`
+                        : "Fotos pendientes"
+                    }
+                    onPress={() => {
+                      setSolicitudesMontadas(true)
+                    }}
+                    style={s.fila}
+                  >
+                    <Text style={s.nombre}>Fotos pendientes</Text>
+                    {textoPendientes !== "" && <Text style={s.texto}>{textoPendientes}</Text>}
+                  </Pressable>
+                )}
+              </View>
             ) : undefined
           }
           ListEmptyComponent={
@@ -590,10 +898,7 @@ function ProgresoPorCuenta({
                   <BotonSecundario texto="Añadir prueba" onPress={() => setFormulario("prueba")} />
                 )}
               {valoraciones && (
-                <BotonSecundario
-                  texto="Ver valoraciones"
-                  onPress={() => setDetalle({ titulo: "Valoraciones", valoraciones: true })}
-                />
+                <BotonSecundario texto="Ver valoraciones" onPress={abrirValoraciones} />
               )}
             </View>
           }
@@ -625,13 +930,13 @@ function ProgresoPorCuenta({
                   <FotosProgreso
                     fotos={fotos}
                     acceso={medios.acceso}
-                    abrirGaleria={() => setDetalle({ titulo: "Fotos", fotos: true })}
+                    abrirGaleria={() => setAbierto({ especial: { titulo: "Fotos", fotos: true } })}
                   />
                 ) : (
                   <BotonSecundario
                     texto="Ver galería"
                     etiquetaAccesible="Ver galería de fotos"
-                    onPress={() => setDetalle({ titulo: "Fotos", fotos: true })}
+                    onPress={() => setAbierto({ especial: { titulo: "Fotos", fotos: true } })}
                   />
                 )}
               </View>
@@ -644,14 +949,14 @@ function ProgresoPorCuenta({
                   unidad={item.comparativa.unidad}
                   sentido={item.comparativa.sentido}
                   descripcion={item.comparativa.descripcion}
-                  alPulsar={item.detalle ? () => setDetalle(item.detalle!) : undefined}
+                  alPulsar={item.detalle ? () => setAbierto({ clave: item.clave }) : undefined}
                 />
               </View>
             ) : item.comparativa ? (
               <FilaComparativa
                 fila={{
                   ...item.comparativa,
-                  alPulsar: item.detalle ? () => setDetalle(item.detalle!) : undefined,
+                  alPulsar: item.detalle ? () => setAbierto({ clave: item.clave }) : undefined,
                 }}
                 posicion={posicionEnTarjeta(section.data, index)}
               />
@@ -659,7 +964,7 @@ function ProgresoPorCuenta({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${item.nombre}, ${item.texto}`}
-                onPress={() => setDetalle(item.detalle!)}
+                onPress={() => setAbierto({ clave: item.clave })}
                 style={s.fila}
               >
                 <Text style={s.nombre}>{item.nombre}</Text>
@@ -683,7 +988,7 @@ function ProgresoPorCuenta({
         />
       )}
       {detalle && (
-        <Modal visible animationType="none" onRequestClose={() => setDetalle(null)}>
+        <Modal visible animationType="none" onRequestClose={atras}>
           <SafeAreaView style={s.pantalla}>
             {detalle.fotos && medios ? (
               <FlatList
@@ -705,7 +1010,7 @@ function ProgresoPorCuenta({
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Volver a progreso"
-                      onPress={() => setDetalle(null)}
+                      onPress={() => setAbierto(null)}
                       style={s.fila}
                     >
                       <Text style={s.nombre}>Volver</Text>
@@ -730,11 +1035,11 @@ function ProgresoPorCuenta({
                 renderItem={({ item: foto }) => (
                   <View>
                     <Text accessibilityRole="header" style={s.nombre}>
-                      {foto.fechaToma}
+                      {fechaLarga(foto.fechaToma)}
                     </Text>
                     <ImagenPrivada
                       medioId={foto.id}
-                      etiqueta={`${foto.vista}, ${foto.fechaToma}`}
+                      etiqueta={`${nombreDePose(foto)}, ${fechaLarga(foto.fechaToma)}`}
                       acceso={medios.acceso}
                     />
                   </View>
@@ -745,11 +1050,12 @@ function ProgresoPorCuenta({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Volver a progreso"
-                  onPress={() => setDetalle(null)}
+                  onPress={() => setAbierto(null)}
                   style={s.fila}
                 >
                   <Text style={s.nombre}>Volver</Text>
                 </Pressable>
+                {confirmacion && <Confirmacion texto={confirmacion.texto} />}
                 <Text accessibilityRole="header" style={s.titulo}>
                   {detalle.titulo}
                 </Text>
@@ -757,15 +1063,37 @@ function ProgresoPorCuenta({
                   <Grafica
                     puntos={detalle.puntos}
                     tendencia={detalle.puntos}
-                    descripcion={detalle.descripcionGrafica ?? `Evolución de ${detalle.titulo}`}
-                    izquierda={detalle.puntos[0]!.fecha}
-                    derecha={detalle.puntos[detalle.puntos.length - 1]!.fecha}
+                    unidad={detalle.unidad}
+                    descripcion={
+                      detalle.unidad
+                        ? etiquetaGrafica(
+                            detalle.descripcionGrafica ?? `Evolución de ${detalle.titulo}`,
+                            detalle.puntos,
+                            detalle.unidad,
+                          )
+                        : (detalle.descripcionGrafica ?? `Evolución de ${detalle.titulo}`)
+                    }
+                    izquierda={fechaLarga(detalle.puntos[0]!.fecha)}
+                    derecha={fechaLarga(detalle.puntos[detalle.puntos.length - 1]!.fecha)}
                   />
                 )}
                 {detalle.historial?.map((h, i) => (
-                  <Text key={`${i}-${h}`} style={s.texto}>
-                    {h}
-                  </Text>
+                  <View key={`${i}-${h.texto}`} style={s.lineaHistorial}>
+                    <Text style={[s.texto, s.textoHistorial]}>{h.texto}</Text>
+                    {h.borrar && (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Eliminar el registro del ${h.texto}`}
+                        onPress={() => {
+                          setErrorBorrado("")
+                          setABorrar(h.borrar!)
+                        }}
+                        style={s.eliminar}
+                      >
+                        <Text style={s.textoEliminar}>Eliminar</Text>
+                      </Pressable>
+                    )}
+                  </View>
                 ))}
                 {detalle.evolucion && valoraciones && (
                   <EvolucionValoraciones
@@ -776,10 +1104,27 @@ function ProgresoPorCuenta({
                   />
                 )}
                 {detalle.valoraciones && valoraciones && (
-                  <ValoracionesCliente clienteId={clienteId} api={valoraciones} />
+                  <ValoracionesCliente
+                    clienteId={clienteId}
+                    api={valoraciones}
+                    registrarAtras={registrarAtras}
+                  />
                 )}
               </ScrollView>
             )}
+            <Dialogo
+              visible={aBorrar !== null}
+              titulo="¿Eliminar este registro?"
+              texto={`${aBorrar?.resumen ?? ""}. Dejará de verlo también tu equipo. Si solo te equivocaste, elimínalo y añade el correcto. No se puede deshacer.`}
+              confirmar={borrando ? "Eliminando…" : "Eliminar"}
+              cancelar="Cancelar"
+              peligro
+              ocupado={borrando}
+              alCancelar={() => setABorrar(null)}
+              alConfirmar={() => void borrarRegistro()}
+            >
+              {errorBorrado !== "" && <AvisoDeError mensaje={errorBorrado} />}
+            </Dialogo>
           </SafeAreaView>
         </Modal>
       )}
@@ -811,7 +1156,20 @@ function ProgresoPorCuenta({
         indicadores={datos?.configuracion.indicadores}
         cerrar={() => setFormulario(null)}
         registrar={async (medida) => {
-          await seguimiento.registrarMedida(clienteId, medida)
+          const nueva = await seguimiento.registrarMedida(clienteId, medida)
+          if (nueva)
+            setDatos((actual) =>
+              actual === null
+                ? actual
+                : {
+                    ...actual,
+                    medidas: {
+                      ...actual.medidas,
+                      medidas: [...actual.medidas.medidas.filter((m) => m.id !== nueva.id), nueva],
+                    },
+                  },
+            )
+          confirmar("Medida guardada.")
           recargar()
         }}
       />
@@ -820,7 +1178,17 @@ function ProgresoPorCuenta({
         cerrar={() => setFormulario(null)}
         pruebas={datos?.configuracion.pruebasPrescritas ?? []}
         registrar={async (prueba) => {
-          await seguimiento.registrarPrueba(clienteId, prueba)
+          const nueva = await seguimiento.registrarPrueba(clienteId, prueba)
+          if (nueva)
+            setDatos((actual) =>
+              actual === null
+                ? actual
+                : {
+                    ...actual,
+                    pruebas: [...actual.pruebas.filter((p) => p.id !== nueva.id), nueva],
+                  },
+            )
+          confirmar("Prueba guardada.")
           recargar()
         }}
       />
@@ -843,6 +1211,23 @@ const s = StyleSheet.create({
   anadir: { minHeight: 44, justifyContent: "center" },
   textoAnadir: { ...tipo.secundario, color: tema.acento, fontFamily: tema.fuenteBoton },
   aviso: { gap: 8, padding: 20 },
+  esqueleto: { gap: 12, padding: 20 },
+  esqueletoTitulo: { marginTop: 12 },
+  confirmacion: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: tema.exitoFila,
+    borderWidth: 1,
+    borderColor: tema.exitoBorde,
+  },
+  textoConfirmacion: { ...tipo.cuerpo, color: tema.exito },
+  etiquetaDato: { ...tipo.micro, color: tema.textoTenue },
+  lineaHistorial: { flexDirection: "row", alignItems: "center", gap: 12 },
+  textoHistorial: { flex: 1 },
+  eliminar: { minHeight: 44, minWidth: 44, justifyContent: "center", alignItems: "flex-end" },
+  textoEliminar: { ...tipo.secundario, color: tema.error, fontFamily: tema.fuenteBoton },
   titulo: { ...tipo.titulo, color: tema.texto },
   fila: { minHeight: 52, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: tema.borde },
   nombre: { ...tipo.fila, color: tema.texto },

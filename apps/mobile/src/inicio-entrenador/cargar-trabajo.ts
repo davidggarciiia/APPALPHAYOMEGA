@@ -1,58 +1,32 @@
-import type { ListadoUsuarios, ResumenUsuario } from "@alpha-omega/shared"
+import type { ListadoUsuarios } from "@alpha-omega/shared"
 
-import { crearApiEntrenamiento } from "../entrenamiento/api"
-import { lunesDeSemana } from "../entrenamiento/fechas"
 import { listarUsuarios } from "../lib/api"
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
 
-export const ACTIVOS_POR_PAGINA = 4
 export const ACTIVACIONES_POR_PAGINA = 8
 
-export type TrabajoCliente = {
-  cliente: ResumenUsuario
-  sinPlan: boolean
-}
 export type TrabajoEntrenador = {
-  activos: ListadoUsuarios
   pendientes: ListadoUsuarios
-  clientes: TrabajoCliente[]
 }
 
-/** Una página, sin recorrer la cartera ni el historial completo de cada cliente. */
+/**
+ * Lo que el resumen semanal no trae: las altas que aún esperan activación.
+ *
+ * Los clientes activos sin plan ya no se comprueban aquí uno a uno: el resumen
+ * semanal, que llega para toda la cartera en una sola petición, dice cuántas
+ * sesiones tiene prevista cada cliente esta semana, y sin ninguna no hay plan.
+ */
 export async function cargarTrabajo(
   pedir: PeticionAutenticada,
-  desdeActivos: number,
   desdePendientes: number,
 ): Promise<TrabajoEntrenador> {
-  const [activos, pendientes] = await Promise.all([
-    listarUsuarios(pedir, {
-      rol: "cliente",
-      estado: "activo",
-      limite: ACTIVOS_POR_PAGINA,
-      desde: desdeActivos,
-    }),
-    listarUsuarios(pedir, {
-      rol: "cliente",
-      estado: "pendiente",
-      limite: ACTIVACIONES_POR_PAGINA,
-      desde: desdePendientes,
-    }),
-  ])
-  const api = crearApiEntrenamiento(pedir)
-  const usuarios = activos.usuarios.slice(0, ACTIVOS_POR_PAGINA)
-  const lunes = lunesDeSemana()
-  const clientes = await Promise.all(
-    usuarios.map(async (cliente): Promise<TrabajoCliente> => {
-      const plan = await api.plan(cliente.id, lunes)
-      return {
-        cliente,
-        sinPlan: plan.plan === null,
-      }
-    }),
-  )
+  const pendientes = await listarUsuarios(pedir, {
+    rol: "cliente",
+    estado: "pendiente",
+    limite: ACTIVACIONES_POR_PAGINA,
+    desde: desdePendientes,
+  })
   return {
-    activos: { ...activos, usuarios },
     pendientes: { ...pendientes, usuarios: pendientes.usuarios.slice(0, ACTIVACIONES_POR_PAGINA) },
-    clientes,
   }
 }

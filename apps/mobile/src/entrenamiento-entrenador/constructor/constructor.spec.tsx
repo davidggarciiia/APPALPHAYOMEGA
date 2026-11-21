@@ -26,6 +26,9 @@ import {
   type EjercicioDelConstructor,
 } from "./modelo"
 import { ListaDeSeccion } from "./partes"
+import { fechaLarga, proximosLunes } from "./selector-lunes"
+import { fechaCorta } from "../../entrenamiento/plan/modelo"
+import { lunesDeSemana, sumarDias } from "../../entrenamiento/fechas"
 import { objetivoConUnidad, PanelEjercicio, TablaPrincipal } from "./tabla"
 
 jest.mock("expo-crypto", () => ({
@@ -90,8 +93,9 @@ async function prepararConstructor(
 
 async function completarDia(): Promise<void> {
   await fireEvent.changeText(await screen.findByLabelText("Nombre del día"), "Fuerza")
-  await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
+  await fireEvent.press(screen.getAllByRole("button", { name: "Añadir ejercicio" })[0]!)
   await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Hecho" }))
   await esperarCierreHoja()
   await waitFor(() => expect(screen.queryByLabelText("Buscar ejercicio para añadir")).toBeNull())
 }
@@ -229,10 +233,8 @@ describe("constructor móvil (D5)", () => {
     expect(screen.queryByLabelText("Número de semanas")).toBeNull()
     await fireEvent.press(screen.getByRole("button", { name: "Editar datos del bloque" }))
     expect(await screen.findByLabelText("Número de semanas")).toBeOnTheScreen()
-    expect(screen.getByLabelText("Lunes de inicio (AAAA-MM-DD)")).toHaveProp(
-      "keyboardType",
-      "numbers-and-punctuation",
-    )
+    expect(screen.getByRole("button", { name: /^Lunes de inicio: / })).toBeOnTheScreen()
+    expect(screen.queryByLabelText("Lunes de inicio (AAAA-MM-DD)")).toBeNull()
     await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
     await esperarCierreHoja()
     await waitFor(() => expect(screen.queryByLabelText("Número de semanas")).toBeNull())
@@ -261,17 +263,124 @@ describe("constructor móvil (D5)", () => {
     expect(screen.getByLabelText("Número de semanas")).toHaveDisplayValue("8")
   })
 
-  it("añade desde la biblioteca en una hoja y la cierra al elegir un ejercicio", async () => {
+  it("añade varios ejercicios desde la hoja sin cerrarla y «Hecho» la cierra", async () => {
     await prepararConstructor()
     await screen.findByLabelText("Nombre del día")
     expect(screen.queryByLabelText("Buscar ejercicio para añadir")).toBeNull()
-    await fireEvent.press(screen.getByRole("button", { name: "Añadir desde la biblioteca" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir ejercicio" }))
     expect(await screen.findByLabelText("Buscar ejercicio para añadir")).toBeOnTheScreen()
     expect(screen.getByTestId("hoja-modal")).toBeOnTheScreen()
+    expect(screen.queryByRole("button", { name: "Hecho" })).toBeNull()
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir Press banca" }))
+    // La hoja sigue abierta, con la confirmación a la vista, y los dos ya están en el día.
+    expect(screen.getByLabelText("Buscar ejercicio para añadir")).toBeOnTheScreen()
+    expect(screen.getByText("«Press banca» añadido. 2 ejercicios añadidos.")).toBeOnTheScreen()
+    expect(screen.getAllByRole("button", { name: "Press banca: editar detalles" })).toHaveLength(2)
+    await fireEvent.press(screen.getByRole("button", { name: "Hecho" }))
     await esperarCierreHoja()
     await waitFor(() => expect(screen.queryByLabelText("Buscar ejercicio para añadir")).toBeNull())
-    expect(screen.getByRole("button", { name: "Press banca: editar detalles" })).toBeOnTheScreen()
+    expect(screen.getAllByRole("button", { name: "Press banca: editar detalles" })).toHaveLength(2)
+  })
+
+  it("al añadir de nuevo la hoja empieza sin las marcas de la vez anterior", async () => {
+    await prepararConstructor()
+    await completarDia()
+    await fireEvent.press(screen.getAllByRole("button", { name: "Añadir ejercicio" })[0]!)
+    await screen.findByLabelText("Buscar ejercicio para añadir")
+    expect(await screen.findByRole("button", { name: "Añadir Press banca" })).not.toHaveProp(
+      "accessibilityValue",
+      { text: "Añadido 1" },
+    )
+    expect(screen.queryByRole("button", { name: "Hecho" })).toBeNull()
+  })
+
+  describe("duplicar", () => {
+    it("«Duplicar ejercicio» añade una copia debajo, la deja elegida y se puede deshacer", async () => {
+      const almacen = almacenEnMemoria()
+      await prepararConstructor(almacen)
+      await completarDia()
+      await fireEvent.press(screen.getByRole("button", { name: "Press banca: editar detalles" }))
+      await fireEvent.press(await screen.findByRole("button", { name: "Duplicar ejercicio" }))
+      await esperarCierreHoja()
+
+      expect(screen.getAllByRole("button", { name: "Press banca: editar detalles" })).toHaveLength(
+        2,
+      )
+      expect(screen.getByText("Copia de Press banca añadida")).toBeOnTheScreen()
+      // Entra en el borrador autoguardado como cualquier otro cambio.
+      await waitFor(
+        () => {
+          const borrador = almacen.datos.get(
+            "borrador-plan-20000000-0000-4000-8000-000000000000",
+          ) as { dias: Array<{ ejercicios: unknown[] }> }
+          expect(borrador.dias[0]!.ejercicios).toHaveLength(2)
+        },
+        { timeout: 3000 },
+      )
+
+      await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+      expect(screen.getAllByRole("button", { name: "Press banca: editar detalles" })).toHaveLength(
+        1,
+      )
+      expect(screen.queryByText("Copia de Press banca añadida")).toBeNull()
+    })
+
+    it("«Duplicar día» crea otro día con «(copia)», lo abre y se puede deshacer", async () => {
+      const almacen = almacenEnMemoria()
+      await prepararConstructor(almacen)
+      await completarDia()
+      await fireEvent.press(screen.getByRole("button", { name: "Duplicar día" }))
+
+      expect(screen.getByLabelText("Nombre del día")).toHaveDisplayValue("Fuerza (copia)")
+      expect(screen.getByRole("tab", { name: "Mar · Fuerza (copia)" })).toBeOnTheScreen()
+      expect(screen.getByRole("tab", { name: "Mar · Fuerza (copia)" })).toBeSelected()
+      expect(screen.getByRole("tab", { name: "Lun · Fuerza" })).toBeOnTheScreen()
+      expect(screen.getByRole("button", { name: "Press banca: editar detalles" })).toBeOnTheScreen()
+      expect(screen.getByText("Día «Fuerza» duplicado")).toBeOnTheScreen()
+      await waitFor(
+        () => {
+          const borrador = almacen.datos.get(
+            "borrador-plan-20000000-0000-4000-8000-000000000000",
+          ) as { dias: unknown[] }
+          expect(borrador.dias).toHaveLength(2)
+        },
+        { timeout: 3000 },
+      )
+
+      await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
+      expect(screen.queryByRole("tab", { name: "Mar · Fuerza (copia)" })).toBeNull()
+      expect(screen.getByLabelText("Nombre del día")).toHaveDisplayValue("Fuerza")
+    })
+
+    it("la copia de un día se publica como un día más del plan", async () => {
+      const { asignar } = await prepararConstructor()
+      await completarDia()
+      await fireEvent.press(screen.getByRole("button", { name: "Duplicar día" }))
+      await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
+      await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
+      await waitFor(() => expect(asignar).toHaveBeenCalledTimes(1))
+      const { patron } = asignar.mock.calls[0]![1]
+      expect(patron.sesiones.map((sesion) => [sesion.nombre, sesion.diaSemana])).toEqual([
+        ["Fuerza", 1],
+        ["Fuerza (copia)", 2],
+      ])
+      const ids = patron.sesiones.flatMap((sesion) => [
+        sesion.id,
+        ...sesion.ejercicios.flatMap((e) => [e.id, ...e.series.map((serie) => serie.id)]),
+      ])
+      expect(new Set(ids).size).toBe(ids.length)
+    })
+
+    it("no ofrece duplicar el día cuando la semana ya tiene siete", async () => {
+      await prepararConstructor()
+      await completarDia()
+      for (let n = 0; n < 6; n++) {
+        await fireEvent.press(screen.getByRole("button", { name: "Duplicar día" }))
+      }
+      expect(screen.queryByRole("button", { name: "Duplicar día" })).toBeNull()
+      expect(screen.queryByRole("button", { name: "Añadir día" })).toBeNull()
+    })
   })
 
   it("edita las cinco celdas con la barra y bloquea las acciones mientras la cifra manual es inválida", async () => {
@@ -444,21 +553,57 @@ it("conserva el editor al recuperar un objetivo inválido y explica el fallo al 
   expect(screen.getByText(/Revisa el plan antes de previsualizar/)).toBeOnTheScreen()
 })
 
-it("conserva el editor mientras el lunes está incompleto", async () => {
+it("el lunes de inicio se elige de una lista de lunes con fecha legible", async () => {
   await prepararConstructor()
   await completarDia()
   await abrirDatos()
-  await fireEvent.changeText(screen.getByLabelText("Lunes de inicio (AAAA-MM-DD)"), "2026-")
-  expect(screen.getByDisplayValue("2026-")).toBeOnTheScreen()
+  const lunes = proximosLunes()
+  const elegido = lunes[3]!
+  expect(
+    screen.getByRole("button", {
+      name: `Lunes de inicio: ${fechaLarga(sumarDias(lunesDeSemana(), 7))}`,
+    }),
+  ).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: /^Lunes de inicio: / }))
+  const opciones = screen.getAllByRole("radio")
+  expect(opciones).toHaveLength(lunes.length)
+  expect(screen.getByRole("radio", { name: fechaLarga(lunes[0]!) })).toBeOnTheScreen()
+  expect(fechaLarga("2026-11-23", "2026-11-21")).toBe("lunes 23 de noviembre")
+  await fireEvent.press(screen.getByRole("radio", { name: fechaLarga(elegido) }))
+  // La lista se pliega y la cabecera muestra la fecha elegida.
+  expect(screen.queryAllByRole("radio")).toHaveLength(0)
+  expect(
+    screen.getByRole("button", { name: `Lunes de inicio: ${fechaLarga(elegido)}` }),
+  ).toBeOnTheScreen()
   await cerrarDatos()
-  expect(screen.getByText("Cliente · fecha de inicio pendiente · 6 semanas")).toBeOnTheScreen()
-  expect(screen.queryByText(/undefined/)).toBeNull()
+  expect(
+    screen.getByText(`Cliente · empieza el ${fechaCorta(elegido)} · 6 semanas`),
+  ).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: "Ver como cliente" }))
-  expect(screen.getByText(/Revisa el plan antes de previsualizar/)).toBeOnTheScreen()
+  expect(screen.getByText("Así lo verá Cliente")).toBeOnTheScreen()
+})
+
+it("un borrador con una fecha que no es lunes pide elegir un lunes antes de previsualizar", async () => {
+  const almacen = almacenEnMemoria()
+  const dia = nuevoDia(randomUUID, 1)
+  dia.nombre = "Fuerza"
+  almacen.datos.set("borrador-plan-20000000-0000-4000-8000-000000000000", {
+    v: 1,
+    nombre: "Plan",
+    semanaInicial: "2026-",
+    semanas: "6",
+    dias: [dia],
+    bloque: { objetivos: [], fases: [], deportes: [], notas: [] },
+  })
+  await prepararConstructor(almacen)
+  await fireEvent.press(await screen.findByRole("button", { name: "Recuperar mi plan" }))
+  expect(screen.getByText("Cliente · fecha de inicio pendiente · 6 semanas")).toBeOnTheScreen()
   await abrirDatos()
-  await fireEvent.changeText(screen.getByLabelText("Lunes de inicio (AAAA-MM-DD)"), "2026-10-26")
+  expect(screen.getByRole("button", { name: "Lunes de inicio: elige un lunes" })).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Lunes de inicio: elige un lunes" }))
+  await fireEvent.press(screen.getByRole("radio", { name: fechaLarga(proximosLunes()[0]!) }))
   await cerrarDatos()
-  expect(screen.getByText("Cliente · empieza el 26 oct · 6 semanas")).toBeOnTheScreen()
+  expect(screen.queryByText(/fecha de inicio pendiente/)).toBeNull()
 })
 
 it("bloquea una publicación nueva si no puede recuperar la operación pendiente", async () => {
@@ -558,8 +703,9 @@ it("reenvía exactamente el plan pendiente tras perder la respuesta, con los mis
     />,
   )
   await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Fuerza")
-  await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
+  await fireEvent.press(screen.getAllByRole("button", { name: "Añadir ejercicio" })[0]!)
   await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca con barra" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Hecho" }))
   await fireEvent.press(screen.getByRole("button", { name: "Publicar" }))
   await fireEvent.press(await screen.findByRole("button", { name: "Publicar plan" }))
   await screen.findByRole("button", { name: "Reintentar publicación" })
@@ -617,8 +763,9 @@ it("arma un día con la tabla del diseño y publica el plan con su bloque", asyn
   await cerrarDatos()
 
   // Press banca desde la biblioteca, en la parte principal.
-  await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
+  await fireEvent.press(screen.getAllByRole("button", { name: "Añadir ejercicio" })[0]!)
   await fireEvent.press(await screen.findByRole("button", { name: "Añadir Press banca con barra" }))
+  await fireEvent.press(await screen.findByRole("button", { name: "Hecho" }))
   await abrirDetalles("Press banca con barra")
   await fireEvent.press(
     screen.getByRole("button", { name: "RIR cada serie de Press banca con barra" }),
@@ -822,10 +969,12 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
       await fireEvent.changeText(screen.getByLabelText(`Minutos de ${parte}`), minutos)
     }
     await cerrarDatosDia()
-    await fireEvent.press(screen.getByRole("button", { name: "Añadir desde la biblioteca" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Añadir ejercicio" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Fuerza" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Hecho" }))
     await fireEvent.press(screen.getByRole("button", { name: "Añadir calentamiento" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Movilidad" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Hecho" }))
     await abrirDetalles("Movilidad")
     await fireEvent.changeText(
       screen.getByLabelText("Cómo se hace Movilidad"),
@@ -834,11 +983,13 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
     await cerrarDetalles()
     await fireEvent.press(screen.getByRole("button", { name: "Añadir circuito" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Circuito físico" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Hecho" }))
     await fireEvent.changeText(screen.getByLabelText("Nombre del circuito"), "Core <controlado>")
     await fireEvent.changeText(screen.getByLabelText("Vueltas del circuito"), "2")
     await fireEvent.changeText(screen.getByLabelText("Descanso entre vueltas"), "30 s")
     await fireEvent.press(screen.getByRole("button", { name: "Añadir vuelta a la calma" }))
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Estirar" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Hecho" }))
     await abrirDetalles("Estirar")
     await fireEvent.changeText(screen.getByLabelText("Cómo se hace Estirar"), "30 s por lado")
     await cerrarDetalles()
@@ -872,7 +1023,7 @@ it("exporta las cuatro partes con sus dosis, duraciones y vueltas sin insertar H
     if (anteriorQuitar) Object.defineProperty(globalThis, "removeEventListener", anteriorQuitar)
     else Reflect.deleteProperty(globalThis, "removeEventListener")
   }
-})
+}, 30000)
 
 describe("unidad de cada fila (D01)", () => {
   const GRANJERO = "10000000-0000-4000-8000-000000000011"
@@ -1040,8 +1191,9 @@ describe("unidad de cada fila (D01)", () => {
     )
     await fireEvent.changeText(screen.getByLabelText("Nombre del bloque"), "Bloque de prueba")
     await fireEvent.changeText(screen.getByLabelText("Nombre del día"), "Transportes")
-    await fireEvent.press(screen.getAllByRole("button", { name: "Añadir desde la biblioteca" })[0]!)
+    await fireEvent.press(screen.getAllByRole("button", { name: "Añadir ejercicio" })[0]!)
     await fireEvent.press(await screen.findByRole("button", { name: "Añadir Paseo del granjero" }))
+    await fireEvent.press(await screen.findByRole("button", { name: "Hecho" }))
     await abrirDetalles("Paseo del granjero")
     await fireEvent.press(
       screen.getByRole("button", { name: "Con carga externa de Paseo del granjero" }),

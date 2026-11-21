@@ -3,6 +3,7 @@ import { useRouter } from "expo-router"
 import { Text, View } from "react-native"
 import { BotonSecundario, PantallaDeFormulario } from "../../src/componentes/formulario"
 import { PlanCliente } from "../../src/entrenamiento/plan/plan-cliente"
+import { lunesDeSemana } from "../../src/entrenamiento/fechas"
 import { SemanaEntrenamiento } from "../../src/entrenamiento/semana"
 import { useEntrenamiento } from "../../src/entrenamiento/use-entrenamiento"
 import { useSesion } from "../../src/sesion"
@@ -20,6 +21,8 @@ export default function MiEntrenamiento(): React.JSX.Element {
   const api = useEntrenamiento()
   const router = useRouter()
   const [vista, setVista] = useState<"semana" | "rutina" | "guia">("semana")
+  // La semana elegida es una sola: Semana y Rutina la comparten al cambiar de pestaña.
+  const [semana, setSemana] = useState(lunesDeSemana)
   const abrir = (id: string): void =>
     router.push({ pathname: "/entrenamiento/[id]", params: { id } })
   return (
@@ -34,9 +37,18 @@ export default function MiEntrenamiento(): React.JSX.Element {
               abrir={abrir}
               copiaLocal
               detectarEmpezadas
+              semanaElegida={semana}
+              elegirSemana={setSemana}
             />
           ) : (
-            <PlanCliente clienteId={estado.usuario.id} api={api} abrir={abrir} pestana={vista} />
+            <PlanCliente
+              clienteId={estado.usuario.id}
+              api={api}
+              abrir={abrir}
+              pestana={vista}
+              semanaElegida={semana}
+              elegirSemana={setSemana}
+            />
           )}
         </View>
       ) : (

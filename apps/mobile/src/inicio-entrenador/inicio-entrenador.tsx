@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react"
 import { useFocusEffect, type Href } from "expo-router"
-import { StyleSheet, Text, View } from "react-native"
+import { StyleSheet, Text, TextInput, View } from "react-native"
 import type { ListadoUsuarios } from "@alpha-omega/shared"
 
 import { Aviso } from "../componentes/aviso"
@@ -13,14 +13,30 @@ import { fechaCorta } from "../entrenamiento/plan/modelo"
 import { faltaDe, type Falta } from "../lib/errores"
 import type { PeticionAutenticada } from "../lib/peticion-autenticada"
 import { alto, espacio, radio, tema, tipo } from "../tema"
+import { ACTIVACIONES_POR_PAGINA, cargarTrabajo, type TrabajoEntrenador } from "./cargar-trabajo"
 import {
-  ACTIVACIONES_POR_PAGINA,
-  ACTIVOS_POR_PAGINA,
-  cargarTrabajo,
-  type TrabajoEntrenador,
-} from "./cargar-trabajo"
-import { TarjetaCliente, TarjetaTrabajo, necesitaAtencion, nombreCliente } from "./tarjeta-cliente"
+  TarjetaCliente,
+  necesitaAtencion,
+  nombreCliente,
+  sinPlanEstaSemana,
+} from "./tarjeta-cliente"
 import { useResumenSemanal } from "./use-resumen-semanal"
+
+/** Con menos clientes que estos, buscar y filtrar estorban más que ayudan. */
+const CLIENTES_PARA_BUSCAR = 6
+/**
+ * Tarjetas que se pintan de una vez. Cada una mide 176 px o más, y esta pantalla
+ * vive dentro del desplazamiento de la pantalla de Inicio, donde una lista
+ * virtualizada no podría descartar nada: se pinta por tramos y se avisa de cuántos
+ * quedan, igual que la cartera.
+ */
+const TARJETAS_POR_TRAMO = 12
+
+const normalizar = (texto: string): string =>
+  texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
 
 export function InicioEntrenador({
   nombre,
@@ -37,15 +53,17 @@ export function InicioEntrenador({
   const resumen = useResumenSemanal(pedir, semana)
   const [trabajo, setTrabajo] = useState<TrabajoEntrenador | null>(null)
   const [error, setError] = useState<Falta | null>(null)
-  const [desdeActivos, setDesdeActivos] = useState(0)
   const [desdePendientes, setDesdePendientes] = useState(0)
   const [intento, setIntento] = useState(0)
+  const [busqueda, setBusqueda] = useState("")
+  const [soloAtencion, setSoloAtencion] = useState(false)
+  const [tramos, setTramos] = useState(1)
   useFocusEffect(
     useCallback(() => {
       let vigente = true
       setTrabajo(null)
       setError(null)
-      void cargarTrabajo(pedir, desdeActivos, desdePendientes)
+      void cargarTrabajo(pedir, desdePendientes)
         .then((datos) => {
           if (vigente) setTrabajo(datos)
         })
@@ -55,25 +73,44 @@ export function InicioEntrenador({
       return () => {
         vigente = false
       }
-    }, [pedir, desdeActivos, desdePendientes, intento]),
+    }, [pedir, desdePendientes, intento]),
   )
   const clientes = [...(resumen.datos?.clientes ?? [])].sort(
     (a, b) =>
       Number(necesitaAtencion(b, semana, hoy)) - Number(necesitaAtencion(a, semana, hoy)) ||
       nombreCliente(a).localeCompare(nombreCliente(b), "es"),
   )
-  const estaSemana = semana === actual
+  const enAtencion = clientes.filter((cliente) => necesitaAtencion(cliente, semana, hoy))
+  const terminos = normalizar(busqueda).split(/\s+/).filter(Boolean)
+  const coincidentes = (soloAtencion ? enAtencion : clientes).filter((cliente) => {
+    const nombreNormal = normalizar(nombreCliente(cliente))
+    return terminos.every((termino) => nombreNormal.includes(termino))
+  })
+  const visibles = coincidentes.slice(0, tramos * TARJETAS_POR_TRAMO)
+  const puedeFiltrar = clientes.length >= CLIENTES_PARA_BUSCAR
   const mostrarTrabajo = resumen.error?.reintentable !== false
+  const cambiarSemana = (nueva: string): void => {
+    setSemana(nueva)
+    setTramos(1)
+  }
   return (
     <View style={s.contenido}>
-      <Text style={s.nombre} accessibilityRole="header">
-        Hola, {nombre}
-      </Text>
+      <View style={s.saludo}>
+        <Text style={[s.nombre, s.textos]} accessibilityRole="header">
+          Hola, {nombre}
+        </Text>
+        <BotonEnlace
+          texto="Actualizar"
+          etiquetaAccesible="Actualizar el resumen semanal"
+          ocupado={resumen.actualizando}
+          onPress={resumen.refrescar}
+        />
+      </View>
       <View style={s.semana}>
         <Pulsable
           style={s.flecha}
           accessibilityLabel="Semana anterior"
-          onPress={() => setSemana(sumarDias(semana, -7))}
+          onPress={() => cambiarSemana(sumarDias(semana, -7))}
         >
           <Icono nombre="atras" color={tema.texto} tamano={20} />
         </Pulsable>
@@ -84,7 +121,7 @@ export function InicioEntrenador({
           style={s.flecha}
           accessibilityLabel="Semana siguiente"
           disabled={semana >= actual}
-          onPress={() => setSemana(sumarDias(semana, 7))}
+          onPress={() => cambiarSemana(sumarDias(semana, 7))}
         >
           <Icono
             nombre="adelante"
@@ -114,8 +151,59 @@ export function InicioEntrenador({
         ) : (
           resumen.datos && (
             <View style={s.grupo}>
+              {puedeFiltrar && (
+                <View style={s.grupo}>
+                  <View style={s.buscador}>
+                    <TextInput
+                      style={s.campo}
+                      value={busqueda}
+                      onChangeText={(texto) => {
+                        setBusqueda(texto)
+                        setTramos(1)
+                      }}
+                      placeholder="Buscar cliente por nombre"
+                      placeholderTextColor={tema.textoTenue}
+                      selectionColor={tema.acento}
+                      accessibilityLabel="Buscar cliente por nombre"
+                      autoCorrect={false}
+                      autoCapitalize="none"
+                      returnKeyType="search"
+                    />
+                  </View>
+                  <View style={s.filtros}>
+                    {[
+                      { atencion: false, texto: `Todos · ${clientes.length}` },
+                      { atencion: true, texto: `Requieren atención · ${enAtencion.length}` },
+                    ].map((filtro) => (
+                      <Pulsable
+                        key={String(filtro.atencion)}
+                        style={[s.filtro, soloAtencion === filtro.atencion && s.filtroPuesto]}
+                        accessibilityLabel={filtro.texto}
+                        accessibilityState={{ selected: soloAtencion === filtro.atencion }}
+                        onPress={() => {
+                          setSoloAtencion(filtro.atencion)
+                          setTramos(1)
+                        }}
+                      >
+                        <Text
+                          style={[s.textoFiltro, soloAtencion === filtro.atencion && s.textoPuesto]}
+                        >
+                          {filtro.texto}
+                        </Text>
+                      </Pulsable>
+                    ))}
+                  </View>
+                </View>
+              )}
               {clientes.length === 0 && <Text style={s.tenue}>Aún no tienes clientes activos</Text>}
-              {clientes.map((cliente) => (
+              {clientes.length > 0 && coincidentes.length === 0 && (
+                <Text style={s.tenue} accessibilityLiveRegion="polite">
+                  {terminos.length > 0
+                    ? "Nadie coincide con la búsqueda"
+                    : "Ahora mismo nadie requiere atención"}
+                </Text>
+              )}
+              {visibles.map((cliente) => (
                 <TarjetaCliente
                   key={cliente.clienteId}
                   cliente={cliente}
@@ -124,27 +212,26 @@ export function InicioEntrenador({
                     cliente.sesionesEnviadas === 0 &&
                     hoy >= sumarDias(semana, 2)
                   }
-                  trabajo={
-                    estaSemana && mostrarTrabajo
-                      ? trabajo?.clientes.find((t) => t.cliente.id === cliente.clienteId)
-                      : undefined
-                  }
+                  sinPlan={sinPlanEstaSemana(cliente, semana, hoy)}
                   abrir={abrir}
                 />
               ))}
+              {visibles.length < coincidentes.length && (
+                <View style={s.grupo}>
+                  <Text style={s.tenue}>
+                    {`Mostrando ${visibles.length} de ${coincidentes.length}`}
+                  </Text>
+                  <BotonEnlace
+                    texto="Mostrar más clientes"
+                    etiquetaAccesible={`Mostrar más clientes, quedan ${coincidentes.length - visibles.length}`}
+                    onPress={() => setTramos((n) => n + 1)}
+                  />
+                </View>
+              )}
             </View>
           )
         )}
       </View>
-      {!resumen.datos && resumen.error?.reintentable && estaSemana && trabajo && (
-        <View style={s.grupo}>
-          {trabajo.clientes
-            .filter((t) => t.sinPlan)
-            .map((t) => (
-              <TarjetaTrabajo key={t.cliente.id} trabajo={t} abrir={abrir} />
-            ))}
-        </View>
-      )}
       {mostrarTrabajo && (
         <>
           {error && (
@@ -161,17 +248,6 @@ export function InicioEntrenador({
           )}
           {trabajo && (
             <>
-              {estaSemana && trabajo.activos.total > 0 && (
-                <Paginacion
-                  listado={trabajo.activos}
-                  desde={desdeActivos}
-                  paso={ACTIVOS_POR_PAGINA}
-                  nombre="Planes"
-                  anterior="Clientes activos anteriores"
-                  siguiente="Siguientes clientes activos"
-                  cambiar={setDesdeActivos}
-                />
-              )}
               {(trabajo.pendientes.total > 0 || desdePendientes > 0) && (
                 <View style={s.grupo}>
                   <Text style={s.titulo} accessibilityRole="header">
@@ -261,7 +337,33 @@ function Paginacion({
 const s = StyleSheet.create({
   contenido: { gap: espacio[24] },
   grupo: { gap: espacio[12] },
+  saludo: { flexDirection: "row", alignItems: "center", gap: espacio[8] },
   nombre: { ...tipo.tituloPantalla, color: tema.texto },
+  buscador: {
+    backgroundColor: tema.superficie,
+    borderWidth: 1,
+    borderColor: tema.bordeFuerte,
+    borderRadius: radio.campo,
+    paddingHorizontal: espacio[12],
+  },
+  campo: {
+    ...tipo.cuerpo,
+    color: tema.texto,
+    minHeight: alto.campo,
+    paddingVertical: espacio[12],
+  },
+  filtros: { flexDirection: "row", flexWrap: "wrap", gap: espacio[8] },
+  filtro: {
+    borderColor: tema.bordeFuerte,
+    borderWidth: 1,
+    borderRadius: radio.pastilla,
+    paddingHorizontal: espacio[16],
+    minHeight: alto.tactil,
+    justifyContent: "center",
+  },
+  filtroPuesto: { backgroundColor: tema.acentoSuave, borderColor: tema.acento },
+  textoFiltro: { ...tipo.secundario, fontFamily: tema.fuenteSemi, color: tema.textoTenue },
+  textoPuesto: { color: tema.acento },
   titulo: { ...tipo.titulo, color: tema.texto },
   tenue: { ...tipo.secundario, color: tema.textoTenue },
   semana: { flexDirection: "row", alignItems: "center", gap: espacio[8] },

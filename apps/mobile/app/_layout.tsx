@@ -7,8 +7,11 @@ import {
   Stack,
   ThemeProvider,
   useFocusEffect,
+  usePathname,
   useRouter,
   useSegments,
+  type ErrorBoundaryProps,
+  type Href,
 } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useFonts } from "expo-font"
@@ -20,11 +23,22 @@ import { degradadoOro, fondoDeMarca, tema } from "../src/tema"
 import { Armazon } from "../src/componentes/armazon"
 import { ProveedorNotificaciones } from "../src/notificaciones/contexto"
 import { PantallaDeCarga } from "../src/componentes/pantalla-de-carga"
+import { PantallaDeError } from "../src/componentes/pantalla-de-error"
+import {
+  guardarDestinoSiProcede,
+  marcarSesionIniciada,
+  tomarDestino,
+} from "../src/componentes/destino-tras-login"
 import { crearApiConsentimiento, PuertaConsentimiento } from "../src/consentimiento"
 
 /** Un enlace de cuenta también puede abrirse mientras otra cuenta sigue iniciada. */
 const RUTAS_DE_CUENTA = ["activar", "recuperar", "restablecer"]
 const RUTAS_PUBLICAS = ["login", ...RUTAS_DE_CUENTA]
+
+/** Si una pantalla falla al pintarse, se ve esto en lugar de una pantalla en blanco. */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps): React.JSX.Element {
+  return <PantallaDeError alReintentar={() => void retry()} />
+}
 
 /**
  * Manda al login a quien no tiene sesion y saca del login a quien si la tiene.
@@ -33,8 +47,9 @@ const RUTAS_PUBLICAS = ["login", ...RUTAS_DE_CUENTA]
  * pantalla se olvida en la pantalla numero doce.
  */
 function RedireccionDeSesion(): null {
-  const { estado } = useSesion()
+  const { estado, sesionCaducada } = useSesion()
   const segmentos = useSegments()
+  const ruta = usePathname()
   const router = useRouter()
 
   // El foco espera a que Expo registre la pila; antes puede reemplazar la raíz y repetir la intro.
@@ -46,10 +61,15 @@ function RedireccionDeSesion(): null {
 
       const enRutaPublica = RUTAS_PUBLICAS.includes(segmentos[0] ?? "")
 
+      if (estado.fase === "dentro") marcarSesionIniciada()
+
       if (estado.fase === "fuera" && !enRutaPublica) {
+        // Se recuerda el destino de un enlace en frío o de una sesión caducada; tras
+        // cerrar sesión a propósito no, para que otra persona no herede la pantalla.
+        guardarDestinoSiProcede(ruta, sesionCaducada)
         router.replace("/login")
       } else if (estado.fase === "dentro" && segmentos[0] === "login") {
-        router.replace("/")
+        router.replace((tomarDestino() ?? "/") as Href)
       } else if (
         estado.fase === "local" &&
         !RUTAS_DE_CUENTA.includes(segmentos[0] ?? "") &&
@@ -58,7 +78,7 @@ function RedireccionDeSesion(): null {
       ) {
         router.replace("/entrenamiento")
       }
-    }, [estado, segmentos, router]),
+    }, [estado, sesionCaducada, segmentos, ruta, router]),
   )
 
   return null

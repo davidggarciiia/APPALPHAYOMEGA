@@ -5,9 +5,14 @@ import { useSesion } from "../sesion"
 import { TarjetaConsentimiento } from "../consentimiento"
 
 const mockReplace = jest.fn()
+const mockPush = jest.fn()
+jest.mock("expo-constants", () => ({
+  __esModule: true,
+  default: { expoConfig: { version: "1.4.2" } },
+}))
 jest.mock("expo-router", () => ({
   useRouter: () => ({
-    push: jest.fn(),
+    push: mockPush,
     replace: mockReplace,
     back: jest.fn(),
     canGoBack: () => false,
@@ -153,4 +158,67 @@ it("reintenta la carga fallida y permite editar después", async () => {
   expect(await screen.findByRole("header", { name: "Cliente Demo" })).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: "Editar datos personales" }))
   expect(screen.getByLabelText("Teléfono")).toHaveProp("keyboardType", "phone-pad")
+})
+
+it("el entrenador llega a la gestión del nutricionista desde su perfil, también en móvil", async () => {
+  const entrenador = { ...perfil, nombre: "Carlos", rol: "entrenador" as const }
+  jest.mocked(useSesion).mockReturnValue({
+    estado: { fase: "dentro", usuario: entrenador, tokenAcceso: "token" },
+    salir: jest.fn(),
+    pedir,
+  } as unknown as ReturnType<typeof useSesion>)
+  jest.mocked(leerPerfil).mockResolvedValue(entrenador)
+  await render(<Perfil />)
+  const fila = await screen.findByRole("button", { name: /^Nutricionista/ })
+  expect(fila).toHaveStyle({ minHeight: 64 })
+  await fireEvent.press(fila)
+  expect(mockPush).toHaveBeenCalledWith("/nutricionista")
+})
+
+it("el cliente no ve la gestión del nutricionista", async () => {
+  await render(<Perfil />)
+  await screen.findByRole("header", { name: "Cliente Demo" })
+  expect(screen.queryByRole("button", { name: /^Nutricionista/ })).toBeNull()
+})
+
+it("muestra la versión de la app", async () => {
+  await render(<Perfil />)
+  expect(await screen.findByText("Versión 1.4.2")).toBeOnTheScreen()
+})
+
+it("pide y muestra la fecha de nacimiento como DD/MM/AAAA y la guarda en el formato de la API", async () => {
+  jest.mocked(guardarPerfil).mockResolvedValue({ ...perfil, fechaNacimiento: "1990-03-05" })
+  await render(<Perfil />)
+  await fireEvent.press(await screen.findByRole("button", { name: "Editar datos personales" }))
+  const campo = screen.getByLabelText("Fecha de nacimiento")
+  expect(campo).toHaveProp("placeholder", "DD/MM/AAAA")
+  expect(campo).toHaveProp("value", "12/04/1995")
+  await fireEvent.changeText(campo, "5/3/1990")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar cambios" }))
+  await waitFor(() =>
+    expect(guardarPerfil).toHaveBeenCalledWith(
+      pedir,
+      expect.objectContaining({ fechaNacimiento: "1990-03-05" }),
+    ),
+  )
+  await fireEvent.press(await screen.findByRole("button", { name: "Editar datos personales" }))
+  expect(screen.getByLabelText("Fecha de nacimiento")).toHaveProp("value", "05/03/1990")
+})
+
+it("rechaza una fecha inválida sin llamar a la API y permite vaciarla", async () => {
+  jest.mocked(guardarPerfil).mockResolvedValue({ ...perfil, fechaNacimiento: null })
+  await render(<Perfil />)
+  await fireEvent.press(await screen.findByRole("button", { name: "Editar datos personales" }))
+  await fireEvent.changeText(screen.getByLabelText("Fecha de nacimiento"), "31/02/1995")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar cambios" }))
+  expect(await screen.findByText(/válida con el formato DD/)).toBeOnTheScreen()
+  expect(guardarPerfil).not.toHaveBeenCalled()
+  await fireEvent.changeText(screen.getByLabelText("Fecha de nacimiento"), "")
+  await fireEvent.press(screen.getByRole("button", { name: "Guardar cambios" }))
+  await waitFor(() =>
+    expect(guardarPerfil).toHaveBeenCalledWith(
+      pedir,
+      expect.objectContaining({ fechaNacimiento: null }),
+    ),
+  )
 })

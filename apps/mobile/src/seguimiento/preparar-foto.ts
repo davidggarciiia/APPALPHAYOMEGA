@@ -35,7 +35,8 @@ export type FotoPreparada = {
 export type EleccionFoto =
   | { tipo: "elegida"; uri: string }
   | { tipo: "cancelada" }
-  | { tipo: "sinPermiso"; mensaje: string }
+  /** `ajustes`: el permiso está bloqueado y solo se puede dar desde los ajustes del móvil. */
+  | { tipo: "sinPermiso"; mensaje: string; ajustes: boolean }
   | { tipo: "fallo"; mensaje: string }
 
 export type ObtencionFoto =
@@ -76,6 +77,7 @@ export async function elegirFoto(origen: OrigenFoto): Promise<EleccionFoto> {
       if (!permiso.granted) {
         return {
           tipo: "sinPermiso",
+          ajustes: !permiso.canAskAgain,
           mensaje: permiso.canAskAgain
             ? "Sin permiso para usar la cámara. Vuelve a intentarlo y acéptalo, o elige una foto de la galería."
             : "La cámara está bloqueada para esta app. Actívala en los ajustes del móvil o elige una foto de la galería.",

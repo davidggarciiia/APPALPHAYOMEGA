@@ -37,7 +37,7 @@ type Formulario = z.infer<typeof FormularioSchema>
  * que activar una cuenta era literalmente imposible desde un movil.
  */
 export default function Activar(): React.JSX.Element {
-  const { token } = useLocalSearchParams<{ token?: string }>()
+  const { token, email } = useLocalSearchParams<{ token?: string; email?: string }>()
   const router = useRouter()
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
   const [hecho, setHecho] = useState(false)
@@ -73,8 +73,11 @@ export default function Activar(): React.JSX.Element {
     }
   })
   const enviarUnaVez = useEnvioUnico(enviar)
+  // Si el enlace trae el correo, el login lo recibe escrito. Solo el correo, nunca la contraseña.
+  const correo = typeof email === "string" && z.email().safeParse(email).success ? email : null
   const irAEntrar = (): void => {
-    router.replace("/login")
+    if (correo === null) router.replace("/login")
+    else router.replace({ pathname: "/login", params: { email: correo } })
   }
 
   if (hecho) {

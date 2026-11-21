@@ -5,9 +5,8 @@ import { ETIQUETA_DE_ZONA, type ResumenSemanal } from "@alpha-omega/shared"
 import { BotonEnlace } from "../componentes/botones"
 import { Icono } from "../componentes/iconos"
 import { Pulsable } from "../componentes/pulsable"
-import { fechaLegible, sumarDias } from "../entrenamiento/fechas"
+import { fechaLegible, lunesDeSemana, sumarDias } from "../entrenamiento/fechas"
 import { espacio, radio, tema, tipo } from "../tema"
-import type { TrabajoCliente } from "./cargar-trabajo"
 
 type Cliente = ResumenSemanal["clientes"][number]
 type Ejercicio = Cliente["ejercicios"][number]
@@ -15,8 +14,23 @@ type Ejercicio = Cliente["ejercicios"][number]
 export const nombreCliente = (cliente: { nombre: string; apellidos: string | null }): string =>
   [cliente.nombre, cliente.apellidos].filter(Boolean).join(" ")
 
+/**
+ * Un cliente activo sin ninguna sesión prevista en la semana en curso no tiene
+ * plan que la cubra: al asignar un plan se crean todas sus sesiones de golpe.
+ * Se deduce del resumen semanal para no preguntar el plan cliente a cliente. Solo
+ * vale para la semana actual: en una pasada puede que aún no fuera cliente.
+ */
+export function sinPlanEstaSemana(cliente: Cliente, semana: string, hoy: string): boolean {
+  return (
+    semana === lunesDeSemana(hoy) &&
+    cliente.sesionesPrevistas === 0 &&
+    cliente.sesionesEnviadas === 0
+  )
+}
+
 export function necesitaAtencion(cliente: Cliente, semana: string, hoy: string): boolean {
   return (
+    sinPlanEstaSemana(cliente, semana, hoy) ||
     cliente.molestiasAbiertas.length > 0 ||
     cliente.ejercicios.some((ejercicio) => ejercicio.estado === "Baja") ||
     (cliente.sesionesPrevistas > 0 && cliente.sesionesEnviadas === 0 && hoy >= sumarDias(semana, 2))
@@ -50,19 +64,30 @@ function comparacionLegible(ejercicio: Ejercicio): string | null {
     .join(" · ")
 }
 
+/** «2 de 3 sesiones enviadas · 67 %»; sin sesiones previstas no hay porcentaje. */
+export function adherencia(cliente: Cliente): string {
+  const base = `${cliente.sesionesEnviadas} de ${cliente.sesionesPrevistas} sesiones enviadas`
+  if (cliente.sesionesPrevistas === 0) return base
+  const porcentaje = Math.min(
+    100,
+    Math.round((cliente.sesionesEnviadas / cliente.sesionesPrevistas) * 100),
+  )
+  return `${base} · ${porcentaje} %`
+}
+
 export function TarjetaCliente({
   cliente,
   sinEnvios,
-  trabajo,
+  sinPlan,
   abrir,
 }: {
   cliente: Cliente
   sinEnvios: boolean
-  trabajo?: TrabajoCliente
+  sinPlan: boolean
   abrir: (ruta: Href) => void
 }): React.JSX.Element {
   const nombre = nombreCliente(cliente)
-  const sesiones = `${cliente.sesionesEnviadas} de ${cliente.sesionesPrevistas} sesiones enviadas`
+  const sesiones = adherencia(cliente)
   const hayMarcas = cliente.ejercicios.some((ejercicio) => ejercicio.mejorSerie !== null)
   const ejercicios = hayMarcas
     ? [...cliente.ejercicios]
@@ -75,7 +100,11 @@ export function TarjetaCliente({
         .slice(0, 4)
     : []
   const sinMarcas = [
-    cliente.sesionesEnviadas === 0 ? "Sin envíos esta semana" : "Sin marcas esta semana",
+    sinPlan
+      ? "Sin plan esta semana"
+      : cliente.sesionesEnviadas === 0
+        ? "Sin envíos esta semana"
+        : "Sin marcas esta semana",
     cliente.ultimaFechaEnviada
       ? `último: ${fechaLegible(cliente.ultimaFechaEnviada).replace(",", "")}`
       : null,
@@ -86,9 +115,12 @@ export function TarjetaCliente({
     (molestia) => `${ETIQUETA_DE_ZONA[molestia.zona]} · ${molestia.intensidad} de 10 · abierta`,
   )
   const atencion =
-    molestias.length > 0 || sinEnvios || cliente.ejercicios.some((e) => e.estado === "Baja")
+    molestias.length > 0 ||
+    sinPlan ||
+    sinEnvios ||
+    cliente.ejercicios.some((e) => e.estado === "Baja")
   const detalle = [
-    sesiones,
+    sinPlan ? null : sesiones,
     ...ejercicios.map((ejercicio) =>
       [
         ejercicio.nombre,
@@ -162,57 +194,19 @@ export function TarjetaCliente({
           />
         </View>
       )}
-      <AccionesTrabajo trabajo={trabajo} abrir={abrir} />
-    </View>
-  )
-}
-
-export function TarjetaTrabajo({
-  trabajo,
-  abrir,
-}: {
-  trabajo: TrabajoCliente
-  abrir: (ruta: Href) => void
-}): React.JSX.Element {
-  const nombre = nombreCliente(trabajo.cliente)
-  return (
-    <View style={s.tarjeta}>
-      <Pulsable
-        style={s.contenido}
-        accessibilityLabel={`Ver ficha de ${nombre}`}
-        onPress={() =>
-          abrir({ pathname: "/entrenador/cliente/[id]", params: { id: trabajo.cliente.id } })
-        }
-      >
-        <Text style={s.nombre}>{nombre}</Text>
-        <Text style={s.tenue}>Resumen semanal no disponible</Text>
-      </Pulsable>
-      <AccionesTrabajo trabajo={trabajo} abrir={abrir} />
-    </View>
-  )
-}
-
-function AccionesTrabajo({
-  trabajo,
-  abrir,
-}: {
-  trabajo?: TrabajoCliente
-  abrir: (ruta: Href) => void
-}): React.JSX.Element | null {
-  if (!trabajo) return null
-  const { cliente, sinPlan } = trabajo
-  if (!sinPlan) return null
-  const nombre = nombreCliente(cliente)
-  return (
-    <View style={s.acciones}>
       {sinPlan && (
-        <BotonEnlace
-          texto="Crear plan"
-          etiquetaAccesible={`Crear plan para ${nombre}`}
-          onPress={() =>
-            abrir({ pathname: "/entrenador/cliente/[id]/plan", params: { id: cliente.id } })
-          }
-        />
+        <View style={s.acciones}>
+          <BotonEnlace
+            texto="Crear plan"
+            etiquetaAccesible={`Crear plan para ${nombre}`}
+            onPress={() =>
+              abrir({
+                pathname: "/entrenador/cliente/[id]/plan",
+                params: { id: cliente.clienteId },
+              })
+            }
+          />
+        </View>
       )}
     </View>
   )

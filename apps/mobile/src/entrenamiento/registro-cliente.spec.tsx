@@ -17,10 +17,15 @@ import { desdePrescripcion, registroParaEnviar } from "./registro-modelo"
 import * as tablaSeries from "./tabla-series"
 import * as molestiaSesion from "./sesion/molestia"
 import { ErrorDeRed } from "../lib/http"
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake"
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
+}))
+jest.mock("expo-keep-awake", () => ({
+  activateKeepAwakeAsync: jest.fn(async () => undefined),
+  deactivateKeepAwake: jest.fn(async () => undefined),
 }))
 jest.mock("expo-crypto", () => ({
   randomUUID: () => jest.requireActual<typeof import("node:crypto")>("node:crypto").randomUUID(),
@@ -246,14 +251,14 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await fireEvent.press(screen.getByRole("button", { name: /^Escribir KG:/ }))
     await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "1,2,3")
     await fireEvent.press(screen.getByRole("button", { name: "Siguiente" }))
-    expect(screen.getByRole("button", { name: "Terminar" })).toBeDisabled()
+    expect(screen.getAllByRole("button", { name: "Terminar" })[0]!).toBeDisabled()
     expect(api.enviar).not.toHaveBeenCalled()
     await fireEvent.press(screen.getByRole("button", { name: "Anterior" }))
     await fireEvent.press(screen.getByRole("button", { name: /^Peso — Movilidad/ }))
     expect(screen.getByLabelText("Valor manual KG")).toHaveProp("value", "1,2,3")
     await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "12,5")
     await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
-    expect(screen.getByRole("button", { name: "Terminar" })).toBeEnabled()
+    expect(screen.getAllByRole("button", { name: "Terminar" })[0]!).toBeEnabled()
   })
 
   it("conserva el bloque y el texto manual inválido al llegar un borrador remoto tardío", async () => {
@@ -318,7 +323,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await fireEvent.press(
       await screen.findByRole("checkbox", { name: "Hecha — Movilidad, serie 1" }),
     )
-    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    await fireEvent.press(screen.getAllByRole("button", { name: "Terminar" })[0]!)
     expect(screen.getByText("Quedan 2 series sin hacer.")).toBeOnTheScreen()
     expect(api.enviar).not.toHaveBeenCalled()
   })
@@ -370,7 +375,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
       await fireEvent.press(
         await screen.findByRole("checkbox", { name: "Hecha — calentamiento, serie 1" }),
       )
-      await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+      await fireEvent.press(screen.getAllByRole("button", { name: "Terminar" })[0]!)
       expect(screen.getByText("Quedan 7 series sin hacer.")).toBeOnTheScreen()
       await fireEvent.press(screen.getByRole("button", { name: "Terminar y enviar" }))
       expect(await screen.findByText(estado.toUpperCase())).toBeOnTheScreen()
@@ -460,7 +465,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     const { api, comoApi } = crearApi()
     api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    expect(await screen.findByRole("button", { name: "Terminar" })).toBeTruthy()
+    expect((await screen.findAllByRole("button", { name: "Terminar" }))[0]!).toBeTruthy()
     expect(screen.queryByText("¿Cómo llegas?")).toBeNull()
     await waitFor(() => expect(copiaGuardada().edicion.tramoActivoDesde).toBeTruthy())
     expect(copiaGuardada().edicion.checkin).toBeNull()
@@ -531,7 +536,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
         await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
       }
       await fireEvent.press(screen.getByRole("checkbox", { name: "Hecha — Press banca, serie 1" }))
-      await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+      await fireEvent.press(screen.getAllByRole("button", { name: "Terminar" })[0]!)
       await waitFor(() => expect(api.enviar).toHaveBeenCalledTimes(1))
       expect(api.enviar.mock.calls[0]![1].registro.series[0]!.pesoKg).toBe(editar ? 37.5 : 40)
     },
@@ -541,7 +546,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     const { api, comoApi } = crearApi()
     api.resultados.mockRejectedValue(new ErrorDeRed("Sin red"))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    expect(await screen.findByRole("button", { name: "Terminar" })).toBeTruthy()
+    expect((await screen.findAllByRole("button", { name: "Terminar" }))[0]!).toBeTruthy()
     await waitFor(() => expect(api.resultados).toHaveBeenCalled())
     expect(screen.queryByText(/Sube carga la próxima vez/)).toBeNull()
     expect(screen.getByRole("button", { name: /^Peso — Press banca/ })).toBeTruthy()
@@ -836,7 +841,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     api.guardar.mockRejectedValue(new ErrorDeRed("Sin conexión"))
     const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
     await anotarNota()
-    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    await fireEvent.press(screen.getAllByRole("button", { name: "Terminar" })[0]!)
     expect(await screen.findByText("GUARDADO")).toBeTruthy()
     expect(api.enviar).not.toHaveBeenCalled()
     expect(screen.queryByRole("checkbox")).toBeNull()
@@ -886,7 +891,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
     await anotarNota()
-    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    await fireEvent.press(screen.getAllByRole("button", { name: "Terminar" })[0]!)
     await screen.findByText("GUARDADO")
     expect(screen.queryByRole("checkbox")).toBeNull()
     expect(screen.queryByDisplayValue(/./)).toBeNull()
@@ -907,7 +912,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     api.guardar.mockImplementation(borradorGuardado)
     api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
-    await fireEvent.press(await screen.findByRole("button", { name: "Terminar" }))
+    await fireEvent.press((await screen.findAllByRole("button", { name: "Terminar" }))[0]!)
     expect(await screen.findByText("ENVIADO")).toBeTruthy()
     expect(screen.queryByText("¿Cómo ha ido?")).toBeNull()
     expect(api.enviar.mock.calls[0]![1].registro).toMatchObject({ checkin: null, cierre: null })
@@ -921,23 +926,23 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await fireEvent.press(await screen.findByRole("button", { name: /^Peso — Press banca/ }))
     await fireEvent.press(screen.getByRole("button", { name: "Escribir KG: 40" }))
     await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "1,2,3")
-    const terminar = screen.getByRole("button", { name: "Terminar" })
+    const terminar = screen.getAllByRole("button", { name: "Terminar" })[0]!
     expect(terminar.props.accessibilityState.disabled).toBe(true)
     await fireEvent.press(terminar)
     expect(api.enviar).not.toHaveBeenCalled()
     expect(screen.getByLabelText("Valor manual KG").props.value).toBe("1,2,3")
     await fireEvent.changeText(screen.getByLabelText("Valor manual KG"), "42,5")
-    expect(screen.getByRole("button", { name: "Terminar" }).props.accessibilityState.disabled).toBe(
-      false,
-    )
+    expect(
+      screen.getAllByRole("button", { name: "Terminar" })[0]!.props.accessibilityState.disabled,
+    ).toBe(false)
   })
 
   it("no afirma GUARDADO si falla persistir la intención de envío", async () => {
     const { api, comoApi } = crearApi()
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await screen.findByRole("button", { name: "Terminar" })
+    await screen.findAllByRole("button", { name: "Terminar" })
     mockFalloDeDisco = true
-    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    await fireEvent.press(screen.getAllByRole("button", { name: "Terminar" })[0]!)
     expect(
       await screen.findByText(
         "No se pudo guardar la sesión en este dispositivo. Reintenta antes de salir.",
@@ -1044,7 +1049,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
     expect(await screen.findByLabelText("Bloque 2 de 2, Principal")).toBeTruthy()
     expect(screen.queryByRole("progressbar")).toBeNull()
-    await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+    await fireEvent.press(screen.getAllByRole("button", { name: "Terminar" })[0]!)
     expect(await screen.findByLabelText(/2 de 2 series/)).toBeTruthy()
   })
 
@@ -1118,7 +1123,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     api.guardar.mockImplementation(borradorGuardado)
     api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await fireEvent.press(await screen.findByRole("button", { name: "Terminar" }))
+    await fireEvent.press((await screen.findAllByRole("button", { name: "Terminar" }))[0]!)
     expect(screen.getByText("Marca al menos una serie")).toBeTruthy()
     expect(api.enviar).not.toHaveBeenCalled()
   })
@@ -1169,14 +1174,14 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
       const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
       const check = await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" })
       await fireEvent.press(check)
-      expect(screen.getByLabelText("Récord personal: +2,5 kg")).toBeOnTheScreen()
-      await act(async () => jest.advanceTimersByTime(1600))
-      expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+      expect(screen.getByLabelText("Mejor que la última vez: +2,5 kg")).toBeOnTheScreen()
+      await act(async () => jest.advanceTimersByTime(4000))
+      expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
       await fireEvent.press(screen.getByRole("button", { name: "Deshacer" }))
       expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).not.toBeChecked()
       await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
       expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
-      expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+      expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
       await vista.unmount()
     } finally {
       jest.useRealTimers()
@@ -1198,7 +1203,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
     await fireEvent.press(await screen.findByRole("checkbox", { name: /Hecha — Press banca/ }))
     expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
-    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
   })
 
   it("una serie recuperada hecha no celebra un récord al cargarla ni al remarcarla", async () => {
@@ -1215,10 +1220,10 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
     const check = await screen.findByRole("checkbox", { name: /Hecha — Press banca/ })
     expect(check).toBeChecked()
-    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
     await fireEvent.press(check)
     await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
-    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
   })
 
   it("remarcar una serie recuperada con la red pendiente no vuelve a celebrar el récord", async () => {
@@ -1243,7 +1248,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).not.toBeChecked()
     await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
     expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
-    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
   })
 
   it("recuerda también las series hechas del borrador remoto tras mostrar una copia local pendiente", async () => {
@@ -1278,7 +1283,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
     await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
     expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
-    expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+    expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
   })
 
   it("recuerda el borrador remoto antes de que el disco termine de guardarlo", async () => {
@@ -1324,7 +1329,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
       await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
       await fireEvent.press(screen.getByRole("checkbox", { name: /Hecha — Press banca/ }))
       expect(screen.getByRole("checkbox", { name: /Hecha — Press banca/ })).toBeChecked()
-      expect(screen.queryByLabelText(/^Récord personal:/)).toBeNull()
+      expect(screen.queryByLabelText(/^Mejor que la última vez:/)).toBeNull()
     } finally {
       await act(() => liberarDisco())
       guardar.mockRestore()
@@ -1429,7 +1434,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     api.guardar.mockImplementation(borradorGuardado)
     api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    await fireEvent.press(await screen.findByRole("button", { name: "Terminar" }))
+    await fireEvent.press((await screen.findAllByRole("button", { name: "Terminar" }))[0]!)
     expect(screen.getByText("¿Terminar ya?")).toBeTruthy()
     expect(screen.getByText("Quedan 1 series sin hacer.")).toBeTruthy()
     expect(api.enviar).not.toHaveBeenCalled()
@@ -1441,7 +1446,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
   it("la cabecera fija es la única acción Terminar, también al acabar la última serie", async () => {
     const { comoApi } = crearApi()
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    expect(await screen.findByRole("button", { name: "Terminar" })).toBeTruthy()
+    expect((await screen.findAllByRole("button", { name: "Terminar" }))[0]!).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Terminar entreno" })).toBeNull()
   })
 
@@ -1449,7 +1454,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
     const { api, comoApi } = crearApi()
     api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
     await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
-    expect(await screen.findByRole("button", { name: "Terminar" })).toBeTruthy()
+    expect((await screen.findAllByRole("button", { name: "Terminar" }))[0]!).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Terminar entreno" })).toBeNull()
   })
 
@@ -1491,7 +1496,7 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
       await fireEvent.press(casilla)
       await waitFor(() => expect(copiaGuardada().edicion.series[0].hecha).toBe(true))
       expect(screen.queryByText("Falta el peso")).toBeNull()
-      await fireEvent.press(screen.getByRole("button", { name: "Terminar" }))
+      await fireEvent.press(screen.getAllByRole("button", { name: "Terminar" })[0]!)
       await waitFor(() => expect(api.enviar).toHaveBeenCalledTimes(1))
       expect(api.enviar.mock.calls[0]![1].registro.series[0]).toMatchObject({
         hecha: true,
@@ -1532,4 +1537,235 @@ describe("RegistroCliente · sesión y envío en un toque", () => {
       expect(tabla.getByRole("checkbox", { name: nombreCasilla })).not.toBeChecked()
     },
   )
+
+  it("el error al abrir la sesión ofrece Volver además de Reintentar", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockRejectedValue(new ErrorDeRed("Sin conexión"))
+    const salir = jest.fn()
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} salir={salir} />)
+    expect(await screen.findByRole("button", { name: "Reintentar" })).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Volver" }))
+    expect(salir).toHaveBeenCalledTimes(1)
+  })
+
+  describe("pantalla encendida", () => {
+    const activar = jest.mocked(activateKeepAwakeAsync)
+    const soltar = jest.mocked(deactivateKeepAwake)
+    beforeEach(() => {
+      activar.mockClear()
+      soltar.mockClear()
+    })
+
+    it("la mantiene con la sesión abierta y la suelta al salir", async () => {
+      const { api, comoApi } = crearApi()
+      api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+      const vista = await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await screen.findAllByRole("button", { name: "Terminar" })
+      await waitFor(() => expect(activar).toHaveBeenCalled())
+      expect(soltar).not.toHaveBeenCalled()
+      await vista.unmount()
+      expect(soltar).toHaveBeenCalled()
+    })
+
+    it("no la mantiene mientras la sesión está en pausa y la recupera al continuar", async () => {
+      const { comoApi } = crearApi()
+      const copia = nuevoDocumento(sesion)
+      copia.edicion.inicio = new Date().toISOString()
+      copia.edicion.tiempoActivoSegundos = 60
+      copia.edicion.tramoActivoDesde = null
+      await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
+      await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await screen.findByRole("button", { name: "Continuar entrenamiento" })
+      expect(activar).not.toHaveBeenCalled()
+      await fireEvent.press(screen.getByRole("button", { name: "Continuar entrenamiento" }))
+      await waitFor(() => expect(activar).toHaveBeenCalled())
+    })
+
+    it("no la mantiene en una sesión ya enviada", async () => {
+      const { api, comoApi } = crearApi()
+      api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+      api.guardar.mockImplementation(borradorGuardado)
+      api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
+      await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+      await fireEvent.press(
+        await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+      )
+      await fireEvent.press((await screen.findAllByRole("button", { name: "Terminar" }))[0]!)
+      expect(await screen.findByText("ENVIADO")).toBeTruthy()
+      activar.mockClear()
+      await act(async () => undefined)
+      expect(activar).not.toHaveBeenCalled()
+      expect(soltar).toHaveBeenCalled()
+    })
+  })
+
+  it("en pausa avisa, apaga las series y tocar una pide continuar sin anotar nada", async () => {
+    const { comoApi } = crearApi()
+    const copia = nuevoDocumento(sesion)
+    copia.edicion.inicio = new Date().toISOString()
+    copia.edicion.tiempoActivoSegundos = 60
+    copia.edicion.tramoActivoDesde = null
+    await almacenDispositivo.guardar(CUENTA, claveSesion(ID), copia)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByText(/Entrenamiento en pausa/)).toBeOnTheScreen()
+    const hechaAntes = copiaGuardada().edicion.series[0].hecha
+    const casilla = screen.getByRole("checkbox", { name: "Hecha — Press banca, serie 1" })
+    expect(casilla).toBeEnabled()
+    expect(casilla).toHaveProp("accessibilityHint", "Entrenamiento en pausa. Toca para continuar")
+    await fireEvent.press(casilla)
+    await waitFor(() => expect(screen.queryByText(/Entrenamiento en pausa/)).toBeNull())
+    expect(copiaGuardada().edicion.tramoActivoDesde).toBeTruthy()
+    expect(copiaGuardada().edicion.series[0].hecha).toBe(hechaAntes)
+  })
+
+  it("deshacer una serie cancela el descanso que esa serie arrancó", async () => {
+    const { api, comoApi } = crearApi()
+    const pauta = {
+      ...sesion,
+      borrador: null,
+      prescripcion: {
+        ...sesion.prescripcion,
+        ejercicios: [{ ...sesion.prescripcion.ejercicios[0]!, descanso: "90 s" }],
+      },
+    }
+    api.leerCliente.mockResolvedValue(pauta)
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(
+      await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+    )
+    expect(await screen.findByRole("timer", { name: /de descanso/ })).toBeOnTheScreen()
+    await waitFor(() => expect(copiaGuardada().descansoHasta).toBeTruthy())
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Deshacer" }, { timeout: 3000 }),
+    )
+    await waitFor(() =>
+      expect(copiaGuardada()).toMatchObject({ descansoHasta: null, descansoTotal: null }),
+    )
+    expect(screen.queryByRole("timer", { name: /de descanso/ })).toBeNull()
+  })
+
+  it("el circuito usa su nombre, vueltas y descanso; las notas del entrenador se ven", async () => {
+    const { api, comoApi } = crearApi()
+    const ejercicio = sesion.prescripcion.ejercicios[0]!
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      borrador: null,
+      prescripcion: {
+        ...sesion.prescripcion,
+        nota: "Banca: 60 kg de inicio",
+        circuito: { nombre: "Core", vueltas: 3, descanso: "1 min" },
+        ejercicios: [
+          {
+            ...ejercicio,
+            seccion: "circuito",
+            nota: "Pausa arriba",
+            alternativas: ["Press mancuernas"],
+            dosis: "3×8 por lado",
+            calibrar: true,
+            tipoCarga: "conCargaExterna",
+            series: [{ id: SERIE, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 }],
+          },
+        ],
+      },
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(
+      await screen.findByLabelText("Bloque 1 de 1, Core, 3 vueltas · descanso 1 min"),
+    ).toBeOnTheScreen()
+    expect(screen.getByText("3 vueltas · descanso 1 min")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Nota del entrenador: Banca: 60 kg de inicio")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Nota del entrenador: Pausa arriba")).toBeOnTheScreen()
+    expect(screen.getByText("Alternativas · Press mancuernas")).toBeOnTheScreen()
+    expect(screen.getByText("Dosis · 3×8 por lado")).toBeOnTheScreen()
+    expect(screen.getByText(/Carga por calibrar/)).toBeOnTheScreen()
+  })
+
+  it("sin kilos pautados propone la carga de la serie anterior y, al empezar, la última vez", async () => {
+    const { api, comoApi } = crearApi()
+    const ejercicio = sesion.prescripcion.ejercicios[0]!
+    const SERIE2 = "30000000-0000-4000-8000-0000000000a2"
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      borrador: null,
+      prescripcion: {
+        ...sesion.prescripcion,
+        ejercicios: [
+          {
+            ...ejercicio,
+            tipoCarga: "conCargaExterna",
+            series: [
+              { id: SERIE, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 },
+              { id: SERIE2, tipoMedicion: "repeticiones", pesoKg: null, repeticiones: 8 },
+            ],
+          },
+        ],
+      },
+    })
+    api.anteriores.mockResolvedValue({
+      anteriores: [
+        {
+          ejercicioId: ejercicio.ejercicioId,
+          fecha: "2026-09-13T10:00:00.000Z",
+          valores: { tipoMedicion: "repeticiones", pesoKg: 50, repeticiones: 8 },
+        },
+      ],
+    })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^Peso — Press banca/ })[0]).toHaveProp(
+        "accessibilityLabel",
+        expect.stringContaining(": 50"),
+      ),
+    )
+    await fireEvent.press(screen.getAllByRole("button", { name: /^Peso — Press banca/ })[0]!)
+    expect(screen.getByRole("button", { name: /^Escribir KG: 50$/ })).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Aumentar" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
+    expect(screen.getAllByRole("button", { name: /^Peso — Press banca/ })[1]).toHaveProp(
+      "accessibilityLabel",
+      expect.stringContaining(": 52,5"),
+    )
+    // Es solo una sugerencia: la segunda serie no queda registrada hasta confirmarla.
+    expect(copiaGuardada().edicion.series[1].peso).toBe("")
+  })
+
+  it("explica cómo omitir una serie mientras no se haya omitido ninguna", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(
+      await screen.findByText("Para omitir una serie, mantén pulsada su casilla."),
+    ).toBeOnTheScreen()
+  })
+
+  it("el resumen final nombra la sesión y su fecha; solo se celebra el envío hecho aquí", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({ ...sesion, borrador: null })
+    api.guardar.mockImplementation(borradorGuardado)
+    api.enviar.mockImplementation(async (_id, envio) => resultado(envio))
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    await fireEvent.press(
+      await screen.findByRole("checkbox", { name: "Hecha — Press banca, serie 1" }),
+    )
+    await fireEvent.press((await screen.findAllByRole("button", { name: "Terminar" }))[0]!)
+    expect(await screen.findByText("ENVIADO")).toBeTruthy()
+    expect(screen.getByText(/^Empuje · Lunes, 14 /)).toBeOnTheScreen()
+    expect(screen.getByRole("image", { name: "Alpha & Omega" })).toBeOnTheScreen()
+  })
+
+  it("al abrir una sesión ya enviada no repite la animación de ENVIADO", async () => {
+    const { api, comoApi } = crearApi()
+    api.leerCliente.mockResolvedValue({
+      ...sesion,
+      borrador: null,
+      enviadoEn: "2026-09-14T11:00:00.000Z",
+    })
+    api.resultado.mockResolvedValue(
+      resultado({ operacionId: ID, registro: { notas: null, series: [] } } as never),
+    )
+    await render(<RegistroCliente cuenta={CUENTA} id={ID} api={comoApi} />)
+    expect(await screen.findByText("ENVIADO")).toBeTruthy()
+    expect(screen.getByText(/^Empuje · Lunes, 14 /)).toBeOnTheScreen()
+    expect(screen.queryByRole("image", { name: "Alpha & Omega" })).toBeNull()
+  })
 })

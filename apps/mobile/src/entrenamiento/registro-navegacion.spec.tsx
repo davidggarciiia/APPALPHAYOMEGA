@@ -105,7 +105,7 @@ it("Atrás conserva el entrenamiento cuando falla el disco y permite reintentarl
   try {
     const vista = await montaje
     await fireEvent.press(await screen.findByRole("button", { name: "Entrenar" }))
-    await screen.findByRole("button", { name: "Terminar" })
+    await screen.findAllByRole("button", { name: "Terminar" })
     await fireEvent.press(screen.getByRole("button", { name: "Tengo una molestia — Press" }))
     await fireEvent.press(screen.getByRole("radio", { name: "Hombro" }))
     await act(() => router.back())
@@ -120,7 +120,7 @@ it("Atrás conserva el entrenamiento cuando falla el disco y permite reintentarl
     await fireEvent.press(await screen.findByRole("button", { name: "Descartar" }))
     await waitFor(() => expect(vista.getPathname()).toBe("/"))
     await fireEvent.press(screen.getByRole("button", { name: "Entrenar" }))
-    await screen.findByRole("button", { name: "Terminar" })
+    await screen.findAllByRole("button", { name: "Terminar" })
     mockFalloDeDisco = true
     await act(() => router.back())
     await screen.findByText(

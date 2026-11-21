@@ -8,6 +8,7 @@ import {
   type PrescripcionConDistancia,
 } from "../registro-modelo"
 import {
+  detalleDeCircuito,
   duracionLegible,
   objetivoDeSerie,
   porSecciones,
@@ -20,6 +21,7 @@ import {
   ejercicioParaRirFinal,
   estadoDeEjercicio,
   seriesDeTrabajo,
+  tituloDeSeccion,
 } from "./modelo"
 
 const u = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
@@ -341,5 +343,24 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
     expect(
       deTransporte(conMetros({ [u(61)]: hecho("20", 3), [u(62)]: hecho("15", 3) })),
     ).toMatchObject({ texto: "32 kg, igual", tipo: "igual" })
+  })
+})
+
+describe("Título y detalle del circuito", () => {
+  it("usa el nombre del entrenador para el circuito y el de siempre para el resto", () => {
+    const circuito = { nombre: "Core", vueltas: 3, descanso: "1 min" }
+    expect(tituloDeSeccion("circuito", circuito)).toBe("Core")
+    expect(tituloDeSeccion("circuito", { vueltas: 2 })).toBe("Circuito")
+    expect(tituloDeSeccion("circuito", undefined)).toBe("Circuito")
+    expect(tituloDeSeccion("calentamiento", circuito)).toBe("Calentamiento")
+    expect(tituloDeSeccion("final", circuito)).toBe("Final")
+  })
+
+  it("resume las vueltas y el descanso, y calla si no hay circuito", () => {
+    expect(detalleDeCircuito({ nombre: "Core", vueltas: 3, descanso: "1 min" })).toBe(
+      "3 vueltas · descanso 1 min",
+    )
+    expect(detalleDeCircuito({ vueltas: 1 })).toBe("1 vuelta")
+    expect(detalleDeCircuito(undefined)).toBeNull()
   })
 })

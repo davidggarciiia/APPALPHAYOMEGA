@@ -14,6 +14,7 @@ export default function Rutinas(): React.JSX.Element {
       />
       <ListadoDeRutinas
         api={api}
+        modo="editar"
         elegir={(r) => router.push({ pathname: "/rutinas/[id]", params: { id: r.id } })}
       />
     </PantallaDeFormulario>

@@ -18,11 +18,10 @@ import { tema } from "../../tema"
 import { almacenDispositivo } from "../almacen-dispositivo"
 import type { ApiEntrenamiento } from "../api"
 import { hoyAgenda, lunesDeSemana, sumarDias } from "../fechas"
-import { Enlace } from "../sesion/controles"
 import { VerTecnica } from "../ver-tecnica"
-import { fechaCorta } from "./modelo"
 import { Guia } from "./guia"
 import { Pestanas } from "./piezas"
+import { SelectorDeSemana } from "./selector-semana"
 import { RutinaDeLaSemana, type DiaDelPlan } from "./rutina"
 import { EsqueletoEntrenamiento } from "../esqueleto-entrenamiento"
 
@@ -36,6 +35,8 @@ const CopiaDelPlanSchema = z.object({
   listado: ListadoSesionesSchema,
   prescripciones: z.record(z.string(), PrescripcionSchema),
   plan: PlanVigenteSchema.nullable(),
+  /** Sesiones sin enviar con algo hecho. Ausente en copias anteriores. */
+  empezadas: z.record(z.string(), z.boolean()).optional(),
 })
 type CopiaDelPlan = z.infer<typeof CopiaDelPlanSchema>
 
@@ -45,15 +46,21 @@ export function PlanCliente({
   api,
   abrir,
   pestana: controlada,
+  semanaElegida,
+  elegirSemana,
 }: {
   clienteId: string
   api: ApiEntrenamiento
   abrir: (id: string) => void
   pestana?: Pestana
+  /** Si la pantalla que lo contiene guarda la semana, para compartirla con la agenda. */
+  semanaElegida?: string
+  elegirSemana?: (lunes: string) => void
 }): React.JSX.Element {
   const [interna, setPestana] = useState<Pestana>("rutina")
   const pestana = controlada ?? interna
-  const [semana, setSemana] = useState(lunesDeSemana)
+  const [semanaInterna, setSemanaInterna] = useState(lunesDeSemana)
+  const semana = semanaElegida ?? semanaInterna
   const [datos, setDatos] = useState<CopiaDelPlan | null>(null)
   const [elegido, setElegido] = useState<string | null>(null)
   const [indicacionesAbiertas, setIndicacionesAbiertas] = useState(false)
@@ -90,6 +97,21 @@ export function PlanCliente({
             listado,
             plan,
             prescripciones: Object.fromEntries(sesiones.map((s) => [s.agenda.id, s.prescripcion])),
+            empezadas: Object.fromEntries(
+              sesiones
+                .filter((s) => {
+                  const registro = s.borrador?.registro
+                  return (
+                    !s.enviadoEn &&
+                    Boolean(
+                      registro?.checkin ||
+                      registro?.inicio ||
+                      registro?.series.some((serie) => serie.hecha),
+                    )
+                  )
+                })
+                .map((s) => [s.agenda.id, true]),
+            ),
           }
           if (!vigente) return
           setDatos(nuevos)
@@ -131,7 +153,9 @@ export function PlanCliente({
   const cambiarSemana = (dias_: number): void => {
     setDatos(null)
     setElegido(null)
-    setSemana((actual) => sumarDias(actual, dias_))
+    const lunes = sumarDias(semana, dias_)
+    setSemanaInterna(lunes)
+    elegirSemana?.(lunes)
   }
   const abrirSesion = (id: string): void => {
     if (abriendo.current) return
@@ -145,6 +169,7 @@ export function PlanCliente({
       {controlada === undefined && (
         <Pestanas opciones={PESTANAS} activa={pestana} cambiar={setPestana} />
       )}
+      {pestana !== "guia" && <SelectorDeSemana semana={semana} cambiarSemana={cambiarSemana} />}
       {error !== "" && (
         <View style={s.error}>
           <AvisoDeError mensaje={error} />
@@ -193,6 +218,7 @@ export function PlanCliente({
                 setTecnica(null)
               }}
               hoy={hoy}
+              empezadas={datos.empezadas}
               verTecnica={setTecnica}
               abrir={abrirSesion}
               contenidoTecnica={
@@ -212,22 +238,12 @@ export function PlanCliente({
           </View>
         )}
       </View>
-      {pestana !== "guia" && (
-        <View style={s.semanas}>
-          <Enlace texto="‹ Semana anterior" onPress={() => cambiarSemana(-7)} />
-          <Text style={s.tenue}>
-            {fechaCorta(semana)} – {fechaCorta(sumarDias(semana, 6))}
-          </Text>
-          <Enlace texto="Siguiente ›" onPress={() => cambiarSemana(7)} />
-        </View>
-      )}
     </View>
   )
 }
 
 const s = StyleSheet.create({
   contenido: { gap: 24 },
-  tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
   error: { gap: 8 },
   indicaciones: { gap: 4, marginBottom: 24 },
   filaIndicaciones: {
@@ -237,5 +253,4 @@ const s = StyleSheet.create({
     borderBottomColor: tema.borde,
   },
   indicacion: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
-  semanas: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 })

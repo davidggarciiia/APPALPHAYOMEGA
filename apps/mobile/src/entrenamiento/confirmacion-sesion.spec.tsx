@@ -92,3 +92,19 @@ it("muestra el título y Listo directamente mientras conserva el marcador", asyn
   await fireEvent.press(screen.getByRole("button", { name: "Listo" }))
   expect(salir).toHaveBeenCalledTimes(1)
 })
+
+it("nombra la sesión y su fecha", async () => {
+  await render(<ConfirmacionSesion {...base} nombre="Empuje A" fecha="Lunes, 21 nov" />)
+  expect(screen.getByText("Empuje A · Lunes, 21 nov")).toBeOnTheScreen()
+})
+
+it("al abrir una sesión ya enviada muestra el resumen sin repetir la celebración", async () => {
+  jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
+  await render(<ConfirmacionSesion {...base} celebrar={false} salir={() => undefined} />)
+  await act(() => jest.advanceTimersByTime(2000))
+  expect(screen.getByRole("header", { name: "ENVIADO" })).toBeOnTheScreen()
+  expect(screen.queryByRole("image", { name: "Alpha & Omega" })).toBeNull()
+  expect(withTiming).not.toHaveBeenCalledWith(1, expect.objectContaining({ duration: 140 }))
+  expect(screen.getByRole("text", { name: "12 de 13 series · 1 h 12 min" })).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Listo" })).toBeEnabled()
+})

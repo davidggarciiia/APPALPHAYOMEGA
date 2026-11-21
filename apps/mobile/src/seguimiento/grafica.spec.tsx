@@ -142,3 +142,58 @@ it("muestra ambas series completas sin interpolación con movimiento reducido", 
   expect(screen.getByTestId("grafica-comparacion", decorativo)).toBeTruthy()
   expect(withTiming).not.toHaveBeenCalled()
 })
+
+it("con unidad, el eje enseña el mínimo y el máximo de la serie", async () => {
+  const serie = [
+    { fecha: "2026-10-01", valor: 80 },
+    { fecha: "2026-10-05", valor: 79.5 },
+    { fecha: "2026-10-09", valor: 78 },
+  ]
+  await render(
+    <Grafica
+      puntos={serie}
+      tendencia={serie}
+      unidad="kg"
+      descripcion="Peso"
+      izquierda="1 oct 2026"
+      derecha="9 oct 2026"
+    />,
+  )
+  await fireEvent(screen.getByRole("image"), "layout", {
+    nativeEvent: { layout: { width: 330, height: 140 } },
+  })
+  const eje = screen
+    .getAllByTestId("grafica-eje-valor", decorativo)
+    .flatMap((marca) => marca.children)
+    .map((hijo) => (typeof hijo === "string" ? hijo : hijo.props.content))
+  expect(eje).toEqual(["80 kg", "78 kg"])
+})
+
+it("con todos los valores iguales enseña una sola cifra en el eje", async () => {
+  const plana = [
+    { fecha: "2026-10-01", valor: 80 },
+    { fecha: "2026-10-05", valor: 80 },
+  ]
+  await render(
+    <Grafica
+      puntos={plana}
+      tendencia={plana}
+      unidad="kg"
+      descripcion="Peso"
+      izquierda="1 oct"
+      derecha="5 oct"
+    />,
+  )
+  await fireEvent(screen.getByRole("image"), "layout", {
+    nativeEvent: { layout: { width: 330, height: 140 } },
+  })
+  expect(screen.getAllByTestId("grafica-eje-valor", decorativo)).toHaveLength(1)
+})
+
+it("sin unidad no añade cifras al eje", async () => {
+  await render(grafica())
+  await fireEvent(screen.getByRole("image"), "layout", {
+    nativeEvent: { layout: { width: 330, height: 140 } },
+  })
+  expect(screen.queryAllByTestId("grafica-eje-valor", decorativo)).toHaveLength(0)
+})

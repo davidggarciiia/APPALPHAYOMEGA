@@ -14,8 +14,8 @@ const VISTAS: Record<Exclude<VistaFoto, "otra">, string> = {
 }
 const ORDEN: VistaFoto[] = ["frente", "espalda", "perfilIzquierdo", "perfilDerecho", "otra"]
 
-/** Una pose personalizada solo se compara con la misma etiqueta. */
-function nombre(foto: MedioFoto): string {
+/** Nombre legible de la pose; una personalizada solo se compara con la misma etiqueta. */
+export function nombreDePose(foto: MedioFoto): string {
   if (foto.vista !== "otra") return VISTAS[foto.vista]
   const etiqueta = foto.etiqueta ?? "Otra"
   const comparable = (valor: string): string =>
@@ -66,7 +66,7 @@ export function FotosProgreso({
   )
   const primera = grupo[0]!
   const ultima = grupo.length > 1 ? grupo[grupo.length - 1] : undefined
-  const pose = nombre(primera)
+  const pose = nombreDePose(primera)
   return (
     <View style={s.contenido}>
       <View style={s.par}>

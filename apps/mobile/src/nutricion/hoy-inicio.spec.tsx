@@ -13,7 +13,7 @@ import { ErrorDePermiso, ErrorDeRed, ErrorDeSesion, ErrorDelServidor } from "../
 import type { ApiSeguimiento } from "../seguimiento/api"
 import type { ApiNutricion } from "./api"
 import { leerCopia } from "./copia-local"
-import { HoyInicio } from "./hoy-inicio"
+import { HoyInicio, leerHorasYMinutos } from "./hoy-inicio"
 
 jest.mock("expo-router", () => ({
   useFocusEffect: (efecto: () => void) =>
@@ -111,7 +111,7 @@ it("sin suplementos publicados conserva Peso, Pasos y Sueño, sin creatina fija"
   expect(await screen.findByRole("button", { name: "Peso: sin apuntar. Cambiar" })).toBeTruthy()
   expect(screen.getByRole("button", { name: "Pasos: sin apuntar. Cambiar" })).toBeTruthy()
   expect(screen.getByRole("button", { name: "Sueño: sin apuntar. Cambiar" })).toBeTruthy()
-  expect(screen.queryByRole("checkbox", { name: "Creatina tomada" })).toBeNull()
+  expect(screen.queryByRole("checkbox", { name: "Creatina" })).toBeNull()
   expect(screen.queryByText("Hoy")).toBeNull()
 })
 
@@ -179,13 +179,11 @@ it("Inicio muestra solo los suplementos de la dieta y usa el mismo registro que 
       objetivoPasos={null}
     />,
   )
-  await fireEvent.press(
-    await screen.findByRole("checkbox", { name: "Creatina monohidrato tomada" }),
-  )
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Creatina monohidrato" }))
   await waitFor(() =>
     expect(seguimiento.cambiarDia).toHaveBeenCalledWith(CLIENTE, hoyAgenda(), { creatina: true }),
   )
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D" }))
   await waitFor(() =>
     expect(seguimiento.cambiarDia).toHaveBeenCalledWith(CLIENTE, hoyAgenda(), {
       suplementos: ["Vitamina D"],
@@ -216,15 +214,15 @@ it("una recarga lenta no elimina una toma confirmada desde Inicio", async () => 
     objetivoPasos: null,
   }
   const vista = await render(<HoyInicio {...propiedades} />)
-  await screen.findByRole("checkbox", { name: "Vitamina D tomada" })
+  await screen.findByRole("checkbox", { name: "Vitamina D" })
   await vista.rerender(<HoyInicio {...propiedades} seguimiento={{ ...seguimiento }} />)
   expect(seguimiento.dias).toHaveBeenCalledTimes(2)
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
 
   await act(async () => terminarLectura())
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3" }))
   expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CLIENTE, hoyAgenda(), {
     suplementos: ["Vitamina D", "Omega 3"],
   })
@@ -280,7 +278,7 @@ it("acepta la recarga del día mientras guarda una medida de cintura independien
   await act(async () => terminarLectura())
   // El formulario sigue abierto; la tarjeta diaria está detrás de él.
   expect(
-    screen.getByRole("checkbox", { name: "Vitamina D tomada", includeHiddenElements: true }),
+    screen.getByRole("checkbox", { name: "Vitamina D", includeHiddenElements: true }),
   ).toBeChecked()
   await act(async () => terminarMedida())
 })
@@ -334,7 +332,7 @@ it("respeta la creatina guardada en el campo antiguo al volver a Inicio", async 
   )
   await waitFor(() =>
     expect(
-      screen.getByRole("checkbox", { name: "Creatina tomada" }).props.accessibilityState.checked,
+      screen.getByRole("checkbox", { name: "Creatina" }).props.accessibilityState.checked,
     ).toBe(true),
   )
 })
@@ -435,16 +433,16 @@ it("bloquea los suplementos durante el guardado y conserva ambos al registrarlos
       objetivoPasos={null}
     />,
   )
-  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeDisabled()
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).not.toBeChecked()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D" }))
+  expect(screen.getByRole("checkbox", { name: "Omega 3" })).toBeDisabled()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).not.toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3" }))
   expect(seguimiento.cambiarDia).toHaveBeenCalledTimes(1)
   await act(async () => terminar())
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Omega 3" })).toBeChecked()
   expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CLIENTE, hoyAgenda(), {
     suplementos: ["Vitamina D", "Omega 3"],
   })
@@ -461,11 +459,11 @@ it("un guardado fallido no marca el suplemento y permite reintentarlo", async ()
       objetivoPasos={null}
     />,
   )
-  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).not.toBeChecked()
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).not.toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeEnabled()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
 })
 
 it("espera el registro del día antes de permitir cambiar suplementos", async () => {
@@ -501,13 +499,13 @@ it("espera el registro del día antes de permitir cambiar suplementos", async ()
     />,
   )
   expect(screen.getByLabelText("Cargando registros de hoy")).toBeTruthy()
-  expect(screen.queryByRole("checkbox", { name: "Omega 3 tomada" })).toBeNull()
+  expect(screen.queryByRole("checkbox", { name: "Omega 3" })).toBeNull()
   expect(seguimiento.cambiarDia).not.toHaveBeenCalled()
   await act(async () => terminar())
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Omega 3" })).toBeChecked()
 })
 
 it("protege el valor del diálogo hasta que el servidor confirma el guardado", async () => {
@@ -751,7 +749,7 @@ it.each([new ErrorDeRed(), new ErrorDelServidor(503), new Error("Respuesta invá
         objetivoPasos={null}
       />,
     )
-    const suplemento = await screen.findByRole("checkbox", { name: "Vitamina D tomada" })
+    const suplemento = await screen.findByRole("checkbox", { name: "Vitamina D" })
     expect(suplemento).toBeDisabled()
     expect(screen.getByText("1 cápsula")).toBeTruthy()
     expect(screen.getByText("Suplementos de la copia guardada · solo lectura.")).toBeTruthy()
@@ -793,7 +791,7 @@ it("recupera la edición de suplementos al volver a cargar desde el servidor (N-
       objetivoPasos={null}
     />,
   )
-  expect(await screen.findByRole("checkbox", { name: "Vitamina D tomada" })).toBeDisabled()
+  expect(await screen.findByRole("checkbox", { name: "Vitamina D" })).toBeDisabled()
   await vista.rerender(
     <HoyInicio
       clienteId={CLIENTE}
@@ -802,10 +800,81 @@ it("recupera la edición de suplementos al volver a cargar desde el servidor (N-
       objetivoPasos={null}
     />,
   )
-  await waitFor(() =>
-    expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled(),
-  )
+  await waitFor(() => expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeEnabled())
   expect(screen.queryByText("Suplementos de la copia guardada · solo lectura.")).toBeNull()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D" }))
   expect(seguimiento.cambiarDia).toHaveBeenCalledTimes(1)
+})
+
+describe("sueño en horas y minutos", () => {
+  it("lee dos campos de cifras, sin dos puntos ni coma", () => {
+    expect(leerHorasYMinutos("7", "40")).toEqual({ suenoMin: 460 })
+    expect(leerHorasYMinutos("8", "")).toEqual({ suenoMin: 480 })
+    expect(leerHorasYMinutos("", "45")).toEqual({ suenoMin: 45 })
+    expect(leerHorasYMinutos("24", "0")).toEqual({ suenoMin: 1440 })
+    expect(leerHorasYMinutos("", "")).toEqual({ suenoMin: null })
+    for (const [horas, minutos] of [
+      ["7", "60"],
+      ["25", "0"],
+      ["24", "1"],
+      ["7:4", "0"],
+      ["7,5", ""],
+      ["abc", ""],
+      ["123", ""],
+    ] as const)
+      expect(typeof leerHorasYMinutos(horas, minutos)).toBe("string")
+  })
+
+  it("el diálogo pide horas y minutos con teclado numérico y guarda los minutos totales", async () => {
+    const { nutricion, seguimiento } = apis(dieta())
+    await render(
+      <HoyInicio
+        clienteId={CLIENTE}
+        nutricion={nutricion}
+        seguimiento={seguimiento}
+        objetivoPasos={null}
+      />,
+    )
+    await fireEvent.press(
+      await screen.findByRole("button", { name: "Sueño: sin apuntar. Cambiar" }),
+    )
+    expect(screen.getByLabelText("Horas")).toHaveProp("keyboardType", "number-pad")
+    expect(screen.getByLabelText("Minutos")).toHaveProp("keyboardType", "number-pad")
+    expect(screen.getByText(/Por ejemplo, 7 horas y 40 minutos/)).toBeTruthy()
+    await fireEvent.changeText(screen.getByLabelText("Horas"), "7")
+    await fireEvent.changeText(screen.getByLabelText("Minutos"), "60")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    expect(
+      await screen.findByText(/Escribe las horas \(0 a 24\) y los minutos \(0 a 59\)/),
+    ).toBeTruthy()
+    expect(seguimiento.cambiarDia).not.toHaveBeenCalled()
+    await fireEvent.changeText(screen.getByLabelText("Minutos"), "40")
+    await fireEvent.press(screen.getByRole("button", { name: "Guardar" }))
+    await waitFor(() =>
+      expect(seguimiento.cambiarDia).toHaveBeenCalledWith(CLIENTE, hoyAgenda(), { suenoMin: 460 }),
+    )
+    expect(await screen.findByRole("button", { name: "Sueño: 7 h 40. Cambiar" })).toBeTruthy()
+  })
+
+  it("al corregir un sueño guardado abre las horas y los minutos por separado", async () => {
+    const { nutricion, seguimiento } = apis(dieta(), {
+      fecha: hoyAgenda(),
+      pesoKg: null,
+      pasos: null,
+      suenoMin: 425,
+      creatina: null,
+      suplementos: [],
+    })
+    await render(
+      <HoyInicio
+        clienteId={CLIENTE}
+        nutricion={nutricion}
+        seguimiento={seguimiento}
+        objetivoPasos={null}
+      />,
+    )
+    await fireEvent.press(await screen.findByRole("button", { name: "Sueño: 7 h 05. Cambiar" }))
+    expect(screen.getByLabelText("Horas")).toHaveProp("value", "7")
+    expect(screen.getByLabelText("Minutos")).toHaveProp("value", "5")
+  })
 })

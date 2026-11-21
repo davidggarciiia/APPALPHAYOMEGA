@@ -1,7 +1,8 @@
-import { act, fireEvent, render, screen } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native"
 import { AppState, StyleSheet } from "react-native"
 import type {
   CambiarDia,
+  ComidaRegistrada,
   DiaDeSeguimiento,
   DietaPublicada,
   DocumentoDieta,
@@ -38,6 +39,8 @@ function seguimientoEnMemoria() {
     registrarPrueba: falta,
     fuerza: falta,
     consentimiento: falta,
+    borrarMedida: falta,
+    borrarPrueba: falta,
   } satisfies ApiSeguimiento
 }
 
@@ -418,7 +421,7 @@ it("sin conexión enseña la última copia y, si no hay, pide conexión", async 
   expect(screen.getByText("Dieta de tu nutricionista")).toBeOnTheScreen()
   // Sin conexión se ve la dieta y se puede consultar el plato; no se marca desde el resumen.
   expect(screen.getByRole("button", { name: /^Desayuno: / })).toBeOnTheScreen()
-  expect(screen.queryByRole("checkbox", { name: "Desayuno hecha" })).toBeNull()
+  expect(screen.queryByRole("checkbox", { name: "Comida hecha: Desayuno" })).toBeNull()
   await sinRed.unmount()
 
   await render(
@@ -470,30 +473,167 @@ it("una copia antigua sin autor lo presenta como profesional", async () => {
   expect(await screen.findByText("Dieta de tu profesional")).toBeOnTheScreen()
 })
 
-it("abre la elección de comida sin registrarla desde el círculo del resumen", async () => {
-  jest.useFakeTimers()
-  jest.setSystemTime(new Date("2026-09-21T08:30:00Z")) // lunes 10:30 en Madrid
-  const registrarComida = jest.fn()
-  const abrirComida = jest.fn()
+function registradaHecha(comidaId: string, dietaId = publicada().id): ComidaRegistrada {
+  return {
+    fecha: "2026-09-21",
+    comidaId,
+    dietaId,
+    eleccion: { tipo: "hecha" },
+    registradaEn: "2026-09-21T08:31:00.000Z",
+  }
+}
+const DESAYUNO = "00000000-0000-4000-8000-000000000010"
+
+describe("casilla de la comida (N1)", () => {
+  beforeEach(() => {
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date("2026-09-21T08:30:00Z")) // lunes 10:30 en Madrid
+  })
+
+  it("marca la comida como hecha con un toque, sin elegir plato, y permite deshacer", async () => {
+    const registrarComida = jest.fn(async () => registradaHecha(DESAYUNO))
+    const quitarComida = jest.fn(async () => undefined)
+    const abrirComida = jest.fn()
+    await render(
+      <VistaDieta
+        clienteId={CUENTA}
+        cuenta={CUENTA}
+        api={{
+          ...api(jest.fn().mockResolvedValue({ dieta: publicada(), deNutricionista: true })),
+          registrarComida,
+          quitarComida,
+        }}
+        almacen={almacenEnMemoria()}
+        abrirComida={abrirComida}
+      />,
+    )
+    const casilla = await screen.findByRole("checkbox", { name: "Comida hecha: Desayuno" })
+    expect(casilla).not.toBeChecked()
+    expect(screen.getByText("0 de 2")).toBeOnTheScreen()
+    await fireEvent.press(casilla)
+    expect(registrarComida).toHaveBeenCalledWith(CUENTA, "2026-09-21", DESAYUNO, {
+      dietaId: publicada().id,
+      eleccion: { tipo: "hecha" },
+    })
+    expect(abrirComida).not.toHaveBeenCalled()
+    expect(await screen.findByText("1 de 2")).toBeOnTheScreen()
+    expect(screen.getByRole("checkbox", { name: "Comida hecha: Desayuno" })).toBeChecked()
+    // La fila anuncia que está hecha y la confirmación está junto a la lista.
+    expect(screen.getByRole("button", { name: "Desayuno, hecha" })).toBeOnTheScreen()
+    expect(screen.getByText("Registrada: Desayuno")).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Deshacer Desayuno" }))
+    expect(quitarComida).toHaveBeenCalledWith(CUENTA, "2026-09-21", DESAYUNO)
+    await waitFor(() => expect(screen.getByText("0 de 2")).toBeOnTheScreen())
+    expect(screen.queryByText("Registrada: Desayuno")).toBeNull()
+    expect(screen.getByRole("checkbox", { name: "Comida hecha: Desayuno" })).not.toBeChecked()
+  })
+
+  it("tocar una comida ya hecha la quita; entrar a elegir plato sigue abriendo la comida", async () => {
+    const quitarComida = jest.fn(async () => undefined)
+    const registrarComida = jest.fn()
+    const abrirComida = jest.fn()
+    await render(
+      <VistaDieta
+        clienteId={CUENTA}
+        cuenta={CUENTA}
+        api={{
+          ...api(jest.fn().mockResolvedValue({ dieta: publicada(), deNutricionista: true })),
+          comidas: async () => ({ comidas: [registradaHecha(DESAYUNO)] }),
+          registrarComida,
+          quitarComida,
+        }}
+        almacen={almacenEnMemoria()}
+        abrirComida={abrirComida}
+      />,
+    )
+    const casilla = await screen.findByRole("checkbox", { name: "Comida hecha: Desayuno" })
+    await waitFor(() => expect(casilla).toBeChecked())
+    await fireEvent.press(screen.getByRole("button", { name: "Desayuno, hecha" }))
+    expect(abrirComida).toHaveBeenCalledWith(documento().tiposDeDia[0]?.comidas[0])
+    await fireEvent.press(casilla)
+    expect(quitarComida).toHaveBeenCalledTimes(1)
+    expect(registrarComida).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByText("0 de 2")).toBeOnTheScreen())
+  })
+
+  it("si falla el guardado la casilla no queda marcada y lo dice", async () => {
+    await render(
+      <VistaDieta
+        clienteId={CUENTA}
+        cuenta={CUENTA}
+        api={{
+          ...api(jest.fn().mockResolvedValue({ dieta: publicada(), deNutricionista: true })),
+          registrarComida: async () => {
+            throw new ErrorDeRed("Sin red")
+          },
+        }}
+        almacen={almacenEnMemoria()}
+        abrirComida={jest.fn()}
+      />,
+    )
+    await fireEvent.press(await screen.findByRole("checkbox", { name: "Comida hecha: Desayuno" }))
+    expect(await screen.findByRole("alert")).toBeOnTheScreen()
+    expect(screen.getByRole("checkbox", { name: "Comida hecha: Desayuno" })).not.toBeChecked()
+    expect(screen.getByText("0 de 2")).toBeOnTheScreen()
+    expect(screen.getByRole("checkbox", { name: "Comida hecha: Desayuno" })).toBeEnabled()
+  })
+
+  it("con el registro desactivado la casilla solo informa: ni se pulsa ni se anuncia como control", async () => {
+    const dieta = publicada()
+    dieta.documento.registroComidas = false
+    const registrarComida = jest.fn()
+    await render(
+      <VistaDieta
+        clienteId={CUENTA}
+        cuenta={CUENTA}
+        api={{
+          ...api(jest.fn().mockResolvedValue({ dieta, deNutricionista: true })),
+          registrarComida,
+        }}
+        almacen={almacenEnMemoria()}
+        abrirComida={jest.fn()}
+      />,
+    )
+    expect(await screen.findByRole("button", { name: /^Desayuno, ahora: / })).toBeOnTheScreen()
+    expect(screen.queryByRole("checkbox", { name: "Comida hecha: Desayuno" })).toBeNull()
+    expect(registrarComida).not.toHaveBeenCalled()
+  })
+})
+
+describe("día elegido y vuelta (N5)", () => {
+  it("«Ver la semana completa» abre la semana en el día elegido y volver conserva ese día", async () => {
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date("2026-09-21T08:00:00Z")) // lunes
+    await render(
+      <VistaDieta
+        clienteId={CUENTA}
+        cuenta={CUENTA}
+        api={api(jest.fn().mockResolvedValue({ dieta: publicada(), deNutricionista: true }))}
+        almacen={almacenEnMemoria()}
+      />,
+    )
+    await fireEvent.press(await screen.findByRole("tab", { name: "Domingo: Descanso" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Ver la semana completa" }))
+    expect(screen.getByRole("header", { name: "Domingo · Descanso" })).toBeOnTheScreen()
+    expect(screen.getAllByRole("tab", { name: "Domingo: Descanso" })[0]).toBeSelected()
+    await fireEvent.press(screen.getByRole("button", { name: "Volver a Nutrición" }))
+    expect(screen.getByRole("tab", { name: "Domingo: Descanso" })).toBeSelected()
+    expect(screen.queryByRole("button", { name: "Volver a Nutrición" })).toBeNull()
+  })
+})
+
+it("el tipo de día de la tira se lee a 12 px o más", async () => {
   await render(
     <VistaDieta
       clienteId={CUENTA}
       cuenta={CUENTA}
-      api={{
-        ...api(jest.fn().mockResolvedValue({ dieta: publicada(), deNutricionista: true })),
-        registrarComida,
-      }}
+      api={api(async () => ({ dieta: publicada(), deNutricionista: true }))}
       almacen={almacenEnMemoria()}
-      abrirComida={abrirComida}
     />,
   )
-  expect(await screen.findByText("Dieta de tu nutricionista")).toBeOnTheScreen()
-  expect(screen.getByRole("button", { name: /^Desayuno, ahora: / })).toBeOnTheScreen()
-  expect(screen.queryByRole("checkbox", { name: "Desayuno hecha" })).toBeNull()
-  await fireEvent.press(screen.getByRole("button", { name: /^Desayuno, ahora: / }))
-  expect(abrirComida).toHaveBeenCalledWith(documento().tiposDeDia[0]?.comidas[0])
-  expect(registrarComida).not.toHaveBeenCalled()
-  expect(screen.getByText("0 de 2")).toBeOnTheScreen()
+  const lunes = await screen.findByRole("tab", { name: "Lunes: Entreno" })
+  const tipo = within(lunes).getByText("Entreno")
+  expect(StyleSheet.flatten(tipo.props.style).fontSize).toBeGreaterThanOrEqual(12)
 })
 
 it("bloquea todos los suplementos hasta confirmar y conserva las dos tomas sucesivas", async () => {
@@ -521,15 +661,15 @@ it("bloquea todos los suplementos hasta confirmar y conserva las dos tomas suces
       seguimiento={seguimiento}
     />,
   )
-  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeDisabled()
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).not.toBeChecked()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D" }))
+  expect(screen.getByRole("checkbox", { name: "Omega 3" })).toBeDisabled()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).not.toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3" }))
   expect(seguimiento.cambiarDia).toHaveBeenCalledTimes(1)
   await act(async () => terminar())
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Omega 3" })).toBeChecked()
   expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CUENTA, expect.any(String), {
     suplementos: ["Vitamina D", "Omega 3"],
   })
@@ -549,8 +689,8 @@ it("mantiene el nombre y la dosis larga del suplemento en el mismo ancho disponi
       seguimiento={seguimiento}
     />,
   )
-  const fila = await screen.findByRole("checkbox", { name: "Creatina monohidrato tomada" })
-  const nombre = screen.getByText("Creatina monohidrato tomada")
+  const fila = await screen.findByRole("checkbox", { name: "Creatina monohidrato" })
+  const nombre = screen.getByText("Creatina monohidrato")
   const detalle = screen.getByText(dosis)
   // La dosis continúa debajo del nombre: no le roba el ancho como otra columna.
   expect(detalle.parent === nombre.parent).toBe(true)
@@ -561,7 +701,7 @@ it("mantiene el nombre y la dosis larga del suplemento en el mismo ancho disponi
   expect(detalle.props.numberOfLines).toBeUndefined()
   expect(StyleSheet.flatten(fila.props.style).minHeight).toBeGreaterThanOrEqual(44)
   await fireEvent.press(detalle)
-  expect(screen.getByRole("checkbox", { name: "Creatina monohidrato tomada" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Creatina monohidrato" })).toBeChecked()
   expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CUENTA, expect.any(String), {
     creatina: true,
   })
@@ -596,7 +736,7 @@ it("una recarga anterior al guardado no borra suplementos ya confirmados", async
       seguimiento={seguimiento}
     />,
   )
-  await screen.findByRole("checkbox", { name: "Vitamina D tomada" })
+  await screen.findByRole("checkbox", { name: "Vitamina D" })
   await vista.rerender(
     <VistaDieta
       clienteId={CUENTA}
@@ -607,12 +747,12 @@ it("una recarga anterior al guardado no borra suplementos ya confirmados", async
     />,
   )
   expect(seguimiento.dias).toHaveBeenCalledTimes(2)
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
 
   await act(async () => terminarLectura())
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3" }))
   expect(seguimiento.cambiarDia).toHaveBeenLastCalledWith(CUENTA, expect.any(String), {
     suplementos: ["Vitamina D", "Omega 3"],
   })
@@ -632,11 +772,11 @@ it("un error al guardar suplementos deja reintentar sin mostrarlos como tomados"
       seguimiento={seguimiento}
     />,
   )
-  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).not.toBeChecked()
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
+  await fireEvent.press(await screen.findByRole("checkbox", { name: "Vitamina D" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).not.toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeEnabled()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Vitamina D" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
 })
 
 it("espera el registro del día antes de habilitar las tomas", async () => {
@@ -666,12 +806,12 @@ it("espera el registro del día antes de habilitar las tomas", async () => {
     />,
   )
   expect(await screen.findByLabelText("Omega 3: registro no disponible")).toBeOnTheScreen()
-  expect(screen.queryByRole("checkbox", { name: "Omega 3 tomada" })).toBeNull()
+  expect(screen.queryByRole("checkbox", { name: "Omega 3" })).toBeNull()
   await act(async () => terminar())
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3 tomada" }))
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeChecked()
-  expect(screen.getByRole("checkbox", { name: "Omega 3 tomada" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  await fireEvent.press(screen.getByRole("checkbox", { name: "Omega 3" }))
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeChecked()
+  expect(screen.getByRole("checkbox", { name: "Omega 3" })).toBeChecked()
 })
 
 it("limpia el error de lectura al volver a cargar correctamente", async () => {
@@ -693,7 +833,7 @@ it("limpia el error de lectura al volver a cargar correctamente", async () => {
   expect(
     await screen.findByText("No se pudieron cargar los registros de hoy. Revisa la conexión."),
   ).toBeTruthy()
-  expect(screen.queryByRole("checkbox", { name: "Vitamina D tomada" })).toBeNull()
+  expect(screen.queryByRole("checkbox", { name: "Vitamina D" })).toBeNull()
   expect(screen.getByLabelText("Vitamina D: registro no disponible")).toBeOnTheScreen()
   await vista.rerender(
     <VistaDieta
@@ -704,7 +844,7 @@ it("limpia el error de lectura al volver a cargar correctamente", async () => {
       seguimiento={{ ...seguimiento }}
     />,
   )
-  expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
+  expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeEnabled()
   expect(
     screen.queryByText("No se pudieron cargar los registros de hoy. Revisa la conexión."),
   ).toBeNull()
@@ -757,7 +897,7 @@ describe("fallos que no son de red (N-05, N-06)", () => {
         seguimiento={seguimiento}
       />,
     )
-    expect(await screen.findByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
+    expect(await screen.findByRole("checkbox", { name: "Vitamina D" })).toBeEnabled()
 
     seguimiento.dias.mockImplementationOnce(() => new Promise(() => undefined))
     await vista.rerender(
@@ -769,6 +909,6 @@ describe("fallos que no son de red (N-05, N-06)", () => {
         seguimiento={{ ...seguimiento }}
       />,
     )
-    expect(screen.getByRole("checkbox", { name: "Vitamina D tomada" })).toBeEnabled()
+    expect(screen.getByRole("checkbox", { name: "Vitamina D" })).toBeEnabled()
   })
 })

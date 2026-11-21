@@ -1,11 +1,14 @@
 import { useState } from "react"
 import { Pressable, StyleSheet, Text, View } from "react-native"
+import { tieneAlgunNumero } from "@alpha-omega/shared"
 import type { Comida, ComidaRegistrada, EleccionDeComida } from "@alpha-omega/shared"
 
 import { AvisoDeError } from "../componentes/formulario"
+import { Icono } from "../componentes/iconos"
 import { BotonAtras, BotonDorado, Enlace } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { degradadoOro, tema } from "../tema"
+import { Objetivo, resumenDeMacros } from "./dia-dieta"
 
 type Alternativas = Extract<Comida, { forma: "alternativas" }>
 type Intercambio = Extract<Comida, { forma: "intercambio" }>
@@ -13,8 +16,11 @@ type Intercambio = Extract<Comida, { forma: "intercambio" }>
 /** Por qué la comida se ve pero no se registra: falta de red o decisión del profesional. */
 export type MotivoSoloLectura = "sinConexion" | "registroDesactivado"
 
-/** Lo que ocupa el sitio del botón de registrar en ambos formatos. */
-type Accion = (alRegistrar: () => void) => React.JSX.Element
+/**
+ * Lo que ocupa el sitio del botón de registrar en ambos formatos. `sinCambios`: lo que
+ * se ve elegido ya es lo que está registrado, así que no hay nada que guardar.
+ */
+type Accion = (alRegistrar: () => void, sinCambios: boolean) => React.JSX.Element
 
 /** Pestañas del diseño: la elegida en dorado. */
 function Segmentos({
@@ -74,11 +80,14 @@ function Cabecera({
 function ElegirAlternativa({
   comida,
   registrada,
+  guardada,
   guardar,
   accion,
 }: {
   comida: Alternativas
   registrada?: ComidaRegistrada
+  /** Lo registrado ahora mismo, también tras guardar en esta pantalla. */
+  guardada: EleccionDeComida | null
   guardar: (eleccion: EleccionDeComida) => void
   accion: Accion
 }): React.JSX.Element {
@@ -90,6 +99,16 @@ function ElegirAlternativa({
   )
   const [grupo, setGrupo] = useState(inicial)
   const [elegida, setElegida] = useState<string | null>(previa)
+  // Al recuperar la red puede llegar lo que el servidor ya tenía: se muestra elegido,
+  // salvo que el cliente ya hubiera elegido otra cosa.
+  const [previaVista, setPreviaVista] = useState(previa)
+  if (previa !== previaVista) {
+    setPreviaVista(previa)
+    if (elegida === null) {
+      setElegida(previa)
+      setGrupo(inicial)
+    }
+  }
   const [aviso, setAviso] = useState("")
   const alternativas = comida.grupos[grupo]?.alternativas ?? []
   return (
@@ -113,7 +132,11 @@ function ElegirAlternativa({
               accessibilityState={{ checked: activa }}
               accessibilityLabel={`${alternativa.titulo}: ${alternativa.alimentos
                 .map((a) => `${a.nombre}${a.cantidad ? ` ${a.cantidad}` : ""}`)
-                .join(", ")}`}
+                .join(", ")}${
+                alternativa.macros && tieneAlgunNumero(alternativa.macros)
+                  ? `. ${resumenDeMacros(alternativa.macros)}`
+                  : ""
+              }`}
               onPress={() => {
                 setElegida(alternativa.id)
                 setAviso("")
@@ -131,15 +154,20 @@ function ElegirAlternativa({
                 </View>
               ))}
               {alternativa.nota && <Text style={s.nota}>{alternativa.nota}</Text>}
+              {alternativa.macros && tieneAlgunNumero(alternativa.macros) && (
+                <Objetivo macros={alternativa.macros} compacto />
+              )}
             </Pressable>
           )
         })}
       </View>
       {aviso !== "" && <Text style={s.subtitulo}>{aviso}</Text>}
-      {accion(() =>
-        elegida !== null
-          ? guardar({ tipo: "alternativa", alternativaId: elegida })
-          : setAviso("Elige un plato completo antes de guardar."),
+      {accion(
+        () =>
+          elegida !== null
+            ? guardar({ tipo: "alternativa", alternativaId: elegida })
+            : setAviso("Elige un plato completo antes de guardar."),
+        guardada?.tipo === "alternativa" && guardada.alternativaId === elegida,
       )}
     </>
   )
@@ -149,11 +177,14 @@ function ElegirAlternativa({
 function ArmarPlato({
   comida,
   registrada,
+  guardada,
   guardar,
   accion,
 }: {
   comida: Intercambio
   registrada?: ComidaRegistrada
+  /** Lo registrado ahora mismo, también tras guardar en esta pantalla. */
+  guardada: EleccionDeComida | null
   guardar: (eleccion: EleccionDeComida) => void
   accion: Accion
 }): React.JSX.Element {
@@ -162,6 +193,12 @@ function ArmarPlato({
       ? Object.fromEntries(registrada.eleccion.elegidos.map((e) => [e.columna, e.alimento]))
       : {}
   const [plato, setPlato] = useState<Record<string, string>>(previos)
+  const clavePrevia = JSON.stringify(previos)
+  const [claveVista, setClaveVista] = useState(clavePrevia)
+  if (clavePrevia !== claveVista) {
+    setClaveVista(clavePrevia)
+    if (Object.keys(plato).length === 0) setPlato(previos)
+  }
   const [columna, setColumna] = useState(0)
   const [aviso, setAviso] = useState("")
   const actual = comida.columnas[columna]
@@ -193,21 +230,29 @@ function ArmarPlato({
           ))}
         </View>
         {aviso !== "" && <Text style={s.subtitulo}>{aviso}</Text>}
-        {accion(() => {
-          const pendiente = comida.columnas.findIndex((c) => !plato[c.nombre])
-          if (pendiente >= 0) {
-            setColumna(pendiente)
-            setAviso("Elige un alimento de cada grupo antes de guardar.")
-            return
-          }
-          guardar({
-            tipo: "plato",
-            elegidos: comida.columnas.map((c) => ({
-              columna: c.nombre,
-              alimento: plato[c.nombre]!,
-            })),
-          })
-        })}
+        {accion(
+          () => {
+            const pendiente = comida.columnas.findIndex((c) => !plato[c.nombre])
+            if (pendiente >= 0) {
+              setColumna(pendiente)
+              setAviso("Elige un alimento de cada grupo antes de guardar.")
+              return
+            }
+            guardar({
+              tipo: "plato",
+              elegidos: comida.columnas.map((c) => ({
+                columna: c.nombre,
+                alimento: plato[c.nombre]!,
+              })),
+            })
+          },
+          guardada?.tipo === "plato" &&
+            comida.columnas.every((c) =>
+              guardada.elegidos.some(
+                (e) => e.columna === c.nombre && e.alimento === plato[c.nombre],
+              ),
+            ),
+        )}
       </View>
       {comida.columnas.length > 1 && (
         <Segmentos
@@ -325,27 +370,60 @@ export function ComidaDelDia({
         : confirmada?.tipo === "hecha"
           ? "Hecha"
           : null
-  const accion: Accion = (alRegistrar) =>
-    motivoSoloLectura === "registroDesactivado" ? (
-      <Text style={s.subtitulo}>Tu profesional ha dejado esta comida solo para consultar.</Text>
-    ) : motivoSoloLectura === "sinConexion" ? (
-      <>
-        <Text style={s.subtitulo} accessibilityLiveRegion="polite">
-          {sigueSinRed
-            ? "Sigues sin conexión. Tu elección se conserva; vuelve a intentarlo en un momento."
-            : "Sin conexión: tu elección se conserva y podrás registrarla cuando vuelvas a tener red."}
-        </Text>
-        {reintentar && (
-          <BotonDorado
-            texto="Reintentar conexión"
-            ocupado={reintentando}
-            onPress={() => void volverAConectar()}
-          />
-        )}
-      </>
-    ) : (
-      <BotonDorado texto="Registrar comida" ocupado={enviando} onPress={alRegistrar} />
+  const quitarRegistro = (): void => void ejecutar(quitar, () => setConfirmada(null))
+  /** Lo registrado, junto al botón: así se ve el resultado donde se pulsó. */
+  const estadoRegistro = (): React.JSX.Element | null => {
+    if (!confirmada) return null
+    const editable = !motivoSoloLectura
+    // «Hecha» desde la lista no eligió plato: se dice, y se puede completar eligiéndolo.
+    const sinPlato = confirmada.tipo === "hecha" && editable
+    return (
+      <View style={s.confirmacion} accessibilityLiveRegion="polite">
+        <View style={s.cabeceraConfirmacion}>
+          <View style={s.marca}>
+            <Icono nombre="hecho" color={tema.sobreExito} tamano={14} />
+          </View>
+          <Text style={s.confirmacionTitulo}>
+            {sinPlato ? "Marcada como hecha, sin plato elegido" : "Comida registrada"}
+          </Text>
+        </View>
+        {!sinPlato && resumenConfirmado && <Text style={s.subtitulo}>{resumenConfirmado}</Text>}
+        {editable && <Enlace texto="Quitar de hechas" onPress={quitarRegistro} />}
+      </View>
     )
+  }
+  const accion: Accion = (alRegistrar, sinCambios) => (
+    <>
+      {motivoSoloLectura === "registroDesactivado" ? (
+        <Text style={s.subtitulo}>Tu profesional ha dejado esta comida solo para consultar.</Text>
+      ) : motivoSoloLectura === "sinConexion" ? (
+        <>
+          <Text style={s.subtitulo} accessibilityLiveRegion="polite">
+            {sigueSinRed
+              ? "Sigues sin conexión. Si no sales de esta pantalla, tu elección se mantiene; vuelve a intentarlo en un momento."
+              : "Sin conexión: ahora no se puede registrar. Si no sales de esta pantalla, tu elección se mantiene; cuando tengas red, pulsa «Reintentar conexión» y registra."}
+          </Text>
+          {reintentar && (
+            <BotonDorado
+              texto="Reintentar conexión"
+              ocupado={reintentando}
+              onPress={() => void volverAConectar()}
+            />
+          )}
+        </>
+      ) : confirmada && sinCambios ? null : (
+        <BotonDorado
+          texto={
+            confirmada && confirmada.tipo !== "hecha" ? "Actualizar registro" : "Registrar comida"
+          }
+          ocupado={enviando}
+          onPress={alRegistrar}
+        />
+      )}
+      {error !== "" && <AvisoDeError mensaje={error} />}
+      {estadoRegistro()}
+    </>
+  )
   return (
     <View style={s.contenido}>
       <Cabecera
@@ -359,23 +437,17 @@ export function ComidaDelDia({
         <ElegirAlternativa
           comida={comida}
           registrada={registrada}
+          guardada={confirmada}
           guardar={guardar}
           accion={accion}
         />
       ) : (
-        <ArmarPlato comida={comida} registrada={registrada} guardar={guardar} accion={accion} />
-      )}
-      {confirmada && (
-        <View style={s.confirmacion} accessibilityLiveRegion="polite">
-          <Text style={s.confirmacionTitulo}>Comida registrada</Text>
-          {resumenConfirmado && <Text style={s.subtitulo}>{resumenConfirmado}</Text>}
-        </View>
-      )}
-      {error !== "" && <AvisoDeError mensaje={error} />}
-      {confirmada && !motivoSoloLectura && (
-        <Enlace
-          texto="Quitar de hechas"
-          onPress={() => void ejecutar(quitar, () => setConfirmada(null))}
+        <ArmarPlato
+          comida={comida}
+          registrada={registrada}
+          guardada={confirmada}
+          guardar={guardar}
+          accion={accion}
         />
       )}
     </View>
@@ -391,6 +463,15 @@ const s = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 4,
+  },
+  cabeceraConfirmacion: { flexDirection: "row", alignItems: "center", gap: 8 },
+  marca: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: tema.exito,
+    alignItems: "center",
+    justifyContent: "center",
   },
   confirmacionTitulo: { color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 16 },
   titulos: { gap: 6 },

@@ -120,6 +120,15 @@ export default function NuevoCliente(): React.JSX.Element {
           }
         />
         <BotonSecundario
+          texto="Crear plan"
+          onPress={() =>
+            router.replace({
+              pathname: "/entrenador/cliente/[id]/plan",
+              params: { id: clienteCreado.id },
+            })
+          }
+        />
+        <BotonSecundario
           texto="Datos y acceso"
           onPress={() =>
             router.replace({
@@ -192,9 +201,9 @@ export default function NuevoCliente(): React.JSX.Element {
 
       {errorGeneral !== null && <AvisoDeError mensaje={errorGeneral} />}
 
-      <BotonPrincipal texto="DAR DE ALTA" onPress={() => void enviar()} ocupado={isSubmitting} />
+      <BotonPrincipal texto="Dar de alta" onPress={() => void enviar()} ocupado={isSubmitting} />
 
-      <BotonEnlace texto="CANCELAR" onPress={() => router.back()} />
+      <BotonEnlace texto="Cancelar" onPress={() => router.back()} />
     </PantallaDeFormulario>
   )
 }

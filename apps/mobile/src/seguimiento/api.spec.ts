@@ -260,3 +260,21 @@ describe("histórico completo de medidas y pruebas", () => {
     expect(duracion).toBeLessThan(2000)
   })
 })
+
+describe("API de seguimiento: borrar registros propios", () => {
+  it("borra una medida y una prueba con DELETE sobre su propia ruta", async () => {
+    const pedir = jest.fn(async (_ruta: string, _esquema: unknown, _opciones?: RequestInit) => ({}))
+    const api = crearApiSeguimiento(pedir as unknown as PeticionAutenticada)
+    await api.borrarMedida(CLIENTE, "30000000-0000-4000-8000-000000000001")
+    await api.borrarPrueba(CLIENTE, PRUEBA)
+    expect(pedir).toHaveBeenNthCalledWith(
+      1,
+      `${RUTA}/medidas/30000000-0000-4000-8000-000000000001`,
+      expect.anything(),
+      { method: "DELETE" },
+    )
+    expect(pedir).toHaveBeenNthCalledWith(2, `${RUTA}/pruebas/${PRUEBA}`, expect.anything(), {
+      method: "DELETE",
+    })
+  })
+})

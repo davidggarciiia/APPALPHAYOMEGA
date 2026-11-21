@@ -7,6 +7,7 @@ import { nuevaSesion, convertirSesion } from "./editor-modelo"
 import { cargarRutina } from "./cargar-rutina"
 import { EditorPatron } from "./editor-patron"
 import { AvisoDeError, BotonPrincipal, BotonSecundario, Campo } from "../componentes/formulario"
+import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { tema } from "../tema"
 import { useSalidaProtegida } from "../componentes/salida-protegida"
 
@@ -84,7 +85,7 @@ export function EditorRutina({
       if (vigente.current)
         setError(
           id === "nueva"
-            ? "No se pudo confirmar el guardado. Revisa los objetivos y comprueba la biblioteca antes de reintentar si perdiste la conexión."
+            ? "No se pudo confirmar el guardado. Revisa los objetivos y mira en Rutinas si ya se guardó antes de reintentar, por si perdiste la conexión."
             : "No se pudo guardar. Revisa los objetivos; si la rutina cambió en otro dispositivo, recarga su versión actual.",
         )
     } finally {
@@ -102,7 +103,21 @@ export function EditorRutina({
         Las rutinas son plantillas. Guardar aquí no cambia los entrenamientos ya asignados.
       </Text>
       {cargando ? (
-        <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>Cargando…</Text>
+        // Si la carga falló, el aviso de abajo ofrece recargar: no se finge que sigue cargando.
+        error !== "" ? null : (
+          <GrupoEsqueletos>
+            <View
+              style={{ gap: 10 }}
+              accessible
+              accessibilityLabel="Cargando rutina"
+              accessibilityRole="progressbar"
+            >
+              <Esqueleto alto={52} />
+              <Esqueleto alto={120} radio={18} />
+              <Esqueleto alto={120} radio={18} />
+            </View>
+          </GrupoEsqueletos>
+        )
       ) : ocupado ? (
         <Text style={{ fontFamily: tema.fuenteTexto, color: tema.texto }}>Guardando rutina…</Text>
       ) : (

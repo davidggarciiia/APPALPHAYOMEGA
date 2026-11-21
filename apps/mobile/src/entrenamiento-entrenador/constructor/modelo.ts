@@ -130,6 +130,36 @@ export function nuevoDia(nuevoId: () => string, diaSemana = 1): DiaDelConstructo
   }
 }
 
+/**
+ * Una copia del ejercicio con identidad propia. Sin los ids de las series: son del
+ * original y sus registros no deben mezclarse con los de la copia.
+ */
+export function duplicarEjercicio(
+  ejercicio: EjercicioDelConstructor,
+  nuevoId: () => string,
+): EjercicioDelConstructor {
+  return { ...ejercicio, id: nuevoId(), idsSeries: [] }
+}
+
+/** Una copia del día en otro día de la semana, con «(copia)» en el nombre y ejercicios nuevos. */
+export function duplicarDia(
+  dia: DiaDelConstructor,
+  nuevoId: () => string,
+  diaSemana: number,
+): DiaDelConstructor {
+  const nombre = dia.nombre.trim()
+  return {
+    ...dia,
+    id: nuevoId(),
+    // El nombre admite 120 caracteres: la marca no debe empujarlo fuera.
+    nombre: nombre === "" ? "" : `${nombre.slice(0, 120 - " (copia)".length)} (copia)`,
+    diaSemana,
+    partes: { ...dia.partes },
+    circuito: { ...dia.circuito },
+    ejercicios: dia.ejercicios.map((e) => duplicarEjercicio(e, nuevoId)),
+  }
+}
+
 /** De la sesión guardada al constructor. */
 export function desdeSesionEnRutina(
   sesion: SesionConDistancia,

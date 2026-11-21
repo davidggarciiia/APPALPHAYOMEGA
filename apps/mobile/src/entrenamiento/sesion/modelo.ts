@@ -88,6 +88,34 @@ export function resumenPrescrito(ejercicio: EjercicioConDistancia): string {
     .join(" · ")
 }
 
+export const TITULOS_DE_SECCION = {
+  calentamiento: "Calentamiento",
+  principal: "Principal",
+  circuito: "Circuito",
+  final: "Final",
+} as const satisfies Record<SeccionDeSesion, string>
+
+/** El circuito usa el nombre que le dio el entrenador («Core»); el resto, el de su parte. */
+export function tituloDeSeccion(
+  seccion: SeccionDeSesion,
+  circuito: Prescripcion["circuito"],
+): string {
+  return seccion === "circuito"
+    ? (circuito?.nombre ?? TITULOS_DE_SECCION.circuito)
+    : TITULOS_DE_SECCION[seccion]
+}
+
+/** «3 vueltas · descanso 1 min»; nada si la sesión no define el circuito. */
+export function detalleDeCircuito(circuito: Prescripcion["circuito"]): string | null {
+  if (!circuito) return null
+  return [
+    `${circuito.vueltas} ${circuito.vueltas === 1 ? "vuelta" : "vueltas"}`,
+    circuito.descanso ? `descanso ${circuito.descanso}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+}
+
 export type Seccion = { seccion: SeccionDeSesion; ejercicios: EjercicioPrescrito[] }
 
 const ORDEN: SeccionDeSesion[] = ["calentamiento", "principal", "circuito", "final"]

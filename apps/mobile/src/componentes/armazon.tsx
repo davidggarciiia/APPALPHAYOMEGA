@@ -30,13 +30,29 @@ const titulos: Record<string, string> = {
   catalogo: "Ejercicios",
   entrenamiento: "Tu plan",
   nutricion: "Nutrición",
-  entrenador: "Plan de entrenamiento",
+  entrenador: "Ficha de cliente",
   cliente: "Ficha de cliente",
   perfil: "Mi perfil",
   progreso: "Progreso",
   nutricionista: "Nutricionista",
   "mis-clientes": "Mis clientes",
   notificaciones: "Notificaciones",
+}
+/** Título de cada apartado de la ficha del cliente del entrenador (`/entrenador/cliente/:id/<apartado>`). */
+const titulosDeFicha: Record<string, string> = {
+  plan: "Plan de entrenamiento",
+  sesiones: "Sesiones",
+  entrenos: "Entrenos",
+  progreso: "Progreso",
+  valoraciones: "Valoraciones",
+  molestias: "Molestias",
+  ejercicio: "Ejercicio",
+}
+function tituloDeRuta(ruta: string, principal: string): string | undefined {
+  if (principal !== "entrenador") return titulos[principal]
+  const [, grupo, , apartado] = ruta.split("/").filter(Boolean)
+  if (grupo === "sesion") return "Ajustar sesión"
+  return (apartado !== undefined ? titulosDeFicha[apartado] : undefined) ?? titulos[principal]
 }
 const PRINCIPALES = [
   "/",
@@ -100,7 +116,7 @@ export function Armazon({ children }: { children: ReactNode }): React.JSX.Elemen
   const titulo =
     principal === "" && esCliente
       ? `Hola, ${usuario.nombre.split(" ")[0] ?? ""}`
-      : (titulos[principal] ?? (esCliente ? "Tu entrenamiento" : "Tu espacio"))
+      : (tituloDeRuta(ruta, principal) ?? (esCliente ? "Tu entrenamiento" : "Tu espacio"))
   const iniciales = usuario.nombre
     .split(" ")
     .filter(Boolean)

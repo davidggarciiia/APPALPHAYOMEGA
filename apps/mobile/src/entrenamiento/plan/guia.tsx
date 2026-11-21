@@ -48,14 +48,24 @@ const ejemplo = (unidad: keyof typeof EJEMPLOS): string => `«${objetivoDeSerie(
 /** Contenido fijo de la app: la guía no depende del plan. */
 export const TEMAS_DE_LA_GUIA = [
   {
-    titulo: "Esfuerzo global (RPE)",
+    titulo: "Cómo registrar la sesión",
     texto:
-      "Al terminar te preguntamos cuánto te ha costado la sesión, de 0 a 10. 0 es reposo; 5, un esfuerzo moderado; 7–8, duro pero con buena técnica; 10, lo máximo que podrías dar. Responde por la sesión entera, no por la última serie.",
+      "La sesión va por bloques (calentamiento, parte principal, circuito y final) y pasas de uno a otro con «Siguiente». En cada serie, toca la casilla de la derecha para marcarla como hecha: queda con lo que tocaba. Si has hecho otra cosa, toca los kilos o las repeticiones y cámbialos. Si te equivocas, «Deshacer» aparece unos segundos; tocar otra vez la casilla también la desmarca. Para saltarte una serie, mantén pulsada la casilla.",
+  },
+  {
+    titulo: "Descanso entre series",
+    texto:
+      "Al marcar una serie arranca el descanso. Con −15 y +15 lo acortas o lo alargas, y con «Saltar» lo quitas.",
+  },
+  {
+    titulo: "RIR: cuántas te dejas",
+    texto:
+      "El RIR son las repeticiones que te habrían quedado al terminar la serie. Según lo que haya configurado tu entrenador, te lo pide en cada serie o al acabar el ejercicio, y nunca es obligatorio: si no lo sabes, déjalo sin anotar. La tabla de arriba te dice qué valor buscar.",
   },
   {
     titulo: "Cómo se ajusta tu sesión",
     texto:
-      "Tu entrenador revisa lo que registras: series, repeticiones, RIR, molestias y cómo terminas. Con eso decide si sube la carga, la mantiene o baja el volumen. Si llegas cansado o con molestias, dilo en el check-in: se recortan series de accesorios y los ejercicios principales se mantienen.",
+      "Tu entrenador revisa lo que registras: series, repeticiones, kilos, RIR y los avisos de molestias. Con eso decide si sube la carga, la mantiene o baja el volumen. Si llegas cansado o con molestias, díselo con el aviso de molestia o con una nota: se recortan series de accesorios y los ejercicios principales se mantienen.",
   },
   {
     titulo: "Cómo se mide cada serie",
@@ -64,17 +74,22 @@ export const TEMAS_DE_LA_GUIA = [
   {
     titulo: "Cómo subir las cargas",
     texto:
-      "Trabajas con doble progresión: primero sumas repeticiones con la misma carga hasta completar el máximo del rango en todas las series con el RIR indicado. Entonces sube la carga lo mínimo posible y vuelve al principio del rango. «La próxima vez», al cerrar la sesión, te dice cuándo toca.",
+      "Trabajas con doble progresión: primero sumas repeticiones con la misma carga hasta completar el máximo del rango en todas las series con el RIR indicado. Entonces sube la carga lo mínimo posible y vuelve al principio del rango. Cuando toca subir, el ejercicio lo avisa con «Sube carga la próxima vez» y los kilos de más.",
   },
   {
     titulo: "Técnica y respiración",
     texto:
-      "Antes que el peso, la técnica. Coge aire antes de bajar, mantén el abdomen firme y suéltalo al subir. Baja controlando, sin rebotes. Si pierdes la postura, para ahí: esa serie ya cuenta. Cada ejercicio tiene «Ver técnica» con los pasos y la animación.",
+      "Antes que el peso, la técnica. Coge aire antes de bajar, mantén el abdomen firme y suéltalo al subir. Baja controlando, sin rebotes. Si pierdes la postura, para ahí: esa serie ya cuenta. Junto al nombre de cada ejercicio tienes «Ver técnica», con los pasos y la animación.",
   },
   {
     titulo: "Qué contar a tu entrenador",
     texto:
-      "Cualquier molestia, aunque sea leve o se pase. Si has dormido mal, estás enfermo o has tenido un día muy cargado. Si cambias un ejercicio porque la máquina está ocupada. Y lo que te quite tiempo o energía: trabajo, viajes u otros deportes.",
+      "Cualquier molestia, aunque sea leve o se pase: usa el triángulo de aviso que hay junto al ejercicio. Para lo demás está «Añadir nota»: si has dormido mal, estás enfermo o has tenido un día muy cargado, si cambias un ejercicio porque la máquina está ocupada, y lo que te quite tiempo o energía, como trabajo, viajes u otros deportes.",
+  },
+  {
+    titulo: "Terminar la sesión",
+    texto:
+      "En el último bloque, «Terminar» envía la sesión a tu entrenador. Si quedan series sin hacer, te pregunta antes de enviar. Puedes salir y volver cuando quieras: lo que llevas queda guardado en el móvil y la sesión se reabre donde la dejaste.",
   },
   {
     titulo: "Semana de calibración",

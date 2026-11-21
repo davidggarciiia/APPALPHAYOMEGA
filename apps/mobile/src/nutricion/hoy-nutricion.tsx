@@ -11,6 +11,7 @@ import { tieneAlgunNumero } from "@alpha-omega/shared"
 
 import { Icono } from "../componentes/iconos"
 import { BotonSecundario } from "../componentes/botones"
+import { Enlace } from "../entrenamiento/sesion/controles"
 import { radio, tema, tipo as tipografia } from "../tema"
 import { Objetivo } from "./dia-dieta"
 import { comidaDeAhora, subtituloDeComida, suplementoTomado, tipoDelDia } from "./hoy-modelo"
@@ -36,7 +37,11 @@ export function HoyNutricion({
   dia,
   diaCargado,
   puedeTomar,
+  puedeRegistrar = false,
+  comidaOcupada = null,
+  reciente = null,
   abrirComida,
+  marcarComida,
   tomarSuplemento,
   verSemana,
 }: {
@@ -50,7 +55,14 @@ export function HoyNutricion({
   diaCargado: boolean
   /** Sin conexión no se apuntan suplementos. */
   puedeTomar: boolean
+  /** Con red y registro permitido, la casilla marca la comida como hecha con un toque. */
+  puedeRegistrar?: boolean
+  /** La comida que se está guardando: mientras tanto no se tocan las casillas. */
+  comidaOcupada?: string | null
+  /** La última marcada desde aquí, para ofrecer deshacer junto a la lista. */
+  reciente?: Comida | null
   abrirComida: (comida: Comida) => void
+  marcarComida?: (comida: Comida, hecha: boolean) => void
   tomarSuplemento: (suplemento: Suplemento, tomado: boolean) => void
   verSemana: () => void
 }): React.JSX.Element {
@@ -99,15 +111,40 @@ export function HoyNutricion({
                 const momento = comida.hora !== null && comida.hora > hora ? "siguiente" : "ahora"
                 const subtitulo = subtituloDeComida(comida, porComida.get(comida.id))
                 return (
-                  <Pressable
+                  <View
                     key={comida.id}
-                    style={[s.fila, n > 0 && s.separada, esAhora && s.filaAhora]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${comida.nombre}${esAhora ? `, ${momento}` : ""}: ${subtitulo}`}
-                    onPress={() => abrirComida(comida)}
+                    style={[s.filaComida, n > 0 && s.separada, esAhora && s.filaAhora]}
                   >
-                    {registradas !== null && <Check hecho={hecha} />}
-                    <View style={s.cuerpoFila}>
+                    {registradas !== null &&
+                      (puedeRegistrar && marcarComida ? (
+                        <Pressable
+                          style={s.zonaCheck}
+                          accessibilityRole="checkbox"
+                          aria-checked={hecha}
+                          accessibilityLabel={`Comida hecha: ${comida.nombre}`}
+                          accessibilityState={{
+                            checked: hecha,
+                            disabled: comidaOcupada !== null,
+                            busy: comidaOcupada === comida.id,
+                          }}
+                          disabled={comidaOcupada !== null}
+                          onPress={() => marcarComida(comida, !hecha)}
+                        >
+                          <Check hecho={hecha} />
+                        </Pressable>
+                      ) : (
+                        <View style={s.zonaCheck} accessible={false}>
+                          <Check hecho={hecha} />
+                        </View>
+                      ))}
+                    <Pressable
+                      style={s.cuerpoFila}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${comida.nombre}${esAhora ? `, ${momento}` : ""}${
+                        hecha ? ", hecha" : ""
+                      }${hecha && subtitulo === "Hecha" ? "" : `: ${subtitulo}`}`}
+                      onPress={() => abrirComida(comida)}
+                    >
                       <View style={s.textos}>
                         <View style={s.nombreFila}>
                           <Text style={[s.nombre, esAhora && s.nombreAhora]}>{comida.nombre}</Text>
@@ -124,11 +161,21 @@ export function HoyNutricion({
                         </Text>
                       </View>
                       <Icono nombre="adelante" color={tema.textoTenue} tamano={18} />
-                    </View>
-                  </Pressable>
+                    </Pressable>
+                  </View>
                 )
               })}
             </View>
+            {reciente && hechas.has(reciente.id) && marcarComida && (
+              <View style={s.reciente} accessibilityLiveRegion="polite">
+                <Text style={s.textoReciente}>Registrada: {reciente.nombre}</Text>
+                <Enlace
+                  texto="Deshacer"
+                  etiqueta={`Deshacer ${reciente.nombre}`}
+                  onPress={() => marcarComida(reciente, false)}
+                />
+              </View>
+            )}
           </View>
         )}
 
@@ -142,7 +189,10 @@ export function HoyNutricion({
               style={s.botonObjetivo}
             >
               <Text style={s.nombre}>Objetivo nutricional</Text>
-              <Icono nombre="adelante" color={tema.textoTenue} tamano={18} />
+              {/* No hay icono de desplegar: el de «adelante» girado apunta abajo o arriba. */}
+              <View style={{ transform: [{ rotate: objetivoAbierto ? "-90deg" : "90deg" }] }}>
+                <Icono nombre="adelante" color={tema.textoTenue} tamano={18} />
+              </View>
             </Pressable>
             {objetivoAbierto && (
               <View style={s.objetivo}>
@@ -168,7 +218,7 @@ export function HoyNutricion({
                     aria-checked={diaCargado ? tomado : undefined}
                     accessibilityLabel={
                       diaCargado
-                        ? `${suplemento.nombre} tomada`
+                        ? suplemento.nombre
                         : `${suplemento.nombre}: registro no disponible`
                     }
                     accessibilityState={{
@@ -180,10 +230,7 @@ export function HoyNutricion({
                   >
                     {diaCargado && <Check hecho={tomado} />}
                     <View style={s.textos}>
-                      <Text style={s.nombre}>
-                        {suplemento.nombre}
-                        {diaCargado ? " tomada" : ""}
-                      </Text>
+                      <Text style={s.nombre}>{suplemento.nombre}</Text>
                       {suplemento.dosis && <Text style={s.tenue}>{suplemento.dosis}</Text>}
                       {!diaCargado && <Text style={s.tenue}>Registro no disponible</Text>}
                     </View>
@@ -238,6 +285,23 @@ const s = StyleSheet.create({
     borderColor: tema.bordeDestacado,
   },
   fila: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 14 },
+  filaComida: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 6 },
+  // Zona táctil de 44 con la casilla de 28 dentro; el margen negativo conserva la alineación.
+  zonaCheck: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: -8,
+  },
+  reciente: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  textoReciente: { flex: 1, color: tema.acento, fontFamily: tema.fuenteBoton, fontSize: 15 },
   filaAhora: { backgroundColor: "rgba(255,195,76,.04)" },
   separada: { borderTopWidth: 1, borderTopColor: tema.borde },
   cuerpoFila: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12, minHeight: 64 },

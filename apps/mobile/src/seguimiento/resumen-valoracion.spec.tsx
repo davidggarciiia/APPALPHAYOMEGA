@@ -1,5 +1,5 @@
 import { describe, expect, it, jest } from "@jest/globals"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import {
   PublicacionValoracionSchema,
   crearPruebaEstandar,
@@ -363,5 +363,33 @@ describe("ValoracionesCliente", () => {
     await waitFor(() => expect(screen.getByText("Revisión")).toBeTruthy())
     expect(screen.queryByText(/No se pudieron cargar/)).toBeNull()
     expect(falsa.listarPublicadas).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("ValoracionesCliente: botón atrás", () => {
+  it("con una valoración abierta, atrás vuelve a la lista y deja de interceptar", async () => {
+    const registrarAtras = jest.fn<(atras: (() => boolean) | null) => void>()
+    await render(
+      <ValoracionesCliente
+        clienteId={CLIENTE}
+        api={api([publicacion({ doc: PARCIAL })])}
+        registrarAtras={registrarAtras}
+      />,
+    )
+    await screen.findByText("Última valoración")
+    // En la lista no hay nada a lo que volver: el contenedor cierra la pantalla.
+    expect(registrarAtras).not.toHaveBeenCalled()
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Ver el detalle de tu última valoración" }),
+    )
+    await screen.findByRole("button", { name: "Volver al resumen" })
+    const atras = registrarAtras.mock.calls.at(-1)![0]
+    expect(atras).toEqual(expect.any(Function))
+
+    expect(await act(async () => atras!())).toBe(true)
+    expect(await screen.findByText("Última valoración")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Volver al resumen" })).toBeNull()
+    expect(registrarAtras).toHaveBeenLastCalledWith(null)
   })
 })

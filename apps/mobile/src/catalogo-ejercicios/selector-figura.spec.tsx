@@ -40,7 +40,7 @@ describe("Selector de la animación de un ejercicio", () => {
     const { onCambio } = await pintar()
     expect(screen.getByText(/Sin animación/)).toBeTruthy()
 
-    await fireEvent.press(screen.getByRole("button", { name: "ELEGIR ANIMACIÓN" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Elegir animación" }))
     await fireEvent.press(
       await screen.findByRole("radio", { name: "Sentadilla trasera con barra" }),
     )
@@ -58,7 +58,7 @@ describe("Selector de la animación de un ejercicio", () => {
   it("marca las animaciones que solo se ven con conexión", async () => {
     await pintar()
 
-    await fireEvent.press(screen.getByRole("button", { name: "ELEGIR ANIMACIÓN" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Elegir animación" }))
 
     expect(await screen.findByText("Solo con conexión")).toBeTruthy()
     expect(screen.getByRole("radio", { name: "Dominadas" }).props.accessibilityHint).toBe(
@@ -68,7 +68,7 @@ describe("Selector de la animación de un ejercicio", () => {
 
   it("busca sin tener en cuenta los acentos y avisa si no hay coincidencias", async () => {
     await pintar()
-    await fireEvent.press(screen.getByRole("button", { name: "ELEGIR ANIMACIÓN" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Elegir animación" }))
     await screen.findByLabelText("Buscar animación")
 
     await fireEvent.changeText(screen.getByLabelText("Buscar animación"), "dominádas")
@@ -89,7 +89,7 @@ describe("Selector de la animación de un ejercicio", () => {
     ).toBeTruthy()
     expect(screen.getByText("Esta animación solo se ve con conexión.")).toBeTruthy()
 
-    await fireEvent.press(screen.getByRole("button", { name: "QUITAR ANIMACIÓN" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Quitar animación" }))
 
     await waitFor(() => {
       expect(onCambio).toHaveBeenCalledTimes(1)
@@ -106,17 +106,17 @@ describe("Selector de la animación de un ejercicio", () => {
       .mockImplementation(medios)
     await pintar(SENTADILLA, api)
 
-    await fireEvent.press(screen.getByRole("button", { name: "ELEGIR ANIMACIÓN" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Elegir animación" }))
     expect(await screen.findByText(/No hemos podido conectar/)).toBeTruthy()
 
-    await fireEvent.press(screen.getByRole("button", { name: "REINTENTAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
     expect(await screen.findByRole("radio", { name: "Dominadas" })).toBeTruthy()
   })
 
   it("un servidor sin figuras importadas lo dice en lugar de enseñar una lista vacía", async () => {
     await pintar(SENTADILLA, catalogoEnMemoria([SENTADILLA], undefined, []))
 
-    await fireEvent.press(screen.getByRole("button", { name: "ELEGIR ANIMACIÓN" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Elegir animación" }))
 
     expect(await screen.findByText(/todavía no tiene figuras importadas/)).toBeTruthy()
   })

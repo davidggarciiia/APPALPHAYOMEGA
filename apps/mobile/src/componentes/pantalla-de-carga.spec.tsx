@@ -221,3 +221,24 @@ describe("Pantalla de carga con el vídeo del logo", () => {
     expect(mockJugadores).toHaveLength(1)
   })
 })
+
+describe("pista para saltar la intro", () => {
+  it("avisa de que se puede saltar mientras suena el clip y desaparece al terminar", async () => {
+    await render(<PantallaDeCarga lista={false} />)
+    expect(screen.getByText("Toca para saltar", { includeHiddenElements: true })).toBeOnTheScreen()
+    expect(screen.getByRole("button", { name: "Saltar introducción" })).toHaveProp(
+      "accessibilityHint",
+      "Toca para saltar la introducción",
+    )
+    await emitir("playToEnd")
+    expect(screen.queryByText("Toca para saltar", { includeHiddenElements: true })).toBeNull()
+  })
+
+  it("no cambia la duración: sin tocar, el clip sigue su curso", async () => {
+    await render(<PantallaDeCarga lista />)
+    await emitir("playingChange", { isPlaying: true })
+    await avanzar(8000)
+    expect(screen.getByText("Toca para saltar", { includeHiddenElements: true })).toBeOnTheScreen()
+    expect(hayPantalla()).toBe(true)
+  })
+})

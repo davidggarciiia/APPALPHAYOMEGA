@@ -65,7 +65,8 @@ function normalizar(nombre: string): string {
  * Catálogo para las pruebas de pantalla, con el comportamiento que el plan pide
  * al servidor: filtra por nombre, grupo y estado, y rechaza nombres repetidos.
  *
- * `total` permite fingir un catálogo más grande que la página devuelta.
+ * `total` permite fingir un catálogo más grande que la página devuelta. Respeta
+ * `limite` y `desplazamiento` para probar la paginación.
  */
 export function catalogoEnMemoria(
   iniciales: Ejercicio[] = [],
@@ -112,7 +113,12 @@ export function catalogoEnMemoria(
             fila.gruposSecundarios.includes(filtros.grupo)),
       )
 
-      return ListadoEjerciciosSchema.parse({ ejercicios: filas, total: total ?? filas.length })
+      // Como el servidor: sin `limite` devuelve todo; con él, la página pedida.
+      const desde = filtros.desplazamiento ?? 0
+      const pagina =
+        filtros.limite === undefined ? filas : filas.slice(desde, desde + filtros.limite)
+
+      return ListadoEjerciciosSchema.parse({ ejercicios: pagina, total: total ?? filas.length })
     },
 
     leer: async (id) => {

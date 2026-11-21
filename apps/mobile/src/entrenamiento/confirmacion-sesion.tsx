@@ -12,6 +12,12 @@ export type PropsConfirmacionSesion = {
   total: number
   /** Segundos reales de actividad; null en registros antiguos sin reloj. */
   duracion: number | null
+  /** Qué sesión es: «Empuje A». */
+  nombre?: string
+  /** Cuándo era, ya legible: «Lunes, 21 nov». */
+  fecha?: string
+  /** Falso al abrir una sesión ya enviada: se ve el resumen sin repetir la celebración. */
+  celebrar?: boolean
   salir?: () => void
   reintentar?: () => void
   ocupado?: boolean
@@ -22,12 +28,16 @@ export function ConfirmacionSesion({
   hechas,
   total,
   duracion,
+  nombre,
+  fecha,
+  celebrar = true,
   salir,
   reintentar,
   ocupado = false,
 }: PropsConfirmacionSesion): React.JSX.Element {
   const { reducido, listo } = useEstadoMovimiento()
-  const animar = listo && !reducido && estado === "enviado"
+  const animar = listo && !reducido && estado === "enviado" && celebrar
+  const sesion = [nombre, fecha].filter(Boolean).join(" · ")
   const [cuenta, fijarCuenta] = useState(0)
   const minutos = duracion === null ? null : Math.max(0, Math.round(duracion / 60))
   const tiempo =
@@ -47,10 +57,11 @@ export function ConfirmacionSesion({
 
   return (
     <View style={estilos.raiz}>
-      {estado === "enviado" && <TrazoLogo tamano={80} />}
+      {estado === "enviado" && celebrar && <TrazoLogo tamano={80} />}
       <Text accessibilityRole="header" style={estilos.titulo}>
         {estado === "enviado" ? "ENVIADO" : "GUARDADO"}
       </Text>
+      {sesion !== "" && <Text style={estilos.sesion}>{sesion}</Text>}
       <View accessible accessibilityRole="text" accessibilityLabel={resumen}>
         <View style={estilos.resumen} importantForAccessibility="no-hide-descendants">
           {animar ? (
@@ -78,6 +89,7 @@ export function ConfirmacionSesion({
 const estilos = StyleSheet.create({
   raiz: { gap: espacio[12], paddingVertical: espacio[16] },
   titulo: { ...tipo.heroGrande, fontSize: 64, lineHeight: 68 },
+  sesion: { ...tipo.cuerpo, color: tema.texto },
   resumen: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
   resumenTexto: { ...tipo.cuerpo, ...tipo.cifras, color: tema.textoSecundario },
   pendiente: { ...tipo.cuerpo, color: tema.textoTenue },

@@ -5,11 +5,17 @@ import Progreso from "../../app/progreso"
 
 jest.mock("expo-router", () => {
   const React = jest.requireActual<typeof import("react")>("react")
-  return { useFocusEffect: (efecto: () => void) => React.useEffect(efecto, [efecto]) }
+  return {
+    useFocusEffect: (efecto: () => void) => React.useEffect(efecto, [efecto]),
+    useRouter: () => ({ setParams: mockSetParams }),
+    useLocalSearchParams: () => mockParametros,
+  }
 })
 jest.mock("expo-crypto", () => ({ randomUUID: () => "10000000-0000-4000-8000-000000000001" }))
 
 let mockCliente = "cliente-a"
+let mockParametros: { abrir?: string } = {}
+const mockSetParams = jest.fn()
 const mockSeguimiento = {
   configuracion: jest.fn(async () => ({
     ...CONFIGURACION_SEGUIMIENTO_INICIAL,
@@ -67,6 +73,8 @@ jest.mock("./use-medios", () => ({ useMedios: () => mockMedios }))
 
 beforeEach(() => {
   mockCliente = "cliente-a"
+  mockParametros = {}
+  mockSetParams.mockClear()
 })
 
 it("la ruta del cliente carga la vista rediseñada con sus datos", async () => {

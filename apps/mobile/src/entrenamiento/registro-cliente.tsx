@@ -26,6 +26,7 @@ import {
 } from "./registro-modelo"
 import {
   ajusteDeSerie,
+  cargaDePartida,
   TablaSeries,
   type DeshacerSerie,
   type FocoSerie,
@@ -35,11 +36,15 @@ import { ConfirmacionSesion, PrescripcionVisible } from "./resultado"
 import { VerTecnica } from "./ver-tecnica"
 import { Dialogo, Enlace } from "./sesion/controles"
 import {
+  detalleDeCircuito,
   ejercicioParaRirFinal,
   porSecciones,
   segundosDeDescanso,
   seriesDeTrabajo,
+  tituloDeSeccion,
 } from "./sesion/modelo"
+import { usePantallaEncendida } from "./sesion/pantalla-encendida"
+import { fechaLegible } from "./fechas"
 import { RegistrarMolestiaPantalla, type LugarDeMolestia } from "./sesion/molestia"
 import { CabeceraSesion, Descanso } from "./sesion/partes"
 import { duracionDeSesion, iniciarTramo } from "./sesion/tiempo"
@@ -60,12 +65,11 @@ import { cargarSugerenciasDeProgresion } from "./progresion-cliente"
 type Serie = EdicionRegistro["series"][number]
 type Fase = "sesion" | "molestia"
 
-const TITULOS_DE_SECCION = {
-  calentamiento: "Calentamiento",
-  principal: "Principal",
-  circuito: "Circuito",
-  final: "Final",
-} as const
+/** «Lunes, 21 nov»: la fecha de la sesión para el resumen final. */
+function fechaDeSesion(fecha: string): string {
+  const texto = fechaLegible(fecha)
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
 
 const MENSAJES_DE_COPIA_LOCAL = {
   leer: "No se pudo leer la copia guardada en este dispositivo. La copia se conserva; reintenta para recuperarla.",
@@ -196,6 +200,9 @@ export function RegistroCliente({
     intento: number
   } | null>(null)
   const [intento, setIntento] = useState(0)
+  const [enfocada, setEnfocada] = useState(false)
+  // Solo se celebra el envío hecho en esta pantalla, no una sesión que ya estaba enviada.
+  const [enviadaAqui, setEnviadaAqui] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [fase, setFase] = useState<Fase>("sesion")
   const [dialogo, setDialogo] = useState<"terminar" | null>(null)
@@ -208,10 +215,11 @@ export function RegistroCliente({
   useEffect(() => {
     recordsCelebrados.current.clear()
     setRecordPersonal(null)
+    setEnviadaAqui(false)
   }, [cuenta, id])
   useEffect(() => {
     if (!recordPersonal) return
-    const plazo = setTimeout(() => setRecordPersonal(null), 1600)
+    const plazo = setTimeout(() => setRecordPersonal(null), 4000)
     return () => clearTimeout(plazo)
   }, [recordPersonal])
   const [nota, setNota] = useState(false)
@@ -228,6 +236,8 @@ export function RegistroCliente({
     (DeshacerSerie & { id: number; iniciadoEn: number }) | null
   >(null)
   const avisoId = useRef(0)
+  // La serie cuyo «Hecha» arrancó el descanso en curso: deshacerla lo cancela.
+  const descansoDe = useRef<string | null>(null)
   const intentoSerie = useRef(0)
   const reducido = useMovimientoReducido()
   const [pausaMovimiento, setPausaMovimiento] = useState(false)
@@ -276,6 +286,7 @@ export function RegistroCliente({
         comprobando = false,
         recuperando = true
       interaccionBloques.current = false
+      setEnfocada(true)
       let sesionDeRecords: SesionCliente | undefined
       let sesionDeBloque: SesionCliente | undefined
       const c = new RegistroControl(cuenta, id, api, almacenDispositivo, randomUUID, () => {
@@ -360,6 +371,7 @@ export function RegistroCliente({
       })
       return () => {
         vigente = false
+        setEnfocada(false)
         // Blur de navegación pausa el entrenamiento; bloquear el teléfono no produce blur.
         void c
           .pausar(new Date().toISOString())
@@ -386,6 +398,16 @@ export function RegistroCliente({
   }, [api, id, cuenta])
 
   const documento = control?.documento
+  const envioEnCurso = Boolean(documento?.intencionEnvio || documento?.envioPendiente)
+  useEffect(() => {
+    if (envioEnCurso) setEnviadaAqui(true)
+  }, [envioEnCurso])
+  const enPausa =
+    !!documento &&
+    documento.edicion.tiempoActivoSegundos !== undefined &&
+    !documento.edicion.tramoActivoDesde
+  // Con la sesión abierta, sin pausa ni envío, el móvil no debe apagar la pantalla.
+  usePantallaEncendida(enfocada && !!documento && !documento.resultado && !envioEnCurso && !enPausa)
   const prescripcionActual = documento?.sesion.prescripcion
   const grupos = useMemo(
     () => (prescripcionActual ? porSecciones(prescripcionActual) : []),
@@ -430,6 +452,7 @@ export function RegistroCliente({
               ))}
             </GrupoEsqueletos>
           )}
+          {salir && <BotonSecundario texto="Volver" onPress={salir} />}
         </View>
       </SafeAreaView>
     )
@@ -439,6 +462,9 @@ export function RegistroCliente({
         <ScrollView contentContainerStyle={e.contenido} keyboardShouldPersistTaps="handled">
           <ConfirmacionSesion
             estado="enviado"
+            nombre={documento.resultado.prescripcion.nombre}
+            fecha={fechaDeSesion(documento.sesion.agenda.fechaActual)}
+            celebrar={enviadaAqui}
             hechas={documento.resultado.series.filter((s) => s.hecha).length}
             total={documento.resultado.prescripcion.ejercicios.reduce(
               (total, ejercicio) => total + ejercicio.series.length,
@@ -524,6 +550,12 @@ export function RegistroCliente({
     documento.envioPendiente !== null
   const bloqueado = bloqueadoPorEnvio || pausado
   const seriesBloqueadas = bloqueado || !ajusteValido
+  // En pausa las series se ven apagadas y tocar una ofrece continuar, no queda muerta.
+  const enPausaVisible = pausado && !bloqueadoPorEnvio
+  const reanudar = (): void =>
+    void accion(() =>
+      control.editar(iniciarTramo(control.documento!.edicion, new Date().toISOString())),
+    )
   const cambiar = (
     nueva: EdicionRegistro,
     vista: {
@@ -578,12 +610,18 @@ export function RegistroCliente({
       }
       // Tras una serie hecha empieza el descanso que prescribió el entrenador.
       const segundos = segundosDeDescanso(ejercicio?.descanso)
-      if (!anterior?.hecha && segundos !== null)
+      if (!anterior?.hecha && segundos !== null) {
         nuevoDescanso = {
           descansoHasta: new Date(Date.now() + segundos * 1000).toISOString(),
           descansoTotal: segundos,
         }
+        descansoDe.current = serieId
+      }
     }
+    // Deshacer una serie hecha cancela el descanso que esa misma serie arrancó.
+    const sinDescanso =
+      cambio.hecha === false && anterior?.hecha === true && descansoDe.current === serieId
+    if (sinDescanso) descansoDe.current = null
     if (cambio.hecha !== undefined || cambio.omitida) {
       if (mejora) recordsCelebrados.current.add(serieId)
       setRecordPersonal(mejora ? { serieId, mejora } : null)
@@ -604,6 +642,7 @@ export function RegistroCliente({
     }
     cambiar(nueva, {
       ...nuevoDescanso,
+      ...(sinDescanso && { descansoHasta: null, descansoTotal: null }),
       ...(retener && { ejercicioElegidoId: retener }),
     })
     if (cambio.hecha || cambio.omitida) {
@@ -637,6 +676,7 @@ export function RegistroCliente({
     Keyboard.dismiss()
     setFoco(null)
     setDialogo(null)
+    setEnviadaAqui(true)
     void accion(async () => {
       await control.pausar(new Date().toISOString())
       await control.enviar()
@@ -762,6 +802,8 @@ export function RegistroCliente({
           ) : (
             <ConfirmacionSesion
               estado="guardado"
+              nombre={prescripcion.nombre}
+              fecha={fechaDeSesion(documento.sesion.agenda.fechaActual)}
               hechas={comprometido.series.filter((s) => s.hecha).length}
               total={prescripcion.ejercicios.reduce(
                 (total, ejercicio) => total + ejercicio.series.length,
@@ -796,6 +838,9 @@ export function RegistroCliente({
   const realEnFoco = foco && edicion.series.find((s) => s.serieId === foco.serieId)
   const indiceBloque = Math.min(bloque ?? 0, Math.max(0, grupos.length - 1))
   const grupo = grupos[indiceBloque]
+  const tituloGrupo = grupo ? tituloDeSeccion(grupo.seccion, prescripcion.circuito) : ""
+  const detalleGrupo =
+    grupo?.seccion === "circuito" ? detalleDeCircuito(prescripcion.circuito) : null
   const cambiarBloque = (indice: number): void => {
     interaccionBloques.current = true
     Keyboard.dismiss()
@@ -806,7 +851,7 @@ export function RegistroCliente({
     const destino = grupos[indice]
     if (destino)
       AccessibilityInfo.announceForAccessibility(
-        `Bloque ${indice + 1} de ${grupos.length}, ${TITULOS_DE_SECCION[destino.seccion]}`,
+        `Bloque ${indice + 1} de ${grupos.length}, ${tituloDeSeccion(destino.seccion, prescripcion.circuito)}${destino.seccion === "circuito" && detalleDeCircuito(prescripcion.circuito) ? `, ${detalleDeCircuito(prescripcion.circuito)}` : ""}`,
       )
   }
   const ajuste =
@@ -815,10 +860,16 @@ export function RegistroCliente({
           ejercicioEnFoco,
           realEnFoco,
           foco.celda,
-          cargaSugeridaDeFase(
+          cargaDePartida(
             ejercicioEnFoco,
-            prescripcion.fase?.ajustes.factorCarga,
-            anteriores.get(ejercicioEnFoco.ejercicioId)?.valores,
+            edicion.series,
+            foco.serieId,
+            cargaSugeridaDeFase(
+              ejercicioEnFoco,
+              prescripcion.fase?.ajustes.factorCarga,
+              anteriores.get(ejercicioEnFoco.ejercicioId)?.valores,
+            ),
+            anteriores.get(ejercicioEnFoco.ejercicioId),
           ),
         )
       : null
@@ -874,10 +925,11 @@ export function RegistroCliente({
           <View
             accessible
             accessibilityRole="header"
-            accessibilityLabel={`Bloque ${indiceBloque + 1} de ${grupos.length}, ${TITULOS_DE_SECCION[grupo.seccion]}`}
+            accessibilityLabel={`Bloque ${indiceBloque + 1} de ${grupos.length}, ${tituloGrupo}${detalleGrupo ? `, ${detalleGrupo}` : ""}`}
             style={e.tituloBloque}
           >
-            <Text style={e.nombreBloque}>{TITULOS_DE_SECCION[grupo.seccion]}</Text>
+            <Text style={e.nombreBloque}>{tituloGrupo}</Text>
+            {detalleGrupo && <Text style={e.detalleBloque}>{detalleGrupo}</Text>}
             <View style={e.pasos}>
               {grupos.map((g, i) => (
                 <View key={g.seccion} style={[e.paso, i === indiceBloque && e.pasoActual]} />
@@ -937,13 +989,13 @@ export function RegistroCliente({
                 e.finBloque,
             ]}
           >
-            {pausado && !bloqueadoPorEnvio && (
-              <BotonPrincipal
-                texto="Continuar entrenamiento"
-                onPress={() =>
-                  void accion(() => control.editar(iniciarTramo(edicion, new Date().toISOString())))
-                }
-              />
+            {enPausaVisible && (
+              <View style={e.pausa}>
+                <Text accessibilityLiveRegion="polite" style={e.textoPausa}>
+                  Entrenamiento en pausa. Continúa para anotar tus series.
+                </Text>
+                <BotonPrincipal texto="Continuar entrenamiento" onPress={reanudar} sinMargen />
+              </View>
             )}
             <Text
               testID="estado-guardado"
@@ -957,6 +1009,19 @@ export function RegistroCliente({
                   : "Guardado"}
             </Text>
             {avisos}
+            {prescripcion.nota && (
+              <View
+                accessible
+                accessibilityLabel={`Nota del entrenador: ${prescripcion.nota}`}
+                style={e.notaEntrenador}
+              >
+                <Text style={e.etiquetaNota}>NOTA DEL ENTRENADOR</Text>
+                <Text style={e.textoNota}>{prescripcion.nota}</Text>
+              </View>
+            )}
+            {pendientes > 0 && !edicion.series.some((serie) => serie.omitida) && (
+              <Text style={e.pista}>Para omitir una serie, mantén pulsada su casilla.</Text>
+            )}
             {prescripcion.fase && textoDeAjustes(prescripcion.fase.ajustes) && (
               <Text style={e.nota}>
                 {prescripcion.fase.nombre} · {textoDeAjustes(prescripcion.fase.ajustes)}
@@ -975,7 +1040,9 @@ export function RegistroCliente({
               <TablaSeries
                 ejercicio={ejercicio}
                 series={edicion.series}
-                bloqueado={seriesBloqueadas}
+                bloqueado={bloqueadoPorEnvio || !ajusteValido}
+                pausado={enPausaVisible}
+                reanudar={reanudar}
                 cambiar={serie}
                 enCurso={enCurso}
                 anterior={anteriores.get(ejercicio.ejercicioId)}
@@ -1022,7 +1089,6 @@ export function RegistroCliente({
         <View style={e.accionPie}>
           <BotonPrincipal
             texto={indiceBloque < grupos.length - 1 ? "Siguiente" : "Terminar"}
-            etiquetaAccesible={indiceBloque < grupos.length - 1 ? "Siguiente" : "Finalizar sesión"}
             onPress={() =>
               indiceBloque < grupos.length - 1 ? cambiarBloque(indiceBloque + 1) : terminar()
             }
@@ -1103,6 +1169,7 @@ const e = StyleSheet.create({
   cabecera: { paddingHorizontal: 20 },
   tituloBloque: { gap: 8, paddingVertical: 12 },
   nombreBloque: { ...tipo.titulo, color: tema.texto },
+  detalleBloque: { ...tipo.secundario, marginTop: -4 },
   pasos: { flexDirection: "row", gap: 6 },
   paso: { width: 24, height: 3, backgroundColor: tema.bordeFuerte },
   pasoActual: { backgroundColor: tema.acento },
@@ -1123,5 +1190,16 @@ const e = StyleSheet.create({
   deshacer: { marginHorizontal: 20, marginBottom: 20 },
   texto: { color: tema.texto, fontFamily: tema.fuenteTexto, fontSize: 15, lineHeight: 21 },
   titulo: { color: tema.acento, fontFamily: tema.fuenteTitulo, fontSize: 34, lineHeight: 38 },
+  pausa: { gap: 12 },
+  textoPausa: { color: tema.aviso, fontFamily: tema.fuenteSemi, fontSize: 14, lineHeight: 20 },
+  notaEntrenador: { gap: 4, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: tema.acento },
+  etiquetaNota: { ...tipo.micro, color: tema.textoTenue },
+  textoNota: {
+    color: tema.textoSecundario,
+    fontFamily: tema.fuenteTexto,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  pista: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 12, lineHeight: 16 },
   nota: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 14, lineHeight: 20 },
 })

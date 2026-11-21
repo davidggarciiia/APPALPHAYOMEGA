@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -117,6 +118,17 @@ export class SeguimientoController {
     return this.seguimiento.medidas(clienteId)
   }
 
+  /** El cliente borra una medida que tomó él mismo; las de su equipo no. */
+  @Roles("cliente")
+  @Delete("medidas/:medidaId")
+  borrarMedida(
+    @Req() peticion: PeticionAutenticada,
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Param("medidaId", new EntradaApiPipe(IdSchema)) medidaId: string,
+  ): Promise<Medida> {
+    return this.seguimiento.borrarMedida(this.actor(peticion), clienteId, medidaId)
+  }
+
   /** Histórico completo, de la más reciente a la más antigua, página a página. */
   @Roles("cliente", "entrenador", "nutricionista")
   @Get("medidas/pagina")
@@ -137,6 +149,17 @@ export class SeguimientoController {
     @Body(new EntradaApiPipe(RegistrarPruebaSchema)) datos: RegistrarPrueba,
   ): Promise<PruebaFisica> {
     return this.seguimiento.registrarPrueba(this.actor(peticion), clienteId, datos)
+  }
+
+  /** El cliente borra una prueba que anotó él mismo; las de su equipo no. */
+  @Roles("cliente")
+  @Delete("pruebas/:pruebaId")
+  borrarPrueba(
+    @Req() peticion: PeticionAutenticada,
+    @Param("clienteId", new EntradaApiPipe(IdSchema)) clienteId: string,
+    @Param("pruebaId", new EntradaApiPipe(IdSchema)) pruebaId: string,
+  ): Promise<PruebaFisica> {
+    return this.seguimiento.borrarPrueba(this.actor(peticion), clienteId, pruebaId)
   }
 
   @Roles("cliente", "entrenador", "nutricionista")

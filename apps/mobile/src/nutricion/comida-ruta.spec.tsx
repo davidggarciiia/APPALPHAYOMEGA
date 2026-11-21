@@ -368,7 +368,7 @@ describe("ruta de una comida de hoy", () => {
     expect(screen.queryByText(/sin conexión/i)).toBeNull()
     await fireEvent.press(screen.getByRole("tab", { name: "Saladas" }))
     await fireEvent.press(screen.getByRole("radio", { name: /^Tostada con pavo/ }))
-    await fireEvent.press(screen.getByRole("button", { name: "Registrar comida" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Actualizar registro" }))
     await waitFor(() =>
       expect(mockApi.registrarComida).toHaveBeenCalledWith(CLIENTE, expect.any(String), COMIDA, {
         dietaId: DIETA,

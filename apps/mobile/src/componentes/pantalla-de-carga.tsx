@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from "react-native"
 
@@ -133,7 +134,14 @@ export function PantallaDeCarga({ lista }: { lista: boolean }): React.JSX.Elemen
           onPress={terminar}
           accessibilityRole="button"
           accessibilityLabel="Saltar introducción"
-        />
+          accessibilityHint="Toca para saltar la introducción"
+        >
+          <View style={estilos.pista} pointerEvents="none">
+            <Text style={estilos.textoPista} importantForAccessibility="no" aria-hidden>
+              Toca para saltar
+            </Text>
+          </View>
+        </Pressable>
       )}
     </Animated.View>
   )
@@ -144,4 +152,6 @@ const estilos = StyleSheet.create({
   // Con absoluteFill a secas, la imagen y el vídeo conservan su tamaño propio en web.
   llena: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" },
   indicador: { position: "absolute", bottom: 72, alignSelf: "center" },
+  pista: { flex: 1, alignItems: "center", justifyContent: "flex-end", paddingBottom: 40 },
+  textoPista: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },
 })

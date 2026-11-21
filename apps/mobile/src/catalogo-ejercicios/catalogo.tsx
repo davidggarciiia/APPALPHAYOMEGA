@@ -1,49 +1,34 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { GRUPOS_MUSCULARES, type Ejercicio, type GrupoMuscular } from "@alpha-omega/shared"
+import type { Ejercicio, GrupoMuscular } from "@alpha-omega/shared"
 
 import { faltaDe, type Falta } from "../lib/errores"
-import { degradadoOro, tema } from "../tema"
+import { tema } from "../tema"
 
 import type { ApiDeCatalogo } from "./api"
+import { FiltroDeGrupo } from "./filtro-de-grupo"
+import { ETIQUETA_DE_GRUPO } from "./grupos"
+
+export { ETIQUETA_DE_GRUPO }
 
 /**
- * El máximo que admite el contrato. Si algún día no basta, la pantalla lo dice
- * con «mostrando 100 de 130» en lugar de cortar la lista en silencio.
+ * Cuántos ejercicios se piden de una vez. El catálogo pasa del millar: la lista
+ * sigue pidiendo páginas al llegar al final, con un botón por si el gesto no basta.
  */
-const LIMITE = 100
+const POR_PAGINA = 50
 
 /** Cuánto se espera a que el entrenador deje de teclear antes de preguntar. */
 const ESPERA_DE_BUSQUEDA_MS = 300
-
-/**
- * Cómo se lee cada grupo. El vocabulario viaja sin acentos y aquí se escribe
- * bien. Al ser un `Record`, añadir un grupo al contrato no compila sin su nombre.
- */
-export const ETIQUETA_DE_GRUPO: Record<GrupoMuscular, string> = {
-  pecho: "Pecho",
-  espalda: "Espalda",
-  hombros: "Hombros",
-  biceps: "Bíceps",
-  triceps: "Tríceps",
-  antebrazos: "Antebrazos",
-  abdomen: "Abdomen",
-  gluteos: "Glúteos",
-  cuadriceps: "Cuádriceps",
-  isquiotibiales: "Isquiotibiales",
-  gemelos: "Gemelos",
-}
 
 type Fase = "cargando" | "listo" | "error"
 
@@ -73,6 +58,10 @@ export function Catalogo({
   const [refrescando, setRefrescando] = useState(false)
   const [ejercicios, setEjercicios] = useState<Ejercicio[]>([])
   const [total, setTotal] = useState(0)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const [errorMas, setErrorMas] = useState(false)
+  /** Cuenta las consultas: una página tardía de una búsqueda anterior no se añade. */
+  const consulta = useRef(0)
   const [fallo, setFallo] = useState<Falta>({
     texto: "",
     reintentable: true,
@@ -93,14 +82,17 @@ export function Catalogo({
     // Una respuesta lenta de una búsqueda anterior llega con `vigente` en falso
     // y no pisa a la búsqueda actual.
     let vigente = true
+    consulta.current += 1
     setActualizando(true)
+    setCargandoMas(false)
+    setErrorMas(false)
 
     api
       .buscar({
         buscar: busqueda === "" ? undefined : busqueda,
         grupo: grupo ?? undefined,
         estado: verRetirados ? "retirado" : "publicado",
-        limite: LIMITE,
+        limite: POR_PAGINA,
       })
       .then((listado) => {
         if (!vigente) return
@@ -114,7 +106,7 @@ export function Catalogo({
       .catch((error: unknown) => {
         if (!vigente) return
 
-        setFallo(faltaDe(error, "No hemos podido cargar el catálogo."))
+        setFallo(faltaDe(error, "No hemos podido cargar los ejercicios."))
         setFase("error")
         setActualizando(false)
         setRefrescando(false)
@@ -125,13 +117,47 @@ export function Catalogo({
     }
   }, [api, busqueda, grupo, verRetirados, intento])
 
+  const cargarMas = (): void => {
+    if (cargandoMas || actualizando || ejercicios.length >= total) return
+    const esta = consulta.current
+    setCargandoMas(true)
+    setErrorMas(false)
+
+    api
+      .buscar({
+        buscar: busqueda === "" ? undefined : busqueda,
+        grupo: grupo ?? undefined,
+        estado: verRetirados ? "retirado" : "publicado",
+        limite: POR_PAGINA,
+        desplazamiento: ejercicios.length,
+      })
+      .then((listado) => {
+        if (consulta.current !== esta) return
+
+        const vistos = new Set(ejercicios.map((fila) => fila.id))
+        const nuevos = listado.ejercicios.filter((fila) => !vistos.has(fila.id))
+        setEjercicios([...ejercicios, ...nuevos])
+        // Si el servidor no da nada nuevo, no se insiste: así no hay bucle si el total miente.
+        setTotal(nuevos.length === 0 ? ejercicios.length : listado.total)
+        setCargandoMas(false)
+      })
+      .catch(() => {
+        if (consulta.current !== esta) return
+
+        setErrorMas(true)
+        setCargandoMas(false)
+      })
+  }
+
   const hayFiltroPuesto = busqueda !== "" || grupo !== null
   const recortada = ejercicios.length < total
 
   return (
     <SafeAreaView edges={["left", "right"]} style={estilos.pantalla}>
       <View style={estilos.cabecera}>
-        <Text style={estilos.titulo}>CATÁLOGO</Text>
+        <Text accessibilityRole="header" style={estilos.titulo}>
+          Ejercicios
+        </Text>
         <View style={estilos.accionesCabecera}>
           {/* Los retirados no se mezclan con los vigentes: se piden aparte. */}
           <Pressable
@@ -144,7 +170,7 @@ export function Catalogo({
             hitSlop={12}
           >
             <Text style={[estilos.retirados, verRetirados && estilos.retiradosPuesto]}>
-              RETIRADOS
+              Retirados
             </Text>
           </Pressable>
           <Pressable
@@ -153,7 +179,7 @@ export function Catalogo({
             accessibilityLabel="Crear un ejercicio nuevo"
             hitSlop={12}
           >
-            <Text style={estilos.nuevo}>+ NUEVO</Text>
+            <Text style={estilos.nuevo}>+ Nuevo</Text>
           </Pressable>
         </View>
       </View>
@@ -175,41 +201,14 @@ export function Catalogo({
       </View>
 
       {/* Doce filtros en vertical se comen media pantalla; en una fila se deslizan. */}
-      <View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={estilos.filtros}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Filtro
-            texto="TODOS"
-            nombre="Quitar el filtro de grupo"
-            puesto={grupo === null}
-            onPress={() => {
-              setGrupo(null)
-            }}
-          />
-          {GRUPOS_MUSCULARES.map((opcion) => (
-            <Filtro
-              key={opcion}
-              texto={ETIQUETA_DE_GRUPO[opcion].toUpperCase()}
-              nombre={`Filtrar por ${ETIQUETA_DE_GRUPO[opcion]}`}
-              puesto={opcion === grupo}
-              onPress={() => {
-                setGrupo(opcion)
-              }}
-            />
-          ))}
-        </ScrollView>
-      </View>
+      <FiltroDeGrupo grupo={grupo} cambiar={setGrupo} margenHorizontal={16} />
 
       {fase === "cargando" ? (
         <View style={estilos.centrado}>
           <ActivityIndicator
             color={tema.acento}
             size="large"
-            accessibilityLabel="Cargando el catálogo"
+            accessibilityLabel="Cargando los ejercicios"
           />
         </View>
       ) : fase === "error" ? (
@@ -225,14 +224,15 @@ export function Catalogo({
                 setIntento((n) => n + 1)
               }}
               accessibilityRole="button"
-              accessibilityLabel="REINTENTAR"
+              accessibilityLabel="Reintentar"
             >
-              <Text style={estilos.textoBoton}>REINTENTAR</Text>
+              <Text style={estilos.textoBoton}>Reintentar</Text>
             </Pressable>
           )}
         </View>
       ) : (
         <FlatList
+          testID="lista-ejercicios"
           data={ejercicios}
           keyExtractor={(fila) => fila.id}
           contentContainerStyle={estilos.lista}
@@ -248,6 +248,8 @@ export function Catalogo({
               colors={[tema.acento]}
             />
           }
+          onEndReached={cargarMas}
+          onEndReachedThreshold={0.5}
           renderItem={({ item }) => (
             <Fila
               ejercicio={item}
@@ -262,44 +264,43 @@ export function Catalogo({
                 ? "Ningún ejercicio coincide con esa búsqueda."
                 : verRetirados
                   ? "No hay ejercicios retirados."
-                  : "Todavía no hay ejercicios. Crea el primero con + NUEVO."}
+                  : "Todavía no hay ejercicios. Crea el primero con «+ Nuevo»."}
             </Text>
           }
           ListFooterComponent={
             recortada ? (
-              <Text style={estilos.pie}>
-                {`Mostrando ${String(ejercicios.length)} de ${String(total)}. Busca por nombre para encontrar el resto.`}
-              </Text>
+              <View style={estilos.pieCarga}>
+                <Text style={estilos.pie}>
+                  {`Mostrando ${String(ejercicios.length)} de ${String(total)}.`}
+                </Text>
+                {errorMas && (
+                  <Text style={estilos.pie} accessibilityRole="alert">
+                    No hemos podido cargar más ejercicios.
+                  </Text>
+                )}
+                {cargandoMas ? (
+                  <ActivityIndicator
+                    color={tema.acento}
+                    accessibilityLabel="Cargando más ejercicios"
+                  />
+                ) : (
+                  <Pressable
+                    style={({ pressed }) => [estilos.botonMas, pressed && estilos.pulsado]}
+                    onPress={cargarMas}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      errorMas ? "Reintentar cargar más" : "Cargar más ejercicios"
+                    }
+                  >
+                    <Text style={estilos.textoBoton}>{errorMas ? "Reintentar" : "Cargar más"}</Text>
+                  </Pressable>
+                )}
+              </View>
             ) : undefined
           }
         />
       )}
     </SafeAreaView>
-  )
-}
-
-function Filtro({
-  texto,
-  nombre,
-  puesto,
-  onPress,
-}: {
-  texto: string
-  nombre: string
-  puesto: boolean
-  onPress: () => void
-}): React.JSX.Element {
-  return (
-    <Pressable
-      style={[estilos.filtro, puesto && estilos.filtroPuesto]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={nombre}
-      accessibilityState={{ selected: puesto }}
-      hitSlop={6}
-    >
-      <Text style={[estilos.textoFiltro, puesto && estilos.textoFiltroPuesto]}>{texto}</Text>
-    </Pressable>
   )
 }
 
@@ -357,12 +358,19 @@ const estilos = StyleSheet.create({
     textTransform: "uppercase",
   },
   accionesCabecera: { flexDirection: "row", alignItems: "center", gap: 16 },
-  nuevo: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 12, letterSpacing: 2 },
+  nuevo: {
+    fontFamily: tema.fuenteBoton,
+    color: tema.acento,
+    fontSize: 12,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
   retirados: {
     fontFamily: tema.fuenteTexto,
     color: tema.textoTenue,
     fontSize: 12,
     letterSpacing: 2,
+    textTransform: "uppercase",
   },
   retiradosPuesto: { fontFamily: tema.fuenteBoton, color: tema.acento },
   buscador: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 },
@@ -379,23 +387,6 @@ const estilos = StyleSheet.create({
     minHeight: 44,
   },
   girando: { width: 20 },
-  filtros: { gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  filtro: {
-    borderColor: tema.borde,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 44,
-  },
-  filtroPuesto: { ...degradadoOro, borderColor: "transparent" },
-  textoFiltro: {
-    fontFamily: tema.fuenteSemi,
-    color: tema.textoTenue,
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  textoFiltroPuesto: { color: tema.fondo },
   lista: { padding: 16, gap: 12, flexGrow: 1 },
   fila: {
     backgroundColor: tema.superficie,
@@ -442,5 +433,20 @@ const estilos = StyleSheet.create({
     paddingVertical: 14,
   },
   pulsado: { opacity: 0.6 },
-  textoBoton: { fontFamily: tema.fuenteBoton, color: tema.acento, fontSize: 13, letterSpacing: 2 },
+  textoBoton: {
+    fontFamily: tema.fuenteBoton,
+    color: tema.acento,
+    fontSize: 13,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  pieCarga: { alignItems: "center", gap: 8, marginTop: 4 },
+  botonMas: {
+    borderColor: tema.acento,
+    borderWidth: 1,
+    borderRadius: 14,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
 })

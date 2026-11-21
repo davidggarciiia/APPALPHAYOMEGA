@@ -3,16 +3,25 @@ import { useFocusEffect } from "expo-router"
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native"
 import type { DeporteDelPlan, ListadoSesiones } from "@alpha-omega/shared"
 
+import { Aviso } from "../componentes/aviso"
 import { AvisoDeError, BotonSecundario } from "../componentes/formulario"
 import { Esqueleto, GrupoEsqueletos } from "../componentes/esqueleto"
 import { Icono } from "../componentes/iconos"
 import { tema } from "../tema"
 import { faltaDe, type Falta } from "../lib/errores"
-import { fechaLegible, sumarDias } from "./fechas"
+import { fechaLegible, lunesDeSemana, sumarDias } from "./fechas"
 
 export type SesionCalendario = ListadoSesiones["sesiones"][number] & { empezadaEn?: string }
 type Sesiones = SesionCalendario[]
-export type CargarMes = (mes: string) => Promise<Sesiones>
+/** Un mes puede llegar entero o con semanas que no se pudieron cargar. */
+export type ResultadoMes = {
+  sesiones: Sesiones
+  /** Lunes de las semanas sin datos: ni de la red ni de la copia local. */
+  sinDatos?: string[]
+  /** Alguna semana viene de la última copia guardada en el dispositivo. */
+  deCopia?: boolean
+}
+export type CargarMes = (mes: string) => Promise<Sesiones | ResultadoMes>
 const DIAS = ["L", "M", "X", "J", "V", "S", "D"]
 
 export function CalendarioHoy({
@@ -34,7 +43,12 @@ export function CalendarioHoy({
 }): React.JSX.Element {
   const [expandido, setExpandido] = useState(false)
   const [mes, setMes] = useState(hoy.slice(0, 7))
-  const [cargado, setCargado] = useState<{ mes: string; sesiones: Sesiones } | null>(null)
+  const [cargado, setCargado] = useState<{
+    mes: string
+    sesiones: Sesiones
+    sinDatos: string[]
+    deCopia: boolean
+  } | null>(null)
   const [error, setError] = useState<Falta | null>(null)
   const [intento, setIntento] = useState(0)
   const [sinSesion, setSinSesion] = useState("")
@@ -46,8 +60,15 @@ export function CalendarioHoy({
       setCargado(null)
       setSinSesion("")
       cargarMes(mes).then(
-        (sesiones) => {
-          if (vigente) setCargado({ mes, sesiones })
+        (resultado) => {
+          if (!vigente) return
+          const completo = Array.isArray(resultado) ? { sesiones: resultado } : resultado
+          setCargado({
+            mes,
+            sesiones: completo.sesiones,
+            sinDatos: completo.sinDatos ?? [],
+            deCopia: completo.deCopia ?? false,
+          })
         },
         (error) => {
           if (vigente) setError(faltaDe(error, "No se pudo cargar el mes."))
@@ -66,6 +87,8 @@ export function CalendarioHoy({
     ? Array.from({ length: Number(sumarDias(fin, -1).slice(-2)) }, (_, i) => sumarDias(inicio, i))
     : DIAS.map((_, i) => sumarDias(semana, i))
   const delMes = cargarMes ? (cargado?.mes === mes ? cargado.sesiones : null) : sesiones
+  const sinDatos = expandido && cargado?.mes === mes ? cargado.sinDatos : []
+  const deCopia = expandido && cargado?.mes === mes && cargado.deCopia
   const visibles = expandido ? delMes : sesiones
   const inicioDe = (sesion: SesionCalendario): string =>
     empezadas[sesion.agenda.id] ?? sesion.empezadaEn ?? ""
@@ -83,22 +106,30 @@ export function CalendarioHoy({
       delDia
         .filter((s) => s.enviadoEn === null)
         .sort((a, b) => inicioDe(b).localeCompare(inicioDe(a)))[0] ?? delDia[0]
+    const sinCargar = sinDatos.includes(lunesDeSemana(fecha))
     const que = [
       ...delDia.map(
-        (s) =>
-          `${s.nombre}${s.enviadoEn ? ", hecha" : inicioDe(s) ? ", en curso" : expandido ? ", pendiente" : ""}`,
+        (s) => `${s.nombre}${s.enviadoEn ? ", hecha" : inicioDe(s) ? ", en curso" : ", pendiente"}`,
       ),
       ...otros.map((d) => d.nombre),
     ]
     return (
       <Pressable
         key={fecha}
-        style={[s.dia, expandido && s.diaMes, fecha === hoy && s.diaMarcado]}
+        style={[
+          s.dia,
+          expandido && s.diaMes,
+          fecha === hoy && s.diaMarcado,
+          sinCargar && s.sinCargar,
+        ]}
         accessibilityRole="button"
-        accessibilityLabel={`${fechaLegible(fecha)}${fecha === hoy ? ", hoy" : ""}: ${que.length ? que.join(", ") : "descanso"}`}
-        accessibilityHint={`${delDia.length} ${delDia.length === 1 ? "sesión" : "sesiones"}`}
+        accessibilityLabel={`${fechaLegible(fecha)}${fecha === hoy ? ", hoy" : ""}: ${sinCargar ? "sin cargar" : que.length ? que.join(", ") : "descanso"}`}
+        accessibilityHint={
+          sinCargar ? undefined : `${delDia.length} ${delDia.length === 1 ? "sesión" : "sesiones"}`
+        }
         onPress={() => {
-          if (destino) abrir(destino.agenda.id)
+          if (sinCargar) setSinSesion("Esa semana no se ha podido cargar. Reintenta el mes.")
+          else if (destino) abrir(destino.agenda.id)
           else setSinSesion(`Sin sesión el ${fechaLegible(fecha)}`)
         }}
       >
@@ -106,18 +137,9 @@ export function CalendarioHoy({
         <Text style={[s.numero, fecha === hoy && s.acento]}>{Number(fecha.slice(-2))}</Text>
         <View style={s.marcas}>
           {delDia.slice(0, 2).map((sesion) => (
-            <View
+            <MarcaDeSesion
               key={sesion.agenda.id}
-              style={[
-                s.marca,
-                {
-                  backgroundColor: sesion.enviadoEn
-                    ? tema.exito
-                    : inicioDe(sesion)
-                      ? tema.acento
-                      : tema.naranja,
-                },
-              ]}
+              estado={sesion.enviadoEn ? "hecha" : inicioDe(sesion) ? "enCurso" : "pendiente"}
             />
           ))}
           {otros.slice(0, Math.max(0, 2 - delDia.length)).map((d) => (
@@ -187,6 +209,21 @@ export function CalendarioHoy({
             </View>
           ) : (
             <View>
+              {sinDatos.length > 0 && (
+                <>
+                  <AvisoDeError mensaje="No se han podido cargar todas las semanas del mes." />
+                  <BotonSecundario
+                    texto="Reintentar mes"
+                    onPress={() => setIntento((n) => n + 1)}
+                  />
+                </>
+              )}
+              {sinDatos.length === 0 && deCopia && (
+                <Aviso
+                  mensaje="Sin conexión: parte del mes es de la última copia guardada."
+                  tipo="conexion"
+                />
+              )}
               <View style={s.semana}>
                 {DIAS.map((d, i) => (
                   <Text key={i} style={[s.letra, s.celdaLetra]}>
@@ -219,6 +256,31 @@ export function CalendarioHoy({
         <Text style={s.letra} accessibilityLiveRegion="polite">
           {sinSesion}
         </Text>
+      )}
+    </View>
+  )
+}
+
+type EstadoMarca = "hecha" | "enCurso" | "pendiente"
+
+/**
+ * Cada estado tiene su propia forma además de su color: visto de un vistazo o
+ * sin distinguir colores, hecha es un visto, en curso un triángulo y pendiente
+ * un círculo vacío.
+ */
+function MarcaDeSesion({ estado }: { estado: EstadoMarca }): React.JSX.Element {
+  return (
+    <View
+      testID={`marca-${estado === "enCurso" ? "en-curso" : estado}`}
+      style={s.marcaSesion}
+      aria-hidden
+    >
+      {estado === "hecha" ? (
+        <Icono nombre="hecho" color={tema.exito} tamano={12} />
+      ) : estado === "enCurso" ? (
+        <Icono nombre="reproducir" color={tema.acento} tamano={10} />
+      ) : (
+        <View style={s.circuloPendiente} />
       )}
     </View>
   )
@@ -263,7 +325,16 @@ const s = StyleSheet.create({
     fontFamily: tema.fuenteSemi,
     fontVariant: ["tabular-nums"],
   },
-  marcas: { height: 4, flexDirection: "row", gap: 3 },
+  marcas: { height: 12, flexDirection: "row", alignItems: "center", gap: 4 },
+  marcaSesion: { width: 14, height: 12, alignItems: "center", justifyContent: "center" },
+  circuloPendiente: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: tema.naranja,
+  },
+  sinCargar: { opacity: 0.45 },
   marca: { width: 14, height: 4, borderRadius: 2 },
   marcaHueca: { borderWidth: 1.5, borderColor: tema.naranja },
   acento: { color: tema.acento },

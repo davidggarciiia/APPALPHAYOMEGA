@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useRouter } from "expo-router"
+import { useLocalSearchParams, useRouter } from "expo-router"
 import { useState } from "react"
 import { Controller, useForm } from "react-hook-form"
+import { z } from "zod"
 import { CredencialesSchema, type Credenciales } from "@alpha-omega/shared"
 import {
   Image,
@@ -23,9 +24,17 @@ import { useEnvioUnico } from "../src/lib/envio-unico"
 import { useSesion } from "../src/sesion"
 import { alto, espacio, fondoDeAcceso, tema } from "../src/tema"
 
+const CorreoSchema = z.email()
+
 export default function Login(): React.JSX.Element {
   const { entrar, sesionCaducada } = useSesion()
   const router = useRouter()
+  // Tras activar la cuenta, el correo llega ya escrito. La contraseña nunca viaja.
+  const parametros = useLocalSearchParams<{ email?: string }>()
+  const correoInicial =
+    typeof parametros?.email === "string" && CorreoSchema.safeParse(parametros.email).success
+      ? parametros.email
+      : ""
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null)
   const [mostrarContrasena, fijarMostrarContrasena] = useState(false)
 
@@ -35,7 +44,7 @@ export default function Login(): React.JSX.Element {
     formState: { errors, isSubmitting },
   } = useForm<Credenciales>({
     resolver: zodResolver(CredencialesSchema),
-    defaultValues: { email: "", contrasena: "" },
+    defaultValues: { email: correoInicial, contrasena: "" },
   })
 
   const enviar = handleSubmit(async (credenciales) => {
@@ -149,6 +158,11 @@ export default function Login(): React.JSX.Element {
               texto="HE OLVIDADO MI CONTRASEÑA"
               onPress={() => router.push("/recuperar")}
             />
+
+            <Text style={s.ayuda}>
+              Tu entrenador crea tu cuenta y te envía un enlace por correo. Si aún no lo tienes,
+              pídeselo.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -176,6 +190,14 @@ const s = StyleSheet.create({
     lineHeight: 44,
     color: tema.acento,
     textAlign: "center",
+  },
+  ayuda: {
+    color: tema.tenueSobreOscuro,
+    fontFamily: tema.fuenteTexto,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+    marginTop: espacio[20],
   },
   clave: { position: "relative" },
   campoClave: { paddingRight: 56 },

@@ -154,6 +154,8 @@ export type RegistrarMedida = z.infer<typeof RegistrarMedidaSchema>
 
 export const MedidaSchema = z.strictObject({
   id: z.uuid(),
+  /** Quién la tomó: el cliente solo puede borrar las suyas. */
+  autorId: z.uuid().optional(),
   fecha: FechaAgendaSchema,
   ...CamposMedida,
   creadoEn: z.iso.datetime(),
@@ -187,6 +189,8 @@ export type RegistrarPrueba = z.infer<typeof RegistrarPruebaSchema>
 
 export const PruebaFisicaSchema = z.strictObject({
   id: z.uuid(),
+  /** Quién la anotó: el cliente solo puede borrar las suyas. */
+  autorId: z.uuid().optional(),
   pruebaId: z.uuid().nullable().optional(),
   fecha: FechaAgendaSchema,
   nombre: z.string(),

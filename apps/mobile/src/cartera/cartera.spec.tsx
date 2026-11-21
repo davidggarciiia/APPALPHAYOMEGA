@@ -55,7 +55,7 @@ it("presenta búsqueda y filtros sin repetir el título de la pestaña", async (
   await screen.findByRole("button", { name: "Ana García. ACTIVO. ana@prueba.local" })
   expect(screen.queryByText("TU CARTERA")).toBeNull()
   expect(screen.getByLabelText("Buscar cliente")).toHaveStyle({ minHeight: 52 })
-  expect(screen.getByPlaceholderText("Buscar por nombre y apellidos")).toBeOnTheScreen()
+  expect(screen.getByPlaceholderText("Buscar por nombre o correo")).toBeOnTheScreen()
   for (const nombre of ["TODOS", "PENDIENTES DE ACTIVAR", "ACTIVOS", "DE BAJA"]) {
     const chip = screen.getByRole("button", { name: nombre })
     expect(chip).toHaveStyle({ height: 40 })
@@ -204,6 +204,62 @@ it("solo muestra el pie cuando el servidor devuelve más clientes de los visible
   expect(await screen.findByText("Mostrando 1 de 120")).toBeOnTheScreen()
   await fireEvent.press(screen.getByRole("button", { name: "ACTIVOS" }))
   await waitFor(() => expect(screen.queryByText(/Mostrando/)).toBeNull())
+})
+
+it("carga el siguiente tramo desde donde terminó el anterior, sin repetir filas", async () => {
+  const otro = { ...cliente, id: "cliente-2", nombre: "Bea" }
+  jest.mocked(listarUsuarios).mockResolvedValueOnce(listado([cliente], 3))
+  await render(<Cartera />)
+  expect(await screen.findByText("Mostrando 1 de 3")).toBeOnTheScreen()
+  jest.mocked(listarUsuarios).mockResolvedValueOnce(listado([cliente, otro], 3))
+  await fireEvent.press(screen.getByRole("button", { name: "Cargar más clientes, quedan 2" }))
+  expect(listarUsuarios).toHaveBeenLastCalledWith(pedir, {
+    rol: "cliente",
+    buscar: undefined,
+    estado: undefined,
+    limite: 100,
+    desde: 1,
+  })
+  expect(await screen.findByText("Bea García")).toBeOnTheScreen()
+  expect(screen.getAllByText("Ana García")).toHaveLength(1)
+  expect(screen.getByText("Mostrando 2 de 3")).toBeOnTheScreen()
+})
+
+it("avisa si falla cargar más y deja reintentarlo", async () => {
+  jest.mocked(listarUsuarios).mockResolvedValueOnce(listado([cliente], 2))
+  await render(<Cartera />)
+  await screen.findByText("Mostrando 1 de 2")
+  jest.mocked(listarUsuarios).mockRejectedValueOnce(new Error("Sin red"))
+  await fireEvent.press(screen.getByRole("button", { name: /^Cargar más clientes/ }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("No hemos podido cargar más clientes.")
+  expect(screen.getByText("Ana García")).toBeOnTheScreen()
+  jest
+    .mocked(listarUsuarios)
+    .mockResolvedValueOnce(listado([{ ...cliente, id: "cliente-2", nombre: "Bea" }], 2))
+  await fireEvent.press(screen.getByRole("button", { name: /^Cargar más clientes/ }))
+  expect(await screen.findByText("Bea García")).toBeOnTheScreen()
+  expect(screen.queryByText(/Mostrando/)).toBeNull()
+  expect(screen.queryByRole("alert")).toBeNull()
+})
+
+it("un tramo que llega tarde no se cuelga de otro filtro", async () => {
+  jest.mocked(listarUsuarios).mockResolvedValueOnce(listado([cliente], 3))
+  await render(<Cartera />)
+  await screen.findByText("Mostrando 1 de 3")
+  let resolverTramo: (respuesta: ListadoUsuarios) => void = () => undefined
+  jest.mocked(listarUsuarios).mockReturnValueOnce(
+    new Promise((resolver) => {
+      resolverTramo = resolver
+    }),
+  )
+  await fireEvent.press(screen.getByRole("button", { name: /^Cargar más clientes/ }))
+  jest.mocked(listarUsuarios).mockResolvedValueOnce(listado([{ ...cliente, nombre: "Caro" }]))
+  await fireEvent.press(screen.getByRole("button", { name: "ACTIVOS" }))
+  expect(await screen.findByText("Caro García")).toBeOnTheScreen()
+  await act(async () =>
+    resolverTramo(listado([{ ...cliente, id: "cliente-9", nombre: "Tardía" }], 3)),
+  )
+  expect(screen.queryByText("Tardía García")).toBeNull()
 })
 
 it("permite reintentar un fallo de carga", async () => {

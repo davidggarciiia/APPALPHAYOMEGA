@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { Pressable, StyleSheet, Text, View } from "react-native"
 import type {
@@ -145,9 +145,16 @@ type Datos = {
 export function ValoracionesCliente({
   clienteId,
   api,
+  registrarAtras,
 }: {
   clienteId: string
   api: ApiValoracionesCliente
+  /**
+   * Con una valoración abierta, el botón atrás de Android debe volver a la lista y no
+   * cerrar la pantalla que la contiene: el contenedor consulta esta función antes.
+   * Devuelve `true` si ha subido un nivel.
+   */
+  registrarAtras?: (atras: (() => boolean) | null) => void
 }): React.JSX.Element {
   const [datos, setDatos] = useState<Datos | null>(null)
   const [error, setError] = useState("")
@@ -156,6 +163,15 @@ export function ValoracionesCliente({
   const [ocupado, setOcupado] = useState(false)
   const [aviso, setAviso] = useState("")
   const enCurso = useRef(false)
+  const hayAbierta = abierta !== null
+  useEffect(() => {
+    if (!registrarAtras || !hayAbierta) return
+    registrarAtras(() => {
+      setAbierta(null)
+      return true
+    })
+    return () => registrarAtras(null)
+  }, [registrarAtras, hayAbierta])
 
   useFocusEffect(
     useCallback(() => {

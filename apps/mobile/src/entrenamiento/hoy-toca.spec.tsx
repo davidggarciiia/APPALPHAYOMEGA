@@ -1,8 +1,9 @@
+import { StyleSheet } from "react-native"
 import { fireEvent, render, screen } from "@testing-library/react-native"
 import type { ResumenSesion } from "@alpha-omega/shared"
 
 import { fechaLegible } from "./fechas"
-import { TarjetaHoy } from "./hoy-toca"
+import { SesionAtrasada, TarjetaHoy } from "./hoy-toca"
 import { tipo } from "../tema"
 
 jest.mock("expo-router", () => ({
@@ -82,6 +83,39 @@ describe("Hoy toca", () => {
     expect(screen.queryByRole("button")).toBeNull()
   })
 
+  it("una sesión atrasada se ofrece con su fecha y el mismo botón de empezar", async () => {
+    const abrir = jest.fn()
+    await render(
+      <TarjetaHoy
+        sesion={{ ...resumen, agenda: { ...agenda, fechaActual: "2026-09-22" } }}
+        sinSesion="Descanso"
+        hoy={HOY}
+        pendienteDesde="2026-09-22"
+        abrir={abrir}
+      />,
+    )
+    expect(screen.getByText(`Pendiente desde el ${fechaLegible("2026-09-22")}`)).toBeOnTheScreen()
+    expect(screen.queryByText("Descanso")).toBeNull()
+    await fireEvent.press(screen.getByRole("button", { name: "Empezar Empuje y pierna" }))
+    expect(abrir).toHaveBeenCalledWith(agenda.id)
+  })
+
+  it("la fila de sesión atrasada tiene nombre accesible y zona táctil de 44 o más", async () => {
+    const abrir = jest.fn()
+    await render(
+      <SesionAtrasada
+        sesion={{ ...resumen, agenda: { ...agenda, fechaActual: "2026-09-22" } }}
+        abrir={abrir}
+      />,
+    )
+    const fila = screen.getByRole("button", {
+      name: `Empezar Empuje y pierna, pendiente desde el ${fechaLegible("2026-09-22")}`,
+    })
+    expect(StyleSheet.flatten(fila.props.style).minHeight).toBeGreaterThanOrEqual(44)
+    await fireEvent.press(fila)
+    expect(abrir).toHaveBeenCalledWith(agenda.id)
+  })
+
   it("una sesión enviada ofrece ver su resumen", async () => {
     await render(
       <TarjetaHoy
@@ -112,6 +146,8 @@ describe("Hoy toca", () => {
     )
     expect(screen.queryByText("En curso:")).toBeNull()
     expect(screen.queryByText(/Movido desde/)).toBeNull()
+    expect(screen.getByText("Continuar")).toBeOnTheScreen()
+    expect(screen.queryByText("Continuar entreno")).toBeNull()
     await fireEvent.press(screen.getByRole("button", { name: "Continuar Empuje y pierna" }))
     expect(abrir).toHaveBeenCalledWith(agenda.id)
   })

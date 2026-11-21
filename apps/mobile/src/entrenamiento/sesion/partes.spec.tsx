@@ -366,3 +366,15 @@ describe("Distancia en metros (D01, aún sin publicar)", () => {
     valida(zancadas, marcadas)
   })
 })
+
+it("anuncia al lector de pantalla que el descanso ha terminado, una sola vez", async () => {
+  jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true)
+  const anunciar = jest.spyOn(AccessibilityInfo, "announceForAccessibility")
+  const props = { total: 60, ajustar: jest.fn(), saltar: jest.fn() }
+  const vista = await render(<Descanso {...props} restante={2} />)
+  expect(anunciar).not.toHaveBeenCalled()
+  for (const restante of [1, 0, 0])
+    await vista.rerender(<Descanso {...props} restante={restante} />)
+  expect(anunciar).toHaveBeenCalledTimes(1)
+  expect(anunciar).toHaveBeenCalledWith("Descanso terminado")
+})

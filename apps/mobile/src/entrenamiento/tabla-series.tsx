@@ -51,6 +51,34 @@ export function cantidadObjetivo(serie: SerieConDistancia): number {
   }
 }
 
+/**
+ * Carga con la que arranca una celda de peso vacía: la pauta del entrenador; si no
+ * hay, la última serie del ejercicio ya escrita en esta sesión; después, la de la fase
+ * y, por último, lo que se levantó la última vez («Anterior»). Es solo una sugerencia:
+ * no se registra hasta que el cliente la ajusta o marca la serie.
+ */
+export function cargaDePartida(
+  ejercicio: EjercicioConDistancia,
+  series: readonly SerieReal[],
+  serieId: string,
+  sugerenciaDeFase: number | null = null,
+  anterior?: Pick<Anterior, "valores" | "series">,
+): number | null {
+  const indice = ejercicio.series.findIndex((serie) => serie.id === serieId)
+  if (indice < 0) return null
+  const pautada = ejercicio.series[indice]!.pesoKg
+  if (pautada !== null) return pautada
+  for (let i = indice - 1; i >= 0; i--) {
+    const texto = series.find((real) => real.serieId === ejercicio.series[i]!.id)?.peso.trim() ?? ""
+    if (texto === "") continue
+    const valor = Number(texto.replace(",", "."))
+    if (Number.isFinite(valor) && valor >= 0) return valor
+  }
+  if (sugerenciaDeFase !== null) return sugerenciaDeFase
+  const previa = anterior?.series?.find((serie) => serie.numero === indice + 1)?.valores.pesoKg
+  return previa ?? anterior?.valores.pesoKg ?? null
+}
+
 /** La pantalla deriva su única barra fija de la serie enfocada. */
 export function ajusteDeSerie(
   ejercicio: EjercicioConDistancia,
@@ -117,6 +145,8 @@ export function TablaSeries({
   ejercicio,
   series,
   bloqueado,
+  pausado = false,
+  reanudar,
   cambiar,
   verTecnica,
   verMolestia,
@@ -135,6 +165,9 @@ export function TablaSeries({
   ejercicio: EjercicioConDistancia
   series: SerieReal[]
   bloqueado: boolean
+  /** Sesión en pausa: se ve apagada y tocar una serie ofrece continuar. */
+  pausado?: boolean
+  reanudar?: () => void
   cambiar: (id: string, cambio: Partial<SerieReal>) => boolean | void
   /** La técnica sigue disponible con el registro bloqueado. */
   verTecnica?: () => void
@@ -188,10 +221,17 @@ export function TablaSeries({
   const ultimaHecha = [...ejercicio.series]
     .reverse()
     .find((prescrita) => series.find((serie) => serie.serieId === prescrita.id)?.hecha)
+  const inactivo = bloqueado || pausado
   const rirEnfocado =
     enfocada?.celda === "rir" && series.find((serie) => serie.serieId === enfocada.serieId)
+  /** En pausa, tocar una serie no registra nada: ofrece seguir entrenando. */
+  const siPausa = (): boolean => {
+    if (!pausado) return false
+    reanudar?.()
+    return true
+  }
   const conDeshacer = (real: SerieReal, cambio: Partial<SerieReal>, mensaje: string): void => {
-    if (bloqueado) return
+    if (bloqueado || siPausa()) return
     if (cambiar(real.serieId, cambio) === false) return
     const previa = {
       hecha: real.hecha,
@@ -210,7 +250,21 @@ export function TablaSeries({
             {ejercicio.nombre.toUpperCase()}
           </Text>
           <Text style={s.resumen}>{resumenPrescrito(ejercicio)}</Text>
+          {ejercicio.dosis && <Text style={s.resumen}>{`Dosis · ${ejercicio.dosis}`}</Text>}
+          {ejercicio.calibrar === true && (
+            <Text style={[s.resumen, s.progresion]}>
+              Carga por calibrar: encuentra tu peso en las primeras sesiones.
+            </Text>
+          )}
           {ejercicio.indicaciones && <Text style={s.resumen}>{ejercicio.indicaciones}</Text>}
+          {ejercicio.nota && (
+            <Text accessibilityLabel={`Nota del entrenador: ${ejercicio.nota}`} style={s.nota}>
+              {ejercicio.nota}
+            </Text>
+          )}
+          {ejercicio.alternativas !== undefined && ejercicio.alternativas.length > 0 && (
+            <Text style={s.resumen}>{`Alternativas · ${ejercicio.alternativas.join(", ")}`}</Text>
+          )}
           {mostrarPeso && incrementoSugerido !== undefined && (
             <Text style={[s.resumen, s.progresion]}>
               {`Sube carga la próxima vez · +${decimal(incrementoSugerido)} kg`}
@@ -273,7 +327,13 @@ export function TablaSeries({
           const real = series.find((serie) => serie.serieId === prescrita.id)
           // Sin detalle (servidor antiguo) no atribuimos la mejor marca a todas las filas.
           const previa = anterior?.series?.find((serie) => serie.numero === n + 1)?.valores
-          const pesoSugerido = prescrita.pesoKg ?? sugerenciaCarga
+          const pesoSugerido = cargaDePartida(
+            ejercicio,
+            series,
+            prescrita.id,
+            sugerenciaCarga,
+            anterior,
+          )
           if (!real)
             return (
               <Text key={prescrita.id} style={[s.resumen, s.aviso]} accessibilityRole="alert">
@@ -306,11 +366,12 @@ export function TablaSeries({
                 primeraPendiente={prescrita.id === (enCurso ?? pendientes[0]?.id)}
                 enfocada={enfocada?.serieId === prescrita.id ? enfocada.celda : null}
                 deshabilitado={bloqueado}
+                pausada={pausado}
                 alEnfocar={(celda) => {
-                  if (!bloqueado) enfocar?.(prescrita.id, celda)
+                  if (!bloqueado && !siPausa()) enfocar?.(prescrita.id, celda)
                 }}
                 alCambiarHecha={(hecha) => {
-                  if (bloqueado) return
+                  if (bloqueado || siPausa()) return
                   if (!hecha) {
                     cambiar(prescrita.id, { hecha: false })
                     return
@@ -332,7 +393,8 @@ export function TablaSeries({
                 }}
                 alOmitir={() => conDeshacer(real, { hecha: false, omitida: true }, "Serie omitida")}
                 alRecuperar={() => {
-                  if (!bloqueado) cambiar(prescrita.id, { hecha: false, omitida: undefined })
+                  if (!bloqueado && !siPausa())
+                    cambiar(prescrita.id, { hecha: false, omitida: undefined })
                 }}
               />
             </View>
@@ -347,7 +409,7 @@ export function TablaSeries({
       {modoRir === "cadaSerie" &&
         rirEnfocado &&
         typeof rirEnfocado.rir === "number" &&
-        !bloqueado && (
+        !inactivo && (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Sin anotar el RIR de la serie ${ejercicio.series.findIndex((serie) => serie.id === rirEnfocado.serieId) + 1}`}
@@ -360,7 +422,7 @@ export function TablaSeries({
       {modoRir === "alFinalizarEjercicio" &&
         pendientes.length === 0 &&
         ultimaHecha &&
-        !bloqueado && (
+        !inactivo && (
           <View testID="rir-final-lista" style={s.rirFinal}>
             <Text style={s.resumen}>RIR del ejercicio</Text>
             <ChipsRir
@@ -381,6 +443,7 @@ const s = StyleSheet.create({
   titulos: { flex: 1, gap: 4 },
   nombre: { fontFamily: tema.fuenteTitulo, fontSize: 20, lineHeight: 24, color: tema.texto },
   resumen: { fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18, color: tema.textoTenue },
+  nota: { fontFamily: tema.fuenteTexto, fontSize: 13, lineHeight: 18, color: tema.textoSecundario },
   aviso: { color: tema.aviso },
   progresion: { color: tema.acento },
   icono: { width: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },

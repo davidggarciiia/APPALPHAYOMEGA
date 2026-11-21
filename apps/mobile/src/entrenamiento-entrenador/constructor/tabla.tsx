@@ -248,6 +248,7 @@ export function PanelEjercicio({
   nombreCliente,
   cambiar,
   verTecnica,
+  duplicar,
   alListo,
   alCambiarValidez,
 }: {
@@ -255,6 +256,8 @@ export function PanelEjercicio({
   nombreCliente: string
   cambiar: Cambio
   verTecnica: () => void
+  /** Añade una copia justo debajo, con la misma pauta. */
+  duplicar?: () => void
   alListo?: () => void
   alCambiarValidez?: (valida: boolean) => void
 }): React.JSX.Element {
@@ -546,9 +549,10 @@ export function PanelEjercicio({
             maxLength={2000}
             style={s.area}
           />
-          <Enlace texto="Ver técnica en la biblioteca" onPress={verTecnica} />
+          <Enlace texto="Ver técnica del ejercicio" onPress={verTecnica} />
         </View>
       )}
+      {duplicar && <Enlace texto="Duplicar ejercicio" onPress={duplicar} />}
       {alListo && (
         <Pressable
           accessibilityRole="button"

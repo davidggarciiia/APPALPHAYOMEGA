@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
 import { AppState, type AppStateStatus } from "react-native"
+import Notificaciones from "../../app/notificaciones"
 import type { ListadoNovedades, ListadoAvisosSeguimiento } from "@alpha-omega/shared"
 import { useSesion } from "../sesion"
 import { listarUsuarios } from "../lib/api"
@@ -15,6 +16,9 @@ jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush }),
   useFocusEffect: (efecto: () => void) =>
     jest.requireActual<typeof import("react")>("react").useEffect(efecto, [efecto]),
+}))
+jest.mock("react-native-safe-area-context", () => ({
+  SafeAreaView: jest.requireActual("react-native").View,
 }))
 jest.mock("../sesion", () => ({ useSesion: jest.fn() }))
 jest.mock("../lib/api", () => ({ listarUsuarios: jest.fn() }))
@@ -82,6 +86,12 @@ beforeEach(() => {
   })
 })
 
+/** Adelanta el reloj que usa la vigencia de la carga, sin tocar los temporizadores. */
+function adelantarReloj(ms: number): jest.SpyInstance<number, []> {
+  const real = Date.now.bind(Date)
+  return jest.spyOn(Date, "now").mockImplementation(() => real() + ms)
+}
+
 function Pantalla() {
   return (
     <ProveedorNotificaciones>
@@ -135,7 +145,7 @@ it.each([
 it("oculta punto y contador cuando no hay notificaciones sin leer", async () => {
   mockEntrenamiento.novedades.mockResolvedValue({ novedades: [], total: 0, sinLeer: 0 })
   await render(<Pantalla />)
-  expect(await screen.findByText("No tienes notificaciones.")).toBeOnTheScreen()
+  expect(await screen.findByText("Todo al día")).toBeOnTheScreen()
   expect(screen.getByRole("button", { name: "Notificaciones" })).toBeOnTheScreen()
   expect(
     screen.queryByTestId("contador-notificaciones", { includeHiddenElements: true }),
@@ -150,7 +160,7 @@ it("una respuesta histórica solo de revisiones deja la campana y la bandeja vac
     sinLeer: 1,
   })
   await render(<Pantalla />)
-  expect(await screen.findByText("No tienes notificaciones.")).toBeOnTheScreen()
+  expect(await screen.findByText("Todo al día")).toBeOnTheScreen()
   expect(screen.getByRole("button", { name: "Notificaciones" })).toBeOnTheScreen()
   expect(
     screen.queryByTestId("contador-notificaciones", { includeHiddenElements: true }),
@@ -198,7 +208,7 @@ it("descuenta solo revisiones recibidas y conserva el acceso a páginas no consu
   expect(
     await screen.findByRole("button", { name: "Notificaciones, 2 sin leer" }),
   ).toBeOnTheScreen()
-  expect(screen.queryByText("No tienes notificaciones.")).toBeNull()
+  expect(screen.queryByText("Todo al día")).toBeNull()
   expect(screen.getByRole("button", { name: "Ver más novedades" })).toBeOnTheScreen()
   expect(mockEntrenamiento.novedades).toHaveBeenCalledTimes(1)
 })
@@ -232,9 +242,21 @@ it("mantiene el contador al cambiar de pestaña sin recorrer de nuevo toda la ca
   mockRuta = "/nutricion"
   await vista.rerender(<Pantalla />)
   expect(mockEntrenamiento.novedades).toHaveBeenCalledTimes(llamadas)
+  // Una carga de hace pocos segundos sirve: abrir la bandeja no repite las peticiones.
   mockRuta = "/notificaciones"
   await vista.rerender(<Pantalla />)
-  await waitFor(() => expect(mockEntrenamiento.novedades).toHaveBeenCalledTimes(llamadas + 1))
+  expect(mockEntrenamiento.novedades).toHaveBeenCalledTimes(llamadas)
+  // Pasado el margen, volver a la bandeja sí actualiza.
+  const reloj = adelantarReloj(60_000)
+  try {
+    mockRuta = "/nutricion"
+    await vista.rerender(<Pantalla />)
+    mockRuta = "/notificaciones"
+    await vista.rerender(<Pantalla />)
+    await waitFor(() => expect(mockEntrenamiento.novedades).toHaveBeenCalledTimes(llamadas + 1))
+  } finally {
+    reloj.mockRestore()
+  }
 })
 
 it("actualiza la campana al volver del segundo plano sin cambiar de ruta", async () => {
@@ -250,10 +272,19 @@ it("actualiza la campana al volver del segundo plano sin cambiar de ruta", async
     const vista = await render(<Pantalla />)
     await screen.findByRole("button", { name: "Notificaciones, 3 sin leer" })
     mockEntrenamiento.novedades.mockResolvedValue({ ...novedades, sinLeer: 4 })
+    // Volver enseguida no repite la carga reciente...
     await act(async () => {
       cambiar("background")
       cambiar("active")
     })
+    expect(screen.getByRole("button", { name: "Notificaciones, 3 sin leer" })).toBeOnTheScreen()
+    // ...pero tras un rato en segundo plano sí actualiza la campana.
+    const reloj = adelantarReloj(60_000)
+    await act(async () => {
+      cambiar("background")
+      cambiar("active")
+    })
+    reloj.mockRestore()
     expect(
       await screen.findByRole("button", { name: "Notificaciones, 4 sin leer" }),
     ).toBeOnTheScreen()
@@ -305,10 +336,10 @@ it("muestra vacío sin contador y permite reintentar una carga fallida", async (
   mockEntrenamiento.novedades.mockRejectedValueOnce(new Error("Sin red"))
   const vista = await render(<Pantalla />)
   await screen.findByText("No se pudieron cargar las notificaciones.")
-  expect(screen.queryByText("No tienes notificaciones.")).toBeNull()
+  expect(screen.queryByText("Todo al día")).toBeNull()
   mockEntrenamiento.novedades.mockResolvedValue({ novedades: [], total: 0, sinLeer: 0 })
   await fireEvent.press(screen.getByRole("button", { name: "Reintentar notificaciones" }))
-  expect(await screen.findByText("No tienes notificaciones.")).toBeOnTheScreen()
+  expect(await screen.findByText("Todo al día")).toBeOnTheScreen()
   expect(screen.queryByTestId("punto-notificaciones", { includeHiddenElements: true })).toBeNull()
   expect(
     screen.queryByTestId("contador-notificaciones", { includeHiddenElements: true }),
@@ -321,8 +352,86 @@ it("retira los avisos anteriores si falla la comprobación de acceso al volver a
   await screen.findByText("Lara García cambió el día de Fuerza A")
   mockEntrenamiento.novedades.mockRejectedValueOnce(new Error("Acceso revocado"))
   mockRuta = "/notificaciones"
+  const reloj = adelantarReloj(60_000)
   await vista.rerender(<Pantalla />)
   await screen.findByText("No se pudieron cargar las notificaciones.")
+  reloj.mockRestore()
   expect(screen.queryByText("Lara García cambió el día de Fuerza A")).toBeNull()
   expect(screen.getByRole("button", { name: "Notificaciones" })).toBeOnTheScreen()
+})
+
+it("los avisos de fotos y valoraciones abren la parte de Progreso a la que se refieren", async () => {
+  const base = avisos.avisos[0]!
+  const listado = {
+    avisos: [
+      {
+        ...base,
+        id: "pedidas",
+        tipo: "fotosSolicitadas",
+        autor: { id: "e", nombre: "Carlos Gil" },
+      },
+      {
+        ...base,
+        id: "publicada",
+        tipo: "valoracionPublicada",
+        autor: { id: "e", nombre: "Carlos Gil" },
+      },
+    ],
+    sinLeer: 2,
+  } satisfies ListadoAvisosSeguimiento
+  mockSeguimiento.avisos.mockResolvedValue(listado)
+  mockSeguimiento.leerAvisos.mockResolvedValue(listado)
+  await render(<Pantalla />)
+  await fireEvent.press(await screen.findByRole("button", { name: /Carlos Gil te pidió fotos/ }))
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/progreso?abrir=fotos"))
+  await fireEvent.press(screen.getByRole("button", { name: /publicó tu valoración/ }))
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/progreso?abrir=valoraciones"))
+})
+
+it("marca todo como leído por lotes y vuelve a pedir el estado real", async () => {
+  mockSeguimiento.avisos.mockResolvedValue(avisos)
+  await render(<Pantalla />)
+  await screen.findByRole("button", { name: "Notificaciones, 4 sin leer" })
+  mockEntrenamiento.novedades.mockResolvedValue({ novedades: [], total: 0, sinLeer: 0 })
+  mockSeguimiento.avisos.mockResolvedValue({ avisos: [], sinLeer: 0 })
+  await fireEvent.press(screen.getByRole("button", { name: "Marcar todo como leído, 4 sin leer" }))
+  await waitFor(() =>
+    expect(mockEntrenamiento.leerNovedades).toHaveBeenCalledWith("sesion", {
+      novedadIds: ["aviso-0", "aviso-1", "aviso-2"],
+    }),
+  )
+  expect(mockSeguimiento.leerAvisos).toHaveBeenCalledWith("cliente", ["foto"])
+  expect(await screen.findByText("Todo al día")).toBeOnTheScreen()
+  expect(screen.queryByRole("button", { name: /Marcar todo como leído/ })).toBeNull()
+})
+
+it("no ofrece marcar todo como leído sin nada pendiente y avisa si falla", async () => {
+  mockEntrenamiento.novedades.mockResolvedValue({ novedades: [], total: 0, sinLeer: 0 })
+  const vista = await render(<Pantalla />)
+  await screen.findByText("Todo al día")
+  expect(screen.queryByRole("button", { name: /Marcar todo como leído/ })).toBeNull()
+  mockEntrenamiento.novedades.mockResolvedValue(novedades)
+  mockEntrenamiento.leerNovedades.mockRejectedValue(new Error("Sin red"))
+  const reloj = adelantarReloj(60_000)
+  mockRuta = "/notificaciones"
+  await vista.rerender(<Pantalla />)
+  reloj.mockRestore()
+  await fireEvent.press(
+    await screen.findByRole("button", { name: "Marcar todo como leído, 3 sin leer" }),
+  )
+  expect(await screen.findByText(/No se han podido marcar todas como leídas/)).toBeOnTheScreen()
+})
+
+it("tirar para refrescar vuelve a pedir los avisos aunque la carga sea reciente", async () => {
+  await render(
+    <ProveedorNotificaciones>
+      <Notificaciones />
+    </ProveedorNotificaciones>,
+  )
+  await screen.findByText("3 novedades sin leer")
+  const llamadas = mockEntrenamiento.novedades.mock.calls.length
+  const refresco = screen.getByTestId("lista-notificaciones").props.refreshControl
+  expect(refresco).toBeTruthy()
+  await act(async () => refresco.props.onRefresh())
+  await waitFor(() => expect(mockEntrenamiento.novedades).toHaveBeenCalledTimes(llamadas + 1))
 })

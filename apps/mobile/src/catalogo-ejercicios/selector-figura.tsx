@@ -113,12 +113,12 @@ export function SelectorDeFigura({
       {lista.fase === "cerrada" && (
         <View>
           <BotonSecundario
-            texto={figura === null ? "ELEGIR ANIMACIÓN" : "CAMBIAR ANIMACIÓN"}
+            texto={figura === null ? "Elegir animación" : "Cambiar animación"}
             onPress={() => void abrir()}
           />
           {figura !== null && (
             <BotonSecundario
-              texto="QUITAR ANIMACIÓN"
+              texto="Quitar animación"
               ocupado={guardando === "quitar"}
               onPress={() => void asignar(null)}
             />
@@ -134,9 +134,9 @@ export function SelectorDeFigura({
         <>
           <AvisoDeError mensaje={lista.fallo.texto} />
           {lista.fallo.reintentable && (
-            <BotonSecundario texto="REINTENTAR" onPress={() => void abrir()} />
+            <BotonSecundario texto="Reintentar" onPress={() => void abrir()} />
           )}
-          <BotonSecundario texto="CERRAR" onPress={() => setLista({ fase: "cerrada" })} />
+          <BotonSecundario texto="Cerrar" onPress={() => setLista({ fase: "cerrada" })} />
         </>
       )}
 
@@ -186,7 +186,7 @@ export function SelectorDeFigura({
             </>
           )}
           <BotonSecundario
-            texto="CERRAR"
+            texto="Cerrar"
             onPress={() => {
               setLista({ fase: "cerrada" })
               setFiltro("")

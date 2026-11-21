@@ -66,7 +66,7 @@ it.each(["tarjeta", "día"])(
       />,
     )
     const tarjeta = screen.getByRole("button", { name: "Empezar Fuerza" })
-    const dia = screen.getByRole("button", { name: `${fechaLegible(hoy)}, hoy: Fuerza` })
+    const dia = screen.getByRole("button", { name: `${fechaLegible(hoy)}, hoy: Fuerza, pendiente` })
     await fireEvent.press(primera === "tarjeta" ? tarjeta : dia)
     await fireEvent.press(primera === "tarjeta" ? dia : tarjeta)
     expect(abrir).toHaveBeenCalledTimes(1)
@@ -179,4 +179,107 @@ it("al tocar un día libre del mes dice que no hay sesión", async () => {
     await screen.findByRole("button", { name: `${fechaLegible(fecha)}: descanso` }),
   )
   expect(screen.getByText(`Sin sesión el ${fechaLegible(fecha)}`)).toBeOnTheScreen()
+})
+
+describe("Inicio sin sesión de hoy", () => {
+  const propiedades = {
+    semana: lunesDeSemana(),
+    cambiarSemana: jest.fn(),
+    abrir: jest.fn(),
+    resumenHoy: true,
+  }
+  const sesion = (id: string, fecha: string, extra: { enviadoEn?: string | null } = {}) => ({
+    agenda: {
+      ...listado.sesiones[0]!.agenda,
+      id,
+      fechaOriginal: fecha,
+      fechaActual: fecha,
+    },
+    nombre: `Sesión ${id}`,
+    enviadoEn: null as string | null,
+    ...extra,
+  })
+  const hace = (dias: number): string => sumarDias(hoy, -dias)
+
+  it("sin plan lo dice con su propio mensaje y no habla de descanso", async () => {
+    await render(
+      <AgendaSemanal {...propiedades} listado={{ total: 0, sesiones: [] }} tienePlan={false} />,
+    )
+    expect(screen.getByText("Aún no tienes plan")).toBeOnTheScreen()
+    expect(screen.getByText("Tu entrenador aún no te ha asignado uno.")).toBeOnTheScreen()
+    expect(screen.queryByText("Descanso")).toBeNull()
+  })
+
+  it("sin saber si hay plan no afirma ni descanso ni falta de plan", async () => {
+    await render(<AgendaSemanal {...propiedades} listado={{ total: 0, sesiones: [] }} />)
+    expect(screen.getByText("Sin sesiones esta semana")).toBeOnTheScreen()
+    expect(screen.queryByText("Descanso")).toBeNull()
+    expect(screen.queryByText("Aún no tienes plan")).toBeNull()
+  })
+
+  it("con plan y sesiones otros días es descanso y anuncia la próxima", async () => {
+    await render(
+      <AgendaSemanal
+        {...propiedades}
+        tienePlan
+        listado={{ total: 1, sesiones: [sesion("proxima", sumarDias(hoy, 2))] }}
+      />,
+    )
+    expect(screen.getByText("Descanso")).toBeOnTheScreen()
+    expect(screen.queryByRole("button", { name: /^Empezar/ })).toBeNull()
+  })
+
+  it("ofrece la sesión atrasada como tarjeta principal con la fecha en que tocaba", async () => {
+    const abrir = jest.fn()
+    await render(
+      <AgendaSemanal
+        {...propiedades}
+        abrir={abrir}
+        tienePlan
+        listado={{ total: 1, sesiones: [sesion("vieja", hace(3))] }}
+      />,
+    )
+    expect(screen.queryByText("Descanso")).toBeNull()
+    expect(screen.getByText(`Pendiente desde el ${fechaLegible(hace(3))}`)).toBeOnTheScreen()
+    await fireEvent.press(screen.getByRole("button", { name: "Empezar Sesión vieja" }))
+    expect(abrir).toHaveBeenCalledWith("vieja")
+  })
+
+  it("con sesión de hoy y otra atrasada ofrece las dos", async () => {
+    const abrir = jest.fn()
+    await render(
+      <AgendaSemanal
+        {...propiedades}
+        abrir={abrir}
+        listado={{ total: 2, sesiones: [sesion("vieja", hace(2)), sesion("hoy", hoy)] }}
+      />,
+    )
+    expect(screen.getByRole("button", { name: "Empezar Sesión hoy" })).toBeOnTheScreen()
+    const atrasada = screen.getByRole("button", {
+      name: `Empezar Sesión vieja, pendiente desde el ${fechaLegible(hace(2))}`,
+    })
+    await fireEvent.press(atrasada)
+    expect(abrir).toHaveBeenCalledWith("vieja")
+  })
+
+  it("una sesión atrasada ya enviada o cerrada no se ofrece", async () => {
+    await render(
+      <AgendaSemanal
+        {...propiedades}
+        tienePlan
+        listado={{
+          total: 2,
+          sesiones: [
+            sesion("enviada", hace(3), { enviadoEn: "2026-01-01T10:00:00.000Z" }),
+            {
+              ...sesion("cerrada", hace(2)),
+              agenda: { ...sesion("cerrada", hace(2)).agenda, estado: "cerrada" as const },
+            },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getByText("Descanso")).toBeOnTheScreen()
+    expect(screen.queryByText(/Pendiente desde/)).toBeNull()
+  })
 })

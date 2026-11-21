@@ -2,17 +2,19 @@ import { act, fireEvent, render, screen } from "@testing-library/react-native"
 import { AccessibilityInfo } from "react-native"
 import type { EstadoConsentimiento } from "@alpha-omega/shared"
 
-import DisposicionRaiz from "../app/_layout"
+import DisposicionRaiz, { ErrorBoundary } from "../app/_layout"
 import videoLento from "../assets/video/logo-carga-lenta.mp4"
 import { ErrorDeRed, iniciarSesion, refrescarSesion } from "./lib/api"
 import { leerTokenRefresco } from "./lib/almacen-seguro"
 import { leerIdentidadLocal } from "./lib/sesion-local"
 import { crearApiConsentimiento } from "./consentimiento"
+import { reiniciarDestino } from "./componentes/destino-tras-login"
 
 const mockReplace = jest.fn()
 const mockTocarInicio = jest.fn()
 let mockEnfoqueListo = true
 let mockSegmentos = ["login"]
+let mockRuta = "/"
 const mockCrearJugador = jest.fn((fuente: unknown) => {
   const oyentes = new Map<string, () => void>()
   return {
@@ -44,7 +46,7 @@ jest.mock("expo-router", () => {
     DarkTheme: { colors: {} },
     ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
     useRouter: () => ({ replace: mockReplace }),
-    usePathname: () => "/",
+    usePathname: () => mockRuta,
     useSegments: () => mockSegmentos,
     useFocusEffect: (efecto: () => void) =>
       React.useEffect(() => {
@@ -143,6 +145,8 @@ async function avanzar(ms: number): Promise<void> {
 beforeEach(() => {
   mockEnfoqueListo = true
   mockSegmentos = ["login"]
+  mockRuta = "/"
+  reiniciarDestino()
   jest.useFakeTimers()
   jest.spyOn(AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(false)
   jest.mocked(leerTokenRefresco).mockResolvedValue(null)
@@ -307,5 +311,57 @@ describe.each(["activar", "recuperar", "restablecer"])("enlace público %s", (ru
     expect(screen.getByText(`Enlace de cuenta: ${ruta}`)).toBeOnTheScreen()
     expect(screen.queryByText("No hemos podido conectar con el servidor.")).toBeNull()
     expect(mockReplace).not.toHaveBeenCalled()
+  })
+})
+
+it("un fallo de pantalla muestra «Algo ha fallado» y permite reintentar", async () => {
+  const reintentar = jest.fn(async () => undefined)
+  await render(<ErrorBoundary error={new Error("fallo de prueba")} retry={reintentar} />)
+  expect(screen.getByRole("header", { name: "Algo ha fallado" })).toBeOnTheScreen()
+  await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
+  expect(reintentar).toHaveBeenCalledTimes(1)
+})
+
+describe("destino tras el login", () => {
+  async function entrarDesdeEnlace(ruta: string): Promise<void> {
+    mockSegmentos = ruta.split("/").filter(Boolean)
+    mockRuta = ruta
+    await render(<DisposicionRaiz />)
+    await fireEvent.press(screen.getByRole("button", { name: "Saltar introducción" }))
+    await avanzar(300)
+    expect(mockReplace).toHaveBeenCalledWith("/login")
+    mockReplace.mockClear()
+    mockSegmentos = ["login"]
+    mockRuta = "/login"
+    await fireEvent.press(screen.getByText("ENTRAR"))
+  }
+
+  it("lleva a la ruta protegida a la que apuntaba el enlace en frío", async () => {
+    await entrarDesdeEnlace("/entrenador/cliente/abc/plan")
+    expect(mockReplace).toHaveBeenCalledWith("/entrenador/cliente/abc/plan")
+    expect(mockReplace).not.toHaveBeenCalledWith("/")
+  })
+
+  it("sin destino guardado entra en la raíz", async () => {
+    await entrarDesdeEnlace("/")
+    expect(mockReplace).toHaveBeenCalledWith("/")
+  })
+
+  it("tras cerrar sesión a propósito no hereda la pantalla de la cuenta anterior", async () => {
+    mockSegmentos = ["login"]
+    await render(<DisposicionRaiz />)
+    await fireEvent.press(screen.getByRole("button", { name: "Saltar introducción" }))
+    await avanzar(300)
+    await fireEvent.press(screen.getByText("ENTRAR"))
+    mockSegmentos = ["progreso"]
+    mockRuta = "/progreso"
+    await fireEvent.press(screen.getByText("Salir"))
+    expect(mockReplace).toHaveBeenLastCalledWith("/login")
+    mockReplace.mockClear()
+    mockSegmentos = ["login"]
+    mockRuta = "/login"
+    await fireEvent.press(screen.getByText("ENTRAR"))
+    expect(mockReplace).toHaveBeenCalledWith("/")
+    expect(mockReplace).not.toHaveBeenCalledWith("/progreso")
   })
 })

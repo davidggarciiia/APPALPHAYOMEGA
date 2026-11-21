@@ -11,6 +11,7 @@ const clienteId = "00000000-0000-4000-8000-000000000001"
 const entrenadorId = "00000000-0000-4000-8000-000000000002"
 const pruebaId = "00000000-0000-4000-8000-000000000003"
 const operacionId = "00000000-0000-4000-8000-000000000004"
+const medidaId = "00000000-0000-4000-8000-000000000005"
 
 function entorno() {
   let fila: { clienteId: string; revision: number; documento: unknown } | null = null
@@ -41,8 +42,33 @@ function entorno() {
         },
       ),
     },
+    medidaCorporal: {
+      findFirst: jest.fn(
+        async ({
+          where,
+        }: {
+          where: Record<string, string>
+        }): Promise<Record<string, unknown> | null> =>
+          where.autorId === entrenadorId || where.id !== medidaId
+            ? null
+            : {
+                id: medidaId,
+                clienteId,
+                autorId: where.autorId,
+                fecha: new Date("2026-09-24T00:00:00Z"),
+                pesoKg: 80,
+                cinturaCm: null,
+                grasaPct: null,
+                alturaCm: null,
+                creadoEn: new Date("2026-09-24T12:00:00Z"),
+              },
+      ),
+      deleteMany: jest.fn(async () => ({ count: 1 })),
+    },
     pruebaFisica: {
       findUnique: jest.fn(async () => null),
+      findFirst: jest.fn(async (): Promise<Record<string, unknown> | null> => null),
+      deleteMany: jest.fn(async () => ({ count: 0 })),
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
         id: pruebaId,
         creadoEn: new Date("2026-09-24T12:00:00Z"),
@@ -120,5 +146,62 @@ describe("SeguimientoService: configuración", () => {
       { operacionId, fecha: "2026-09-24", nombre: "Plancha", unidad: "s", valor: 30 },
     )
     expect(resultado).toMatchObject({ pruebaId: null, nombre: "Plancha", valor: 30 })
+  })
+})
+
+describe("SeguimientoService: borrar registros propios", () => {
+  const cliente = { sub: clienteId, rol: "cliente" as const, sid: "sesion" }
+
+  it("borra la medida que tomó el propio cliente y la devuelve", async () => {
+    const { servicio, prisma } = entorno()
+    const borrada = await servicio.borrarMedida(cliente, clienteId, medidaId)
+    expect(borrada).toMatchObject({ id: medidaId, autorId: clienteId, pesoKg: 80 })
+    expect(prisma.medidaCorporal.deleteMany).toHaveBeenCalledWith({
+      where: { id: medidaId, clienteId, autorId: clienteId },
+    })
+  })
+
+  it("responde 404 si la medida es de otro autor o no existe, sin borrar nada", async () => {
+    const { servicio, prisma } = entorno()
+    await expect(
+      servicio.borrarMedida({ ...cliente, sub: entrenadorId }, clienteId, medidaId),
+    ).rejects.toMatchObject({ status: 404 })
+    await expect(
+      servicio.borrarMedida(cliente, clienteId, "00000000-0000-4000-8000-000000000009"),
+    ).rejects.toMatchObject({ status: 404 })
+    expect(prisma.medidaCorporal.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it("responde 404 si otra petición la borró entre la lectura y el borrado", async () => {
+    const { servicio, prisma } = entorno()
+    prisma.medidaCorporal.deleteMany.mockResolvedValueOnce({ count: 0 })
+    await expect(servicio.borrarMedida(cliente, clienteId, medidaId)).rejects.toMatchObject({
+      status: 404,
+    })
+  })
+
+  it("borra solo la prueba que anotó el propio cliente", async () => {
+    const { servicio, prisma } = entorno()
+    await expect(servicio.borrarPrueba(cliente, clienteId, pruebaId)).rejects.toMatchObject({
+      status: 404,
+    })
+    prisma.pruebaFisica.findFirst.mockResolvedValueOnce({
+      id: pruebaId,
+      autorId: clienteId,
+      pruebaId: null,
+      fecha: new Date("2026-09-24T00:00:00Z"),
+      nombre: "Plancha",
+      valor: 30,
+      unidad: "s",
+      creadoEn: new Date("2026-09-24T12:00:00Z"),
+    })
+    prisma.pruebaFisica.deleteMany.mockResolvedValueOnce({ count: 1 })
+    expect(await servicio.borrarPrueba(cliente, clienteId, pruebaId)).toMatchObject({
+      id: pruebaId,
+      nombre: "Plancha",
+    })
+    expect(prisma.pruebaFisica.deleteMany).toHaveBeenLastCalledWith({
+      where: { id: pruebaId, clienteId, autorId: clienteId },
+    })
   })
 })

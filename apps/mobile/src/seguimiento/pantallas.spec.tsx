@@ -65,6 +65,12 @@ function api(dias: DiaDeSeguimiento[] = []): ApiSeguimiento {
     registrarPrueba: jest.fn(async () => {
       throw new Error("no usado")
     }),
+    borrarMedida: jest.fn(async () => {
+      throw new Error("no usado")
+    }),
+    borrarPrueba: jest.fn(async () => {
+      throw new Error("no usado")
+    }),
     fuerza: jest.fn(async () => ({ ejercicios: [] })),
     consentimiento: jest.fn(async () => {
       throw new Error("no usado")

@@ -1,9 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod"
+import Constants from "expo-constants"
 import { useRouter } from "expo-router"
 import { useEffect, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
 import { Pressable, StyleSheet, Text, View } from "react-native"
-import { CambiosDePerfilSchema, type CambiosDePerfil, type PerfilPropio } from "@alpha-omega/shared"
+import { z } from "zod"
+import { CambiosDePerfilSchema, type PerfilPropio } from "@alpha-omega/shared"
 import {
   AvisoDeError,
   BotonEnlace,
@@ -13,6 +15,7 @@ import {
   PantallaDeFormulario,
 } from "../src/componentes/formulario"
 import { Esqueleto, GrupoEsqueletos } from "../src/componentes/esqueleto"
+import { fechaEspanolaAIso, isoAFechaEspanola } from "../src/componentes/fecha-nacimiento"
 import { Icono } from "../src/componentes/iconos"
 import { TarjetaConsentimiento } from "../src/consentimiento"
 import { ErrorDeRed, guardarPerfil, leerPerfil } from "../src/lib/api"
@@ -32,15 +35,26 @@ const campos = [
     nombre: "fechaNacimiento",
     etiqueta: "Fecha de nacimiento",
     teclado: "numbers-and-punctuation",
-    placeholder: "AAAA-MM-DD",
+    placeholder: "DD/MM/AAAA",
   },
 ] as const
-const datosEditables = (p: PerfilPropio): CambiosDePerfil => ({
+/** En el formulario la fecha se escribe como DD/MM/AAAA; al guardar se convierte al formato de la API. */
+const FormularioPerfilSchema = CambiosDePerfilSchema.omit({ fechaNacimiento: true }).extend({
+  fechaNacimiento: z
+    .string()
+    .refine(
+      (texto) => texto.trim() === "" || fechaEspanolaAIso(texto) !== null,
+      "Escribe una fecha válida con el formato DD/MM/AAAA",
+    ),
+})
+type FormularioPerfil = z.infer<typeof FormularioPerfilSchema>
+const datosEditables = (p: PerfilPropio): FormularioPerfil => ({
   nombre: p.nombre,
   apellidos: p.apellidos ?? "",
   telefono: p.telefono ?? "",
-  fechaNacimiento: p.fechaNacimiento,
+  fechaNacimiento: isoAFechaEspanola(p.fechaNacimiento),
 })
+const VERSION = Constants.expoConfig?.version ?? null
 
 export default function Perfil(): React.JSX.Element {
   const { estado, salir, pedir } = useSesion()
@@ -56,9 +70,9 @@ export default function Perfil(): React.JSX.Element {
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<CambiosDePerfil>({
-    resolver: zodResolver(CambiosDePerfilSchema),
-    defaultValues: { nombre: "", apellidos: "", telefono: "", fechaNacimiento: null },
+  } = useForm<FormularioPerfil>({
+    resolver: zodResolver(FormularioPerfilSchema),
+    defaultValues: { nombre: "", apellidos: "", telefono: "", fechaNacimiento: "" },
   })
   const cuenta = estado.fase === "dentro" ? estado.usuario.id : null
   useEffect(() => {
@@ -79,7 +93,7 @@ export default function Perfil(): React.JSX.Element {
     }
   }, [cuenta, pedir, intento, reset])
 
-  const enviar = handleSubmit(async (cambios) => {
+  const enviar = handleSubmit(async ({ fechaNacimiento, ...cambios }) => {
     if (cuenta === null) return
     setErrorGeneral(null)
     try {
@@ -87,7 +101,7 @@ export default function Perfil(): React.JSX.Element {
         ...cambios,
         apellidos: cambios.apellidos === "" ? null : cambios.apellidos,
         telefono: cambios.telefono === "" ? null : cambios.telefono,
-        fechaNacimiento: cambios.fechaNacimiento === "" ? null : cambios.fechaNacimiento,
+        fechaNacimiento: fechaNacimiento.trim() === "" ? null : fechaEspanolaAIso(fechaNacimiento),
       })
       setPerfil(actualizado)
       reset(datosEditables(actualizado))
@@ -209,11 +223,7 @@ export default function Perfil(): React.JSX.Element {
                         etiqueta={campo.etiqueta}
                         value={value ?? ""}
                         editable={!isSubmitting}
-                        onChangeText={(texto) =>
-                          onChange(
-                            campo.nombre === "fechaNacimiento" && texto === "" ? null : texto,
-                          )
-                        }
+                        onChangeText={onChange}
                         onBlur={onBlur}
                         keyboardType={campo.teclado}
                         placeholder={campo.placeholder}
@@ -254,7 +264,22 @@ export default function Perfil(): React.JSX.Element {
             </Text>
           )}
           {perfil.rol === "cliente" && <TarjetaConsentimiento />}
+          {perfil.rol === "entrenador" && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Nutricionista. Reparto de clientes y alta de su perfil"
+              onPress={() => router.push("/nutricionista")}
+              style={({ pressed }) => [s.tarjeta, s.filaEnlace, pressed && s.pulsada]}
+            >
+              <View style={s.textos}>
+                <Text style={s.tituloFila}>Nutricionista</Text>
+                <Text style={s.detalleFila}>Reparto de clientes y alta de su perfil</Text>
+              </View>
+              <Icono nombre="adelante" color={tema.textoTenue} />
+            </Pressable>
+          )}
           <BotonSecundario texto="Cerrar sesión" onPress={() => void salir()} />
+          {VERSION !== null && <Text style={s.version}>{`Versión ${VERSION}`}</Text>}
         </View>
       </View>
     </PantallaDeFormulario>
@@ -314,6 +339,16 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     gap: espacio[12],
   },
+  filaEnlace: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: espacio[12],
+    minHeight: 64,
+  },
+  pulsada: { opacity: 0.85 },
+  tituloFila: { color: tema.texto, fontSize: 16, fontFamily: tema.fuenteBoton },
+  detalleFila: { ...tipo.secundario },
+  version: { ...tipo.secundario, textAlign: "center" },
   separador: { height: 1, backgroundColor: tema.borde, marginVertical: 6 },
   confirmacion: { color: tema.exito, fontFamily: tema.fuenteBoton, textAlign: "center" },
   volver: {

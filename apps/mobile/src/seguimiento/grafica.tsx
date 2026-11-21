@@ -25,6 +25,8 @@ export type Punto = { fecha: string; valor: number }
 
 const ALTO = 140
 const MARGEN = 8
+/** Hueco a la izquierda para el mínimo y el máximo cuando la gráfica lleva unidad. */
+const EJE_VALORES = 54
 const Trazo = Animated.createAnimatedComponent(Path)
 const PuntoFinal = Animated.createAnimatedComponent(Circle)
 const numero = (valor: number): string => Number(valor.toFixed(1)).toString().replace(".", ",")
@@ -37,6 +39,7 @@ export function Grafica({
   descripcion,
   izquierda,
   derecha,
+  unidad,
   animar = false,
 }: {
   puntos: Punto[]
@@ -45,6 +48,8 @@ export function Grafica({
   descripcion: string
   izquierda: string
   derecha: string
+  /** Con unidad, el eje enseña el mínimo y el máximo de la serie; sin ella, sin cifras. */
+  unidad?: string
   animar?: boolean
 }): React.JSX.Element | null {
   const [ancho, setAncho] = useState(0)
@@ -53,6 +58,7 @@ export function Grafica({
   const opacidadComparacion = useSharedValue(0)
   const ultimaAnimacion = useRef("")
   const alto = comparacion ? 156 : ALTO
+  const conEje = unidad !== undefined && !comparacion
   const id = `area-${useId().replace(/[^a-zA-Z0-9]/g, "")}`
   const dibujo = useMemo(() => {
     const series = [...puntos, ...(comparacion ?? tendencia)]
@@ -71,12 +77,15 @@ export function Grafica({
     const fechas = [...new Set(series.map((p) => p.fecha))].sort()
     const primera = Date.parse(fechas[0] ?? "")
     const ultima = Date.parse(fechas[fechas.length - 1] ?? "")
+    const izquierdo = comparacion ? 30 : conEje ? EJE_VALORES : MARGEN
+    const derecho = comparacion ? 12 : MARGEN
     const x = (fecha: string): number =>
       ultima === primera
-        ? ancho / 2
-        : (comparacion ? 30 : MARGEN) +
-          ((Date.parse(fecha) - primera) / (ultima - primera)) *
-            (ancho - (comparacion ? 42 : 2 * MARGEN))
+        ? conEje
+          ? (izquierdo + ancho - derecho) / 2
+          : ancho / 2
+        : izquierdo +
+          ((Date.parse(fecha) - primera) / (ultima - primera)) * (ancho - izquierdo - derecho)
     const y = (valor: number): number =>
       max === min ? alto / 2 : MARGEN + (1 - (valor - min) / (max - min)) * (alto - 2 * MARGEN)
     const linea = (comparacion ? puntos : tendencia.length > 1 ? tendencia : puntos).map((p) => ({
@@ -101,6 +110,7 @@ export function Grafica({
       longitud,
       final,
       marcas: marcas.map((valor) => ({ valor, y: y(valor) })),
+      extremos: (max === min ? [max] : [max, min]).map((valor) => ({ valor, y: y(valor) })),
       fechas: comparacion
         ? fechas.filter(
             (_, i) =>
@@ -113,7 +123,7 @@ export function Grafica({
               : (fechas[0] ?? ""),
           ),
     }
-  }, [puntos, tendencia, comparacion, alto, ancho])
+  }, [puntos, tendencia, comparacion, alto, ancho, conEje])
 
   useEffect(() => {
     if (!listo || ancho <= 0 || puntos.length < 2) return
@@ -203,7 +213,7 @@ export function Grafica({
                 : [0.25, 0.5, 0.75].map((fraccion) => (
                     <Line
                       key={fraccion}
-                      x1={0}
+                      x1={conEje ? EJE_VALORES - 6 : 0}
                       x2={ancho}
                       y1={alto * fraccion}
                       y2={alto * fraccion}
@@ -211,6 +221,20 @@ export function Grafica({
                       strokeWidth={1}
                     />
                   ))}
+              {conEje &&
+                dibujo.extremos.map((marca) => (
+                  <TextoSvg
+                    key={marca.valor}
+                    testID="grafica-eje-valor"
+                    x={0}
+                    y={marca.y + 4}
+                    fontSize={11}
+                    fontFamily={tema.fuenteTexto}
+                    fill={tema.textoTenue}
+                  >
+                    {`${numero(marca.valor)} ${unidad}`}
+                  </TextoSvg>
+                ))}
               {!comparacion && (
                 <Trazo d={dibujo.area} fill={`url(#${id})`} animatedProps={areaAnimada} />
               )}
@@ -279,7 +303,7 @@ export function Grafica({
           </View>
         )}
       </View>
-      <View style={s.pie} accessible={false}>
+      <View style={[s.pie, conEje && s.pieConEje]} accessible={false}>
         {dibujo.fechas.map((fecha, i) => (
           <Text
             key={i}
@@ -300,5 +324,6 @@ export function Grafica({
 const s = StyleSheet.create({
   contenedor: { gap: 8, width: "100%", maxWidth: 330, alignSelf: "center" },
   pie: { flexDirection: "row", justifyContent: "space-between" },
+  pieConEje: { paddingLeft: EJE_VALORES - MARGEN },
   etiqueta: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 12 },
 })

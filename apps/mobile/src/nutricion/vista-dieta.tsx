@@ -10,7 +10,7 @@ import type {
   Suplemento,
 } from "@alpha-omega/shared"
 import type { ApiSeguimiento } from "../seguimiento/api"
-import { Enlace } from "../entrenamiento/sesion/controles"
+import { BotonAtras } from "../entrenamiento/sesion/controles"
 import { faltaDe } from "../lib/errores"
 import { cambioDeSuplemento } from "./hoy-modelo"
 import { HoyNutricion } from "./hoy-nutricion"
@@ -99,10 +99,19 @@ function horaActual(): string {
 }
 
 /** Documento de una dieta publicada, con «Hoy» y «Semana». Lo usan cliente y profesional. */
-export function DocumentoVisible({ documento }: { documento: DocumentoDieta }): React.JSX.Element {
+export function DocumentoVisible({
+  documento,
+  diaInicial,
+}: {
+  documento: DocumentoDieta
+  /** 0 = lunes. Si se indica y no es hoy, se abre en «Semana» con ese día elegido. */
+  diaInicial?: number
+}): React.JSX.Element {
   const hoy = diaDeLaSemana(hoyAgenda())
-  const [pestana, setPestana] = useState<"hoy" | "semana">("hoy")
-  const [dia, setDia] = useState(hoy)
+  const [pestana, setPestana] = useState<"hoy" | "semana">(
+    diaInicial !== undefined && diaInicial !== hoy ? "semana" : "hoy",
+  )
+  const [dia, setDia] = useState(diaInicial ?? hoy)
   const indice = pestana === "hoy" ? hoy : dia
   const tipo = documento.tiposDeDia.find((t) => t.id === documento.semana[indice])
   return (
@@ -165,6 +174,10 @@ function VistaDietaDeCuenta({
   const [intento, setIntento] = useState(0)
   const [semana, setSemana] = useState(false)
   const [registradas, setRegistradas] = useState<ComidaRegistrada[] | null>(null)
+  const [comidaOcupada, setComidaOcupada] = useState<string | null>(null)
+  const [reciente, setReciente] = useState<Comida | null>(null)
+  const comidaGuardando = useRef(false)
+  const versionComidas = useRef(0)
   const [dia, setDia] = useState<DiaDeSeguimiento | null>(null)
   const [diaCargado, setDiaCargado] = useState(false)
   const [aviso, setAviso] = useState("")
@@ -193,11 +206,15 @@ function VistaDietaDeCuenta({
           if (!actual()) return
           setEstado({ fase: "lista", dieta, deNutricionista, copiaDel: null })
           const lecturaDia = versionDia.current
-          // Lo marcado hoy. Sin ello, la dieta se ve igual pero no se marca.
+          const lecturaComidas = versionComidas.current
+          // Lo marcado hoy. Sin ello, la dieta se ve igual pero no se marca. Una lectura
+          // anterior a un guardado, o que coincide con él, no pisa lo que acaba de guardarse.
+          const vigenteComidas = (): boolean =>
+            actual() && lecturaComidas === versionComidas.current && !comidaGuardando.current
           void api
             .comidas(clienteId, hoy, hoy)
-            .then(({ comidas }) => actual() && setRegistradas(comidas))
-            .catch(() => actual() && setRegistradas(null))
+            .then(({ comidas }) => vigenteComidas() && setRegistradas(comidas))
+            .catch(() => vigenteComidas() && setRegistradas(null))
           void seguimiento
             ?.dias(clienteId, hoy, hoy)
             .then(({ dias }) => {
@@ -306,6 +323,37 @@ function VistaDietaDeCuenta({
       setGuardandoSuplemento(false)
     }
   }
+  const marcarComida = async (comida: Comida, hecha: boolean): Promise<void> => {
+    if (!dieta || comidaGuardando.current) return
+    comidaGuardando.current = true
+    versionComidas.current += 1
+    setComidaOcupada(comida.id)
+    setAviso("")
+    try {
+      if (hecha) {
+        // Marcar como hecha no elige plato: la opción se elige al entrar en la comida.
+        const registrada = await api.registrarComida(clienteId, hoy, comida.id, {
+          dietaId: dieta.id,
+          eleccion: { tipo: "hecha" },
+        })
+        setRegistradas((previas) => [
+          ...(previas ?? []).filter((r) => r.comidaId !== comida.id),
+          registrada,
+        ])
+        setReciente(comida)
+      } else {
+        await api.quitarComida(clienteId, hoy, comida.id)
+        setRegistradas((previas) => (previas ?? []).filter((r) => r.comidaId !== comida.id))
+        setReciente(null)
+      }
+    } catch (error) {
+      setAviso(faltaDe(error, "No se pudo guardar la comida.").texto)
+    } finally {
+      versionComidas.current += 1
+      comidaGuardando.current = false
+      setComidaOcupada(null)
+    }
+  }
   return (
     <View style={s.contenido}>
       {estado.copiaDel !== null && (
@@ -322,18 +370,12 @@ function VistaDietaDeCuenta({
         />
       ) : semana ? (
         <>
-          <Enlace
-            texto="‹ Volver a hoy"
-            onPress={() => {
-              setDiaElegido(null)
-              setSemana(false)
-            }}
-          />
+          <BotonAtras etiqueta="Volver a Nutrición" onPress={() => setSemana(false)} />
           <View>
             <Text style={s.nombre}>{dieta.documento.nombre}</Text>
             <Text style={s.tenue}>Publicada el {fechaCorta(dieta.publicadaEn)}</Text>
           </View>
-          <DocumentoVisible documento={dieta.documento} />
+          <DocumentoVisible documento={dieta.documento} diaInicial={diaVisible} />
         </>
       ) : (
         <>
@@ -342,6 +384,11 @@ function VistaDietaDeCuenta({
           {guardandoSuplemento && (
             <Text style={s.tenue} accessibilityLiveRegion="polite">
               Guardando suplemento…
+            </Text>
+          )}
+          {comidaOcupada !== null && (
+            <Text style={s.tenue} accessibilityLiveRegion="polite">
+              Guardando comida…
             </Text>
           )}
           {diaVisible !== diaActual ? (
@@ -365,6 +412,12 @@ function VistaDietaDeCuenta({
               puedeTomar={
                 enLinea && seguimiento !== undefined && diaCargado && !guardandoSuplemento
               }
+              puedeRegistrar={
+                enLinea && registradas !== null && dieta.documento.registroComidas !== false
+              }
+              comidaOcupada={comidaOcupada}
+              reciente={reciente}
+              marcarComida={(comida, hecha) => void marcarComida(comida, hecha)}
               abrirComida={(comida) => (abrirComida ? abrirComida(comida) : setSemana(true))}
               tomarSuplemento={(suplemento, tomado) => void tomarSuplemento(suplemento, tomado)}
               verSemana={() => setSemana(true)}
@@ -393,7 +446,7 @@ const s = StyleSheet.create({
   marcaDia: { position: "absolute", bottom: 0, height: 3, width: 24, backgroundColor: tema.acento },
   inicial: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 16 },
   inicialActiva: { color: tema.acento },
-  tipoDia: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 10 },
+  tipoDia: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 12 },
   titulo: { ...tipografia.titulo, color: tema.texto },
   nombre: { color: tema.texto, fontFamily: tema.fuenteBoton, fontSize: 18 },
   tenue: { color: tema.textoTenue, fontFamily: tema.fuenteTexto, fontSize: 13 },

@@ -16,6 +16,16 @@ const MACROS = [
   { clave: "grasaG", reparto: "grasas", nombre: "Grasas", color: "#7FE08F" },
 ] as const
 
+/** «2.300 kcal · Proteínas 160 g»: lo que escribió el profesional, sin los ausentes. */
+export function resumenDeMacros(macros: Macros): string {
+  return [
+    ...(macros.kcal !== null ? [`${miles(macros.kcal)} kcal`] : []),
+    ...MACROS.filter((m) => macros[m.clave] !== null).map(
+      (m) => `${m.nombre} ${miles(macros[m.clave] ?? 0)} g`,
+    ),
+  ].join(" · ")
+}
+
 /** Los números tal cual los escribió el profesional; los ausentes no se muestran. */
 export function Objetivo({
   macros,
@@ -28,16 +38,7 @@ export function Objetivo({
 }): React.JSX.Element {
   const presentes = MACROS.filter((m) => macros[m.clave] !== null)
   const reparto = repartoDeMacros(macros)
-  if (compacto) {
-    return (
-      <Text style={s.compacto}>
-        {[
-          ...(macros.kcal !== null ? [`${miles(macros.kcal)} kcal`] : []),
-          ...presentes.map((m) => `${m.nombre} ${miles(macros[m.clave] ?? 0)} g`),
-        ].join(" · ")}
-      </Text>
-    )
-  }
+  if (compacto) return <Text style={s.compacto}>{resumenDeMacros(macros)}</Text>
   return (
     <View style={s.objetivo}>
       {macros.kcal !== null && (

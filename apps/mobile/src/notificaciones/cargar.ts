@@ -26,7 +26,10 @@ export function contadoresEntrenamiento(listado: ListadoNovedades): {
   }
 }
 
-/** El contrato ofrece avisos por cliente; se recorre la cartera sin saturar la conexión. */
+/**
+ * El contrato ofrece avisos por cliente; se recorre la cartera sin saturar la conexión.
+ * Los clientes dados de baja se saltan: no generan avisos y cada uno costaría dos peticiones.
+ */
 export async function cargarNotificaciones(
   usuario: UsuarioPublico,
   pedir: PeticionAutenticada,
@@ -37,15 +40,18 @@ export async function cargarNotificaciones(
   const clientes: { id: string; nombre: string; apellidos: string | null }[] = []
   if (usuario.rol === "cliente") clientes.push(usuario)
   else if (usuario.rol === "entrenador") {
+    let recibidos = 0
     for (;;) {
       if (signal?.aborted) throw new Error("Consulta cancelada")
       const pagina = await listarUsuarios(pedir, {
         rol: "cliente",
         limite: 100,
-        desde: clientes.length,
+        desde: recibidos,
       })
-      clientes.push(...pagina.usuarios)
-      if (clientes.length >= pagina.total) break
+      // El avance se mide con lo recibido de la API, no con lo que queda tras filtrar.
+      recibidos += pagina.usuarios.length
+      clientes.push(...pagina.usuarios.filter((cliente) => cliente.estado !== "desactivado"))
+      if (recibidos >= pagina.total) break
       if (pagina.usuarios.length === 0) throw new Error("Cartera incompleta")
     }
   }

@@ -1,5 +1,5 @@
 import { AgendaSemanal } from "./agenda-semanal"
-import type { SesionCalendario } from "./calendario-hoy"
+import type { ResultadoMes } from "./calendario-hoy"
 import { useCallback, useRef, useState } from "react"
 import { useFocusEffect } from "expo-router"
 import { AppState, View } from "react-native"
@@ -56,6 +56,8 @@ export function SemanaEntrenamiento({
   resumenHoy = false,
   detectarEmpezadas = false,
   deportes,
+  semanaElegida,
+  elegirSemana,
 }: {
   clienteId: string
   api: ApiEntrenamiento
@@ -64,8 +66,19 @@ export function SemanaEntrenamiento({
   resumenHoy?: boolean
   detectarEmpezadas?: boolean
   deportes?: DeporteDelPlan[]
+  /** Si la pantalla que lo contiene guarda la semana, para compartirla con otras vistas. */
+  semanaElegida?: string
+  elegirSemana?: (lunes: string) => void
 }): React.JSX.Element {
-  const [semana, setSemana] = useState(lunesDeSemana)
+  const [semanaInterna, setSemanaInterna] = useState(lunesDeSemana)
+  const semana = semanaElegida ?? semanaInterna
+  const setSemana = useCallback(
+    (lunes: string): void => {
+      setSemanaInterna(lunes)
+      elegirSemana?.(lunes)
+    },
+    [elegirSemana],
+  )
   const [, actualizarDia] = useState(hoyAgenda)
   const semanaActual = useRef(lunesDeSemana())
   const clave = `${clienteId}:${semana}`
@@ -82,6 +95,7 @@ export function SemanaEntrenamiento({
   const [sinConexion, setSinConexion] = useState(false)
   const [reintentable, setReintentable] = useState(true)
   const [intento, setIntento] = useState(0)
+  const [tienePlan, setTienePlan] = useState<boolean | undefined>(undefined)
   const presentar = useCallback(
     (datos: ListadoSesiones): void => {
       const contenido = JSON.stringify(datos)
@@ -272,7 +286,29 @@ export function SemanaEntrenamiento({
       conservarRevisiones,
       presentar,
       actualizarEmpezadas,
+      setSemana,
     ]),
+  )
+  // Una semana sin sesiones puede ser descanso o que aún no hay plan: se
+  // pregunta solo entonces, para no decir «Descanso» a quien no tiene plan.
+  const semanaSinSesiones = resumenHoy && listado?.total === 0
+  useFocusEffect(
+    useCallback(() => {
+      if (!semanaSinSesiones) return
+      let vigente = true
+      const consultar = async (): Promise<void> => {
+        try {
+          const { plan } = await api.plan(clienteId, semana)
+          if (vigente) setTienePlan(plan !== null)
+        } catch {
+          // Sin respuesta no se afirma nada: la tarjeta no dice «sin plan».
+        }
+      }
+      void consultar()
+      return () => {
+        vigente = false
+      }
+    }, [api, clienteId, semana, semanaSinSesiones, intento]),
   )
   const actualizar = async (agenda?: SesionProgramada): Promise<void> => {
     if (agenda && listado) {
@@ -290,7 +326,7 @@ export function SemanaEntrenamiento({
     await guardarCopia(datos)
   }
   const cargarMes = useCallback(
-    async (mes: string): Promise<SesionCalendario[]> => {
+    async (mes: string): Promise<ResultadoMes> => {
       const inicio = `${mes}-01`
       const siguiente = new Date(`${inicio}T00:00:00Z`)
       siguiente.setUTCMonth(siguiente.getUTCMonth() + 1)
@@ -298,31 +334,74 @@ export function SemanaEntrenamiento({
       const semanas: string[] = []
       for (let lunes = lunesDeSemana(inicio); lunes < fin; lunes = sumarDias(lunes, 7))
         semanas.push(lunes)
-      const respuestas = await Promise.all(semanas.map((lunes) => api.semana(clienteId, lunes)))
+      const respuestas = await Promise.allSettled(
+        semanas.map((lunes) => api.semana(clienteId, lunes)),
+      )
+      // Sin acceso no hay mes parcial que valga: se avisa de eso y nada más.
+      for (const respuesta of respuestas)
+        if (
+          respuesta.status === "rejected" &&
+          (respuesta.reason instanceof ErrorDeSesion || respuesta.reason instanceof ErrorDePermiso)
+        )
+          throw respuesta.reason
+      const listados: ListadoSesiones[] = []
+      const sinDatos: string[] = []
+      let deCopia = false
+      await Promise.all(
+        respuestas.map(async (respuesta, n) => {
+          const lunes = semanas[n]!
+          if (respuesta.status === "fulfilled") {
+            listados.push(respuesta.value)
+            if (copiaLocal && lunes !== semana)
+              await almacenDispositivo
+                .guardar(clienteId, `semana-${lunes}`, respuesta.value)
+                .catch(() => undefined)
+            return
+          }
+          const copia = copiaLocal
+            ? await almacenDispositivo
+                .leer(clienteId, `semana-${lunes}`, ListadoSesionesSchema)
+                .catch(() => null)
+            : null
+          if (copia) {
+            listados.push(copia)
+            deCopia = true
+          } else sinDatos.push(lunes)
+        }),
+      )
+      // Si no llegó nada, es un fallo del mes entero y se cuenta como tal.
+      if (sinDatos.length === semanas.length)
+        throw (respuestas.find((r) => r.status === "rejected") as PromiseRejectedResult).reason
       const sesiones = [
         ...new Map(
-          respuestas
+          listados
             .flatMap((datos) => conservarRevisiones(datos).sesiones)
             .map((sesion) => [sesion.agenda.id, sesion]),
         ).values(),
       ].filter((s) => s.agenda.fechaActual >= inicio && s.agenda.fechaActual < fin)
       const locales = copiaLocal ? await empezadasLocales(clienteId, sesiones) : {}
       const pendientes = sesiones.filter((s) => !s.enviadoEn && !locales[s.agenda.id])
-      const detalles = await Promise.all(pendientes.map((s) => api.leerCliente(s.agenda.id)))
+      // Si un detalle no llega, esa sesión sale como pendiente; no tumba el mes.
+      const detalles = await Promise.allSettled(pendientes.map((s) => api.leerCliente(s.agenda.id)))
       const remotas = Object.fromEntries(
         detalles.flatMap((detalle, n) => {
-          const registro = detalle.borrador?.registro
+          if (detalle.status !== "fulfilled") return []
+          const registro = detalle.value.borrador?.registro
           return registro?.inicio || registro?.checkin || registro?.series.some((s) => s.hecha)
-            ? [[pendientes[n]!.agenda.id, registro.inicio ?? detalle.borrador!.actualizadoEn]]
+            ? [[pendientes[n]!.agenda.id, registro.inicio ?? detalle.value.borrador!.actualizadoEn]]
             : []
         }),
       )
-      return sesiones.map((s) => ({
-        ...s,
-        empezadaEn: locales[s.agenda.id] ?? remotas[s.agenda.id],
-      }))
+      return {
+        sesiones: sesiones.map((s) => ({
+          ...s,
+          empezadaEn: locales[s.agenda.id] ?? remotas[s.agenda.id],
+        })),
+        sinDatos,
+        deCopia,
+      }
     },
-    [api, clienteId, conservarRevisiones, copiaLocal],
+    [api, clienteId, conservarRevisiones, copiaLocal, semana],
   )
   return (
     <View style={{ gap: 14 }}>
@@ -346,6 +425,7 @@ export function SemanaEntrenamiento({
         semana={semana}
         listado={listado}
         cargando={listado === null && error === ""}
+        tienePlan={tienePlan}
         abrir={abrir}
         resumenHoy={resumenHoy}
         cargarMes={cargarMes}
@@ -353,7 +433,7 @@ export function SemanaEntrenamiento({
         empezadas={empezadas}
         api={api}
         actualizado={actualizar}
-        cambiarSemana={(dias) => setSemana((actual) => sumarDias(actual, dias))}
+        cambiarSemana={(dias) => setSemana(sumarDias(semana, dias))}
       />
     </View>
   )

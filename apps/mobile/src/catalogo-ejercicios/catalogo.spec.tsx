@@ -79,11 +79,11 @@ describe("Catálogo de ejercicios", () => {
     })
     await pintar({ ...catalogoEnMemoria(), buscar: () => pendiente })
 
-    expect(screen.getByLabelText("Cargando el catálogo")).toBeOnTheScreen()
+    expect(screen.getByLabelText("Cargando los ejercicios")).toBeOnTheScreen()
 
     contestar(ListadoEjerciciosSchema.parse({ ejercicios: [PRESS], total: 1 }))
     await screen.findByRole("button", { name: "Press de banca. Pecho" })
-    expect(screen.queryByLabelText("Cargando el catálogo")).toBeNull()
+    expect(screen.queryByLabelText("Cargando los ejercicios")).toBeNull()
   })
 
   it("enseña cada ejercicio con su grupo principal", async () => {
@@ -111,7 +111,7 @@ describe("Catálogo de ejercicios", () => {
 
     await screen.findByText(/No hemos podido conectar/)
     expect(screen.getByRole("alert")).toHaveTextContent(/No hemos podido conectar/)
-    await fireEvent.press(screen.getByRole("button", { name: "REINTENTAR" }))
+    await fireEvent.press(screen.getByRole("button", { name: "Reintentar" }))
     await screen.findByRole("button", { name: "Press de banca. Pecho" })
   })
 
@@ -151,10 +151,100 @@ describe("Catálogo de ejercicios", () => {
     expect(screen.getByRole("button", { name: "Filtrar por Pecho" })).toBeSelected()
   })
 
+  it("titula la pantalla «Ejercicios»", async () => {
+    await pintar(catalogoEnMemoria([PRESS]))
+
+    expect(screen.getByRole("header", { name: "Ejercicios" })).toBeOnTheScreen()
+    expect(screen.queryByText("CATÁLOGO")).toBeNull()
+  })
+
   it("avisa cuando el servidor tiene más ejercicios de los que caben en la lista", async () => {
     await pintar(catalogoEnMemoria([PRESS, SENTADILLA], 140))
 
     await screen.findByText(/Mostrando 2 de 140/)
+  })
+
+  describe("paginación", () => {
+    const todos = Array.from({ length: 120 }, (_, n) =>
+      ejercicioDePrueba(
+        `3f2b8c1e-4d5a-4f6b-8a9c-${String(n + 1000).padStart(12, "0")}`,
+        `Ejercicio ${String(n + 1).padStart(3, "0")}`,
+        "pecho",
+      ),
+    )
+
+    it("pide la primera página de 50 y no corta el resto en silencio", async () => {
+      const api = catalogoEnMemoria(todos)
+      const buscar = jest.spyOn(api, "buscar")
+      await pintar(api)
+
+      await screen.findByText("Mostrando 50 de 120.")
+      expect(buscar).toHaveBeenCalledWith(expect.objectContaining({ limite: 50 }))
+      expect(screen.queryByText(/Busca por nombre para encontrar el resto/)).toBeNull()
+    })
+
+    it("«Cargar más» añade la página siguiente y desaparece al llegar al total", async () => {
+      const api = catalogoEnMemoria(todos)
+      const buscar = jest.spyOn(api, "buscar")
+      await pintar(api)
+      await screen.findByText("Mostrando 50 de 120.")
+
+      await fireEvent.press(screen.getByRole("button", { name: "Cargar más ejercicios" }))
+      await screen.findByText("Mostrando 100 de 120.")
+      expect(buscar).toHaveBeenLastCalledWith(
+        expect.objectContaining({ limite: 50, desplazamiento: 50 }),
+      )
+
+      await fireEvent.press(screen.getByRole("button", { name: "Cargar más ejercicios" }))
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Cargar más ejercicios" })).toBeNull()
+      })
+      expect(screen.queryByText(/Mostrando/)).toBeNull()
+    })
+
+    it("pide la página siguiente al llegar al final de la lista", async () => {
+      const api = catalogoEnMemoria(todos)
+      const buscar = jest.spyOn(api, "buscar")
+      await pintar(api)
+      await screen.findByText("Mostrando 50 de 120.")
+
+      await fireEvent(screen.getByTestId("lista-ejercicios"), "endReached")
+
+      await screen.findByText("Mostrando 100 de 120.")
+      expect(buscar).toHaveBeenCalledTimes(2)
+    })
+
+    it("avisa si falla una página y deja reintentar sin perder la lista", async () => {
+      const api = catalogoEnMemoria(todos)
+      const buscar = jest.spyOn(api, "buscar")
+      await pintar(api)
+      await screen.findByText("Mostrando 50 de 120.")
+      buscar.mockRejectedValueOnce(new ErrorDeRed("sin cobertura"))
+
+      await fireEvent.press(screen.getByRole("button", { name: "Cargar más ejercicios" }))
+      await screen.findByText("No hemos podido cargar más ejercicios.")
+      expect(screen.getByText("Mostrando 50 de 120.")).toBeOnTheScreen()
+
+      await fireEvent.press(screen.getByRole("button", { name: "Reintentar cargar más" }))
+      await screen.findByText("Mostrando 100 de 120.")
+    })
+
+    it("vuelve a la primera página al cambiar el filtro de grupo", async () => {
+      const api = catalogoEnMemoria([...todos, SENTADILLA])
+      const buscar = jest.spyOn(api, "buscar")
+      await pintar(api)
+      await screen.findByText("Mostrando 50 de 121.")
+
+      await fireEvent.press(screen.getByRole("button", { name: "Filtrar por Cuádriceps" }))
+
+      await waitFor(() => {
+        expect(buscar).toHaveBeenLastCalledWith(
+          expect.objectContaining({ grupo: "cuadriceps", limite: 50 }),
+        )
+      })
+      await screen.findByRole("button", { name: "Sentadilla. Cuádriceps" })
+      expect(screen.queryByText(/Mostrando/)).toBeNull()
+    })
   })
 
   it("da acceso al alta y a la edición de un ejercicio", async () => {

@@ -44,6 +44,8 @@ export type FilaSerieProps = {
   primeraPendiente?: boolean
   enfocada?: CeldaSerie | null
   deshabilitado?: boolean
+  /** Sesión en pausa: la fila se ve apagada, pero tocarla sigue siendo posible (continúa). */
+  pausada?: boolean
   alEnfocar: (celda: CeldaSerie) => void
   alCambiarHecha: (hecha: boolean) => void
   alOmitir?: () => void
@@ -86,6 +88,7 @@ export function FilaSerie({
   primeraPendiente = false,
   enfocada = null,
   deshabilitado = false,
+  pausada = false,
   alEnfocar,
   alCambiarHecha,
   alOmitir,
@@ -188,7 +191,9 @@ export function FilaSerie({
         accessibilityHint={
           omitida
             ? "Serie omitida. Toca para recuperarla"
-            : `Abre la barra de ajuste${vacia ? `; sugerencia ${texto}` : ""}`
+            : pausada
+              ? "Entrenamiento en pausa. Toca para continuar"
+              : `Abre la barra de ajuste${vacia ? `; sugerencia ${texto}` : ""}`
         }
         accessibilityState={{ disabled: deshabilitado, selected: enfocada === nombre }}
         disabled={deshabilitado}
@@ -227,7 +232,7 @@ export function FilaSerie({
         onLayout={(evento: LayoutChangeEvent) => {
           ancho.value = evento.nativeEvent.layout.width
         }}
-        style={[s.fila, filaAnimada, omitida && s.omitida]}
+        style={[s.fila, filaAnimada, omitida && s.omitida, pausada && !omitida && s.pausada]}
       >
         <Text
           numberOfLines={1}
@@ -249,9 +254,11 @@ export function FilaSerie({
           accessibilityHint={
             omitida
               ? "Serie omitida. Toca para recuperarla"
-              : alOmitir
-                ? "Mantén pulsado para omitir la serie"
-                : undefined
+              : pausada
+                ? "Entrenamiento en pausa. Toca para continuar"
+                : alOmitir
+                  ? "Mantén pulsado para omitir la serie"
+                  : undefined
           }
           accessibilityState={{ checked: hecha, disabled: deshabilitado }}
           aria-checked={hecha}
@@ -303,11 +310,11 @@ export function FilaSerie({
       </Animated.View>
       {hecha && recordPersonal && (
         <Text
-          accessibilityLabel={`Récord personal: ${recordPersonal}`}
+          accessibilityLabel={`Mejor que la última vez: ${recordPersonal}`}
           accessibilityLiveRegion="polite"
           style={s.record}
         >
-          {recordPersonal}
+          {`Mejor que la última vez · ${recordPersonal}`}
         </Text>
       )}
     </Pressable>
@@ -384,6 +391,7 @@ const s = StyleSheet.create({
   },
   hecha: { borderColor: tema.exito, backgroundColor: tema.exito },
   omitida: { opacity: 0.5 },
+  pausada: { opacity: 0.55 },
   record: {
     color: tema.acento,
     fontFamily: tema.fuenteSemi,

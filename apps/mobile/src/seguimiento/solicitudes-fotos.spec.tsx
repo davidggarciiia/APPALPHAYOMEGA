@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native"
+import { Linking } from "react-native"
 import type {
   CrearSolicitudFotos,
   IntencionSubida,
@@ -41,6 +42,13 @@ jest.mock("expo-router/react-navigation", () => ({
   ...jest.requireActual<object>("expo-router/react-navigation"),
   usePreventRemove: (...args: [boolean, unknown]) => mockPrevenirSalida(...args),
 }))
+
+/** Tras elegir una foto se ve una vista previa: nada se envía hasta pulsar «Usar esta». */
+async function usarLaFoto(vista: string): Promise<void> {
+  await fireEvent.press(
+    await screen.findByRole("button", { name: `Usar esta foto de ${vista} y enviarla` }),
+  )
+}
 
 async function volverALaPantalla(): Promise<void> {
   await act(async () => {
@@ -273,6 +281,7 @@ it("el cliente aporta la vista pedida y puede continuar con las vistas que falte
   await fireEvent.press(
     screen.getByRole("button", { name: "Elegir foto de Frente desde la galería" }),
   )
+  await usarLaFoto("Frente")
 
   await waitFor(() => expect(falsa.confirmar).toHaveBeenCalledWith(medio.id))
   expect(falsa.solicitarSubida).toHaveBeenCalledWith({
@@ -330,6 +339,7 @@ it("reintenta una subida fallida con la misma foto y la misma operación", async
   await fireEvent.press(
     screen.getByRole("button", { name: "Elegir foto de Frente desde la galería" }),
   )
+  await usarLaFoto("Frente")
   expect(await screen.findByRole("alert")).toHaveTextContent(/conservamos mientras sigas/)
   const reintentar = await screen.findByRole("button", {
     name: "Reintentar envío de la foto de Frente",
@@ -380,6 +390,7 @@ describe("copia local de la foto (RI07b)", () => {
     jest.useFakeTimers()
     try {
       await fireEvent.press(elegirDeGaleria("Frente"))
+      await usarLaFoto("Frente")
       await act(async () => {
         await jest.advanceTimersByTimeAsync(30_001)
       })
@@ -412,6 +423,7 @@ describe("copia local de la foto (RI07b)", () => {
     falsa.solicitarSubida.mockResolvedValue({ medio: enviando, subida: SUBIDA })
     const vista = await pantallaCliente(falsa)
     await fireEvent.press(elegirDeGaleria("Frente"))
+    await usarLaFoto("Frente")
     await waitFor(() => expect(senal).toBeDefined())
     await vista.unmount()
     expect(senal?.aborted).toBe(true)
@@ -494,6 +506,7 @@ describe("copia local de la foto (RI07b)", () => {
     await pantallaCliente(falsa)
 
     await fireEvent.press(elegirDeGaleria("Frente"))
+    await usarLaFoto("Frente")
     expect(await screen.findByText("Subiendo foto…")).toBeTruthy()
     expect(liberarFoto).not.toHaveBeenCalled()
 
@@ -515,6 +528,7 @@ describe("copia local de la foto (RI07b)", () => {
     await pantallaCliente(falsa)
 
     await fireEvent.press(elegirDeGaleria("Frente"))
+    await usarLaFoto("Frente")
     const reintentar = await screen.findByRole("button", {
       name: "Reintentar envío de la foto de Frente",
     })
@@ -548,6 +562,7 @@ describe("copia local de la foto (RI07b)", () => {
     await pantallaCliente(falsa)
 
     await fireEvent.press(elegirDeGaleria("Frente"))
+    await usarLaFoto("Frente")
     await fireEvent.press(
       await screen.findByRole("button", { name: "Descartar la foto de Frente sin enviarla" }),
     )
@@ -558,6 +573,7 @@ describe("copia local de la foto (RI07b)", () => {
     expect(screen.queryByRole("button", { name: /Reintentar envío/ })).toBeNull()
 
     await fireEvent.press(await screen.findByRole("button", { name: /Elegir foto de Frente/ }))
+    await usarLaFoto("Frente")
     await waitFor(() => expect(falsa.confirmar).toHaveBeenCalledTimes(1))
     const [intento, nuevo] = falsa.solicitarSubida.mock.calls
     expect(nuevo![0].operacionId).not.toBe(intento![0].operacionId)
@@ -575,6 +591,7 @@ describe("copia local de la foto (RI07b)", () => {
     await pantallaCliente(falsa)
 
     await fireEvent.press(elegirDeGaleria("Frente"))
+    await usarLaFoto("Frente")
     await screen.findByRole("button", { name: "Reintentar envío de la foto de Frente" })
 
     expect(elegirDeGaleria("Espalda")).toBeDisabled()
@@ -596,6 +613,96 @@ describe("copia local de la foto (RI07b)", () => {
     expect(falsa.solicitarSubida).not.toHaveBeenCalled()
     expect(liberarFoto).not.toHaveBeenCalled()
     expect(screen.queryByRole("alert")).toBeNull()
+  })
+
+  it("enseña la foto elegida y no envía nada hasta pulsar «Usar esta»", async () => {
+    const foto = fotoSintetica("con-vista-previa")
+    jest.mocked(obtenerFoto).mockResolvedValueOnce({ tipo: "lista", foto })
+    almacen(() => correcta)
+    const falsa = api([solicitud()])
+    falsa.solicitarSubida.mockResolvedValue({ medio: enviando, subida: SUBIDA })
+    await pantallaCliente(falsa)
+
+    await fireEvent.press(elegirDeGaleria("Frente"))
+
+    expect(
+      await screen.findByRole("image", { name: "Vista previa de la foto de Frente" }),
+    ).toBeTruthy()
+    expect(falsa.solicitarSubida).not.toHaveBeenCalled()
+    expect(liberarFoto).not.toHaveBeenCalled()
+    // Mientras se decide, las demás vistas no abren otra foto.
+    expect(elegirDeGaleria("Espalda")).toBeDisabled()
+
+    await usarLaFoto("Frente")
+    await waitFor(() => expect(falsa.confirmar).toHaveBeenCalledTimes(1))
+    expect(falsa.solicitarSubida).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole("image", { name: /Vista previa/ })).toBeNull()
+  })
+
+  it("«Repetir» suelta la copia y vuelve a abrir el mismo selector sin enviar la primera", async () => {
+    const primera = fotoSintetica("desenfocada")
+    const segunda = fotoSintetica("buena")
+    jest
+      .mocked(obtenerFoto)
+      .mockResolvedValueOnce({ tipo: "lista", foto: primera })
+      .mockResolvedValueOnce({ tipo: "lista", foto: segunda })
+    almacen(() => correcta)
+    const falsa = api([solicitud()])
+    falsa.solicitarSubida.mockResolvedValue({ medio: enviando, subida: SUBIDA })
+    await pantallaCliente(falsa)
+
+    await fireEvent.press(elegirDeGaleria("Frente"))
+    await fireEvent.press(await screen.findByRole("button", { name: "Repetir la foto de Frente" }))
+
+    await waitFor(() => expect(obtenerFoto).toHaveBeenCalledTimes(2))
+    expect(jest.mocked(obtenerFoto).mock.calls).toEqual([["galeria"], ["galeria"]])
+    expect(jest.mocked(liberarFoto).mock.calls).toEqual([[primera.uri]])
+    expect(falsa.solicitarSubida).not.toHaveBeenCalled()
+
+    await usarLaFoto("Frente")
+    await waitFor(() => expect(falsa.confirmar).toHaveBeenCalledTimes(1))
+    expect(falsa.solicitarSubida.mock.calls[0]![0].bytes).toBe(segunda.bytes)
+  })
+
+  it("salir con una foto en vista previa suelta su copia", async () => {
+    const foto = fotoSintetica("sin-decidir")
+    jest.mocked(obtenerFoto).mockResolvedValueOnce({ tipo: "lista", foto })
+    const vista = await pantallaCliente(api([solicitud()]))
+
+    await fireEvent.press(elegirDeGaleria("Frente"))
+    await screen.findByRole("image", { name: "Vista previa de la foto de Frente" })
+    await vista.unmount()
+
+    expect(jest.mocked(liberarFoto).mock.calls).toEqual([[foto.uri]])
+  })
+
+  it("con el permiso de la cámara bloqueado, ofrece abrir los ajustes del móvil", async () => {
+    const mensaje = "La cámara está bloqueada para esta app. Actívala en los ajustes del móvil."
+    jest.mocked(obtenerFoto).mockResolvedValueOnce({ tipo: "sinPermiso", mensaje, ajustes: true })
+    const ajustes = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined)
+    await pantallaCliente(api([solicitud()]))
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Hacer foto de Frente con la cámara" }),
+    )
+
+    expect(await screen.findByText(mensaje)).toBeTruthy()
+    await fireEvent.press(screen.getByRole("button", { name: /Abrir los ajustes del móvil/ }))
+    expect(ajustes).toHaveBeenCalledTimes(1)
+  })
+
+  it("si el permiso aún se puede pedir en la app, no manda a los ajustes", async () => {
+    jest
+      .mocked(obtenerFoto)
+      .mockResolvedValueOnce({ tipo: "sinPermiso", mensaje: "Sin permiso.", ajustes: false })
+    await pantallaCliente(api([solicitud()]))
+
+    await fireEvent.press(
+      screen.getByRole("button", { name: "Hacer foto de Frente con la cámara" }),
+    )
+
+    expect(await screen.findByText("Sin permiso.")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: /Abrir los ajustes/ })).toBeNull()
   })
 
   it("una preparación que termina después de salir suelta su copia y no la envía", async () => {
@@ -629,6 +736,7 @@ describe("copia local de la foto (RI07b)", () => {
       const vista = await pantallaCliente(falsa)
 
       await fireEvent.press(elegirDeGaleria("Frente"))
+      await usarLaFoto("Frente")
       await screen.findByText("Subiendo foto…")
       await vista.unmount()
       expect(liberarFoto).not.toHaveBeenCalled()
@@ -649,6 +757,7 @@ describe("copia local de la foto (RI07b)", () => {
     const vista = await pantallaCliente(falsa)
 
     await fireEvent.press(elegirDeGaleria("Frente"))
+    await usarLaFoto("Frente")
     await screen.findByRole("button", { name: "Reintentar envío de la foto de Frente" })
     expect(liberarFoto).not.toHaveBeenCalled()
     await vista.unmount()
@@ -678,8 +787,10 @@ describe("copia local de la foto (RI07b)", () => {
     await pantallaCliente(falsa)
 
     await fireEvent.press(elegirDeGaleria("Frente"))
+    await usarLaFoto("Frente")
     await screen.findByText(/Frente · enviada el/)
     await fireEvent.press(elegirDeGaleria("Espalda"))
+    await usarLaFoto("Espalda")
     await screen.findByText(/Espalda · enviada el/)
 
     const [uno, dos] = falsa.solicitarSubida.mock.calls
@@ -702,6 +813,7 @@ describe("copia local de la foto (RI07b)", () => {
     const vista = await pantallaCliente(falsa)
 
     await fireEvent.press(elegirDeGaleria("Frente"))
+    await usarLaFoto("Frente")
     await screen.findByText(/Frente · enviada el/)
     expect(jest.mocked(liberarFoto).mock.calls).toEqual([[foto.uri]])
 
@@ -756,6 +868,7 @@ describe("copia local de la foto (RI07b)", () => {
         await pantallaCliente(falsa)
 
         await fireEvent.press(elegirDeGaleria("Espalda"))
+        await usarLaFoto("Espalda")
         await screen.findByRole("button", { name: "Reintentar envío de la foto de Espalda" })
         expect(liberarFoto).not.toHaveBeenCalled()
 
@@ -790,6 +903,7 @@ describe("copia local de la foto (RI07b)", () => {
       await pantallaCliente(falsa)
 
       await fireEvent.press(elegirDeGaleria("Frente"))
+      await usarLaFoto("Frente")
       await screen.findByRole("button", { name: "Reintentar envío de la foto de Frente" })
 
       falsa.solicitudes.mockResolvedValueOnce({ solicitudes: [recibida] })
@@ -815,6 +929,7 @@ describe("copia local de la foto (RI07b)", () => {
       await pantallaCliente(falsa)
 
       await fireEvent.press(elegirDeGaleria("Espalda"))
+      await usarLaFoto("Espalda")
       await screen.findByText("Subiendo foto…")
       falsa.solicitudes.mockResolvedValueOnce({ solicitudes: [revisada, nueva] })
       await volverALaPantalla()
@@ -841,6 +956,7 @@ describe("copia local de la foto (RI07b)", () => {
       await pantallaCliente(falsa)
 
       await fireEvent.press(elegirDeGaleria("Espalda"))
+      await usarLaFoto("Espalda")
       await screen.findByRole("button", { name: "Reintentar envío de la foto de Espalda" })
       await volverALaPantalla()
       await waitFor(() => expect(falsa.solicitudes).toHaveBeenCalledTimes(2))
@@ -900,6 +1016,7 @@ describe("salir con una foto sin confirmar (S-01)", () => {
     await fireEvent.press(
       screen.getByRole("button", { name: "Elegir foto de Frente desde la galería" }),
     )
+    await usarLaFoto("Frente")
     await screen.findByRole("alert")
     expect(protegida()).toBe(true)
   })
@@ -939,6 +1056,7 @@ describe("salir con una foto sin confirmar (S-01)", () => {
     await fireEvent.press(
       await screen.findByRole("button", { name: "Elegir foto de Frente desde la galería" }),
     )
+    await usarLaFoto("Frente")
     await screen.findByRole("alert")
     await act(() => solicitar(cerrado))
     expect(cerrado).not.toHaveBeenCalled()

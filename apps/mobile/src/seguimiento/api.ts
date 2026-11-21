@@ -40,9 +40,13 @@ export type ApiSeguimiento = {
   /** Todas las medidas, de la más antigua a la más reciente; rechaza si falta alguna página. */
   medidas: (clienteId: string) => Promise<ListadoMedidas>
   registrarMedida: (clienteId: string, datos: RegistrarMedida) => Promise<Medida>
+  /** Borra una medida que tomó el propio cliente; lo ajeno o ya borrado responde 404. */
+  borrarMedida: (clienteId: string, medidaId: string) => Promise<Medida>
   /** Todas las pruebas, por nombre y fecha; rechaza si falta alguna página. */
   pruebas: (clienteId: string) => Promise<ListadoPruebas>
   registrarPrueba: (clienteId: string, datos: RegistrarPrueba) => Promise<PruebaFisica>
+  /** Igual que `borrarMedida`, para una prueba que anotó el propio cliente. */
+  borrarPrueba: (clienteId: string, pruebaId: string) => Promise<PruebaFisica>
   fuerza: (clienteId: string) => Promise<ProgresionFuerza>
   /** Consentimiento de datos de salud del cliente; solo lectura para su equipo. */
   consentimiento: (clienteId: string) => Promise<EstadoConsentimiento>
@@ -90,6 +94,10 @@ export function crearApiSeguimiento(pedir: PeticionAutenticada): ApiSeguimiento 
         method: "POST",
         body: JSON.stringify(RegistrarMedidaSchema.parse(datos)),
       }),
+    borrarMedida: (clienteId, medidaId) =>
+      pedir(`${base(clienteId)}/medidas/${encodeURIComponent(medidaId)}`, MedidaSchema, {
+        method: "DELETE",
+      }),
     pruebas: async (clienteId) => {
       const { filas } = await historicoCompleto(
         (cursor) => pedir(pagina(clienteId, "pruebas", cursor), PaginaPruebasSchema),
@@ -102,6 +110,10 @@ export function crearApiSeguimiento(pedir: PeticionAutenticada): ApiSeguimiento 
       pedir(`${base(clienteId)}/pruebas`, PruebaFisicaSchema, {
         method: "POST",
         body: JSON.stringify(RegistrarPruebaSchema.parse(datos)),
+      }),
+    borrarPrueba: (clienteId, pruebaId) =>
+      pedir(`${base(clienteId)}/pruebas/${encodeURIComponent(pruebaId)}`, PruebaFisicaSchema, {
+        method: "DELETE",
       }),
     fuerza: (clienteId) =>
       pedir(

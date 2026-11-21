@@ -51,6 +51,31 @@ describe("activar cuenta", () => {
     expect(mockReplace).toHaveBeenCalledWith("/login")
   })
 
+  it("lleva el correo del enlace, y solo el correo, al login ya escrito", async () => {
+    jest.mocked(activarCuenta).mockResolvedValue(undefined)
+    jest.mocked(useLocalSearchParams).mockReturnValue({
+      token: "token-del-correo",
+      email: "lucia@prueba.local",
+    })
+    await render(<Activar />)
+    await rellenarContrasenas()
+    await fireEvent.press(screen.getByRole("button", { name: "ACTIVAR MI CUENTA" }))
+    await screen.findByText("Cuenta activada")
+    await fireEvent.press(screen.getByRole("button", { name: "ENTRAR" }))
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: "/login",
+      params: { email: "lucia@prueba.local" },
+    })
+    expect(JSON.stringify(mockReplace.mock.calls)).not.toContain(CONTRASENA)
+  })
+
+  it("ignora un correo del enlace que no lo es", async () => {
+    jest.mocked(useLocalSearchParams).mockReturnValue({ token: "t", email: "no-es-un-correo" })
+    await render(<Activar />)
+    await fireEvent.press(screen.getByRole("button", { name: "VOLVER A ENTRAR" }))
+    expect(mockReplace).toHaveBeenCalledWith("/login")
+  })
+
   it("con un enlace que ya no sirve explica el motivo y deja una salida", async () => {
     jest.mocked(activarCuenta).mockRejectedValue(new ErrorDelServidor(400))
     await render(<Activar />)
@@ -134,6 +159,40 @@ describe("entrar", () => {
         expect(entrar).not.toHaveBeenCalled()
       },
     )
+  })
+
+  it("explica que la cuenta la crea el entrenador", async () => {
+    jest.mocked(useLocalSearchParams).mockReturnValue({})
+    jest.mocked(useSesion).mockReturnValue({
+      entrar: jest.fn(),
+      sesionCaducada: false,
+    } as unknown as ReturnType<typeof useSesion>)
+    await render(<Login />)
+    expect(screen.getByText(/Tu entrenador crea tu cuenta/)).toBeOnTheScreen()
+  })
+
+  it("trae el correo ya escrito tras activar la cuenta y nunca la contraseña", async () => {
+    jest.mocked(useLocalSearchParams).mockReturnValue({
+      email: "lucia@prueba.local",
+      contrasena: "no-debe-aparecer",
+    })
+    jest.mocked(useSesion).mockReturnValue({
+      entrar: jest.fn(),
+      sesionCaducada: false,
+    } as unknown as ReturnType<typeof useSesion>)
+    await render(<Login />)
+    expect(screen.getByLabelText("Correo")).toHaveProp("value", "lucia@prueba.local")
+    expect(screen.getByLabelText("Contraseña")).toHaveProp("value", "")
+  })
+
+  it("no escribe en el campo un parámetro de correo que no lo es", async () => {
+    jest.mocked(useLocalSearchParams).mockReturnValue({ email: "<script>" })
+    jest.mocked(useSesion).mockReturnValue({
+      entrar: jest.fn(),
+      sesionCaducada: false,
+    } as unknown as ReturnType<typeof useSesion>)
+    await render(<Login />)
+    expect(screen.getByLabelText("Correo")).toHaveProp("value", "")
   })
 
   it("permite ver y ocultar la contraseña sin perder lo escrito", async () => {
