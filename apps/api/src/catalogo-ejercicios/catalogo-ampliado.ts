@@ -1,7 +1,7 @@
 import type { CrearEjercicio, GrupoMuscular } from "@alpha-omega/shared"
 
 export type CategoriaAmpliacion =
-  "rutina" | "alternativas" | "movilidad" | "estiramientos" | "basicos"
+  "rutina" | "alternativas" | "movilidad" | "estiramientos" | "basicos" | "biblioteca"
 export type EntradaCatalogoAmpliado = CrearEjercicio & {
   equivalentes?: string[]
   categoria: CategoriaAmpliacion
